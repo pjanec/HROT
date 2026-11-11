@@ -41,5 +41,18 @@ namespace Hrot.Presentation.Tests.Gizmos
                 g => g.Repo.SetComponent(g.Ents[3], new BehaviorState { ActiveBehaviorHash = 12345 }),   // an active behaviour appears: row 40 "?"
                 g => g.Repo.SetComponent(g.Ents[0], new IsEmbarkedTag { Exposed = 0 }));                  // an exposed rider becomes enclosed: no card
         }
+    
+        [Fact]
+        public void HealthBarGizmo_GatedPictureEqualsTheUngatedOne()
+        {
+            var settings = new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry();
+            var rig = new GatedRuleRig(new Hrot.Common.Diagnostics.Gizmos.HealthBarGizmo(settings),
+                r => { Common(r); r.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>(); },
+                (r, i) => { var e = Basic(r, i); r.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 10, Max = 10 }); return e; });
+            rig.Standard(
+                g => g.Repo.SetComponent(g.Ents[2], new Fdp.Toolkit.Combat.Components.Health { Current = 3, Max = 10 }),   // a value
+                g => settings.Write(Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry.ComputeHash(Hrot.Common.Diagnostics.Gizmos.HealthBarGizmoSettings.BarHeightKey),
+                                    Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingValue.From(9f)));                      // the setting
+        }
     }
 }

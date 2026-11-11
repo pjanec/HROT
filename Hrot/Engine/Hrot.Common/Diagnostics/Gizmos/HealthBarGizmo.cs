@@ -21,9 +21,14 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
         private readonly GizmoSettingsRegistry _settings;
 
+        /// <summary>⭐ CE-1480 G5 — the picture reads <c>Health</c> (current / max), <c>NetworkIdentity</c> (the card id) and ONE setting (the bar height, via the
+        /// registry's <c>Version</c>). Nothing time-varying, not view-dependent. Held while none moved.</summary>
+        public GizmoInputs? Inputs { get; }
+
         public HealthBarGizmo(GizmoSettingsRegistry settings)
         {
             _settings = settings;
+            Inputs = new GizmoInputs(false, () => settings.Version, typeof(Health), typeof(NetworkIdentity));
             HealthBarGizmoSettings.Register(settings);
         }
 
