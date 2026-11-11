@@ -47,6 +47,7 @@ public sealed class TerrainResidency
         internal bool               HasRoadNetwork;
         internal string?            TerrainName;
         internal DateTime           FileTimestamp;
+        internal string?            BaseHash;        // ⭐ O-8 — the base terrain's content hash, known when an overlay is merged
         internal string?            OverlayFolder;   // ⭐ O-4 — the CONTENT HASH of the overlay merged into World, if any
         internal Fdp.Toolkit.Navigation.INavmeshProvider? Navmesh;
         internal Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider? Cover;
@@ -116,6 +117,9 @@ public sealed class TerrainResidency
     public TerrainCatalog Catalog => _catalog;
 
     public string? ResidentTerrainName => _lastLoadedTerrainName;
+
+    /// <summary>⭐ O-8 (CE-4420) — the content hash of the overlay merged into the resident terrain, or null.</summary>
+    public string? ResidentOverlayHash => _lastLoadedOverlay;
 
     /// <summary>
     /// ⭐⭐ <b>W6 — make this node bake a navmesh from every terrain it loads</b> (docs/DESIGN_Terrain_World.md §4.1).
@@ -231,6 +235,7 @@ public sealed class TerrainResidency
                 // ⭐ O-4 (C-5) — an overlay is bound to the base it was compiled against, by CONTENT: a name stands for nothing
                 var header = TerrainOverlayHeader.Parse(File.ReadAllText(Path.Combine(overlayFolder, TerrainOverlayHeader.FileName)), overlayFolder);
                 string actualBase = TerrainContentHash.OfTerrain(definitionPath);
+                staged.BaseHash = actualBase;
                 if (!string.Equals(actualBase, header.BaseHash, StringComparison.Ordinal))
                     throw new InvalidOperationException(
                         $"[Terrain] The overlay '{overlayFolder}' was compiled against terrain '{header.BaseName}' with content hash '{header.BaseHash}', but the resident terrain '{terrainName}' "
@@ -322,6 +327,8 @@ public sealed class TerrainResidency
         world.RegisterManagedComponent<TerrainDefinition>();
         // ⭐ CE-3015 — remember the name the scenario resolved it by, so a save writes it back.
         staged.Definition!.ResolvedName = staged.TerrainName ?? string.Empty;
+        staged.Definition.ResolvedOverlayHash = staged.OverlayFolder ?? string.Empty;   // ⭐ O-8 — stamped into a recording's metadata
+        staged.Definition.ResolvedBaseHash = staged.OverlayFolder != null ? staged.BaseHash ?? string.Empty : string.Empty;
         world.SetSingletonManaged(staged.Definition!);
         Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the commit's stages report (docs/DESIGN_Cluster_Load_Phase.md §12)
 

@@ -1430,6 +1430,195 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.False(world.GetSingleton<global::CarKinem.Road.ZoneEnvironmentData>().RoadNetwork.Nodes.IsCreated);
     }
 
+    // ── O-8 (CE-4420) — the recording's terrain ADDITIONS (overlay by hash) and static obstacles in the Browser ───────────────────
+
+    private const string Hut = """{"footprint":[[0,0],[10,0],[10,8],[0,8]],"storeys":[{"height":3,"walls":[{"from":[0,0],"to":[10,0],"openings":[{"kind":"door","at":4.4,"width":1.2,"doorId":"front"}]},{"from":[10,0],"to":[10,8]},{"from":[10,8],"to":[0,8]},{"from":[0,8],"to":[0,0]}]}]}""";
+
+    /// <summary>A catalog root holding terrain <c>base-t</c> (one wall-less box building "B") and an overlay of one house "ov/0" under <c>overlays/&lt;hash&gt;</c>; returns (root, overlay hash, base hash).</summary>
+    private (string Root, string OverlayHash, string BaseHash) MakeTerrainWithOverlay(string overlayBaseHash = null)
+    {
+        string root = Path.Combine(_tempDir, "terrains-" + Guid.NewGuid().ToString("N")[..6]);
+        string folder = Path.Combine(root, "base-t");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "terrain.json"), """{"schemaVersion":2,"world":"w.geojson"}""");
+        File.WriteAllText(Path.Combine(folder, "w.geojson"), """
+            {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,200,200],"groundZ":0},"features":[
+              {"type":"Feature","properties":{"kind":"building","label":"B","height":5},"geometry":{"type":"Polygon","coordinates":[[[10,10],[20,10],[20,20],[10,20],[10,10]]]}}]}
+            """);
+        string baseHash = Fdp.Toolkit.Terrain.TerrainContentHash.OfTerrain(Path.Combine(folder, "terrain.json"));
+        string tmp = Path.Combine(root, "ovl-build"); Directory.CreateDirectory(tmp);
+        File.WriteAllText(Path.Combine(tmp, "overlay.world.geojson"), """
+            {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,200,200],"groundZ":0},"features":[
+              {"type":"Feature","properties":{"kind":"building","label":"ov/0","name":"","building":HUT},"geometry":{"type":"Point","coordinates":[100,100]}}]}
+            """.Replace("HUT", Hut));
+        string bh = overlayBaseHash ?? baseHash;
+        string hash = Fdp.Toolkit.Terrain.TerrainContentHash.OfOverlay(tmp, bh);
+        File.WriteAllText(Path.Combine(tmp, "overlay.json"), $"{{\"format\":1,\"contentHash\":\"{hash}\",\"base\":{{\"name\":\"base-t\",\"contentHash\":\"{bh}\"}},\"scenario\":\"s\",\"world\":\"overlay.world.geojson\"}}");
+        Directory.CreateDirectory(Path.Combine(root, "overlays"));
+        Directory.Move(tmp, Path.Combine(root, "overlays", hash));
+        return (root, hash, baseHash);
+    }
+
+    /// <summary>One keyframe of a world whose terrain definition carries the overlay (so <c>StampWorld</c> writes it into the metadata), optionally with one static obstacle.</summary>
+    private string RecordWithOverlay(string file, string overlayHash, string baseHash, bool obstacle = false)
+    {
+        string path = Path.Combine(_tempDir, file);
+        var meta = new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()), NodeId = (Fdp.Core.NodeId)(1) };
+        using var repo = new EntityRepository();
+        repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainDefinition>();
+        repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainDefinition { ResolvedName = "base-t", ResolvedOverlayHash = overlayHash, ResolvedBaseHash = baseHash });
+        if (obstacle)
+        {
+            repo.RegisterComponent<Fdp.Toolkit.Terrain.StaticObstacle>(); repo.RegisterComponent<Fdp.Toolkit.Terrain.ObstacleShape>(); repo.RegisterComponent<Fdp.Core.SimTransform>();
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new Fdp.Toolkit.Terrain.StaticObstacle { Material = new Fdp.Core.FixedString32("concrete") });
+            repo.AddComponent(e, new Fdp.Toolkit.Terrain.ObstacleShape { Length = 4f, Width = 2f, Height = 1.5f });
+            repo.AddComponent(e, new Fdp.Core.SimTransform { Position = new System.Numerics.Vector3(150f, 150f, 0f), Rotation = System.Numerics.Quaternion.Identity });
+        }
+        using (var rec = new AsyncRecorder(path, meta))
+        {
+            Fdp.Toolkit.Replay.RecorderTickSystem.StampWorld(repo, rec.Metadata);
+            rec.CaptureKeyframe(repo, 1_000_000L, blocking: true, eventBus: repo.Bus);
+        }
+        return path;
+    }
+
+    /// <summary>
+    /// ⭐ O-8 — a recording whose metadata names an overlay opens with the overlay's house in the Browser's terrain world (the recorder stamped <c>OverlayHash</c> / <c>TerrainHash</c> from the
+    /// terrain definition), no warning. 🔴 Red-proof: the Browser calling <c>Prepare(name)</c> without the folder ⇒ the house is missing.
+    /// </summary>
+    [Fact]
+    public void O8_ARecordingThatNamesAnOverlay_OpensWithTheOverlaysHouses()
+    {
+        var (root, hash, baseHash) = MakeTerrainWithOverlay();
+        string path = RecordWithOverlay("ov.fdp", hash, baseHash);
+        var written = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(path + ".meta.json"));
+        Assert.Equal(hash, written.OverlayHash); Assert.Equal(baseHash, written.TerrainHash); Assert.Equal("base-t", written.TerrainName);
+
+        _subsystem.TerrainCatalog = new Fdp.Toolkit.Terrain.TerrainCatalog(new[] { root });
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.LoadFdpViaManager(path);
+        var terrain = _subsystem.ActiveRepo!.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>();
+        Assert.Contains(terrain.Buildings, b => b.Label == "ov/0");
+        Assert.Single(terrain.Prisms, p => p.Label == "B");   // the base is still there, unchanged
+        Assert.Null(_subsystem.TerrainWarning);
+    }
+
+    /// <summary>⭐ O-8 — an overlay that is NOT on this machine: the Browser opens on the base terrain, says so (a clear warning naming the hash), and plays. 🔴 Red-proof: drop the warning ⇒ red.</summary>
+    [Fact]
+    public void O8_AnOverlayMissingOnThisMachine_OpensOnTheBase_WithAWarning()
+    {
+        var (root, hash, baseHash) = MakeTerrainWithOverlay();
+        Directory.Delete(Path.Combine(root, "overlays"), recursive: true);
+        string path = RecordWithOverlay("gone.fdp", hash, baseHash);
+        _subsystem.TerrainCatalog = new Fdp.Toolkit.Terrain.TerrainCatalog(new[] { root });
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.LoadFdpViaManager(path);
+        Assert.Equal("base-t", _subsystem.ResidentTerrainName);
+        var terrain = _subsystem.ActiveRepo!.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>();
+        Assert.DoesNotContain(terrain.Buildings, b => b.Label == "ov/0");
+        Assert.Single(terrain.Prisms, p => p.Label == "B");
+        Assert.NotNull(_subsystem.TerrainWarning);
+        Assert.Contains(hash, _subsystem.TerrainWarning);
+        Assert.Contains("not available on this machine", _subsystem.TerrainWarning);
+    }
+
+    /// <summary>⭐ O-8 — an overlay compiled against ANOTHER base is refused by the residency; the Browser opens on the base with that message as the warning (never a crash).</summary>
+    [Fact]
+    public void O8_AnOverlayForAnotherBase_OpensOnTheBase_WithTheResidencysMessage()
+    {
+        var (root, hash, baseHash) = MakeTerrainWithOverlay(overlayBaseHash: new string('a', 64));
+        string path = RecordWithOverlay("other.fdp", hash, baseHash);
+        _subsystem.TerrainCatalog = new Fdp.Toolkit.Terrain.TerrainCatalog(new[] { root });
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.LoadFdpViaManager(path);
+        Assert.Equal("base-t", _subsystem.ResidentTerrainName);
+        Assert.DoesNotContain(_subsystem.ActiveRepo!.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>().Buildings, b => b.Label == "ov/0");
+        Assert.Contains(baseHash, _subsystem.TerrainWarning); Assert.Contains(new string('a', 64), _subsystem.TerrainWarning);
+    }
+
+    /// <summary>⭐ O-8 — a recording from before the fields (metadata without them) opens exactly as before: no warning, the base terrain.</summary>
+    [Fact]
+    public void O8_OldMetadataWithoutTheFields_OpensAsBefore()
+    {
+        var (root, _, _) = MakeTerrainWithOverlay();
+        string path = RecordNamingTerrain("old.fdp", "base-t");
+        string metaPath = path + ".meta.json";
+        var json = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(metaPath))!.AsObject();
+        foreach (var k in json.Select(kv => kv.Key).Where(k => k.Equals("OverlayHash", StringComparison.OrdinalIgnoreCase) || k.Equals("TerrainHash", StringComparison.OrdinalIgnoreCase)).ToList()) json.Remove(k);
+        File.WriteAllText(metaPath, json.ToJsonString());
+        _subsystem.TerrainCatalog = new Fdp.Toolkit.Terrain.TerrainCatalog(new[] { root });
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.LoadFdpViaManager(path);
+        Assert.Equal("base-t", _subsystem.ResidentTerrainName);
+        Assert.Null(_subsystem.TerrainWarning);
+        Assert.Single(_subsystem.ActiveRepo!.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>().Prisms);
+    }
+
+    /// <summary>
+    /// ⭐ O-8 (§17 G-7) — a recorded static obstacle appears in the Browser's terrain world (the node's collector over the replayed world, laid over the base once per load / seek; the base
+    /// terrain itself is untouched). 🔴 Red-proof: skip <c>BakeRecordedObstacles</c> ⇒ the obstacle prism is missing.
+    /// </summary>
+    [Fact]
+    public void O8_ARecordedStaticObstacle_IsInTheBrowsersTerrainWorld()
+    {
+        var (root, _, _) = MakeTerrainWithOverlay();
+        string path = RecordWithOverlay("obst.fdp", "", "", obstacle: true);
+        _subsystem.TerrainCatalog = new Fdp.Toolkit.Terrain.TerrainCatalog(new[] { root });
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.LoadFdpViaManager(path);
+        var terrain = _subsystem.ActiveRepo!.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>();
+        Assert.Single(terrain.Prisms, p => p.Label!.StartsWith(Fdp.Toolkit.Terrain.TerrainObstacles.LabelPrefix));
+        Assert.Single(terrain.Prisms, p => p.Label == "B");
+    }
+
+    /// <summary>
+    /// ⭐ O-8 HOT PATH (CLAUDE.md, CE-2394 pattern) — with the obstacle set unchanged, <c>BakeRecordedObstacles</c> allocates 0 B per call (it runs on every tick at playback speeds above one frame per tick).
+    /// 🔴 Red-proof: call <c>CollectPrisms</c> before the signature check ⇒ the prisms it allocates per obstacle show as bytes.
+    /// </summary>
+    [Fact]
+    public void O8_BakeRecordedObstacles_AllocatesNothing_WhileTheSetIsUnchanged()
+    {
+        var (root, _, _) = MakeTerrainWithOverlay();
+        _subsystem.TerrainCatalog = new Fdp.Toolkit.Terrain.TerrainCatalog(new[] { root });
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.LoadFdpViaManager(RecordWithOverlay("alloc.fdp", "", "", obstacle: true));
+        for (int i = 0; i < 5; i++) _subsystem.BakeRecordedObstacles();   // warm: the first bake, the query, the JIT
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 20; i++) _subsystem.BakeRecordedObstacles();
+        long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(bytes == 0, $"a steady BakeRecordedObstacles allocated {bytes} B over 20 calls");
+    }
+
+    /// <summary>⭐ O-8 — moving one obstacle by 5 cm moves <c>SignatureOfWorld</c> and the next <c>BakeRecordedObstacles</c> REBAKES the displayed terrain (the prism follows); an unmoved obstacle does not.</summary>
+    [Fact]
+    public void O8_AnObstacleMovedBy5cm_ChangesTheSignature_AndRebakesTheWorld()
+    {
+        var (root, _, _) = MakeTerrainWithOverlay();
+        _subsystem.TerrainCatalog = new Fdp.Toolkit.Terrain.TerrainCatalog(new[] { root });
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.LoadFdpViaManager(RecordWithOverlay("move.fdp", "", "", obstacle: true));
+        var repo = _subsystem.ActiveRepo!;
+        var probe = new Hrot.Map.Common.Services.ObstacleSignatureProbe();
+        ulong before = Hrot.Map.Common.Services.StaticObstacleBakeSystem.SignatureOfWorld(repo, probe);
+        Assert.Equal(before, Hrot.Map.Common.Services.StaticObstacleBakeSystem.SignatureOfWorld(repo, probe));   // stable
+        var first = repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>();
+        var minX = first.Prisms.Single(p => p.Label!.StartsWith(Fdp.Toolkit.Terrain.TerrainObstacles.LabelPrefix)).Min.X;
+
+        Fdp.Core.Entity e = default;
+        foreach (var x in repo.Query().With<Fdp.Toolkit.Terrain.StaticObstacle>().With<Fdp.Core.SimTransform>().WithLifecycle(Fdp.Core.EntityLifecycle.All).Build()) e = x;
+        var t = repo.GetComponentRO<Fdp.Core.SimTransform>(e);
+        repo.SetComponent(e, new Fdp.Core.SimTransform { Position = t.Position + new System.Numerics.Vector3(0.05f, 0f, 0f), Rotation = t.Rotation });
+
+        Assert.NotEqual(before, Hrot.Map.Common.Services.StaticObstacleBakeSystem.SignatureOfWorld(repo, probe));
+        _subsystem.BakeRecordedObstacles();
+        var second = repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>();
+        Assert.NotSame(first, second);
+        Assert.Equal(minX + 0.05f, second.Prisms.Single(p => p.Label!.StartsWith(Fdp.Toolkit.Terrain.TerrainObstacles.LabelPrefix)).Min.X, 3);
+        _subsystem.BakeRecordedObstacles();
+        Assert.Same(second, repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>());   // unchanged again: no rebuild
+    }
+
     // ── RB-1 (docs/DESIGN_Replay_Browser_Debug_Http.md) — the shared debug members, filled over the federation ────────────────
 
     /// <summary>

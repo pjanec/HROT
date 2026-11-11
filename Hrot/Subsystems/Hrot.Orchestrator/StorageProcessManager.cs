@@ -230,6 +230,13 @@ public sealed class StorageProcessManager
         {
             var terrains = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(localStagingRoot: null, nasRoot: _nasBasePath);
             var r = Fdp.Toolkit.Terrain.OverlayCompiler.Compile(canonical, scenarioDir, terrains.ResolveDefinition);
+            if (r.Wrote && r.Folder != null && r.ContentHash != null)
+            {
+                // ⭐ O-8 (CE-4420) — also kept BY HASH beside the terrains on the NAS ({nas}/assets/terrain/overlays/<hash>), so a recording that names the overlay can load it later
+                //   (the Replay Browser's catalog reads the NAS root), long after the scenario was edited again
+                new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync().Sync(r.Folder, Path.Combine(ContentLayout.TerrainAssets(_nasBasePath),
+                    Fdp.Toolkit.Terrain.TerrainCatalog.OverlaysDirectoryName, r.ContentHash));
+            }
             if (r.Wrote)
                 FdpLog<StorageProcessManager>.Info(
                     $"[StorageProcessManager] compiled the terrain overlay of '{scenarioName}': {r.Blocks} block(s), {r.Houses} house(s), {r.Woods} wood(s), hash {r.ContentHash}.");

@@ -781,6 +781,43 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     internal Fdp.Toolkit.Terrain.TerrainCatalog TerrainCatalog { get; set; } = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(
         localStagingRoot: null, Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedRoot());
 
+    /// <summary>⭐ O-8 — what is wrong with the recording's terrain additions on this machine (a missing or mismatched overlay), or null; the panels show it. The browser still opens on the base terrain.</summary>
+    public string? TerrainWarning { get; private set; }
+
+    private void Warn(string message)
+    {
+        TerrainWarning = message;
+        Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Warn($"[ReplayBrowser] {message}");
+    }
+
+    // ⭐ O-8 (G-7) — the recording's static obstacles, baked into the DISPLAYED terrain once per seek (never per frame): what the cluster's StaticObstacleBakeSystem does live
+    private readonly List<Fdp.Toolkit.Terrain.TerrainPrism> _obstaclePrisms = new();
+    private ulong _obstacleSignature;
+    private readonly Hrot.Map.Common.Services.ObstacleSignatureProbe _obstacleProbe = new();
+    private EntityRepository? _obstacleRepo;
+    private Fdp.Toolkit.Terrain.TerrainWorld? _obstacleBase;
+
+    /// <summary>
+    /// ⭐ O-8 (CE-4420, §17 G-7) — lays the static obstacles the replayed world holds over the displayed terrain: <c>TerrainObstacles.With(base, prisms)</c> through the node's own collector
+    /// (<see cref="Hrot.Map.Common.Services.StaticObstacleBakeSystem.CollectPrisms"/>). Called when the shown frame JUMPS (a load, a seek: the world is swapped), so a steady frame does nothing and
+    /// allocates nothing; a set that did not change (same obstacles, same base, same repo) rebuilds nothing. ⚠ Obstacles that appear during uninterrupted playback join at the next seek.
+    /// The bake is the cheap world-only half (no navmesh, no cover): the browser only draws.
+    /// </summary>
+    internal void BakeRecordedObstacles()
+    {
+        var repo = _activeRepo;
+        if (repo == null || !_terrainCarrier.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()) return;
+        var baseWorld = _terrainCarrier.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>();
+        if (baseWorld == null) return;
+        // HOT PATH (0 B per steady frame): the cheap, allocation-free check first; the collector (which allocates a prism per obstacle) only when something changed
+        ulong signature = Hrot.Map.Common.Services.StaticObstacleBakeSystem.SignatureOfWorld(repo, _obstacleProbe);
+        if (ReferenceEquals(repo, _obstacleRepo) && ReferenceEquals(baseWorld, _obstacleBase) && signature == _obstacleSignature) return;
+        Hrot.Map.Common.Services.StaticObstacleBakeSystem.CollectPrisms(repo, _obstaclePrisms);
+        _obstacleRepo = repo; _obstacleBase = baseWorld; _obstacleSignature = signature;
+        repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+        repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainObstacles.With(baseWorld, _obstaclePrisms));   // no obstacles ⇒ the base itself
+    }
+
     /// <summary>The name of the terrain the browser holds, or null (test seam).</summary>
     internal string? ResidentTerrainName => _terrain?.ResidentTerrainName;
 
@@ -794,18 +831,38 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         if (_manager == null) return;
         _terrain ??= new Hrot.Map.Common.Services.TerrainResidency(TerrainCatalog, _terrainRoads);
 
-        string? name = null;
+        string? name = null, overlayHash = null;
+        TerrainWarning = null;
         if (_manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var primary))
+        {
             name = primary.Playback?.Metadata?.TerrainName;
+            overlayHash = primary.Playback?.Metadata?.OverlayHash;
+        }
         if (string.IsNullOrEmpty(name))
             foreach (var ctx in _manager.Contexts.Values)
-                if (!string.IsNullOrEmpty(name = ctx.Playback?.Metadata?.TerrainName)) break;
+                if (!string.IsNullOrEmpty(name = ctx.Playback?.Metadata?.TerrainName)) { overlayHash = ctx.Playback?.Metadata?.OverlayHash; break; }
 
         if (string.IsNullOrEmpty(name))
             Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Info(
                 "[ReplayBrowser] the recording names no terrain — the map shows none.");
+        // ⭐ O-8 (CE-4420) — the recording's terrain ADDITIONS, by content hash: found in the node's staging or on the NAS, else the base opens with a clear warning (never a crash, never a fake).
+        string? overlayFolder = null;
+        if (!string.IsNullOrEmpty(overlayHash) && !string.IsNullOrEmpty(name))
+        {
+            overlayFolder = TerrainCatalog.ResolveOverlay(overlayHash);
+            if (overlayFolder == null)
+                Warn($"this recording's terrain additions {overlayHash} are not available on this machine — the map shows the base terrain '{name}' only.");
+        }
         try
         {
+            if (overlayFolder != null)
+            {
+                try { _terrain.Commit(_terrainCarrier, _terrain.Prepare(name, overlayFolder)); return; }
+                catch (Exception ex) when (ex is System.IO.IOException or System.Text.Json.JsonException or InvalidOperationException or ArgumentException)
+                {
+                    Warn($"this recording's terrain additions {overlayHash} cannot be used here ({ex.Message}) — the map shows the base terrain '{name}' only.");
+                }
+            }
             _terrain.Commit(_terrainCarrier, _terrain.Prepare(string.IsNullOrEmpty(name) ? null : name));
         }
         catch (Exception ex) when (ex is System.IO.IOException or System.Text.Json.JsonException or InvalidOperationException or ArgumentException)

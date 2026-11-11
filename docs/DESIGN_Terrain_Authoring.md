@@ -210,7 +210,7 @@ graph TD
   CGF[CGF node] --> BS[StaticObstacleBakeSystem]
   SIM[SimHost node] --> BS
   ED[Editor - edit and preview] --> BS
-  RB[Replay Browser]:::unknown -.->|not measured| BS
+  RB[Replay Browser - O-8: shared collector, per seek] --> BS
   BS --> RES[TerrainResidency]
   WIZ[Random terrain wizard] --> GEN[TerrainGenerator]
   GEN --> IMP[Importer - TerrainFolderWriter, navmesh prefill]
@@ -218,7 +218,8 @@ graph TD
 ```
 
 *What it shows:* the bake already runs on every simulating host and the editor (rails `CgfSubsystemTests.cs:123`,
-`TheEditorRunsTheOrchestratorCoreTests.cs:278`); ⚠ the separate Replay Browser is **not measured** (dashed). The generator ends in the **existing
+`TheEditorRunsTheOrchestratorCoreTests.cs:278`); ⭐ the separate Replay Browser (O-8, CE-4420) reads the same collector
+(`StaticObstacleBakeSystem.CollectPrisms`) and bakes the replayed obstacles into the displayed world on each load or seek — world only, no navmesh or cover. The generator ends in the **existing
 importer path**, so a random terrain gets the navmesh prefill and the folder layout every imported terrain has.
 
 ## 7. Street clutter — what the generator scatters
@@ -468,7 +469,7 @@ Reviews: simulation / cluster / replay · scale / data / content pipeline · the
 | G-4 | ⛔ **every change rebuilds the WHOLE terrain on every node** | ✔ new world + whole index + whole cover + every navmesh tile re-keyed (`TerrainResidency.cs:510-513`); ≈ 16 s navmesh + 1 s index/cover on scale-1 (`DESIGN_Scale_Rig.md:140-142`); re-fires 0.5 s after any change; the 3-D view rebuilds every chunk on a new world (`TerrainLayer3D.cs:48-57`) | moving one hedge in a town ≈ 17 s and a full 3-D rebuild; a generated town as blocks = a COLD navmesh bake on every node at first load (scale-1 cold 536 s) — far over R-4192's 30 s |
 | G-5 | ✅ **FIXED `2026-11-11` (CE-4419, backend): the terrain module waits without a timeout (`EntityLifecycleModule.WaitWithoutTimeout`)** — was: ⛔ **a slow bake DESTROYS the entities** | ✔ construction timeout 18 000 FRAMES (`EntityCreationPack.cs:75`); a timeout destroys the entity (Peek and Fire §9 O2) | a big town on a fast headless node can exceed it ⇒ its blocks vanish on that node only |
 | G-6 | ⛔ **recipes and terrains are identified by NAME, and B-Q1 / V-3 / V-6 contradict** | B-Q1 "a changed recipe changes every scenario" vs V-3 "a hash mismatch refuses"; `RecordingMetadata.TerrainName` is a name (`RecordingMetadata.cs:79`); asset sync compares length + mtime (Asset Management) | after any recipe edit or terrain re-save, old scenarios refuse or change, and old RECORDINGS replay different houses (paths through walls) |
-| G-7 | **the Replay Browser does not bake** | ✔ no `StaticObstacleBakeSystem` in `ReplayBrowserSubsystem` (0 references); it mirrors the base world only | scenario houses, walls, woods — and today's obstacles — are invisible in replays there |
+| G-7 | ✅ **FIXED `2026-11-11` (CE-4420, backend): the Replay Browser loads the recording's overlay by hash and bakes its obstacles per seek (§18a modules)** — was: **the Replay Browser does not bake** | ✔ no `StaticObstacleBakeSystem` in `ReplayBrowserSubsystem` (0 references); it mirrors the base world only | scenario houses, walls, woods — and today's obstacles — are invisible in replays there |
 | G-8 | **the external engine: the design contradicts itself, and a baked terrain is lost to it** | V-2 "never the houses" vs V-5 / B-7 "the expanded features"; one block = ~40 houses with panels in one descriptor (DIS / HLA has no building type); after *Save terrain* the houses live only in our files | the other engine draws nothing scenario-added, or nothing baked |
 | G-9 | **"Save terrain as" has no writer that can write it** | ✔ `TerrainFolderWriter` writes template houses with `rotation` 0 (`:70-71`), has no slab / ramp / obstacle prism, takes importer inputs, not a `TerrainWorld`; the parser has no clutter kind | rotated houses saved wrong, bridges and clutter dropped; E-3 (add to an imported terrain) has no write path; and §5 (re-point THIS scenario) contradicts W-3 / E-5 (a NEW scenario) |
 | G-10 | **saving to a new folder re-bakes every navmesh tile** | ✔ prefill reads only the new folder (`NavmeshPrefill.cs:22-28`), never the base's tiles | each *Save terrain as* ≈ 9 min cold at 5.5 km |
@@ -680,7 +681,7 @@ sequenceDiagram
   Note over L: ScenarioLoadStep creates door entities from world.Doors (ScenarioLoadStep.cs:264) — overlay doors included, keyed by stable key
 ```
 
-### The modules — who calls what each load *(dashed red = NOT reached today — the dead edges)*
+### The modules — who calls what each load *(⭐ O-8 `2026-11-11`: the two former dead edges are live)*
 
 ```mermaid
 graph TD
@@ -690,13 +691,17 @@ graph TD
   NAS -->|StageNamedArtifacts, every prefetch| ND[(node overlays/hash)]
   ND --> TLS[TerrainLoadStep - Terrain load part, MuscleGround + Brain]
   TLS --> RES[TerrainResidency.Prepare]
-  RB[Replay Browser - Prepare by NAME only, ReplayBrowserSubsystem.cs:809] -.->|O-8 not reached| ND
-  RB -.->|no StaticObstacleBakeSystem - G-7| OBS[runtime obstacles]
-  linkStyle 6 stroke:#c00,stroke-dasharray:4
-  linkStyle 7 stroke:#c00,stroke-dasharray:4
+  OC -->|O-8: also kept by hash, nas/assets/terrain/overlays/hash| NASO[(NAS overlays/hash)]
+  REC[Recording metadata - TerrainName, OverlayHash, TerrainHash] --> RB[Replay Browser - ApplyRecordingTerrain]
+  RB -->|TerrainCatalog.ResolveOverlay: node staging, else NAS| NASO
+  RB --> RES
+  RB -->|on a load / a jump only: SignatureOfWorld, then CollectPrisms| OBS[TerrainObstacles.With - displayed world]
 ```
-*What it shows:* the cluster nodes reach the overlay through the ONE prefetch the terrain already rides; the Replay Browser calls `Prepare(name)` itself and
-reaches neither the overlay nor obstacles — O-8's two edges.
+*What it shows:* the cluster nodes reach the overlay through the ONE prefetch the terrain already rides. The Replay Browser reaches it by the HASH the
+recording stamped (`RecorderTickSystem.StampWorld`), from the copy the master keeps by hash on the NAS — so a recording still finds its additions after
+the scenario was edited again. A missing or mismatched overlay opens the base with `TerrainWarning`, never a crash. Its obstacles go through the node's own
+collector; the allocation-free `SignatureOfWorld` guards it, so a steady or fast-playback frame allocates 0 B (rail `O8_BakeRecordedObstacles_AllocatesNothing_*`).
+⚠ It bakes on a jump, not every frame: an obstacle created during uninterrupted 1× playback appears at the next seek (CE-3434).
 
 | claim the design rests on | code — how it IS | design basis |
 |---|---|---|

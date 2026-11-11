@@ -70,6 +70,12 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         public string ResolvedName { get; set; } = string.Empty;
 
+        /// <summary>⭐ O-8 (CE-4420) — the content hash of the overlay merged into the resident world (empty: none); stamped into a recording's metadata.</summary>
+        public string ResolvedOverlayHash { get; set; } = string.Empty;
+
+        /// <summary>⭐ O-8 — the content hash of the BASE terrain under that overlay (empty when no overlay is resident).</summary>
+        public string ResolvedBaseHash { get; set; } = string.Empty;
+
         /// <summary>
         /// The terrain name resident in <paramref name="world"/> — the scenario's <c>TerrainName</c> to save —
         /// or <c>null</c> when no terrain is loaded.

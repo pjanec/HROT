@@ -178,17 +178,24 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         foreach (var e in batch) Ack(world, e);
     }
 
-    private void Collect(EntityRepository world)
+    private void Collect(EntityRepository world) => CollectPrisms(world, _prisms, _pending);
+
+    /// <summary>
+    /// The static obstacles of <paramref name="world"/> (Active, and still Constructing when <paramref name="pending"/> is given) as terrain prisms. ⭐ O-8 (CE-4420) — the ONE collector: the node's
+    /// bake system and the Replay Browser (which bakes the recording's obstacles into its displayed terrain once per seek) both read the world through it.
+    /// </summary>
+    public static void CollectPrisms(EntityRepository world, List<TerrainPrism> prisms, List<Entity>? pending = null)
     {
-        _prisms.Clear();
-        _pending.Clear();
+        prisms.Clear();
+        pending?.Clear();
+        if (!world.IsComponentTypeRegistered<StaticObstacle>() || !world.IsComponentTypeRegistered<ObstacleShape>()) return;
         var library = (world.HasSingletonManaged<TerrainWorld>() ? world.GetSingletonManaged<TerrainWorld>()?.Materials : null) ?? TerrainMaterialLibrary.Shared;
 
         foreach (var e in world.Query().With<StaticObstacle>().With<ObstacleShape>().With<SimTransform>().WithLifecycle(EntityLifecycle.All).Build())
         {
             var state = world.GetLifecycleState(e);
             if (state != EntityLifecycle.Active && state != EntityLifecycle.Constructing) continue;
-            if (state == EntityLifecycle.Constructing) _pending.Add(e);
+            if (state == EntityLifecycle.Constructing) pending?.Add(e);
 
             ref readonly var t = ref world.GetComponentRO<SimTransform>(e);
             ref readonly var shape = ref world.GetComponentRO<ObstacleShape>(e);
@@ -196,19 +203,49 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
             var material = TerrainObstacles.MaterialOf(library, materialName, out bool known);
             if (!known)
                 FdpLog<StaticObstacleBakeSystem>.Warn($"[Obstacles] {e}: unknown material '{materialName}' — baked as concrete.");
-            _prisms.Add(TerrainObstacles.PrismOf(t.Position, TerrainObstacles.Yaw(t.Rotation), shape, material,
+            prisms.Add(TerrainObstacles.PrismOf(t.Position, TerrainObstacles.Yaw(t.Rotation), shape, material,
                 TerrainObstacles.LabelPrefix + e.Index));
         }
     }
 
-    private ulong Signature()
+    /// <summary>
+    /// ⭐ O-8 (CE-4420) — the hash of the obstacle set read STRAIGHT FROM THE COMPONENTS, allocating nothing (HOT PATH: the Replay Browser asks it on every tick at playback speeds above one frame per tick):
+    /// per Active / Constructing obstacle the position at 1 cm, the yaw, the <see cref="ObstacleShape"/> and the material's hash. It moves when the set an obstacle bake would see moves (an obstacle added, removed,
+    /// moved by ≥ a few cm, reshaped, re-materialled) and is stable otherwise; ⚠ it is NOT numerically equal to <see cref="SignatureOf"/> (it hashes the inputs, that hashes the derived footprint), and the node's own
+    /// system keeps <see cref="SignatureOf"/>. Pass a <paramref name="probe"/> held across calls so the query is built once per world.
+    /// </summary>
+    public static ulong SignatureOfWorld(EntityRepository world, ObstacleSignatureProbe? probe = null)
+    {
+        ulong h = EmptySignature;
+        if (!world.IsComponentTypeRegistered<StaticObstacle>() || !world.IsComponentTypeRegistered<ObstacleShape>()) return h;
+        var query = (probe ??= new ObstacleSignatureProbe()).QueryOf(world);
+        void Mix(long v) { h ^= (ulong)v; h *= 1099511628211UL; }
+        void MixF(float f) => Mix((long)MathF.Round(f * 100f));
+        foreach (var e in query)
+        {
+            var state = world.GetLifecycleState(e);
+            if (state != EntityLifecycle.Active && state != EntityLifecycle.Constructing) continue;
+            ref readonly var t = ref world.GetComponentRO<SimTransform>(e);
+            ref readonly var shape = ref world.GetComponentRO<ObstacleShape>(e);
+            MixF(t.Position.X); MixF(t.Position.Y); MixF(t.Position.Z);
+            Mix((long)MathF.Round(TerrainObstacles.Yaw(t.Rotation) * 1000f));
+            MixF(shape.Length); MixF(shape.Width); MixF(shape.Height);
+            Mix(world.GetComponentRO<StaticObstacle>(e).Material.GetHashCode());
+        }
+        return h;
+    }
+
+    private ulong Signature() => SignatureOf(_prisms);
+
+    /// <summary>The hash of an obstacle set (FNV-1a over geometry and material, 1 cm quantised) — what "the set changed" means for the bake and for the Replay Browser.</summary>
+    public static ulong SignatureOf(List<TerrainPrism> prisms)
     {
         // FNV-1a over every prism's identity and geometry, in query order (stable within a world).
         // ⭐ Quantised to 1 cm: a REPLICA's position arrives through the geo transform with float noise (105.000015), and an
         //   exact-bits hash re-baked the world on every position refresh — measured live on bt-window-duel (~150 bakes, CE-3136 P-8).
         ulong h = EmptySignature;
         void Mix(float f) { h ^= (ulong)(long)MathF.Round(f * 100f); h *= 1099511628211UL; }
-        foreach (var p in _prisms)
+        foreach (var p in prisms)
         {
             foreach (var v in p.Footprint) { Mix(v.X); Mix(v.Y); }
             Mix(p.BaseZ); Mix(p.TopZ);
@@ -220,4 +257,21 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
 
     private static void Ack(EntityRepository world, Entity e)
         => world.Bus.Publish(new ConstructionAck { Entity = e, ModuleId = TerrainObstacles.LifecycleModuleId, Success = true });
+}
+
+/// <summary>⭐ O-8 — the cached obstacle query of <see cref="StaticObstacleBakeSystem.SignatureOfWorld"/>: built once per world (a query object allocates), reused while the world is the same.</summary>
+public sealed class ObstacleSignatureProbe
+{
+    private EntityRepository? _for;
+    private EntityQuery? _query;
+
+    internal EntityQuery QueryOf(EntityRepository world)
+    {
+        if (!ReferenceEquals(world, _for) || _query == null)
+        {
+            _query = world.Query().With<StaticObstacle>().With<ObstacleShape>().With<SimTransform>().WithLifecycle(EntityLifecycle.All).Build();
+            _for = world;
+        }
+        return _query;
+    }
 }
