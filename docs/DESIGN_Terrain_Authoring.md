@@ -2,8 +2,8 @@
 state: LIVE
 build-state: DESIGN — R-4198…R-4201 ruled; ⭐ the S-0 MOCKUPS ✅ approved (§15, R-4203); L-1…L-7 ✅ approved (R-4202, L-2 amended); §16 the wizard → editor step and cluster sync ✅ (R-4203)
 updated: 2026-11-11
-current-answer: ⭐⭐ §17 THE CRITICAL REVIEW — 15 gaps and one architectural fork (F-1) that must be decided before S-1 · §16 wizard → editor, cluster sync (leans) · §15 the mockups (S-0) · §14 editing a baked terrain again, non-terrain entities in a source (leans E-1…E-6) · §13 the workflow (✅ R-4200) · §12 the random terrain = an empty surface + placed blocks (✅ R-4200) · §11 the user's view (blocks as RECIPE assets through Add Entity — ✅ APPROVED R-4199) · §2 the model (one feature vocabulary, three uses) · §3 decisions · §4–§6 diagrams · §7 street clutter · §8 rivers and bridges · §9 slices · §10 not yet measured
-stale-below: nothing
+current-answer: ⭐⭐⭐ §18 THE COMPILED MODEL (R-4204 — supersedes §5 and §16 V-2…V-6) · §17 the critical review (15 gaps → tracker CE-4415…CE-4426) · §16 wizard → editor, cluster sync (leans) · §15 the mockups (S-0) · §14 editing a baked terrain again, non-terrain entities in a source (leans E-1…E-6) · §13 the workflow (✅ R-4200) · §12 the random terrain = an empty surface + placed blocks (✅ R-4200) · §11 the user's view (blocks as RECIPE assets through Add Entity — ✅ APPROVED R-4199) · §2 the model (one feature vocabulary, three uses) · §3 decisions · §4–§6 diagrams · §7 street clutter · §8 rivers and bridges · §9 slices · §10 not yet measured
+stale-below: §5's sequences and §16's V-2…V-6 (expand on every node at load) are SUPERSEDED by §18 (R-4204, compile at save) — kept for the reasoning, ⛔ not to be built
 related-designs:
   - DESIGN_Peek_And_Fire.md — §9 P-7a OWNS the mechanism this extends: a scenario entity that IS terrain, baked on every node, lifecycle-gated (R-242, R-243, R-244)
   - DESIGN_Terrain_Import_UTM.md — §8 destruction (breaches and collapses ride the same bake), §10 the input set, §11 the importer and its terrain folder writer, CE-4403 flattening under buildings
@@ -167,7 +167,7 @@ classDiagram
 **one** place a feature becomes terrain-world parts — the bake, "Save terrain as" and the generator all call it.
 ⚠ The shape component's fixed capacity (vertices per fence / wood) is a §10 measurement — a recorded component is unmanaged (CLAUDE.md).
 
-## 5. Sequences
+## 5. Sequences *(⛔ SUPERSEDED by §18, R-4204 — the bake no longer expands blocks on every node; kept for the reasoning)*
 
 **A scenario with features loads (and a replay starts)** — the obstacle bake as built, with the expander added:
 
@@ -414,7 +414,7 @@ carries what is needed to edit it again; *Edit terrain* always reopens the whole
 ⚠ Scope (R-4151): the editor, the menu bar and the picker's existing groups are drawn as dimmed or plain CONTEXT and are unchanged. Clutter tiles
 show glyphs where the real tiles will be model renders (the thumbnail atlas).
 
-## 16. From the wizard to the editor, and the same terrain on every node *(✅ V-1…V-6 approved `2026-11-11`, R-4203)*
+## 16. From the wizard to the editor, and the same terrain on every node *(✅ V-1…V-6 approved `2026-11-11`, R-4203 — ⛔ V-2…V-6 SUPERSEDED the same day by §18, R-4204: compile at save; V-1 stands)*
 
 🔒 User, `2026-11-11`: *"How will we get from the wizard to the editor? … In a cluster, when the scenario contains this terrain stuff, how will we
 make sure that the others will receive the same stuff so they can bake the terrain features into their own 3D map and terrain representations?"*
@@ -504,6 +504,95 @@ graph LR
 | save terrain (G-9) | a second writer | the overlay IS the terrain's own format; *Save terrain as* = base + overlay |
 | cost | — | an overlay file per scenario (binary — ⛔ not in git; NAS / content root, like real terrains); the editor still needs a small LIVE bake for edits; runtime-placed obstacles keep today's entity bake |
 
-**Lean F-1: compile at save.** It reverses part of R-4203 (V-2…V-6: "every node expands it itself") — ⇒ **the user decides**.
+**F-1 ✅ DECIDED `2026-11-11`: compile at save** (R-4204) — see §18.
 Either way G-2, G-3, G-5, G-12, G-13, G-14 need their own fixes (a general world merge with doors; a wall-clock timeout; a road-net
 patch; a conflict check against the missions on a re-saved terrain; content outside git).
+
+## 18. ⭐ The compiled model — build once at save, load everywhere *(✅ R-4204 `2026-11-11`; supersedes §5 and §16 V-2…V-6)*
+
+🔒 User, `2026-11-11`: *"approved, compile at save. Orchestrator can make sure the compiled saved stuff gets distributed to nas and to other nodes in
+the cluster"*.
+
+```mermaid
+sequenceDiagram
+  actor U as Author
+  participant E as Editor
+  participant C as OverlayCompiler
+  participant P as Asset publish
+  participant NAS as NAS
+  participant O as Orchestrator
+  participant N as Every node
+  U->>E: Save scenario
+  E->>C: blocks, features, scatters of this scenario
+  C->>C: expand once, canonical order, stable keys, merge parts, bake the touched navmesh tiles seeded from the base
+  C-->>E: overlay folder beside the scenario, with its content hash
+  E->>P: publish the scenario and its overlay
+  P->>NAS: upload
+  U->>O: load the scenario on the cluster
+  O->>N: sync the terrain, the scenario and its overlay from the NAS before the load
+  N->>N: load base terrain plus overlay - no expansion, no cold bake
+  N->>N: create door entities for the overlay houses, by stable key
+```
+
+*What the picture shows:* the expensive and non-deterministic work (expanding recipes, fitting, merging, navmesh) happens ONCE, on the authoring
+node, at save; every other consumer only LOADS bytes. Distribution is the existing asset path (Asset Management §4 NAS → node before a load,
+§5 node → NAS publish), now carrying one more part.
+
+```mermaid
+classDiagram
+  class OverlayCompiler {
+    <<new, editor side>>
+    Compile(scenario, baseTerrain) Overlay
+  }
+  class FeatureExpander {
+    <<new, pure>>
+    Expand(feature) parts
+  }
+  class TerrainOverlay {
+    <<new, a folder beside the scenario>>
+    parts in canonical order
+    stable keys
+    navtiles
+    contentHash
+    baseTerrainHash
+  }
+  class TerrainWorldMerge {
+    <<new, replaces TerrainObstacles.With for overlays>>
+    Merge(base, overlay) TerrainWorld
+  }
+  class TerrainResidency {
+    <<existing, extended>>
+    LoadOverlay(overlay)
+  }
+  class LiveEditBake {
+    <<new, editor only>>
+    rebakes the changed area while authoring
+  }
+  class StaticObstacleBakeSystem {
+    <<existing, unchanged>>
+    runtime-placed obstacles
+  }
+  OverlayCompiler --> FeatureExpander
+  OverlayCompiler --> TerrainOverlay
+  TerrainResidency --> TerrainWorldMerge
+  TerrainWorldMerge ..> TerrainOverlay
+  LiveEditBake --> FeatureExpander
+  LiveEditBake --> TerrainWorldMerge
+```
+
+| # | rule | closes |
+|---|---|---|
+| C-1 | ⭐ **the overlay is compiled when the scenario is SAVED** (and by *Open in editor* from the wizard); it lives beside the scenario as a folder: the merged parts (buildings with panels and doors, walls, surfaces, walkables, prisms, trees, pads) in **canonical order**, each with a **stable key** (`<feature entity guid>/<index in its expansion>`), its **navmesh tiles** (seeded from the base terrain's tiles — only the touched ones are new) and a **content hash** + the **base terrain's hash** | G-1, G-4, G-6, G-10 |
+| C-2 | ⭐ **the orchestrator distributes it**: the editor PUBLISHES the overlay to the NAS with the scenario; before a load the orchestrator SYNCS it to every node, exactly as it does the terrain folder (Asset Management §4 / §5; a new load part beside the terrain) | the user's ruling |
+| C-3 | **every node LOADS, never expands**: `TerrainResidency` merges base + overlay (`TerrainWorldMerge` — the general merge G-2 needs: surfaces, panels, buildings, doors, walkables, heights, in the overlay's order) and creates the overlay houses' door entities by stable key | G-2, G-3, determinism |
+| C-4 | **damage and door state are keyed by the stable key**, never by index or terrain name; a replicated breach names `<key>` + panel-in-building | G-1 |
+| C-5 | **a load checks the hashes**: the overlay's base-terrain hash must match the terrain on the node, else the load refuses and names both; a recording stores the overlay's hash and the browser loads the same overlay | G-6, G-7 |
+| C-6 | **the scenario keeps its blocks and features as ENTITIES for editing** (recipe, seed, fitted placement — R-4199 / R-4203 V-1 unchanged); on a node they are inert data — the overlay, not the entities, is the terrain. A recipe changed later reaches a scenario only when it is compiled again (saved), so old recordings and loads are unaffected | B-Q1 vs V-3 contradiction |
+| C-7 | **while editing, a LIVE bake on the editor node only** rebuilds the changed area (incremental: the touched tiles, the touched 3-D chunks), off the frame | G-4 in the editor |
+| C-8 | the external engine reads the **overlay's parts** (the same format as a terrain's world) | G-8 |
+| C-9 | ***Save terrain as* = base + overlay merged by the same `TerrainWorldMerge`** and written by a writer of a `TerrainWorld` (rotation, slabs, ramps, prisms — G-9); its navmesh is the base's tiles + the overlay's, no cold bake | G-9, G-10 |
+| C-10 | obstacles placed DURING a running exercise keep today's entity bake (`StaticObstacleBakeSystem`), with a wall-clock timeout (G-5) | runtime |
+| C-11 | ⛔ the overlay is binary content — **never in git**; it lives on the NAS / content root like real terrains (G-14) | storage |
+
+Still open in their own rows: roads and bridges in the road net (G-12, CE-4423), the check of missions on a re-saved terrain (G-13, CE-4424),
+the smaller items (G-15, CE-4426).
