@@ -816,3 +816,13 @@ The screens are ui's; ⭐ the DATA each screen shows is this batch's, so ui can 
 | ⛔ the editor's own `EditorScenarioSession.SaveTo` hook NOT built | — | 📐 it has no production caller (its own remarks) and throws on a world-less host; every real save goes to the master ⇒ the master hook covers them |
 
 Rails (each red-proved): `FeatureExpanderTests` (determinism, fit vs buildings + water over 8 seeds, the unfitted control, pads, AlignRoad ignored, shipped recipes parse) · `OverlayCompilerTests` (hashes, `blocks[]`, outline, canonical order, byte-identical recompile, stale folder deleted, failure leaves no `.part`, navtiles only the seed's misses) · `TerrainLoadStepTests` (compile → fresh residency loads; a changed base refused) · `StorageProcessManagerTests` (the merge writes `overlay.json`; a bad recipe still saves) · `TerrainOverlayClusterLoadTests` (the real in-process cluster loads it: SimHost's resident world holds the house and its door — ⚠ the harness's nodes share ONE staging root, so distribution itself is covered by `StorageGatewayTests`; CGF keeps no resident world in that harness).
+
+#### 18c-3. Visual check against mockup page 2 *(user `2026-11-11`: "make sure the visuals reasonably match the mockup design")*
+
+Real frames through the production layers (`TerrainOverlayFrameRail`, opt-in, `HROT_RAIL_SHOTS`): a compiled hamlet + copse in test-town, 2-D and 3-D,
+each beside the bare terrain, and demo-city's own template houses at the same 2-D zoom. ✅ 3-D houses grounded, the production template look; woods the
+terrain's own fill and canopy; overlay houses identical to the terrain's template houses. ⚠ Found and FIXED: each overlay house printed its stable KEY on
+the 2-D map — `TerrainBuilding.Name` (display; defaults to the label, so every existing terrain draws as before; empty for block houses, as the mockup
+shows none) and `TerrainPlan2D` prints `Name`, nothing when empty (rail `TerrainLayer2DTests.O4_AnOverlayHouse_DrawsNoText_…`, red-proved).
+⏭ ui's (NOTE_Backend_To_Ui_Terrain_Overlay_Visuals.md): template houses drawn as floor plans where the mockup shows tan filled footprints (every
+template house, a level-of-detail decision), the interior slab labels' clutter, and the block outline / chip / ghost / menu / Details — data ready.

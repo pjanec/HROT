@@ -158,7 +158,7 @@ namespace Fdp.Toolkit.Terrain
                             props["baseZ"] is JsonNode bz ? ReadFloat(bz, where + ".baseZ") : (float?)null,   // null ⇒ TH-C, resolved on the footprint
                             label ?? templateName ?? $"building-{sink.Buildings.Count}",
                             props["building"] is JsonObject ? null : templateName,
-                            overrides);
+                            overrides, (string?)props["name"]);
                         TerrainBuildingExpander.Expand(template, placement, GroundUnder, materials, name, sink, where);
                         break;
                     }

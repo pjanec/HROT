@@ -57,7 +57,7 @@ namespace Fdp.Toolkit.Terrain
                     if ((fit & TerrainBlock.AvoidBuildings) != 0 && Overlaps(avoid, padded)) continue;
                     // placed: later houses keep out of this one too (its own box, unpadded — the later house pads itself)
                     avoid.Add(box);
-                    var props = new JsonObject { ["kind"] = "building", ["template"] = template, ["rotation"] = rot, ["label"] = $"{keyPrefix}/{houses}", ["baseZ"] = BaseZ(baseWorld, world) };
+                    var props = new JsonObject { ["kind"] = "building", ["template"] = template, ["rotation"] = rot, ["label"] = $"{keyPrefix}/{houses}", ["name"] = "", ["baseZ"] = BaseZ(baseWorld, world) };
                     if ((fit & TerrainBlock.LevelPads) != 0) props["pad"] = Round(baseWorld.GroundHeightAt(centre.X, centre.Y));
                     features.Add(Feature(props, new JsonObject { ["type"] = "Point", ["coordinates"] = new JsonArray(centre.X, centre.Y) }));
                     points.AddRange(world);
@@ -97,7 +97,7 @@ namespace Fdp.Toolkit.Terrain
         public static JsonObject House(TerrainWorld baseWorld, TerrainAssets assets, string template, Vector2 at, float headingDeg, float pad, string keyPrefix)
         {
             var local = TerrainBuildingExpander.LocalFootprint(assets.LoadTemplate(template, $"feature '{keyPrefix}'"), $"template '{template}'");
-            var props = new JsonObject { ["kind"] = "building", ["template"] = template, ["rotation"] = Round(headingDeg), ["label"] = keyPrefix + "/0", ["baseZ"] = BaseZ(baseWorld, Place(local, at, headingDeg)) };
+            var props = new JsonObject { ["kind"] = "building", ["template"] = template, ["rotation"] = Round(headingDeg), ["label"] = keyPrefix + "/0", ["name"] = "", ["baseZ"] = BaseZ(baseWorld, Place(local, at, headingDeg)) };
             if (pad != 0f) props["pad"] = Round(pad);
             return Feature(props, new JsonObject { ["type"] = "Point", ["coordinates"] = new JsonArray(Round(at.X), Round(at.Y)) });
         }
