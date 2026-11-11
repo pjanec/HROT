@@ -222,5 +222,108 @@ namespace Fdp.Toolkit.Terrain.Tests
                 + $"\"tilesTouched\":{tiles.Count},\"tilesInTerrainPerLayer\":{allTiles},\"mergedPrisms\":{merged.Prisms.Count}}}";
             File.WriteAllText(Environment.GetEnvironmentVariable("HROT_MEASURE_OUT") ?? Path.Combine(Path.GetTempPath(), "o1.json"), json);
         }
+
+        /// <summary>
+        /// ⭐ O-7 (CE-4418) step 1 — the MEASUREMENT of a live edit on scale-1, opt-in (<c>HROT_MEASURE_OVERLAY=1</c>; <c>HROT_MEASURE_OUT</c> = the table's file, else the temp folder; <c>HROT_REPO</c> = the repo root).
+        /// A: today's path (<c>TerrainResidency.BakeObstacles</c>'s four stages: <c>TerrainObstacles.With</c>, <c>BepuTerrainIndex.AttachTo</c>, <c>RecastNavmeshFactory.Build</c> through an in-memory
+        /// <c>NavTileCache</c>, <c>TerrainCoverProvider.Build</c>) for one wall, then the wall moved 2 m. B: a hamlet block expanded + merged + indexed + baked + covered, then moved 20 m.
+        /// C: tiles touched vs total, and the all-hit navmesh build (hash + reassemble, no bake) as the floor. Skips silently when not asked for. ⚠ The first bake over scale-1 is COLD (≈ 9 min on 4 cores).
+        /// </summary>
+        [Fact]
+        public void O7_Measure_ALiveEditOnScaleOne()
+        {
+            if (Environment.GetEnvironmentVariable("HROT_MEASURE_OVERLAY") != "1") return;
+            string root = Environment.GetEnvironmentVariable("HROT_REPO") ?? ContentLayout.TryFindSourceTree() ?? throw new InvalidOperationException("HROT_REPO");
+            string baseDef = Path.Combine(root, "assets", "terrain", "scale-1", "terrain.json");
+            string baseFolder = Path.GetDirectoryName(baseDef)!;
+            var table = new System.Text.StringBuilder();
+            void Row(string k, string v) { table.AppendLine($"{k,-58} {v}"); Console.WriteLine($"[O7] {k,-58} {v}"); }
+            long Ms(Action a) { var w = System.Diagnostics.Stopwatch.StartNew(); a(); return w.ElapsedMilliseconds; }
+            long Med(Action a) { var t = new long[3]; for (int i = 0; i < 3; i++) t[i] = Ms(a); Array.Sort(t); return t[1]; }
+
+            TerrainWorld baseWorld = null!;
+            Row("read scale-1 (TerrainFolderWorld.ReadWorld) ms", Ms(() => baseWorld = TerrainFolderWorld.ReadWorld(baseDef, TerrainFolderWorld.ReadDefinition(baseDef), "scale-1")!).ToString());
+            Row("base: prisms / buildings / walkables / surfaces", $"{baseWorld.Prisms.Count} / {baseWorld.Buildings.Count} / {baseWorld.Walkables.Count} / {baseWorld.Surfaces.Count}");
+            var factory = new RecastNavmeshFactory { TileCache = new NavTileCache() };   // memory only: what a warm editor's cache is, without the disk
+            var concrete = baseWorld.Materials.Get("concrete", "measure");
+            var site = baseWorld.Buildings[baseWorld.Buildings.Count / 2].Position + new System.Numerics.Vector2(40f, 0f);
+            Row("edit site (m)", $"{site.X:0},{site.Y:0}");
+            TerrainPrism Wall(float dx) => TerrainObstacles.PrismOf(new System.Numerics.Vector3(site.X + dx, site.Y, 0f), 0f, new ObstacleShape { Length = 5f, Width = 0.3f, Height = 2f }, concrete, "obstacle:1");
+
+            // ── A. today's baseline ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+            TerrainWorld w1 = null!;
+            Row("A0 With(base, 1 wall) ms", Ms(() => w1 = TerrainObstacles.With(baseWorld, new[] { Wall(0f) })).ToString());
+            Row("A0 index (BepuTerrainIndex.AttachTo) ms", Ms(() => Fdp.Toolkit.Spatial.Bepu.BepuTerrainIndex.AttachTo(w1)).ToString());
+            Row("A0 navmesh COLD (first bake of the town) ms", Ms(() => factory.Build(w1)).ToString());
+            Row("A0 navmesh tiles / baked / from cache", $"{factory.LastStats.Tiles} / {factory.LastStats.Baked} / {factory.LastStats.FromCache}");
+            Row("A0 cover ms", Ms(() => Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(w1)).ToString());
+
+            TerrainWorld w2 = null!;
+            Row("A1 With(base, wall moved 2 m) ms (median of 3)", Med(() => w2 = TerrainObstacles.With(baseWorld, new[] { Wall(2f) })).ToString());
+            Row("A1 index ms (median of 3)", Med(() => Fdp.Toolkit.Spatial.Bepu.BepuTerrainIndex.AttachTo(w2 = TerrainObstacles.With(baseWorld, new[] { Wall(2f) }))).ToString());
+            Row("A1 navmesh, warm cache ms", Ms(() => factory.Build(w2)).ToString());
+            Row("A1 navmesh tiles / baked / from cache", $"{factory.LastStats.Tiles} / {factory.LastStats.Baked} / {factory.LastStats.FromCache}");
+            Row("A1 cover ms (median of 3)", Med(() => Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(w2)).ToString());
+            long floorMs = Ms(() => factory.Build(w2));
+            Row("C  navmesh, EVERY tile a hit (no bake) ms", floorMs.ToString());
+            Row("C  … tiles / baked / from cache", $"{factory.LastStats.Tiles} / {factory.LastStats.Baked} / {factory.LastStats.FromCache}");
+
+            // ── B. a block edit ────────────────────────────────────────────────────────────────────────────────────────────────────────────
+            var recipe = TerrainRecipe.Find("hamlet", new[] { Path.Combine(root, "assets", "terrain-recipes") });
+            var assets = TerrainAssets.ForFolder(baseFolder);
+            (TerrainWorld Merged, TerrainWorld Overlay) Edit(float dx, string tag, bool timed)
+            {
+                FeatureExpansion x = null!; TerrainWorld overlay = null!, merged = null!;
+                long te = Ms(() => x = FeatureExpander.Expand(recipe, 21, site + new System.Numerics.Vector2(dx, 0f), 0f, TerrainBlock.FitAll, baseWorld, "g1", assets));
+                string json = "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"groundZ\":" + baseWorld.GroundZ.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    + ",\"bounds\":[" + string.Join(",", new[] { baseWorld.BoundsMin.X, baseWorld.BoundsMin.Y, baseWorld.BoundsMax.X, baseWorld.BoundsMax.Y }.Select(v => v.ToString(System.Globalization.CultureInfo.InvariantCulture))) + "]},\"features\":["
+                    + string.Join(",", x.Features.Select(f => f.ToJsonString())) + "]}";
+                long tp = Ms(() => overlay = TerrainWorldParser.Parse(json, "scale-1", assets));
+                long tm = Ms(() => merged = TerrainWorldMerge.Merge(baseWorld, overlay));
+                if (timed) { Row($"{tag} expand ({x.Houses} houses, {x.Woods} woods) ms", te.ToString()); Row($"{tag} parse overlay world ms", tp.ToString()); Row($"{tag} merge ms", tm.ToString()); }
+                return (merged, overlay);
+            }
+            var (m1, o1) = Edit(0f, "B0", true);
+            Row("B0 index ms", Ms(() => Fdp.Toolkit.Spatial.Bepu.BepuTerrainIndex.AttachTo(m1)).ToString());
+            Row("B0 navmesh (warm for the base; the block's tiles are new) ms", Ms(() => factory.Build(m1)).ToString());
+            Row("B0 navmesh tiles / baked / from cache", $"{factory.LastStats.Tiles} / {factory.LastStats.Baked} / {factory.LastStats.FromCache}");
+            Row("B0 cover ms", Ms(() => Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(m1)).ToString());
+
+            var (m2, o2) = Edit(20f, "B1 (moved 20 m)", true);
+            Row("B1 index ms", Ms(() => Fdp.Toolkit.Spatial.Bepu.BepuTerrainIndex.AttachTo(m2)).ToString());
+            Row("B1 navmesh (old + new block tiles in the cache) ms", Ms(() => factory.Build(m2)).ToString());
+            Row("B1 navmesh tiles / baked / from cache", $"{factory.LastStats.Tiles} / {factory.LastStats.Baked} / {factory.LastStats.FromCache}");
+            int bakedByMove = factory.LastStats.Baked, tilesAll = factory.LastStats.Tiles;
+            Row("B1 cover ms", Ms(() => Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(m2)).ToString());
+
+            // ── C. tiles touched vs total; the cost of looking at every tile ───────────────────────────────────────────────────────────────
+            float t = RecastNavmeshBaker.DefaultTileMetres;
+            var touched = new System.Collections.Generic.HashSet<(int, int)>();
+            void Box(System.Numerics.Vector2 lo, System.Numerics.Vector2 hi)
+            {
+                for (int tx = (int)MathF.Floor(lo.X / t); tx <= (int)MathF.Floor(hi.X / t); tx++)
+                    for (int tz = (int)MathF.Floor(lo.Y / t); tz <= (int)MathF.Floor(hi.Y / t); tz++) touched.Add((tx, tz));
+            }
+            foreach (var o in new[] { o1, o2 })
+            { foreach (var p in o.Prisms) Box(p.Min, p.Max); foreach (var w in o.Walkables) Box(w.Min, w.Max); foreach (var sf in o.Surfaces) Box(sf.Min, sf.Max); }
+            Row("C  tile squares touched by the old + new block (boxes, 24 m)", touched.Count.ToString());
+            Row("C  navmesh work tiles in the town (layers x squares with geometry)", tilesAll.ToString());
+            Row("C  tiles the move actually baked (changed keys)", bakedByMove.ToString());
+            long floor2 = Ms(() => factory.Build(m2));
+            Row("C  EVERY tile a hit on the merged block world ms", floor2.ToString());
+            // the gather half of that floor, sampled: TerrainTileTriangles.Gather over 200 squares around the site, scaled to every square
+            var tri = new TerrainTileTriangles(m2);
+            var verts = new System.Collections.Generic.List<float>(); var idx = new System.Collections.Generic.List<int>();
+            int sx = (int)MathF.Floor(site.X / t), sz = (int)MathF.Floor(site.Y / t), n = 0;
+            long gather = Ms(() => { for (int dx = -7; dx <= 7; dx++) for (int dz = -7; dz <= 7; dz++) { verts.Clear(); idx.Clear(); tri.Gather((sx + dx) * t, (sz + dz) * t, (sx + dx + 1) * t, (sz + dz + 1) * t, verts, idx); n++; } });
+            long squares = (long)MathF.Ceiling((m2.BoundsMax.X - m2.BoundsMin.X) / t) * (long)MathF.Ceiling((m2.BoundsMax.Y - m2.BoundsMin.Y) / t);
+            Row("C  Gather over 225 squares around the site ms (a dense town part)", gather.ToString());
+            Row("C  … scaled to every square of the terrain ms (upper bound: the rest is sparser)", (gather * squares / Math.Max(1, n)).ToString());
+
+            // ── D. incremental-capable? (by reading the code) ──────────────────────────────────────────────────────────────────────────────
+            Row("D  BepuTerrainIndex", "whole only: ctor builds the tree from every prism/walkable; AttachTo replaces it (BepuTerrainIndex.cs:17-64); no Add/Remove");
+            Row("D  TerrainCoverProvider", "whole only: Build loops every prism and panel (TerrainCoverProvider.cs:47-69); PointsAround (:77) is per piece but the provider is an immutable array");
+            File.WriteAllText(Environment.GetEnvironmentVariable("HROT_MEASURE_OUT") ?? Path.Combine(Path.GetTempPath(), "o7.txt"), table.ToString());
+        }
 }
 }
