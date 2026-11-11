@@ -24,12 +24,19 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         private readonly BehaviorRegistry? _behaviorRegistry;
 
+        /// <summary>⭐ CE-1480 G5 — the picture reads: <c>NetworkIdentity</c> (the card id), <c>BehaviorState</c> (the active hash), <c>IsEmbarkedTag</c>
+        /// (<c>Exposed</c>, via <c>PhysicalPresence</c>), <c>Seeable.OnMap</c>'s inputs and the registry's name table (its definition count). Nothing time-varying,
+        /// no setting, not view-dependent. Held while none moved.</summary>
+        public GizmoInputs? Inputs { get; }
+
         /// <summary>No behaviour names on this host: this gizmo adds nothing to the card.</summary>
-        public EntityEditorLabelGizmo() { }
+        public EntityEditorLabelGizmo()
+            => Inputs = Hrot.Common.Diagnostics.Gizmos.Seeable.Inputs((System.Func<long>?)null, typeof(NetworkIdentity), typeof(BehaviorState), typeof(IsEmbarkedTag));
 
         public EntityEditorLabelGizmo(BehaviorRegistry behaviorRegistry)
         {
             _behaviorRegistry = behaviorRegistry ?? throw new ArgumentNullException(nameof(behaviorRegistry));
+            Inputs = Hrot.Common.Diagnostics.Gizmos.Seeable.Inputs(() => _behaviorRegistry.DefinitionCount, typeof(NetworkIdentity), typeof(BehaviorState), typeof(IsEmbarkedTag));
         }
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
