@@ -1265,6 +1265,61 @@ public sealed class Map3DFrameRail
         finally { Raylib.UnloadImage(image); }
     }
 
+    /// <summary>⭐ CE-4404 — Units ▸ Labels hides the entity cards on the map, 2-D AND 3-D, through the REAL chain (the layer gizmo's mask → the buffer → the renderer → the card pass):
+    /// 🔒 user, 2026-11-10: <i>"unticking Labels leaves the labels / cards over the entities shown"</i>. Counts the cards drawn with the box on, then off, in each view.</summary>
+    [SkippableFact]
+    public void CE4404_TheLabelsCheckbox_HidesTheCards_In2DAnd3D()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        using var world = new EntityRepository();
+        world.SetSingletonManaged(new Hrot.Common.Orders.OrdersOffered());
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        const float zoom = 4f;
+        var target = new Vector2(-1280f / 2f / zoom, 800f / 2f / zoom);
+        two.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
+        canvas.Camera = two;
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var layers = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(7, new Fdp.Core.FdpEventBus(), new StructEdit.Reflection.ComponentEditServiceBuilder().Build(), settings: new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry());
+        var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new Fdp.Core.FdpEventBus(), camera: two) { CurrentCamera = () => canvas.Camera };
+        canvas.AddLayer(gizmos);
+        var sw = new MapViewSwitch(canvas, two);
+        layers.Is3D = () => sw.Is3D;
+
+        int Cards(bool is3D)
+        {
+            sw.Set(is3D, animate: false);
+            if (is3D) sw.Camera3D.Pose = new CameraPose(new Vector3(-100f, -60f, 40f), 60f, MathF.PI * 0.5f, -0.6f);
+            int drawn = 0;
+            for (int i = 0; i < 3; i++)
+            {
+                buffer.Clear();
+                layers.UpdateAndDraw(world, 0.016f, buffer);   // the mask, as the global gizmo manager runs it
+                buffer.DrawSpatialAnchor(77, -100f, -30f, 0f, 0f, 0f, 0f);
+                var card = Fdp.Toolkit.Diagnostics.Gizmos.EntityCards.Card(buffer, 77, Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Labels);
+                card.Row(0).Frame(new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(90, 150, 255));
+                card.Row(20).Text("M1A2 #77", new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(240, 240, 240));
+                gizmos.Update(0.016f);
+                frame.Step(canvas.Draw);
+                drawn = gizmos.Cards.CardsDrawn;
+            }
+            return drawn;
+        }
+        void Untick(bool is3D)
+        {
+            var dto = new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { View = is3D ? Hrot.Common.Diagnostics.Gizmos.LayerControlSets.View3D : Hrot.Common.Diagnostics.Gizmos.LayerControlSets.View2D, Units = { Labels = false } };
+            using var s = new StructEdit.Reflection.ComponentEditServiceBuilder().Build().Open(dto, typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
+            layers.OnStructUpdate(StructEdit.Json.EditSessionJsonExtensions.ToJson(s));
+        }
+        Assert.Equal(1, Cards(false));
+        Untick(false);
+        Assert.Equal(0, Cards(false));
+        Assert.Equal(1, Cards(true));   // the 3-D set is its own: still ticked
+        Untick(true);
+        Assert.Equal(0, Cards(true));
+    }
+
     /// <summary>
     /// ⭐ CE-1040 — the 2-D map draws NORTH UP (docs/DESIGN_Map_North_Up.md): a red filled triangle north of the centre lands in
     /// the top half of the picture, a blue box south of it in the bottom half, and both SURVIVE the mirror (back-face culling is
