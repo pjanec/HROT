@@ -1380,3 +1380,19 @@ both systems at run time — the vehicles' net by a republish the holder already
 ⏭ **Step 1 (measure before building):** does `netconvert -s` + extra edges keep every base edge id (traffic routes and recordings name them); how
 the SUMO engine stores lane permissions (is a closure a lane flag or a route cost); how a structure collapse is observed today (the event the
 closure would hang on). Acceptance (handoff T-7): a vehicle routes over a new bridge and around a fallen one.
+
+#### 18k-1. Step 1 measured — and the build it decides *(backend `2026-11-11`)*
+
+| measured | file:line | ⇒ |
+|---|---|---|
+| `netconvert -s base -e bridge.edg.xml` keeps EVERY normal edge and lane id (demo-city 413/413, scale-1 2070/2070), all base connections; it trims the lanes touching a bridge end and REGENERATES junction-internal (`:`-prefixed) ids; 0.16 s / 0.49 s | — | K-1 holds; a route or recording naming an internal lane is not safe across a re-save (stated, not fixed) |
+| ⚠ test-town has no SUMO net (only `roads.json`) | — | rails on demo-city / scale-1, or a fixture net |
+| SumoSharp lane permissions are load-time only (`NetworkModel.cs:50`); the router reads no permissions but takes an AVOID SET (`NetworkRouter.cs:122`); `Engine.Reroute(handle, avoid)` exists and nothing in Hrot calls it (`Engine.cs:3101-3120`) | — | K-3 = ~25 lines in `Engine.cs`: `_closedEdges` + `CloseEdge` / `OpenEdge`, unioned into the avoid set at the four route sites + `UpdateReroutes`, and reroute every active vehicle whose future edges cross it. ⛔ not the obstacle-threshold route (`TrafficSession.cs:252` feeds every soldier in as an obstacle) |
+| the vehicles' net: `RoadNetworkBuilder` takes more segments before `Build`; a vehicle's route is BAKED into a trajectory at plan time (`RoutePlanner.cs:51`), and a `RoadGraph` vehicle holds a segment index (`RoadGraphNavigator.cs:191`) | — | K-2 = bridge segments APPENDED LAST (base indices stable); on a fall, republish without them AND re-plan the vehicles whose trajectory crosses the bridge |
+| a collapse is `BuildingDamage.Collapsed` (replicated) read through `BuildingDamageTable.Of(...).CollapsedBuildings` (`BuildingDamageTable.cs:139,233,288`) | — | ONE per-node system diffs the collapsed set and closes a bridge's edges in both nets |
+| the rubble mound: collision `BuildingDamageTable.MakeRubble` (`:159-172`), drawing `TerrainWorldMesh.Rubble.AddHeap` (`:17-50`) | — | CE-3438: one mound polygon clipped to land, shared by both |
+
+**Build, in two parts:** **T-7a** — the compile writes, per Bridge feature, its edges (ends snapped to road nodes ≤ 25 m) into the overlay's roads
+JSON and, when the base has a SUMO net and netconvert is present, an overlay `.net.xml` (`overlay.json` `bridges[]` names each bridge's key and its
+edge ids); the residency loads base + overlay road segments (appended) and the overlay net. **T-7b** — the closure system + `Engine.CloseEdge`
+(SumoSharp, vendored: ~25 lines) + the vehicles' re-plan + CE-3438.
