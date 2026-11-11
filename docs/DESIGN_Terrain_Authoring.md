@@ -831,3 +831,88 @@ the 2-D map — `TerrainBuilding.Name` (display; defaults to the label, so every
 shows none) and `TerrainPlan2D` prints `Name`, nothing when empty (rail `TerrainLayer2DTests.O4_AnOverlayHouse_DrawsNoText_…`, red-proved).
 ⏭ ui's (NOTE_Backend_To_Ui_Terrain_Overlay_Visuals.md): template houses drawn as floor plans where the mockup shows tan filled footprints (every
 template house, a level-of-detail decision), the interior slab labels' clutter, and the block outline / chip / ghost / menu / Details — data ready.
+
+### 18d. *Save terrain as* — O-5 *(CE-4422, backend `2026-11-11`; build-state: READY-TO-BUILD)*
+
+```mermaid
+classDiagram
+  class TerrainBake {
+    <<new, Recast project beside OverlayCompiler>>
+    SaveAs(request) TerrainSaveResult
+    Summarise(request) TerrainSaveSummary
+  }
+  class OverlayCompiler {
+    <<existing>>
+    Compile(scenario, dir, resolve) overlay folder
+  }
+  class TerrainWorldParser {
+    <<existing - THE reader>>
+  }
+  class TerrainWorldMerge {
+    <<existing - the oracle of the rail>>
+  }
+  class TerrainSaveSummary {
+    <<new record>>
+    houses, woods, trees, wallKm, bridges per kind
+    NotBaked units, areas, damaged houses
+    tiles, tilesToBake, estimate
+  }
+  class TerrainUsers {
+    <<new>>
+    Of(terrainName, scenarioRoots) scenarios
+  }
+  class TerrainObjectsSection {
+    <<existing - door states in a scenario>>
+  }
+  class TerrainFolderWriter {
+    <<existing - NOT used: importer inputs only, rotation 0 - G-9>>
+  }
+  TerrainBake --> OverlayCompiler : the source compiled first
+  TerrainBake ..> TerrainWorldParser : the saved folder is read by it
+  TerrainBake --> TerrainSaveSummary
+  TerrainBake --> TerrainUsers
+  TerrainBake ..> TerrainObjectsSection : door keys re-prefixed
+```
+*What it shows:* *Save terrain as* writes no new serialiser. The terrain's world file and the overlay's are ONE format read by ONE parser, so the bake
+APPENDS the overlay's features to the base's feature list (bounds = the union) and copies every other base file byte for byte. ⭐ G-9 closes by construction:
+nothing is re-serialised, so rotation, slabs, ramps, structures and clutter land exactly as authored. `TerrainWorldMerge` stays the definition of "base +
+overlay", and the rail holds the saved folder to it.
+
+```mermaid
+sequenceDiagram
+  actor U as Author
+  participant B as TerrainBake
+  participant C as OverlayCompiler
+  participant F as new terrain folder (.part, then swapped)
+  U->>B: SaveAs(source scenario dir, new name N)
+  B->>C: Compile the source - its overlay is current
+  B->>F: copy the base folder (not source/, not terrain.hash)
+  B->>F: world file = base features + overlay features, bounds union
+  B->>F: navtiles = base tiles + overlay tiles
+  B->>F: terrain.json name N + source {scenario, base name + hash}
+  B->>F: source/scenario (the block scenario, no terrain-overlay) + source/base (the ground terrain)
+  B->>F: hash, then swap .part into place
+  B-->>U: a new scenario on N - door keys re-prefixed, no blocks, no units (E-5) + the summary
+```
+*What it shows:* the saved terrain carries its own source (E-1), so re-saving (W-4) and *Edit terrain* (E-2) need nothing outside the folder.
+
+```mermaid
+graph TD
+  UI[ui: Save terrain as dialog, mockup 4] -->|later: ui's| B[TerrainBake.SaveAs]
+  B --> OC[OverlayCompiler.Compile]
+  B --> FS[(assets/terrain/N on the NAS)]
+  FS -->|existing prefetch| ND[(every node)]
+  ND --> RES[TerrainResidency.Prepare N - no overlay, no cold bake]
+```
+*What it shows:* a saved terrain is an ordinary terrain to every node; only the authoring call is new.
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| D-1 the world | append the overlay's features to the base's world file (JSON level), bounds = union | a `TerrainWorld` writer — a second serialiser that must track every parser field (G-9 is exactly that failure) · extending `TerrainFolderWriter` — it takes importer inputs, not a world |
+| D-2 navtiles | base tiles + overlay tiles copied; rail: loading the saved terrain bakes 0 tiles | a fresh prefill — 9 min cold at 5.5 km (G-10) |
+| D-3 keys | door keys in the carried scenario re-prefixed `<base>/` → `<N>/`; building keys already resolve by label (`BuildingDamages.IndexOfKey`) | dropping the terrain prefix everywhere (O-3's deferred item) — touches six shipped scenarios and behaviour params for no gain here |
+| D-4 the source | `source/scenario/` + `source/base/` (the ground terrain, its navtiles kept as seeds); `terrain.json` names both (E-1) | a reference to the base by name — a copy or a rename separates them (E-1's reason) |
+| D-5 the new scenario | header on N + the door states, re-keyed; no blocks, features, units or areas (W-3, E-5); damage stays in the source (E-6) | copying the source's entities — a terrain source would turn into a mission (E-5) |
+| D-6 the summary | from `overlay.json` `blocks[]` + the overlay world's parts + the source's non-terrain entities; estimate = tiles to bake × the cold rate (§18b) | — |
+
+⏭ Not in O-5: *Edit terrain* resolving `source/base` (E-2, ui + backend), the ui dialog (mockup 4), an HTTP route — rows when they are picked up.
