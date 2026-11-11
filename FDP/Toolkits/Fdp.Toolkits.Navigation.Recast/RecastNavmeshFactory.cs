@@ -88,11 +88,33 @@ public sealed class RecastNavmeshFactory : IIncrementalNavmeshFactory
     /// ⭐ O-7 A (§18e) — as <see cref="Build(TerrainWorld)"/>, told WHERE the world changed since this factory's previous bake (engine XY rectangles): the tiles outside them are taken by their previous key,
     /// with no gather and no hash. <c>null</c> = unknown = the full bake. Ignored (a full bake) when the previous bake's world bounds, layers or tile size differ.
     /// </summary>
-    public INavmeshProvider? Build(TerrainWorld world, IReadOnlyList<(Vector2 Min, Vector2 Max)>? dirty)
+    public INavmeshProvider? Build(TerrainWorld world, IReadOnlyList<(Vector2 Min, Vector2 Max)>? dirty) => BuildWithKeys(world, dirty).Provider;
+
+    /// <inheritdoc/>
+    public INavmeshProvider? Build(TerrainWorld world, IReadOnlyList<(Vector2 Min, Vector2 Max)>? dirty, long previousSerial, out long bakeSerial)
     {
-        var meshes = BakeMeshes(world, out var doorways, dirty);
-        return meshes == null || meshes.Count == 0 ? null
-            : new DotRecastNavmeshProvider(meshes, world, doorways) { TileMetres = TileMetres, TileKeys = _lastTileKeys };
+        var r = BuildWithKeys(world, dirty, previousSerial);
+        bakeSerial = r.Serial;
+        return r.Provider;
+    }
+
+    /// <summary>⭐ CE-4427 R-6 — what ONE <see cref="BuildWithKeys"/> made: the provider (null when nothing is walkable), the serial of THIS bake and ITS tile-key map. Returned with the result, never read back from the factory's fields afterwards (another bake may have run in between).</summary>
+    public sealed record BuildResult(INavmeshProvider? Provider, long Serial, IReadOnlyDictionary<(NavLayerMask Layer, int Ax, int Az), NavTileKey> Keys, RecastNavmeshBaker.BakeStats Stats);
+
+    /// <summary>
+    /// ⭐ CE-4427 R-6 — <see cref="Build(TerrainWorld, IReadOnlyList{ValueTuple{Vector2, Vector2}})"/> returning its own serial and keys. Bakes are SERIALISED on this factory (a lock): a staged terrain load and an obstacle
+    /// bake overlapping used to read and write the previous-keys map, the serial and the tile keys under each other.
+    /// </summary>
+    public BuildResult BuildWithKeys(TerrainWorld world, IReadOnlyList<(Vector2 Min, Vector2 Max)>? dirty, long? previousSerial = null)
+    {
+        lock (_bakeGate)
+        {
+            if (previousSerial != null && previousSerial.Value != BakeSerial) dirty = null;   // the key map is not the caller's committed bake's: full bake
+            var o = BakeMeshes(world, dirty);
+            var provider = o.Meshes == null || o.Meshes.Count == 0 ? null
+                : new DotRecastNavmeshProvider(o.Meshes, world, o.Doorways) { TileMetres = TileMetres, TileKeys = o.TileKeys };
+            return new BuildResult(provider, o.Serial, o.Keys, o.Stats);
+        }
     }
 
     /// <summary>
@@ -105,12 +127,16 @@ public sealed class RecastNavmeshFactory : IIncrementalNavmeshFactory
     /// <summary>⭐ O-7 A — <see cref="Rebake(DotRecastNavmeshProvider, TerrainWorld)"/> told where the world changed (see <see cref="Build(TerrainWorld, IReadOnlyList{ValueTuple{Vector2, Vector2}})"/>).</summary>
     public bool Rebake(DotRecastNavmeshProvider provider, TerrainWorld world, IReadOnlyList<(Vector2 Min, Vector2 Max)>? dirty)
     {
-        var meshes = BakeMeshes(world, out var doorways, dirty);
-        if (meshes == null || meshes.Count == 0) return false;
-        provider.Rebake(meshes, world, doorways);
-        return true;
+        lock (_bakeGate)
+        {
+            var o = BakeMeshes(world, dirty);
+            if (o.Meshes == null || o.Meshes.Count == 0) return false;
+            provider.Rebake(o.Meshes, world, o.Doorways);
+            return true;
+        }
     }
 
+    private readonly object _bakeGate = new();   // ⭐ CE-4427 R-6 — one bake at a time on this factory
     private IReadOnlyDictionary<long, ulong> _lastTileKeys = new Dictionary<long, ulong>();
 
     // ⭐ O-7 A — the previous bake's key map and what it was baked for: a dirty bake only trusts it for the same world bounds, layers and tile size
@@ -118,14 +144,18 @@ public sealed class RecastNavmeshFactory : IIncrementalNavmeshFactory
     private (Vector2 Min, Vector2 Max, NavLayerMask Layers, float Tile) _previousFor;
 
     /// <summary>⭐ O-7 A — counts this factory's bakes: a caller that keeps "the world this factory's last bake was of" compares serials to know the key map still describes it (an abandoned staged bake moves it).</summary>
-    public long BakeSerial { get; private set; }
+    public long BakeSerial { get; private set; }   // ⚠ the LAST bake's — a caller that needs ITS bake's serial uses BuildWithKeys / Build(…, out serial)
 
     /// <summary>⭐ O-7 A — the last bake's full tile-key map <c>(layer, ax, az) → key</c> (what a rail compares between a dirty and a full bake).</summary>
     public IReadOnlyDictionary<(NavLayerMask Layer, int Ax, int Az), NavTileKey> LastKeys => _previousKeys ?? new Dictionary<(NavLayerMask, int, int), NavTileKey>();
 
-    private Dictionary<NavLayerMask, DotRecast.Detour.DtNavMesh>? BakeMeshes(TerrainWorld world, out IReadOnlyList<NavDoorways.Volume> doorways, IReadOnlyList<(Vector2 Min, Vector2 Max)>? dirty)
+    private sealed record BakeOutput(Dictionary<NavLayerMask, DotRecast.Detour.DtNavMesh>? Meshes, IReadOnlyList<NavDoorways.Volume> Doorways, long Serial,
+        IReadOnlyDictionary<long, ulong> TileKeys, IReadOnlyDictionary<(NavLayerMask Layer, int Ax, int Az), NavTileKey> Keys, RecastNavmeshBaker.BakeStats Stats);
+
+    /// <summary>Called under <see cref="_bakeGate"/> only.</summary>
+    private BakeOutput BakeMeshes(TerrainWorld world, IReadOnlyList<(Vector2 Min, Vector2 Max)>? dirty)
     {
-        doorways = Array.Empty<NavDoorways.Volume>();
+        IReadOnlyList<NavDoorways.Volume> doorways = Array.Empty<NavDoorways.Volume>();
         // ⭐ CE-4366 (L-4) — per TILE from the terrain (TerrainTileTriangles): the whole soup is never built here (scale-1 at 1 m: 61 M
         //   triangles, 7 GB peak); each tile gets exactly the triangles the whole-soup bake gave it
         var source = new TerrainTileTriangles(world);
@@ -165,12 +195,12 @@ public sealed class RecastNavmeshFactory : IIncrementalNavmeshFactory
         var meshes = baker.Bake(source, Layers, volumes, FineAreas(world));
         LastStats = baker.LastStats;
         _lastTileKeys = baker.LastTileKeys;   // ⭐ CE-4391 S-3 (P3-a)
-        _previousKeys = baker.LastKeys; _previousFor = (world.BoundsMin, world.BoundsMax, Layers, TileMetres); BakeSerial++;
+        _previousKeys = baker.LastKeys; _previousFor = (world.BoundsMin, world.BoundsMax, Layers, TileMetres); long serial = ++BakeSerial;
         var st = LastStats;
         Fdp.Core.Logging.FdpLog<RecastNavmeshFactory>.Info(
             $"[Navmesh] '{world.Name}': {st.Tiles} tiles ({st.FineTiles} fine) — {st.Baked} baked, {st.FromCache} from the cache, {st.Milliseconds} ms "
           + $"(parallel {st.ParallelMs} ms wall; thread-ms: gather {st.GatherMs}, hash {st.HashMs}, cache {st.CacheMs}, bake {st.BakeMs}; assemble {st.AssembleMs} ms wall; {st.Reused} reused).");
-        return meshes;
+        return new BakeOutput(meshes, doorways, serial, baker.LastTileKeys, baker.LastKeys, st);
     }
 
     /// <summary>

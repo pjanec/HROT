@@ -189,13 +189,44 @@ namespace Fdp.Toolkit.Lifecycle
         /// </summary>
         public void WaitWithoutTimeout(int moduleId) => _moduleTimeoutFrames[moduleId] = Unbounded;
 
+        /// <summary>
+        /// ⭐ CE-4427 R-5 — the timeout of a construction still waiting for <paramref name="remainingAcks"/>: <see cref="Unbounded"/> ONLY when EVERY remaining module is one that always acks
+        /// (<see cref="WaitWithoutTimeout"/>); while any other module's ack is pending, the usual budget applies (the default, or the longest <see cref="SetModuleTimeout"/> among the bounded ones) — a module that
+        /// never acks must still destroy the construction, whatever the terrain bake is doing.
+        /// </summary>
         private int TimeoutFor(HashSet<int> remainingAcks)
         {
             int timeout = _timeoutFrames;
             if (_moduleTimeoutFrames.Count == 0) return timeout;
+            bool allUnbounded = remainingAcks.Count > 0;
             foreach (var module in remainingAcks)
-                if (_moduleTimeoutFrames.TryGetValue(module, out var t) && t > timeout) timeout = t;
-            return timeout;
+            {
+                if (_moduleTimeoutFrames.TryGetValue(module, out var t))
+                {
+                    if (t == Unbounded) continue;
+                    allUnbounded = false;
+                    if (t > timeout) timeout = t;
+                }
+                else allUnbounded = false;
+            }
+            return allUnbounded ? Unbounded : timeout;
+        }
+
+        /// <summary>⭐ CE-4427 R-5 — seconds an UNBOUNDED wait may last before it is said loudly (once per construction); 60 s is more than three times the ≈ 17 s a scale-1 overlay bake measured.</summary>
+        public double UnboundedWaitWarnSeconds { get; set; } = 60.0;
+
+        /// <summary>⭐ CE-4427 R-5 — how many unbounded waits have been reported (diagnostics / rails).</summary>
+        public int UnboundedWarnings { get; private set; }
+
+        /// <summary>
+        /// ⭐ CE-4427 R-5 — the entities (cleared <paramref name="into"/>, filled) whose construction waits for <paramref name="moduleId"/> ALONE: every other module has acked, so the entity is fully built and only
+        /// that module's ack is missing. A participant that cannot serve an entity (the terrain bake, for one without an obstacle's components) acks it from here. Allocation-free once <paramref name="into"/> has grown.
+        /// </summary>
+        public void CollectSoleWaiters(int moduleId, List<Entity> into)
+        {
+            into.Clear();
+            foreach (var kvp in _pendingConstruction)
+                if (kvp.Value.RemainingAcks.Count == 1 && kvp.Value.RemainingAcks.Contains(moduleId)) into.Add(kvp.Key);
         }
 
         public void AcknowledgeConstruction(Entity entity, int moduleId, uint frame, IEntityCommandBuffer cmd)
@@ -421,7 +452,18 @@ namespace Fdp.Toolkit.Lifecycle
             foreach (var kvp in _pendingConstruction)
             {
                 int limit = TimeoutFor(kvp.Value.RemainingAcks);
-                if (limit == Unbounded) continue;   // ⭐ CE-4419 — waiting on a module that always acks
+                if (limit == Unbounded)   // ⭐ CE-4419 — waiting on a module that always acks (and only on such): never destroyed…
+                {
+                    // …but never SILENT either (CE-4427 R-5): a wait that outlives UnboundedWaitWarnSeconds is said once
+                    var p = kvp.Value;
+                    if (!p.Warned && System.Diagnostics.Stopwatch.GetElapsedTime(p.StartTimestamp).TotalSeconds > UnboundedWaitWarnSeconds)
+                    {
+                        p.Warned = true; UnboundedWarnings++;
+                        FdpLog<EntityLifecycleModule>.Warn(
+                            $"[ELM] Construction of {kvp.Key.Index} has waited {UnboundedWaitWarnSeconds:0} s for module(s) {string.Join(", ", p.RemainingAcks)}, which never time out: is that module running and acking?");
+                    }
+                    continue;
+                }
                 if (currentFrame - kvp.Value.StartFrame > (uint)limit)
                 {
                     timedOutConstruction.Add(kvp.Key);
@@ -656,6 +698,8 @@ namespace Fdp.Toolkit.Lifecycle
         public uint StartFrame;
         public HashSet<int> RemainingAcks = new();
         public bool Resumed;   // ⭐ AQ107 — re-opened by ResumeFromRestoredWorld
+        public long StartTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();   // ⭐ CE-4427 R-5 — wall clock, for the loud log of an unbounded wait
+        public bool Warned;
     }
     
     internal class PendingDestruction

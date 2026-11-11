@@ -256,8 +256,12 @@ public sealed class TerrainResidency
             if (_navmeshFactory != null)
             {
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                staged.Navmesh = _navmeshFactory.Build(staged.World);
-                staged.BakeSerial = (_navmeshFactory as Fdp.Toolkit.Navigation.IIncrementalNavmeshFactory)?.BakeSerial ?? -1;   // ⭐ O-7 A — which bake the factory's key map describes
+                if (_navmeshFactory is Fdp.Toolkit.Navigation.IIncrementalNavmeshFactory incLoad)
+                {
+                    staged.Navmesh = incLoad.Build(staged.World, null, -1, out long loadSerial);
+                    staged.BakeSerial = loadSerial;   // ⭐ O-7 A / CE-4427 R-6 — THIS bake's serial, handed back with it (never read from the factory afterwards)
+                }
+                else staged.Navmesh = _navmeshFactory.Build(staged.World);
                 FdpLog<TerrainResidency>.Info(
                     $"[Terrain] Navmesh for '{terrainName}' baked in {sw.ElapsedMilliseconds} ms"
                   + (staged.Navmesh == null ? " — nothing walkable." : "."));
@@ -571,6 +575,8 @@ public sealed class TerrainResidency
         var terrain = overlay != null ? TerrainWorldMerge.Merge(baseWorld, overlay.World) : baseWorld;   // base indices kept, overlay appended: every key and saved state keyed by a base index stays valid
         var parts = overlay?.Parts ?? System.Array.Empty<OverlayPart>();
         // ⭐ O-7 A (§18e A-2) — where this bake differs from the last one committed on this base: the factory reuses every tile outside it. null = unknown (first bake after a base change, another bake in between) = full.
+        // ⭐ CE-4427 R-4 — the damage table was built for the world the frame thread saw; this bake's world may number its buildings and panels differently (the live overlay re-sorts its parts): lay it over by KEY
+        if (overlay != null && damage != null) damage = damage.RemapTo(terrain);
         var damageNow = DamageHashes(terrain, damage);
         var dirty = DirtyRegions(obstacles, damageNow, terrain, baseVersion, parts, out bool diffed);
         bake.Prisms = new List<TerrainPrism>(obstacles); bake.Damage = damageNow; bake.Parts = parts;
@@ -578,10 +584,11 @@ public sealed class TerrainResidency
         bake.World = Indexed(TerrainObstacles.With(terrain, obstacles, damage));   // ⭐ CE-3279 (a) — a derived world gets its own index
         if (_navmeshFactory is Fdp.Toolkit.Navigation.IIncrementalNavmeshFactory inc)
         {
-            bool previousIsLastCommitted;
-            lock (_dirtyGate) previousIsLastCommitted = diffed && _committedSerial == inc.BakeSerial;
-            bake.Navmesh = inc.Build(bake.World, previousIsLastCommitted ? dirty : null);
-            bake.BakeSerial = inc.BakeSerial;
+            // ⭐ CE-4427 R-6 — the factory checks "its last bake is the one I committed" UNDER its own lock and hands back THIS bake's serial
+            long committed;
+            lock (_dirtyGate) committed = diffed ? _committedSerial : -1;
+            bake.Navmesh = inc.Build(bake.World, diffed ? dirty : null, committed, out long serial);
+            bake.BakeSerial = serial;
         }
         else if (_navmeshFactory != null) bake.Navmesh = _navmeshFactory.Build(bake.World);
         bake.Cover = Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(bake.World);
@@ -607,11 +614,26 @@ public sealed class TerrainResidency
         if (bake.BaseVersion != BaseVersion) return false;
         lock (_dirtyGate) { _lastPrisms = bake.Prisms; _lastDamage = bake.Damage; _lastParts = bake.Parts; _lastBakeBase = bake.BaseVersion; _committedSerial = bake.Navmesh != null ? bake.BakeSerial : -1; }   // ⭐ O-7 A — the next bake diffs against this one
         world.RegisterManagedComponent<TerrainWorld>();
+        // ⭐ CE-4427 R-4 — a world that numbers its buildings / panels differently replaces the old one: every BuildingDamage entity is re-keyed to it BEFORE it is published (main thread, here)
+        var replaced = world.HasSingletonManaged<TerrainWorld>() ? world.GetSingletonManaged<TerrainWorld>() : null;
+        if (replaced != null) RemapDamageEntities(world, replaced, bake.World);
         world.SetSingletonManaged(bake.World);
         _navmesh?.Publish(bake.Navmesh);
         world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(
             bake.Cover ?? Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(bake.World));
         return true;
+    }
+
+    /// <summary>⭐ CE-4427 R-4 — re-keys every <see cref="BuildingDamage"/> entity from <paramref name="from"/>'s numbering to <paramref name="to"/>'s (stable key, within-building panel); a no-op when the two share their building and panel lists.</summary>
+    internal static void RemapDamageEntities(EntityRepository world, TerrainWorld from, TerrainWorld to)
+    {
+        if (ReferenceEquals(from, to) || (ReferenceEquals(from.Panels, to.Panels) && ReferenceEquals(from.Buildings, to.Buildings))) return;
+        if (!world.IsComponentTypeRegistered<BuildingDamage>()) return;
+        foreach (var e in world.Query().With<BuildingDamage>().WithLifecycle(Fdp.Core.EntityLifecycle.All).Build())
+        {
+            var d = world.GetComponentRO<BuildingDamage>(e);
+            if (BuildingDamages.Remap(ref d, from, to)) world.SetComponent(e, d);
+        }
     }
 
     // ── ⭐ O-7 A (§18e A-2) — the dirty region of an obstacle bake ───────────────────────────────────────────────────────────────────

@@ -42,25 +42,58 @@ namespace Fdp.Toolkit.Terrain
     /// <summary>⭐ <c>CE-4391</c> S-4 — a panel's index WITHIN its building (rank among the panels with the same <see cref="TerrainWallPanel.Building"/>, in <see cref="TerrainWorld.Panels"/> order) ⇄ its global index. Written once, used by the save and the load.</summary>
     public static class BuildingPanelIndex
     {
-        /// <summary>The index of global panel <paramref name="panel"/> within its building, or −1 when it is not a building's panel (or out of range).</summary>
+        /// <summary>⭐ CE-4427 R-3 — per world, built ONCE (a world is immutable): each panel's rank within its building, and each building's panels (global indices) in order.</summary>
+        private sealed class Table
+        {
+            public int[] Rank = Array.Empty<int>();
+            public int[][] PanelsOf = Array.Empty<int[]>();
+        }
+
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TerrainWorld, Table> s_tables = new();
+        private static int s_built;
+
+        /// <summary>How many rank tables have been built (diagnostics / rails: a steady caller must not rebuild).</summary>
+        public static int TablesBuilt => System.Threading.Volatile.Read(ref s_built);
+
+        private static Table TableOf(TerrainWorld world) => s_tables.GetValue(world, static w =>
+        {
+            System.Threading.Interlocked.Increment(ref s_built);
+            var t = new Table { Rank = new int[w.Panels.Count] };
+            int max = -1;
+            for (int i = 0; i < w.Panels.Count; i++) if (w.Panels[i].Building > max) max = w.Panels[i].Building;
+            var counts = new int[max + 1];
+            for (int i = 0; i < w.Panels.Count; i++)
+            {
+                int b = w.Panels[i].Building;
+                if (b < 0) { t.Rank[i] = -1; continue; }
+                t.Rank[i] = counts[b]++;
+            }
+            t.PanelsOf = new int[max + 1][];
+            for (int b = 0; b <= max; b++) t.PanelsOf[b] = new int[counts[b]];
+            var fill = new int[max + 1];
+            for (int i = 0; i < w.Panels.Count; i++)
+            {
+                int b = w.Panels[i].Building;
+                if (b >= 0) t.PanelsOf[b][fill[b]++] = i;
+            }
+            return t;
+        });
+
+        /// <summary>The index of global panel <paramref name="panel"/> within its building, or −1 when it is not a building's panel (or out of range). O(1) after the world's table exists (CE-4427 R-3).</summary>
         public static int ToLocal(TerrainWorld world, int panel)
         {
             if ((uint)panel >= (uint)world.Panels.Count) return -1;
-            int building = world.Panels[panel].Building;
-            if (building < 0) return -1;
-            int rank = 0;
-            for (int i = 0; i < panel; i++) if (world.Panels[i].Building == building) rank++;
-            return rank;
+            return TableOf(world).Rank[panel];
         }
 
         /// <summary>The global index of panel <paramref name="local"/> of building <paramref name="building"/>, or −1 when the building has no such panel.</summary>
         public static int ToGlobal(TerrainWorld world, int building, int local)
         {
-            if (local < 0) return -1;
-            int rank = 0;
-            for (int i = 0; i < world.Panels.Count; i++)
-                if (world.Panels[i].Building == building && rank++ == local) return i;
-            return -1;
+            if (local < 0 || building < 0) return -1;
+            var of = TableOf(world).PanelsOf;
+            if (building >= of.Length) return -1;
+            var list = of[building];
+            return local < list.Length ? list[local] : -1;
         }
     }
 

@@ -106,6 +106,35 @@ namespace Fdp.Toolkit.Terrain
             return false;
         }
 
+        /// <summary>
+        /// ⭐ CE-4427 R-4 — this table as the world <paramref name="to"/> numbers it: every breach's building and panel re-keyed by stable key / within-building rank (<see cref="BuildingDamages.Remap"/>'s rule), collapsed
+        /// buildings by key. The bake of the editor's live overlay lays damage over a world whose parts were re-sorted since the table was built. A breach or collapse whose house <paramref name="to"/> no longer has is dropped.
+        /// Returns this table when it was built for <paramref name="to"/>.
+        /// </summary>
+        public BuildingDamageTable RemapTo(TerrainWorld to)
+        {
+            if (ReferenceEquals(_world, to)) return this;
+            var from = _world;
+            var breaches = new List<WallBreach>(_breaches.Length);
+            foreach (var b in _breaches)
+            {
+                int local = BuildingPanelIndex.ToLocal(from, b.Panel);
+                if (local < 0) continue;
+                int nb = BuildingDamages.IndexOfKey(to, BuildingDamages.KeyOf(from, from.Panels[b.Panel].Building));
+                int panel = nb >= 0 ? BuildingPanelIndex.ToGlobal(to, nb, local) : -1;
+                if (panel >= 0) breaches.Add(b with { Panel = panel });
+            }
+            breaches.Sort(Order);
+            var collapsed = new List<int>(_collapsed.Length);
+            foreach (int c in _collapsed)
+            {
+                int nb = BuildingDamages.IndexOfKey(to, BuildingDamages.KeyOf(from, c));
+                if (nb >= 0) collapsed.Add(nb);
+            }
+            collapsed.Sort();
+            return new BuildingDamageTable(breaches.ToArray(), collapsed.ToArray(), to);
+        }
+
         /// <summary>The collapsed buildings' indices, ascending.</summary>
         public IReadOnlyList<int> CollapsedBuildings => _collapsed;
 

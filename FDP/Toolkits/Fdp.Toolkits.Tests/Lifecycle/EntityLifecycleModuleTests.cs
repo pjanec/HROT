@@ -145,6 +145,58 @@ namespace Fdp.Toolkit.Lifecycle.Tests
             Assert.Equal(0, elm.GetStatistics().timeouts);
         }
 
+        /// <summary>
+        /// ⭐ CE-4427 R-5 — the unbounded wait applies ONLY while the terrain-like module is the last ack missing: with another module's ack still pending, that module's (default) timeout still destroys the
+        /// construction. 🔴 Red-proof: have <c>TimeoutFor</c> return <c>Unbounded</c> whenever ANY remaining module is unbounded (the CE-4419 rule) ⇒ the entity is never timed out.
+        /// </summary>
+        [Fact]
+        public void CE4427_R5_AnotherModulesTimeout_StillFires_WhileTheUnboundedModuleIsPending()
+        {
+            var elm = new EntityLifecycleModule(null, new[] { 1, 2 }, timeoutFrames: 10);
+            elm.WaitWithoutTimeout(2);
+            var cmd = CreateCommandBuffer();
+            var entity = new Entity(100, 1);
+            elm.BeginConstruction(entity, 1, currentFrame: 0, cmd);   // modules 1 AND 2 outstanding
+
+            elm.CheckTimeouts(currentFrame: 20, cmd);                 // module 1 never acks
+            Assert.Equal(1, elm.GetStatistics().timeouts);
+        }
+
+        /// <summary>⭐ CE-4427 R-5 — an entity whose ONLY missing ack is one module's is reported by <c>CollectSoleWaiters</c> (and not while another is outstanding): what the terrain bake uses to ack what it can never bake.</summary>
+        [Fact]
+        public void CE4427_R5_CollectSoleWaiters_ReportsAnEntityWhoseOnlyMissingAckIsThatModules()
+        {
+            var elm = new EntityLifecycleModule(null, new[] { 1, 2 }, timeoutFrames: 10);
+            var cmd = CreateCommandBuffer();
+            var entity = new Entity(100, 1);
+            elm.BeginConstruction(entity, 1, currentFrame: 0, cmd);
+            var list = new System.Collections.Generic.List<Entity>();
+            elm.CollectSoleWaiters(2, list);
+            Assert.Empty(list);                                        // module 1 is outstanding too
+
+            elm.ProcessConstructionAck(new ConstructionAck { Entity = entity, ModuleId = 1, Success = true }, 1, cmd);
+            elm.CollectSoleWaiters(2, list);
+            Assert.Equal(new[] { entity }, list);
+            elm.CollectSoleWaiters(1, list);
+            Assert.Empty(list);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4427 R-5 — an unbounded wait is never silent: past <c>UnboundedWaitWarnSeconds</c> it is reported ONCE per construction. 🔴 Red-proof: drop <c>p.Warned = true</c> ⇒ it is reported on every check.
+        /// </summary>
+        [Fact]
+        public void CE4427_R5_AnUnboundedWait_IsReportedOnce_AfterTheThreshold()
+        {
+            var elm = new EntityLifecycleModule(null, new[] { 2 }, timeoutFrames: 10) { UnboundedWaitWarnSeconds = 0.0 };
+            elm.WaitWithoutTimeout(2);
+            var cmd = CreateCommandBuffer();
+            elm.BeginConstruction(new Entity(100, 1), 1, currentFrame: 0, cmd);
+            System.Threading.Thread.Sleep(20);
+            elm.CheckTimeouts(5, cmd); elm.CheckTimeouts(6, cmd); elm.CheckTimeouts(7, cmd);
+            Assert.Equal(1, elm.UnboundedWarnings);
+            Assert.Equal(0, elm.GetStatistics().timeouts);
+        }
+
         [Fact]
         public void ELM_PartialAcks_RemainsPending()
         {

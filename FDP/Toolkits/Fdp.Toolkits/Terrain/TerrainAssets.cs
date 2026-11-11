@@ -40,6 +40,9 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>Template name → its JSON text, or null when not found.</summary>
         public Func<string, string?>? Templates { get; init; }
 
+        /// <summary>⭐ CE-4427 R-7 — the FILE a building template resolves to (null when none), for a cache that must notice an edit; set by <see cref="ForFolder"/>.</summary>
+        public Func<string, string?>? TemplatePath { get; init; }
+
         /// <summary>⭐ CE-1034 H1 — reads a side file of the terrain folder by bare name (the height grid), or null when it is not there.</summary>
         public Func<string, string?>? ReadFile { get; init; }
 
@@ -51,6 +54,17 @@ namespace Fdp.Toolkit.Terrain
         {
             if (string.IsNullOrWhiteSpace(terrainFolder)) throw new ArgumentException("A terrain folder is required.", nameof(terrainFolder));
             string shared = sharedBuildingsRoot ?? DefaultSharedBuildingsRoot;
+            string? FindTemplate(string name)
+            {
+                if (name.IndexOfAny(new[] { '/', '\\' }) >= 0 || name.Contains(".."))
+                    throw new ArgumentException($"Building template name '{name}' may not contain a path.");
+                foreach (var dir in new[] { Path.Combine(terrainFolder, BuildingsFolderName), RecipesSibling(terrainFolder), shared })
+                {
+                    var path = Path.Combine(dir, name + TemplateSuffix);
+                    if (File.Exists(path)) return path;
+                }
+                return null;
+            }
             string materialsPath = Path.Combine(terrainFolder, MaterialsFileName);
             return new TerrainAssets
             {
@@ -75,17 +89,8 @@ namespace Fdp.Toolkit.Terrain
                     var path = Path.Combine(terrainFolder, name);
                     return File.Exists(path) ? new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20) : null;
                 },
-                Templates = name =>
-                {
-                    if (name.IndexOfAny(new[] { '/', '\\' }) >= 0 || name.Contains(".."))
-                        throw new ArgumentException($"Building template name '{name}' may not contain a path.");
-                    foreach (var dir in new[] { Path.Combine(terrainFolder, BuildingsFolderName), RecipesSibling(terrainFolder), shared })
-                    {
-                        var path = Path.Combine(dir, name + TemplateSuffix);
-                        if (File.Exists(path)) return File.ReadAllText(path);
-                    }
-                    return null;
-                },
+                TemplatePath = FindTemplate,
+                Templates = name => FindTemplate(name) is { } path ? File.ReadAllText(path) : null,
             };
         }
 

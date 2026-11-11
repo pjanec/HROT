@@ -121,4 +121,59 @@ public sealed class DirtyRegionBakeTests : IDisposable
         Assert.Equal(0, f.LastStats.Reused);
         Assert.Equal(FullKeys(outside, cache), Keys(f));
     }
+
+    /// <summary>
+    /// ⭐ CE-4427 R-6 — a dirty region is trusted ONLY when the factory's last bake is the one the caller committed, checked under the factory's lock: after ANOTHER world's bake slipped in (serial 2), a dirty bake that
+    /// names serial 1 is a FULL bake (Reused 0), while naming the current serial reuses. 🔴 Red-proof: drop the <c>previousSerial</c> check in <c>BuildWithKeys</c> ⇒ the stale call reuses tiles of the wrong world.
+    /// </summary>
+    [Fact]
+    public void CE4427_R6_ADirtyBake_NamingASerialThatIsNoLongerTheLast_IsAFullBake()
+    {
+        var baseWorld = _f.BaseWorld();
+        var a1 = TerrainObstacles.With(baseWorld, new[] { Wall(baseWorld, new Vector2(250, 250)) });
+        var a2 = TerrainObstacles.With(baseWorld, new[] { Wall(baseWorld, new Vector2(252, 250)) });
+        var other = TerrainObstacles.With(baseWorld, new[] { Wall(baseWorld, new Vector2(100, 300)) });   // another bake (a staged load) in between
+        var dirty = new List<(Vector2, Vector2)> { Box(a1.Prisms[^1]), Box(a2.Prisms[^1]) };
+        var cache = new NavTileCache();
+        var f = Factory(cache);
+
+        var first = f.BuildWithKeys(a1, null);
+        f.BuildWithKeys(other, null);
+        Assert.Equal(first.Serial + 1, f.BakeSerial);
+        var stale = f.BuildWithKeys(a2, dirty, previousSerial: first.Serial);
+        Assert.Equal(0, stale.Stats.Reused);                                   // the key map was another world's: a full bake
+        Assert.Equal(FullKeys(a2, cache), stale.Keys.ToDictionary(kv => kv.Key, kv => kv.Value));
+
+        var fresh = f.BuildWithKeys(a1, null);
+        var ok = f.BuildWithKeys(a2, dirty, previousSerial: fresh.Serial);
+        Assert.True(ok.Stats.Reused > 0);                                      // the committed serial: the dirty bake reuses
+        Assert.Equal(ok.Serial, f.BakeSerial);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4427 R-6 — two OVERLAPPING builds of different worlds on one factory each get THEIR OWN serial and key map back with the result (never read from the factory's fields afterwards), the factory ends describing the
+    /// later one, and each result equals a sequential bake of its world. The bakes are serialised on the factory (a lock).
+    /// </summary>
+    [Fact]
+    public void CE4427_R6_TwoConcurrentBuilds_EachGetTheirOwnSerialAndKeys()
+    {
+        var baseWorld = _f.BaseWorld();
+        var wa = TerrainObstacles.With(baseWorld, new[] { Wall(baseWorld, new Vector2(250, 250)) });
+        var wb = TerrainObstacles.With(baseWorld, new[] { Wall(baseWorld, new Vector2(100, 300)) });
+        var cache = new NavTileCache();
+        var expectA = FullKeys(wa, cache); var expectB = FullKeys(wb, cache);
+        var f = Factory(cache);
+        var go = new System.Threading.ManualResetEventSlim();
+        RecastNavmeshFactory.BuildResult? ra = null, rb = null;
+        var ta = new System.Threading.Thread(() => { go.Wait(); ra = f.BuildWithKeys(wa, null); });
+        var tb = new System.Threading.Thread(() => { go.Wait(); rb = f.BuildWithKeys(wb, null); });
+        ta.Start(); tb.Start(); go.Set(); ta.Join(); tb.Join();
+
+        Assert.NotEqual(ra!.Serial, rb!.Serial);
+        Assert.Equal(new[] { 1L, 2L }, new[] { ra.Serial, rb.Serial }.OrderBy(x => x));
+        Assert.Equal(expectA, ra.Keys.ToDictionary(kv => kv.Key, kv => kv.Value));
+        Assert.Equal(expectB, rb.Keys.ToDictionary(kv => kv.Key, kv => kv.Value));
+        Assert.Equal(Math.Max(ra.Serial, rb.Serial), f.BakeSerial);
+        Assert.Equal((ra.Serial > rb.Serial ? ra : rb).Keys.ToDictionary(kv => kv.Key, kv => kv.Value), Keys(f));   // the factory describes the LAST bake
+    }
 }

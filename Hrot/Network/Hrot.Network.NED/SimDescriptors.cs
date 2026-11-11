@@ -99,11 +99,12 @@ namespace Hrot.NED.Descriptors
         public string Key;
     }
 
-    /// <summary>⭐ CE-4391 S-1 — one breach of <see cref="EntityBuildingDamage"/>: the global panel index, the rectangle on the panel (metres along it from
-    /// its A end; absolute Z) and <c>BreachKind</c> (0 Hole · 1 Passage).</summary>
+    /// <summary>⭐ CE-4391 S-1 — one breach of <see cref="EntityBuildingDamage"/>: the panel's index WITHIN its building (⚠ LOCAL — <c>BuildingPanelIndex.ToLocal</c>; CE-4417 O-3: never a world's global index, which
+    /// differs between two worlds that assemble the same house differently; CE-4427 R-2), the rectangle on the panel (metres along it from its A end; absolute Z) and <c>BreachKind</c> (0 Hole · 1 Passage).</summary>
     [DdsStruct]
     public partial struct DdsWallBreach
     {
+        /// <summary>The panel's rank among its building's panels (LOCAL to the building named by <see cref="EntityBuildingDamage.Key"/>) — the receiver maps it with <c>BuildingPanelIndex.ToGlobal</c> in ITS world.</summary>
         public int Panel;
         public float From;
         public float To;
@@ -125,7 +126,7 @@ namespace Hrot.NED.Descriptors
         [DdsKey]
         public int EntityId;
 
-        /// <summary>The building's index in the terrain's building list (the same terrain on every node).</summary>
+        /// <summary>The SENDER's index of the building (diagnostic only: a receiver resolves the building by <see cref="Key"/> — the worlds may order buildings differently, CE-4417).</summary>
         public int Building;
 
         /// <summary><c>BuildingDamage.Collapsed</c> (S-2): 0 standing · 1 collapsed.</summary>

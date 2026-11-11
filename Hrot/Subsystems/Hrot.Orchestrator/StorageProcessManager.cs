@@ -244,6 +244,19 @@ public sealed class StorageProcessManager
         catch (Exception ex)
         {
             FdpLog<StorageProcessManager>.Error("[StorageProcessManager] could not compile the terrain overlay of '{0}' (the scenario itself was saved): {1}", scenarioName, ex.Message);
+            // ⭐ CE-4427 R-1 — the OLD overlay must not outlive a failed compile: it was built from the scenario BEFORE this edit and the next prefetch would distribute (and every node merge) blocks that are no longer
+            //   there. No overlay at all is the honest state (the load of a scenario whose blocks have no overlay says so); a stale one is silently wrong.
+            DeleteOverlayFolders(scenarioDir, scenarioName);
+        }
+    }
+
+    private static void DeleteOverlayFolders(string scenarioDir, string scenarioName)
+    {
+        string final = Path.Combine(scenarioDir, Fdp.Toolkit.Terrain.OverlayCompiler.FolderName);
+        foreach (var dir in new[] { final, final + ".part" })
+        {
+            try { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+            catch (Exception ex) { FdpLog<StorageProcessManager>.Error("[StorageProcessManager] could not remove the stale terrain overlay folder '{0}' of '{1}': {2}", dir, scenarioName, ex.Message); }
         }
     }
 
