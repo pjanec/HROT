@@ -1311,3 +1311,52 @@ sequenceDiagram
 | one registry, one profiler, one diagnostics | ✅ one kernel | timings accepted from the main thread |
 | UI-only state (selection, display, effects, ghost) | written on World A today (~40 sites, §13) | a presentation-owned data store keyed by entity — no kernel |
 | ImGui panels (read World A directly, 12 files) | — | read the leased snapshot |
+
+### 13.4 ⭐ The proof of concept — measured `2026-11-11` *(coordinator; worktree branch `poc/threaded-kernel`, project `FDP/Examples/Fdp.Examples.ThreadedKernel`; cloud VM, 4 cores, Xvfb software GL — the DRAW cost is not representative, the threading is)*
+
+🔒 User, `2026-11-11`: *"the Windows run cannot tell … how cheap it is for 5000 or 10,000. Can we try making an experimental proof of concept? … minimalistic
+UI … The goal would be how we can move the kernel to a worker thread while keeping the application thread for the presentation module."*
+
+**What it is:** the REAL `ModuleHostKernel` with one synchronous simulation module (busy-work "brains" per entity, movement, a 512 B payload per
+entity rewritten every tick, a `Bounce` event) ticked on a worker; a `SnapshotPort` (publish into a FREE pooled repository at the Export phase,
+lease / release by the main thread); a presentation `IEcsModule` pulled by the render loop (map preparation + picking / dragging) on the leased
+snapshot; drags go back as `EntityCommandBuffer`s played on the worker's next Input phase. `--mode single` runs the SAME modules with the kernel
+ticked inside the frame — today's shape — as the baseline.
+
+| entities | brain work | **threaded** main fps (p50 ms) | **single** main fps (p50 ms) | sim tick ms | publish ms | drag → visible ms (threaded / single) |
+|---|---|---|---|---|---|---|
+| 1 000 | 200 | **218** (3.8) | 128 (7.4) | 3.6 | 0.08 | 14 / 8 |
+| 5 000 | 200 | **131** (7.1) | 38 (25.9) | 17 | 0.36 | 31 / 27 |
+| 10 000 | 200 | **84** (11.2) | 21 (47.1) | 32 | 1.0 | 61 / 51 |
+| 20 000 | 200 | **76** (13.7) | — (not run) | — | 1.8 | — |
+| 50 000 | 200 | **69** (14.9) | 4.9 (203) | 191 | 3–7 | 311 / 202 |
+| 10 000 | 2 000 (heavy) | **93** (12.0) | 2.5 (391) | 408 | 1.4 | 528 / 396 |
+
+⇒ ⭐ **the main thread's frame no longer depends on the simulation**: a 400 ms tick leaves the UI at 93 fps (today's shape: 2.5 fps). What still
+grows with the entity count on the main thread is the DRAWING of every point (software GL here) — the real renderer's cost, not the threading's.
+⭐ **The snapshot publish is cheap**: 0.08 ms at 1 000, ~1 ms at 10 000, 3–7 ms at 50 000 entities with 512 B each — on the worker.
+⭐ **An edit lands one simulation tick later** (drag → visible ≈ 1–1.5 ticks): the price, and the reason a pending / ghost state is drawn.
+
+**What the PoC found — the troubles, measured:**
+
+| # | finding | consequence for the real thing |
+|---|---|---|
+| T-1 | ✅ the kernel runs on a non-main thread with NO change — no thread-affinity checks anywhere in Fdp.Core / ModuleHost | the move itself is free |
+| T-2 | ⛔ **events must NOT ride on a snapshot** — run 2 lost 8–45 of ~5 000 events: when two publishes fall between two main frames, only the newest is leased and the skipped one's events vanish. ✅ Fixed: events queue for the READER and are taken once per frame (5 432 / 5 432, 6 199 / 6 199, 6 432 / 6 432) | the port keeps a per-reader event queue; "one snapshot = its events" is wrong |
+| T-3 | ⛔ the accumulator's read API (`ReadWindow` — a reused buffer "valid until the next capture", `EventAccumulator.cs:396-412`) is kernel-thread-only | events are copied on the WORKER at publish; the main thread never touches the accumulator |
+| T-4 | ⚠ an `EntityQuery` is bound to ONE repository — the presentation rebuilds its queries per new snapshot (an allocation per publish, not per frame) | a query cache per pooled snapshot, or a re-bindable query |
+| T-5 | ⚠ `DoubleBufferProvider` syncs one replica in place — unusable for a self-paced reader; the PoC needed its own pool + leases | the kernel feature: a published, leased snapshot (2–3 pooled) |
+| T-6 | ⚠ a command whose target died in between throws in `Playback` (caught in the PoC) | validation before apply (DES-012 §3.3) |
+| T-7 | memory: 2–3 full copies of the world (latest + leased + free) | ~3× World A — RAM is not the constraint (DES-012) |
+
+**Two modes — one code path, two schedulings** *(user's question, `2026-11-11`)*: the PoC's `single` and `threaded` run the SAME modules; only
+who ticks the kernel differs. ⇒ lean: the presentation ALWAYS reads `ISimulationView` and writes commands; the HOST chooses — **inline** (tests,
+frame rails, headless nodes, HTTP-driven CI: tick → publish (zero-copy: the live world) → present, one thread, deterministic) or **threaded** (the
+windowed editor / player). ⛔ Rejected: choosing by entity count at runtime — two behaviours to keep right, the threaded one exercised only at scale.
+**The HTTP debug API:** its 77 `RunOnMainThread` routes already marshal to "the main/simulation thread" (`MainThreadJobQueue`) — in threaded mode
+the queue drains at the WORKER's tick boundary (answers at sim rate); routes that touch UI state (map layers, camera, film, screenshots) need a
+second queue drained by the presentation — each route labelled once. **Tests:** 71 files tick a kernel directly — unaffected; 118 frame-rail files
+run inline.
+
+⏭ Not covered by the PoC: the ~40 HROT UI-state writes and ~24 direct simulation writes (§13), stepped / deterministic mode on the worker, the time
+controller's ACK path, the profiler fed from the main thread, managed (Tier 2) components (immutability is already the rule).
