@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — R-4198…R-4201 ruled; ⭐ the S-0 MOCKUPS are drawn (§15) and wait for the user's approval; the leans L-1…L-7 (§3) still wait for a nod
+build-state: DESIGN — R-4198…R-4201 ruled; ⭐ the S-0 MOCKUPS are drawn (§15) and wait for the user's approval; L-1…L-7 ✅ approved (R-4202, L-2 amended); §16 the wizard → editor step and cluster sync (leans)
 updated: 2026-11-11
-current-answer: ⭐ §15 the mockups (S-0) · §14 editing a baked terrain again, non-terrain entities in a source (leans E-1…E-6) · §13 the workflow (✅ R-4200) · §12 the random terrain = an empty surface + placed blocks (✅ R-4200) · §11 the user's view (blocks as RECIPE assets through Add Entity — ✅ APPROVED R-4199) · §2 the model (one feature vocabulary, three uses) · §3 decisions · §4–§6 diagrams · §7 street clutter · §8 rivers and bridges · §9 slices · §10 not yet measured
+current-answer: ⭐ §16 wizard → editor, cluster sync (leans) · §15 the mockups (S-0) · §14 editing a baked terrain again, non-terrain entities in a source (leans E-1…E-6) · §13 the workflow (✅ R-4200) · §12 the random terrain = an empty surface + placed blocks (✅ R-4200) · §11 the user's view (blocks as RECIPE assets through Add Entity — ✅ APPROVED R-4199) · §2 the model (one feature vocabulary, three uses) · §3 decisions · §4–§6 diagrams · §7 street clutter · §8 rivers and bridges · §9 slices · §10 not yet measured
 stale-below: nothing
 related-designs:
   - DESIGN_Peek_And_Fire.md — §9 P-7a OWNS the mechanism this extends: a scenario entity that IS terrain, baked on every node, lifecycle-gated (R-242, R-243, R-244)
@@ -91,7 +91,7 @@ graph LR
 | TA-5 | **rivers and bridges** are in scope — *"they make the movement behavior more difficult"* |
 | TA-6 | the random generator **populates** what it builds — parked cars, rubbish piles and the like (§7) |
 
-**Leans — waiting for a nod:**
+**Leans — ✅ approved `2026-11-11` (R-4202; L-2 amended by the user: the generator becomes a library at the START, so generated unique houses are available from slice 1, beside the templates):**
 
 | # | lean | why | rejected |
 |---|---|---|---|
@@ -413,3 +413,42 @@ carries what is needed to edit it again; *Edit terrain* always reopens the whole
 
 ⚠ Scope (R-4151): the editor, the menu bar and the picker's existing groups are drawn as dimmed or plain CONTEXT and are unchanged. Clutter tiles
 show glyphs where the real tiles will be model renders (the thumbnail atlas).
+
+## 16. From the wizard to the editor, and the same terrain on every node *(leans `2026-11-11`)*
+
+🔒 User, `2026-11-11`: *"How will we get from the wizard to the editor? … In a cluster, when the scenario contains this terrain stuff, how will we
+make sure that the others will receive the same stuff so they can bake the terrain features into their own 3D map and terrain representations?"*
+
+**Wizard → editor (lean V-1):** *Open in editor* is the wizard's last step and does it all: it writes the ground terrain, **saves** the block
+scenario at once (nothing is lost if the editor is closed), and **opens it** in the editor — the same as the OSM wizard's *Open in New Scenario*
+(`OsmTerrainWizardWindow.cs:645`, through `Services.OpenNewScenario`). An open scenario with unsaved changes gets the editor's usual save prompt first.
+
+**The same features on every node:**
+
+```mermaid
+sequenceDiagram
+  participant A as Authoring node - editor
+  participant W as Wire
+  participant N as Every other node
+  participant X as FeatureExpander on each node
+  A->>A: place a block - fit to the site ONCE, store the result in the entity
+  A->>W: the block entity - recipe id and content hash, seed, position, heading, fitted placement
+  W->>N: the same small descriptor, held in Constructing until it arrives
+  N->>X: expand recipe plus seed plus placement on the same terrain
+  X-->>N: identical houses, walls, trees, clutter
+  N->>N: bake into its own terrain world, navmesh and 3-D chunks, then ack
+  N->>A: lifecycle ack - the block goes live everywhere at once
+```
+
+*What the picture shows:* the wire carries a **small descriptor**, never the houses; each node **expands it itself** and gets the same result
+because every input is the same — the mechanism static obstacles already use (`ObstacleShape` is `[PerInstanceValue]`, the creator publishes it and
+a node does not promote the ghost before it arrives, R-136; the bake's lifecycle gate, R-243).
+
+| # | lean | why |
+|---|---|---|
+| V-1 | *Open in editor* saves the scenario and opens it automatically | one click, nothing to find; the OSM wizard's precedent |
+| V-2 | ⭐ **fit to the site happens ONCE, at placement, on the authoring node; the result is stored in the entity** | the bake on every node then depends only on recipe + seed + stored placement + the terrain — never on the order other blocks arrive in, so no node can expand differently |
+| V-3 | ⭐ the descriptor carries the **recipe's content hash**; recipes are content assets synced to every node before a load (asset management) — a node whose recipe differs **refuses the load and names it**, never expands a different block | the one way two nodes could still disagree |
+| V-4 | the expander is **pure and integer-seeded** (one RNG, no wall clock, no dictionary order) and has a rail that expands the same block twice in two processes and compares the result byte for byte | determinism stated as a test, not a hope |
+| V-5 | the external visual engine gets the **expanded** features (L-7, B-7) from the node that owns the entity | it cannot run our recipes |
+| V-6 | a replay records the **descriptor** (unmanaged, tiny) and expands it again on load | the recording stays small; the bake follows keyframes as today |
