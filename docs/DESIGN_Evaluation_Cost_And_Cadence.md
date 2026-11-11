@@ -1434,3 +1434,25 @@ will be the difference?"*
 
 The PoC: ONE `UiStore`, created with the presentation module and handed to its systems — independent of whichever snapshot is leased; the snapshot stays
 read-only, only commands go back. ⇒ (c)'s cost grows by: re-key 21 side-table files (small each, silent if missed).
+
+### 13.7 How we would KNOW it still works — the verification plan for (c) *(coordinator, `2026-11-11`; not ruled)*
+
+🔒 User, `2026-11-11`: *"If we go for it, how could we check and verify that the system is still working after all those changes?"*
+
+⭐ The principle: **the simulation does not care who ticks it** — the UI's writes are commands applied at a tick's start in BOTH schedulings ⇒ inline
+and threaded must produce the SAME simulation. That turns most of the verification into one comparison the repo can already make.
+
+| layer | what proves it | exists? |
+|---|---|---|
+| ① **make the missed write LOUD, before threading is on** | the presentation's view is READ-ONLY in BOTH schedulings — in inline mode a read-only wrapper over World A that THROWS on any write; a Debug-build owner-thread check on World A's write paths (the PoC found none exist — T-1) ⇒ every one of the ~24 direct writes, ~40 UI-state writes and 21 world-keyed tables (§13, §13.6) that is missed fails a test instead of racing silently | ⛔ new (small) |
+| ② **migrate in INLINE mode first** | each step (the three seams, the ~24 writes, the ~40 states, the 21 tables) lands with threading OFF and the guard of ① ON — the whole existing suite then proves the migration before any thread changes | the existing suites |
+| ③ **the existing suites, unchanged, in inline mode** | feature rails per feature (CLAUDE.md T-1); the 71 kernel test files; the 118 frame-rail files under `xvfb-run -a`; the system / E2E suite (`scripts/run-system-tests.sh`, `DeterminismRails`, `ClusterConformanceRails`); the nightly scenario regression (`scripts/scenario-regression.sh`, every scenario's `checks.json` + `golden.json`) | ✅ |
+| ④ ⭐ **inline vs threaded EQUIVALENCE** | the same scenario, the same scripted UI actions over HTTP, run inline then threaded — compare the world entity by entity (`scripts/determinism-probe.py --compare`) and the recordings; a threaded difference is a bug | ✅ the probe; a scheduling switch on its runner (new) |
+| ⑤ **the scenario regression in THREADED mode too** | `scenario-regression.sh` with the editor threaded — every `checks.json` must pass and every `golden.json` match as inline | ✅ the script; the switch (new) |
+| ⑥ **new rails for what is new** — the PoC's findings turned into tests | a snapshot is never written while leased (a stress rail with random delays on both threads); events EXACTLY ONCE when publishes are skipped (the PoC's counter — T-2); a stale command is refused, not thrown (T-6); the 21 side tables survive several publishes (§13.6); 0 B per steady presentation frame; the HTTP routes each labelled sim-side / UI-side (a test enumerating the 77 routes) | ⛔ new |
+| ⑦ **the property we are buying** | a "slow simulation" rail: inject a 500 ms tick, assert the main frame stays < 50 ms and input → draw stays bounded | ⛔ new |
+| ⑧ **the real thing, on the user's machine** | ui's CE-4433 harness (`KernelFrameTimings`, `HROT_FRAME_STATS`, hidden) re-run threaded at 1 000, 5 000, 10 000 men: target **playing ≈ paused** (today 98.8 vs 32.4 ms); plus a hand check of the user's own stories (drag, place, delete-undo, Details edits, the OSM wizard, replay) | ✅ the harness |
+
+**Rollout:** the threaded scheduling stays a per-host switch (default OFF) until ③–⑤ are green in both modes and ⑧ meets its target — then ON
+for the windowed editor and player; headless hosts never change (§13.5). ⛔ Not a long-lived flag: once ON is proven, inline remains only as the
+tests' scheduling (§13.4 "one code path, two schedulings").
