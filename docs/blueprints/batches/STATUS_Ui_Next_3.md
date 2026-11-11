@@ -11,6 +11,6 @@
 | C-5 | CE-4258 | DONE | (this commit) | already built 17c7a7ac2 but its rail died with the Run setup expander (CE-3392); new click rail on the macro Details table (two same-type rows, reset the second only, table open). Not red-provable (id clash unobservable) — said in the row |
 | C-6 | CE-4199 | DONE | (this commit) | the check hashes the world without ScenarioIgnoreTag entities (+ all-zero component chunks skipped); rail red-proved; Fdp.Toolkits.Tests 4851 pass, 2 red (TakeCheckpointIntent_HasRequestIdAndLabel, S0_EveryNodeIdMember_IsANodeId) pre-existing at the base (stash-verified) |
 | C-7 | CE-4130 · CE-4138 | DONE | (this commit) | stills wait for the 3-D scene (SceneReady via ViewTelemetry, bounded 180 frames) · anchors read every unit of a duplicate name + the reason names them; both rails red-proved; FilmDirectorTests + DirectorPackTests + DirectorRunnerTests green. 4130 not re-shot live (no GPU) |
-| C-8 | CE-3330 | QUEUED | — | |
+| C-8 | CE-3330 | DONE | (this commit) | audit: every T1..T13 + §10b item is built with a rail (T9/T10 read only); 41 timeline tests green; K/J/L (no rate seam) named in the row, not a defect |
 | C-9 | CE-4285 | QUEUED | — | |
 | C-10 | CE-4036 | QUEUED | — | |
