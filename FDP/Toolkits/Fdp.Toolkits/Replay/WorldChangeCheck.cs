@@ -68,7 +68,16 @@ namespace Fdp.Toolkit.Replay
         public ulong BaselineHash { get { lock (_gate) return _baseline; } }
 
         /// <summary>The content hash of <paramref name="repo"/> now: a keyframe capture, minus what is not content (see the type's remarks).</summary>
-        public ulong Hash(EntityRepository repo) => HashOf(WorldKeyframes.Capture(repo ?? throw new ArgumentNullException(nameof(repo)), Options));
+        public ulong Hash(EntityRepository repo)
+        {
+            if (repo is null) throw new ArgumentNullException(nameof(repo));
+            // ⭐ CE-4199 — an entity tagged ScenarioIgnoreTag is NOT scenario content (a scenario save never writes it: SUMO traffic, effects, a macro's expanded entities, live additions): it is
+            //   captured as absent, so a run that spawns them in Edit does not turn an untouched scenario "unsaved". An explicit EntityFilter in the options wins.
+            var options = Options.EntityFilter != null || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>()
+                ? Options
+                : Options with { EntityFilter = e => !repo.HasComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>(e) };
+            return HashOf(WorldKeyframes.Capture(repo, options));
+        }
 
         /// <summary>The content hash of a keyframe's bytes: the tick, the wall clock and every entity's <c>LastChangeTick</c> skipped.</summary>
         /// <exception cref="InvalidDataException">The bytes are not a keyframe this walker understands (events in it, a truncated chunk).</exception>
@@ -101,9 +110,20 @@ namespace Fdp.Toolkit.Replay
             }
 
             // chunks: count, then (chunk id, 1, type id, byte length, bytes) each
-            int chunks = ReadInt(f, ref pos, ref h);
-            for (int i = 0; i < chunks; i++)
+            // ⭐ CE-4199 — a component chunk whose bytes are ALL ZERO is the same as no chunk (an entity the capture filtered out reads as dead and is zeroed; the entity's presence is in the index's component mask,
+            //   which is hashed): such chunks are neither hashed nor counted, so a filtered-out entity that is the first of its table does not add one.
+            int declared = BinaryPrimitives.ReadInt32LittleEndian(f.Slice(pos));
+            if (declared < 0) throw new InvalidDataException("a negative count or length in a keyframe");
+            int chunks = CountKeptChunks(f, pos + 4, declared);
+            Span<byte> countBytes = stackalloc byte[4];
+            BinaryPrimitives.WriteInt32LittleEndian(countBytes, chunks);
+            h = StableHash.Fnv1a64(countBytes, h);
+            pos += 4;
+            for (int i = 0; i < declared; i++)
             {
+                int typeId0 = BinaryPrimitives.ReadInt32LittleEndian(Take(f, pos + 8, 4));
+                int len0 = BinaryPrimitives.ReadInt32LittleEndian(Take(f, pos + 12, 4));
+                if (typeId0 >= 0 && AllZero(Take(f, pos + 16, len0))) { pos += 16 + len0; continue; }
                 h = StableHash.Fnv1a64(Take(f, pos, 8), h);   // chunk id, the "1"
                 pos += 8;
                 int typeId = ReadInt(f, ref pos, ref h, allowNegative: true);   // the entity index's chunks are -1 / -2
@@ -126,6 +146,27 @@ namespace Fdp.Toolkit.Replay
 
             if (pos != f.Length) throw new InvalidDataException($"{f.Length - pos} bytes follow the last chunk of the keyframe");
             return h;
+        }
+
+        private static bool AllZero(ReadOnlySpan<byte> data)
+        {
+            for (int i = 0; i < data.Length; i++) if (data[i] != 0) return false;
+            return true;
+        }
+
+        /// <summary>How many of the <paramref name="declared"/> chunks starting at <paramref name="pos"/> count (everything but an all-zero component chunk).</summary>
+        private static int CountKeptChunks(ReadOnlySpan<byte> f, int pos, int declared)
+        {
+            int kept = 0;
+            for (int i = 0; i < declared; i++)
+            {
+                int typeId = BinaryPrimitives.ReadInt32LittleEndian(Take(f, pos + 8, 4));
+                int len = BinaryPrimitives.ReadInt32LittleEndian(Take(f, pos + 12, 4));
+                if (len < 0) throw new InvalidDataException("a negative count or length in a keyframe");
+                if (typeId < 0 || !AllZero(Take(f, pos + 16, len))) kept++;
+                pos += 16 + len;
+            }
+            return kept;
         }
 
         private static int ReadInt(ReadOnlySpan<byte> f, ref int pos, ref ulong h, bool allowNegative = false)

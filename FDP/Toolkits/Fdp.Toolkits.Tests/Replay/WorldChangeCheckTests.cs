@@ -71,6 +71,31 @@ namespace Fdp.Toolkits.Tests.Replay
             Assert.True(check.HasChanged(repo), "any difference from the saved world counts, even the original value");
         }
 
+        /// <summary>⭐ CE-4199 — entities tagged <c>ScenarioIgnoreTag</c> (SUMO traffic, effects, expanded macros: never saved) are not scenario content: spawning and moving them leaves an untouched
+        /// scenario "unchanged"; a tagless entity added beside them is still a change.
+        /// ✅ Red-proof: the entity filter removed from <c>WorldChangeCheck.Hash</c> ⇒ the first assertion is red.</summary>
+        [Fact]
+        public void EntitiesTaggedScenarioIgnore_AreNotScenarioContent()
+        {
+            using var repo = NewWorld();
+            repo.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();
+            var authored = repo.CreateEntity(); repo.SetComponent(authored, new ChangeCheckPos { X = 1f });
+            var check = new WorldChangeCheck();
+            check.TakeBaseline(repo);
+
+            for (int i = 0; i < 5; i++)                                  // the run spawns traffic cars
+            {
+                var car = repo.CreateEntity();
+                repo.SetComponent(car, new ChangeCheckPos { X = 10f + i });
+                repo.AddComponent(car, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
+            }
+            repo.Tick();
+            Assert.False(check.HasChanged(repo), "run-spawned, never-saved entities do not dirty the scenario");
+
+            var moved = repo.CreateEntity(); repo.SetComponent(moved, new ChangeCheckPos { X = 5f });   // an authored one
+            Assert.True(check.HasChanged(repo), "an untagged addition is still a change");
+        }
+
         /// <summary>Adding and removing an entity are changes too (the structure is in the keyframe).</summary>
         [Fact]
         public void AddingOrDestroyingAnEntity_IsChanged()

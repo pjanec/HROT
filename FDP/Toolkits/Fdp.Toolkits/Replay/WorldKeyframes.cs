@@ -53,7 +53,8 @@ namespace Fdp.Toolkit.Replay
     /// <param name="Types">The component types.</param>
     /// <param name="Singletons">Write the singletons too. ⛔ A dry run's never are: its rewind never touched a singleton (the content
     /// a scenario loaded stays, R-3043).</param>
-    public sealed record CaptureOptions(KeyframeTypes Types = KeyframeTypes.Recorded, bool Singletons = true)
+    /// <param name="EntityFilter">⭐ CE-4199 — when set, only the entities it accepts are captured (the recorder's own <c>EntityFilter</c>: a rejected entity reads as dead in every chunk).</param>
+    public sealed record CaptureOptions(KeyframeTypes Types = KeyframeTypes.Recorded, bool Singletons = true, Predicate<Entity>? EntityFilter = null)
     {
         public static readonly CaptureOptions Recording = new();
         public static readonly CaptureOptions NodeDryRun = new(KeyframeTypes.Snapshotable, Singletons: false);
@@ -113,7 +114,7 @@ namespace Fdp.Toolkit.Replay
             using var ms = new MemoryStream();
             using (var writer = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true))
             {
-                new RecorderSystem { ComponentTypeFilter = options.Filter, RecordSingletonTables = options.Singletons }
+                new RecorderSystem { ComponentTypeFilter = options.Filter, RecordSingletonTables = options.Singletons, EntityFilter = options.EntityFilter }
                     .RecordKeyframe(repo, writer, wallClockTicks, eventBus: null);
                 writer.Flush();
             }
