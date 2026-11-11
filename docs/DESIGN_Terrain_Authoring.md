@@ -596,3 +596,121 @@ classDiagram
 
 Still open in their own rows: roads and bridges in the road net (G-12, CE-4423), the check of missions on a re-saved terrain (G-13, CE-4424),
 the smaller items (G-15, CE-4426).
+
+## 18a. The overlay as built — format, classes, the load, the distribution *(O-1, backend `2026-11-11`; build-state: READY-TO-BUILD — numbers in §18b)*
+
+**INVENTORY — the queries run** (`scripts/cbm.sh search_graph`, `label: Class`, + grep): `.*Terrain(Residency|Obstacles|FolderWriter|Parser|Loader|World)$` → 4
+(`TerrainResidency`, `TerrainObstacles`, `TerrainWorld`, `SumoNetTerrainLoader`) · `.*Terrain.*(Writer|Parser|Reader|Folder|Catalog|Manifest|Hash).*` → 3
+(`TerrainCatalog`, `TerrainDefinitionParser`, `TerrainWorldParser`; grep adds `TerrainFolderWorld`, `TerrainFolderWriter`) · `.*(Navtile|NavmeshPrefill|…).*` →
+`NavTileCache`, `NavTileKey` · `.*(AssetSync|LoadPhase|…).*` → `AssetSyncService`, `AssetTreeSync`, `LoadPhaseChain`, `LoadPhaseContext`,
+`AssetInventoryProcessManager` · `.*(BuildingDamage|WallBreach|DoorKey|DoorState|TerrainObject).*` → `DoorState(s)`, `TerrainObjectKey`, `TerrainObjectRef`,
+`TerrainObjectRequests`, `TerrainObjectsSection`, `EntityDoorState` translators (+ `BuildingDamage`, `WallBreach` by grep). ⚠ coverage could not be checked
+(`check_index_coverage` is not in the CLI). ⇒ ⛔ no overlay, merge, content hash or overlay sync exists; every piece below EXTENDS one of these.
+
+### The format — a terrain folder in miniature *(the lean taken: the terrain's own format, so the one parser reads it)*
+
+```
+<scenario folder>/terrain-overlay/          (⛔ never in git — .gitignore **/terrain-overlay/, O-6)
+  overlay.json                 header: format 1 · contentHash · base { name, contentHash } · scenario id · world file name · part counts
+  overlay.world.geojson        the SAME schema as a terrain's world file; features in CANONICAL order (ordinal sort of the stable key);
+                               every building / wall / surface / walkable carries "label": "<feature entity guid>/<index in its expansion>"
+  buildings/<t>.building.json  generated templates only (the shared assets/buildings/ ones are referenced, not copied)
+  navtiles/<x>_<z>_<hash>.navtile   ONLY the tiles whose key differs from the base's (NavTileKey — the same file format)
+```
+
+| rule | why — the measured fact it rests on |
+|---|---|
+| the overlay world is PARSED by `TerrainWorldParser` into its own `TerrainWorld` (indices from 0), then MERGED | ⭐ one parser, one building expander (`TerrainBuildingExpander`: panels, openings, doors, storeys, walkables) — ⛔ a second reader drifts (CE-4393's own rule, `TerrainFolderWorld.cs:7-9`) |
+| the merge APPENDS: base parts keep their indices; overlay part i lands at `base.Count + i`, and every cross-index is offset — `TerrainPrism.Panel / .Building`, `TerrainWalkable.Building`, `TerrainWallPanel.Building`, `TerrainDoorDef.Panel` (`TerrainWorld.cs:42,46,64`, `TerrainBuildings.cs:49,61`) | the base's indices — and every saved / replicated state keyed by them today — are untouched; the overlay's are the same on every node because its order is in the FILE (G-1's "per-node query order" cannot arise) |
+| building key = its LABEL (globally unique: base labels as today, overlay labels `<guid>/<i>`); door key = `<building key>/<door id>`; ⛔ no terrain-name prefix for new keys (O-3) | `BuildingDamages.KeyOf` and `DoorKey` prefix the terrain NAME (`BuildingDamage.cs:113`, `TerrainBuildingExpander.cs:299`) ⇒ *Save terrain as* (a new name) orphans every saved state (G-1). A legacy key `"<terrain>/<label>"` is still READ (prefix stripped when it names the resident terrain) |
+| content hash = SHA-256 over `overlay.json`'s parts and the world file (not navtiles); the base's hash = SHA-256 over `terrain.json` + the files it names, cached in `terrain.hash` keyed by each file's (length, mtime) | a NAME identifies nothing (`RecordingMetadata.TerrainName`, G-6); the cache keeps a 127 MB height store from being re-hashed per load |
+| navtiles: the merged world's bake seeds from the base's `navtiles/` THEN the overlay's (`RecastNavmeshFactory.cs:115-120` reads ONE `SourceFolder` today ⇒ it takes a list) | the overlay's houses touch few tiles — every untouched tile is the base's file (G-4, G-10) |
+| ⛔ NOT in v1: height pads (no type exists — `grep Pad` in the world types: none) | a finding row in this lane's block, not a silent drop |
+
+### Classes
+
+```mermaid
+classDiagram
+  class TerrainWorldParser { <<existing>> Parse(geojson, name, assets) TerrainWorld }
+  class TerrainFolderWorld { <<existing, extended>> ReadWorld(definitionPath, def, name) · ReadOverlay(overlayFolder) TerrainOverlay }
+  class TerrainOverlay { <<new>> Header · World(TerrainWorld, indices from 0) · Folder (its navtiles) }
+  class TerrainOverlayHeader { <<new, overlay.json>> Format · ContentHash · BaseName · BaseHash · ScenarioId · World }
+  class TerrainWorldMerge { <<new, FDP Terrain>> Merge(base, overlay) TerrainWorld }
+  class TerrainObstacles { <<existing, unchanged>> With(world, prisms, damage) — runtime obstacles over the MERGED world }
+  class TerrainContentHash { <<new>> Of(definitionPath) · Of(overlayFolder) }
+  class TerrainResidency { <<existing, extended>> Prepare(terrainName, overlayFolder?) }
+  class TerrainLoadStep { <<existing, extended>> reads the staged header's OverlayHash }
+  class OverlayCompiler { <<new, editor side — O-4>> Compile(scenario, base) → folder }
+  class FeatureExpander { <<new, pure, seeded — O-4>> }
+  class StorageGatewayModule { <<existing, extended>> StageNamedArtifacts: + the overlay folder }
+  class RecastNavmeshFactory { <<existing, extended>> seeds from world.SeedFolders (base, overlay) }
+  TerrainFolderWorld --> TerrainWorldParser
+  TerrainFolderWorld --> TerrainOverlay
+  TerrainOverlay --> TerrainOverlayHeader
+  TerrainResidency --> TerrainFolderWorld
+  TerrainResidency --> TerrainWorldMerge
+  TerrainResidency --> TerrainContentHash : refuses a base mismatch
+  TerrainResidency --> TerrainObstacles : _baseWorld = the MERGED world
+  TerrainLoadStep --> TerrainResidency
+  OverlayCompiler --> FeatureExpander
+  OverlayCompiler --> TerrainWorldMerge : the compile bakes the merged world's touched tiles
+  StorageGatewayModule ..> TerrainOverlay : mirrors the folder (AssetTreeSync)
+  RecastNavmeshFactory ..> TerrainOverlay : reads its navtiles
+```
+*What it shows that prose hid:* the merged world becomes `_baseWorld` (`TerrainResidency.cs:323`), so the runtime obstacle bake (C-10) and building damage
+lay over base + overlay with NO change to `TerrainObstacles.With` — the overlay is not a second bake path, it is a bigger base.
+
+### The load — every node
+
+```mermaid
+sequenceDiagram
+  participant O as Orchestrator (StorageGatewayModule)
+  participant D as Node disk
+  participant L as TerrainLoadStep
+  participant R as TerrainResidency
+  participant M as TerrainWorldMerge
+  O->>D: mirror terrain/<name>/ (existing) + overlays/<contentHash>/ (new) · staged header + OverlayHash
+  L->>R: Prepare(terrainName, overlays/<hash>)
+  R->>R: base = ReadWorld · overlay = ReadOverlay
+  R->>R: TerrainContentHash.Of(base) == overlay.BaseHash ? else THROW naming both
+  R->>M: Merge(base, overlay)
+  M-->>R: one TerrainWorld (base indices kept, overlay appended)
+  R->>R: navmesh (seeds: base navtiles, overlay navtiles) · cover · index
+  L->>R: Commit — the merged world is the base the obstacle bake builds on
+  Note over L: ScenarioLoadStep creates door entities from world.Doors (ScenarioLoadStep.cs:264) — overlay doors included, keyed by stable key
+```
+
+### The modules — who calls what each load *(dashed red = NOT reached today — the dead edges)*
+
+```mermaid
+graph TD
+  ED[Editor save] -->|O-4| OC[OverlayCompiler]
+  OC --> FS[(scenario folder/terrain-overlay)]
+  FS -->|publish with the scenario, Asset Mgmt §5| NAS[(NAS)]
+  NAS -->|StageNamedArtifacts, every prefetch| ND[(node overlays/hash)]
+  ND --> TLS[TerrainLoadStep - Terrain load part, MuscleGround + Brain]
+  TLS --> RES[TerrainResidency.Prepare]
+  RB[Replay Browser - Prepare by NAME only, ReplayBrowserSubsystem.cs:809] -.->|O-8 not reached| ND
+  RB -.->|no StaticObstacleBakeSystem - G-7| OBS[runtime obstacles]
+  linkStyle 6 stroke:#c00,stroke-dasharray:4
+  linkStyle 7 stroke:#c00,stroke-dasharray:4
+```
+*What it shows:* the cluster nodes reach the overlay through the ONE prefetch the terrain already rides; the Replay Browser calls `Prepare(name)` itself and
+reaches neither the overlay nor obstacles — O-8's two edges.
+
+| claim the design rests on | code — how it IS | design basis |
+|---|---|---|
+| the prefetch mirrors the terrain folder to every target before the load | ✅ `StorageGatewayModule.cs:557-563` (`AssetTreeSync().Sync`) | ✅ Asset Management §4 |
+| the terrain step runs only after distribution is acked | ✅ `TerrainLoadStep.cs:82-86` (L8 comment) | ✅ Cluster Load Phase §7.3 ④ |
+| the obstacle bake builds on `_baseWorld` | ✅ `TerrainResidency.cs:323,508-512` | ✅ Peek and Fire §9 |
+| door entities come from `world.Doors` at scenario load | ✅ `ScenarioLoadStep.cs:264` → `TerrainObjectRequests.ForDoors` | ✅ §17 G-3 |
+| fine navmesh areas read `world.Buildings` / `world.Doors` | ✅ `RecastNavmeshFactory.cs:142-155` | ✅ §17 G-3 |
+| keys carry the terrain name | ✅ `BuildingDamage.cs:113`, `TerrainBuildingExpander.cs:299` | ✅ §17 G-1 |
+
+### 18a-3. Stable keys — O-3 as built *(CE-4417, backend `2026-11-11`)*
+
+| decision | why — measured |
+|---|---|
+| ⭐ a replicated breach names the house by KEY and the wall by its index WITHIN the house; the receiver resolves both against ITS world (`BuildingDamages.IndexOfKey`, `BuildingPanelIndex.ToGlobal`) — the global indices never cross the wire | the sample carried the sender's global `Building` and `Panel` and the receiver applied them as they were (`EntityBuildingDamageTranslators.cs:77,179`) ⇒ two worlds assembled differently breach different houses (G-1). The SAVE already used key + panel-in-building (`BuildingDamageSave.cs:42-62,149`) — the wire now speaks the same language |
+| a key resolves with or without the terrain-name prefix (`"<terrain>/<label>"` and `"<label>"`) | after *Save terrain as* (a new name) an old key still finds its house |
+| ⚠ **DEVIATION from §18a's first table — the terrain-name PREFIX is NOT dropped from the keys written today; it moves to O-5** | 📐 measured: six shipped scenarios (`bt-doors`, `bd-destruction`, `bc-*`, `ua-civ-shelter`) save door state under `"<terrain>/<building>/<door>"`, AND behaviour params name doors that way (`DoorLocksmith`: `"door":"bt-range/House A/front"`), compared as strings in places not yet enumerated; recordings hold them in `TerrainObjectKey`. Dropping the prefix now touches all three; O-5 (*Save terrain as*) rewrites keys anyway, so it is done there, with the legacy read already in place here. Overlay labels are `<guid>/<i>` — stable across re-saves whatever the prefix |
