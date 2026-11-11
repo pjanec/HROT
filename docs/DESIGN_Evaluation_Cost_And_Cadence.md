@@ -1411,3 +1411,11 @@ README (`FDP/Examples/Fdp.Examples.ThreadedKernel/README.md`, branch `poc/thread
 of work, and it does not change the shape: a bigger scenario brings the freeze back.
 ⇒ **Lean (coordinator and ui agree): (c)**, with (b)'s cheap items meanwhile. ⏳ For the user to rule; then an architect-question document and a
 kernel design section in FDP-DES-012 before any build.
+
+**Headless hosts are not a second architecture** *(user, `2026-11-11`: "headless mode, meaning no presentation and likely no snapshots … Isn't it the
+second architecture you warned against?")* — ⛔ No. The warning was against TWO PRESENTATION paths (one reading World A directly, one a snapshot) or a
+switch by entity count. A headless node (CGF, SimHost, orchestrator, CI) runs the SAME simulation modules on the SAME kernel and simply registers NO
+presentation module ⇒ the snapshot port is never created and nothing is published — by construction, not by a mode flag. It ticks on its own thread,
+drains the HTTP job queue there, and costs exactly what it costs today; the background modules' own snapshots (EQS, navigation) are unchanged.
+⚠ The one check during the §13 migration: UI state that lives on World A entities today (e.g. `MapDisplayComponent`) must not be READ by simulation or
+egress code before it moves to the presentation store — else moving it changes every host alike.
