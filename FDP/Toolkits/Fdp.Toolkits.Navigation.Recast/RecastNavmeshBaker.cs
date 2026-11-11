@@ -137,7 +137,14 @@ public sealed class RecastNavmeshBaker
     public readonly record struct Area(float MinX, float MinZ, float MaxX, float MaxZ);
 
     /// <summary>What the last <see cref="Bake"/> did (a rail and the load log read it).</summary>
-    public readonly record struct BakeStats(int Tiles, int FineTiles, int Baked, int FromCache, long Milliseconds);
+    /// <param name="GatherMs">⭐ O-7 — THREAD time (summed over the worker threads) spent gathering and binning each tile's triangles (<c>TileTriangles</c>).</param>
+    /// <param name="HashMs">THREAD time hashing tiles (<c>HashTile</c>; only with a <see cref="Cache"/>).</param>
+    /// <param name="CacheMs">THREAD time in <c>Cache.TryGet</c> (memory lookup, seed/disk read, deserialise).</param>
+    /// <param name="BakeMs">THREAD time baking the tiles that missed (Recast + <c>Cache.Put</c>).</param>
+    /// <param name="ParallelMs">WALL time of the parallel tile section.</param>
+    /// <param name="AssembleMs">WALL time of the serial assembly (the <c>AddTile</c> loop) over every layer.</param>
+    public readonly record struct BakeStats(int Tiles, int FineTiles, int Baked, int FromCache, long Milliseconds,
+        long GatherMs = 0, long HashMs = 0, long CacheMs = 0, long BakeMs = 0, long ParallelMs = 0, long AssembleMs = 0);
 
     /// <summary>The tile edge (m); must be a multiple of both cell sizes.</summary>
     public float TileMetres { get; init; } = DefaultTileMetres;
@@ -304,6 +311,9 @@ public sealed class RecastNavmeshBaker
         var tileKeys = new System.Collections.Concurrent.ConcurrentDictionary<long, ulong>();
         int tileCount = tilesX * tilesZ, tilesDone = 0;
         var parallel = new ParallelOptions { CancellationToken = Cancel };
+        // ⭐ O-7 — where the time of a bake goes: thread-time per stage (Stopwatch ticks, Interlocked), the parallel section's and the assembly's wall time. Allocation-free.
+        long tGather = 0, tHash = 0, tCache = 0, tBake = 0;
+        long parallelStart = System.Diagnostics.Stopwatch.GetTimestamp();
         Parallel.For(0, tileCount, parallel, ti =>
         {
             try { BakeOneTile(ti); }
@@ -319,7 +329,10 @@ public sealed class RecastNavmeshBaker
             int tx = ti % tilesX, tz = ti / tilesX;
             int ax = firstX + tx, az = firstZ + tz;
             Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the load advances (docs/DESIGN_Cluster_Load_Phase.md §12)
-            if (!TileTriangles(source, ax, az, firstX, firstZ, tilesX, tilesZ, margin, out var tv, out var tidx)) return;
+            long g0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            bool anyTriangles = TileTriangles(source, ax, az, firstX, firstZ, tilesX, tilesZ, margin, out var tv, out var tidx);
+            Interlocked.Add(ref tGather, System.Diagnostics.Stopwatch.GetTimestamp() - g0);
+            if (!anyTriangles) return;
             present[ti] = true;
             // ⭐ CE-4366 — the Recast input (its chunky index) only when a layer must really bake: a warm load hashes and hits
             var tileVolumes = new List<NavDoorways.Volume>();
@@ -346,12 +359,18 @@ public sealed class RecastNavmeshBaker
                 NavTileKey key = default;
                 if (Cache != null)
                 {
+                    long h0 = System.Diagnostics.Stopwatch.GetTimestamp();
                     key = new NavTileKey(layer, ax, az, HashTile(tv, tidx, tileVolumes, layer, p, cs, ax, az, yMin, yMax));
+                    Interlocked.Add(ref tHash, System.Diagnostics.Stopwatch.GetTimestamp() - h0);
                     ulong kh = 1469598103934665603UL ^ (ulong)(int)layer;   // ⭐ CE-4391 — the tile's identity for P3-a, folded over its layers (xor: order-free)
                     foreach (char ch in key.Hash) { kh ^= ch; kh *= 1099511628211UL; }
                     tileKeys.AddOrUpdate(((long)ax << 32) | (uint)az, kh, (_, old) => old ^ kh);
-                    if (Cache.TryGet(key, Seed, out var hit)) { baked[ti, li] = hit; Interlocked.Increment(ref fromCache); continue; }
+                    long c0 = System.Diagnostics.Stopwatch.GetTimestamp();
+                    bool cached = Cache.TryGet(key, Seed, out var hit);
+                    Interlocked.Add(ref tCache, System.Diagnostics.Stopwatch.GetTimestamp() - c0);
+                    if (cached) { baked[ti, li] = hit; Interlocked.Increment(ref fromCache); continue; }
                 }
+                long b0 = System.Diagnostics.Stopwatch.GetTimestamp();
                 if (geom == null)
                 {
                     geom = new RcSampleInputGeomProvider(tv, tidx);
@@ -361,9 +380,11 @@ public sealed class RecastNavmeshBaker
                 baked[ti, li] = data;
                 Interlocked.Increment(ref nBaked);
                 if (Cache != null) Cache.Put(key, data);   // an EMPTY tile is cached too (null)
+                Interlocked.Add(ref tBake, System.Diagnostics.Stopwatch.GetTimestamp() - b0);
             }
         }
 
+        long parallelTicks = System.Diagnostics.Stopwatch.GetTimestamp() - parallelStart;
         // the work in the old order (layer, then row-major tiles) for Assemble
         var work = new List<(NavLayerMask Layer, int Tx, int Tz, bool Fine)>();
         var tiles = new List<DtMeshData?>();
@@ -377,6 +398,7 @@ public sealed class RecastNavmeshBaker
                 if (fineOf[ti, li]) fineCount++;
             }
         var tileArray = tiles.ToArray();
+        long assembleStart = System.Diagnostics.Stopwatch.GetTimestamp();
         foreach (var layer in layers)
         {
             var p = GetParams(layer);
@@ -387,7 +409,9 @@ public sealed class RecastNavmeshBaker
                 _bakedParams[layer] = p;
             }
         }
-        LastStats = new BakeStats(work.Count, fineCount, nBaked, fromCache, sw.ElapsedMilliseconds);
+        static long Ms(long ticks) => ticks * 1000L / System.Diagnostics.Stopwatch.Frequency;
+        LastStats = new BakeStats(work.Count, fineCount, nBaked, fromCache, sw.ElapsedMilliseconds,
+            Ms(tGather), Ms(tHash), Ms(tCache), Ms(tBake), Ms(parallelTicks), Ms(System.Diagnostics.Stopwatch.GetTimestamp() - assembleStart));
         LastTileKeys = tileKeys;
         return result;
     }

@@ -239,12 +239,14 @@ namespace Fdp.Toolkit.Terrain.Tests
             var table = new System.Text.StringBuilder();
             void Row(string k, string v) { table.AppendLine($"{k,-58} {v}"); Console.WriteLine($"[O7] {k,-58} {v}"); }
             long Ms(Action a) { var w = System.Diagnostics.Stopwatch.StartNew(); a(); return w.ElapsedMilliseconds; }
+            RecastNavmeshFactory factory = null!;
+            void Stages(string tag) { var st = factory!.LastStats; Row($"{tag} stages: wall total / parallel / assemble ms", $"{st.Milliseconds} / {st.ParallelMs} / {st.AssembleMs}"); Row($"{tag} thread-ms: gather / hash / cache(read+deserialise) / bake", $"{st.GatherMs} / {st.HashMs} / {st.CacheMs} / {st.BakeMs}"); }
             long Med(Action a) { var t = new long[3]; for (int i = 0; i < 3; i++) t[i] = Ms(a); Array.Sort(t); return t[1]; }
 
             TerrainWorld baseWorld = null!;
             Row("read scale-1 (TerrainFolderWorld.ReadWorld) ms", Ms(() => baseWorld = TerrainFolderWorld.ReadWorld(baseDef, TerrainFolderWorld.ReadDefinition(baseDef), "scale-1")!).ToString());
             Row("base: prisms / buildings / walkables / surfaces", $"{baseWorld.Prisms.Count} / {baseWorld.Buildings.Count} / {baseWorld.Walkables.Count} / {baseWorld.Surfaces.Count}");
-            var factory = new RecastNavmeshFactory { TileCache = new NavTileCache() };   // memory only: what a warm editor's cache is, without the disk
+            factory = new RecastNavmeshFactory { TileCache = new NavTileCache() };   // memory only: what a warm editor's cache is, without the disk
             var concrete = baseWorld.Materials.Get("concrete", "measure");
             var site = baseWorld.Buildings[baseWorld.Buildings.Count / 2].Position + new System.Numerics.Vector2(40f, 0f);
             Row("edit site (m)", $"{site.X:0},{site.Y:0}");
@@ -262,7 +264,7 @@ namespace Fdp.Toolkit.Terrain.Tests
             Row("A1 With(base, wall moved 2 m) ms (median of 3)", Med(() => w2 = TerrainObstacles.With(baseWorld, new[] { Wall(2f) })).ToString());
             Row("A1 index ms (median of 3)", Med(() => Fdp.Toolkit.Spatial.Bepu.BepuTerrainIndex.AttachTo(w2 = TerrainObstacles.With(baseWorld, new[] { Wall(2f) }))).ToString());
             Row("A1 navmesh, warm cache ms", Ms(() => factory.Build(w2)).ToString());
-            Row("A1 navmesh tiles / baked / from cache", $"{factory.LastStats.Tiles} / {factory.LastStats.Baked} / {factory.LastStats.FromCache}");
+            Row("A1 navmesh tiles / baked / from cache", $"{factory.LastStats.Tiles} / {factory.LastStats.Baked} / {factory.LastStats.FromCache}"); Stages("A1");
             Row("A1 cover ms (median of 3)", Med(() => Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(w2)).ToString());
             long floorMs = Ms(() => factory.Build(w2));
             Row("C  navmesh, EVERY tile a hit (no bake) ms", floorMs.ToString());
@@ -293,7 +295,7 @@ namespace Fdp.Toolkit.Terrain.Tests
             Row("B1 index ms", Ms(() => Fdp.Toolkit.Spatial.Bepu.BepuTerrainIndex.AttachTo(m2)).ToString());
             Row("B1 navmesh (old + new block tiles in the cache) ms", Ms(() => factory.Build(m2)).ToString());
             Row("B1 navmesh tiles / baked / from cache", $"{factory.LastStats.Tiles} / {factory.LastStats.Baked} / {factory.LastStats.FromCache}");
-            int bakedByMove = factory.LastStats.Baked, tilesAll = factory.LastStats.Tiles;
+            Stages("B1"); int bakedByMove = factory.LastStats.Baked, tilesAll = factory.LastStats.Tiles;
             Row("B1 cover ms", Ms(() => Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(m2)).ToString());
 
             // ── C. tiles touched vs total; the cost of looking at every tile ───────────────────────────────────────────────────────────────
@@ -310,7 +312,7 @@ namespace Fdp.Toolkit.Terrain.Tests
             Row("C  navmesh work tiles in the town (layers x squares with geometry)", tilesAll.ToString());
             Row("C  tiles the move actually baked (changed keys)", bakedByMove.ToString());
             long floor2 = Ms(() => factory.Build(m2));
-            Row("C  EVERY tile a hit on the merged block world ms", floor2.ToString());
+            Row("C  EVERY tile a hit on the merged block world ms", floor2.ToString()); Stages("C floor");
             // the gather half of that floor, sampled: TerrainTileTriangles.Gather over 200 squares around the site, scaled to every square
             var tri = new TerrainTileTriangles(m2);
             var verts = new System.Collections.Generic.List<float>(); var idx = new System.Collections.Generic.List<int>();

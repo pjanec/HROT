@@ -934,3 +934,43 @@ graph TD
 | ⚠ a base tile the overlay re-baked stays in `navtiles/`, unused (its hash differs) | harmless; a cleanup row (CE-3435) |
 
 Rails (each red-proved, `TerrainBakeTests`): parse(saved) ≡ merge(base, overlay) · loading the saved terrain bakes 0 tiles · its hash differs from the base and `source/` does not move it · authored door states resolve through the new scenario · a re-save works, also with the base deleted · a failed save leaves the target and no `.part` / `.old` · the summary's counts and `TerrainUsers.Of`.
+
+### 18e. The live incremental bake — O-7 *(CE-4418, backend `2026-11-11`; build-state: part A READY-TO-BUILD, part B DESIGN)*
+
+📐 **Measured on scale-1** (105 800 tiles, 4 cores, Debug; `O7_Measure_ALiveEditOnScaleOne`, opt-in): a warm rebake after moving a hamlet 20 m bakes
+**24** tiles and still takes **≈ 26–28 s**, and an all-hit rebake takes the same. Split (`BakeStats` stage timers): **gather 77 % + hash 21 %** of
+the parallel section's thread time, cache read 0.7 %, baking the misses 0.2 %; the serial `AddTile` assembly 0.5 s. Index + cover ≈ 0.6–1.0 s,
+both whole-only (`BepuTerrainIndex.cs:17-64`, `TerrainCoverProvider.cs:47-69`). ⇒ ⛔ §17 G-4's "≈ 16 s" was low; the cost is re-reading
+UNCHANGED tiles to learn they did not change.
+
+```mermaid
+sequenceDiagram
+  participant R as TerrainResidency.BakeObstacles (off-thread)
+  participant F as RecastNavmeshFactory
+  participant B as RecastNavmeshBaker
+  participant C as NavTileCache (bytes)
+  R->>R: dirty = bounds of the parts that differ from the last bake (prisms added / removed / moved)
+  R->>F: Rebake(world, dirty)
+  F->>B: Bake(..., Previous = last bake's tile keys, Dirty = dirty)
+  loop every tile
+    alt tile outside every dirty rect (with the gather margin) and it has a previous key
+      B->>C: TryGet(previous key) - a fresh copy, no gather, no hash
+    else
+      B->>B: gather, hash, cache or bake - as today
+    end
+  end
+  B-->>F: meshes + the new key map
+```
+*What it shows:* the change already knows where it happened, so the baker stops proving that 105 776 tiles did not change. A tile whose previous
+copy is not in the cache falls back to today's path, and `dirty = null` (unknown) is today's full rebake — so a wrong caller is slow, never wrong.
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| A-1 reuse | the previous tile by its KEY through the cache (fresh bytes → fresh `DtMeshData`) | the previous `DtMeshData` objects — `AddTile` / `ConnectIntLinks` write into them (`DtPoly.firstLink`), and the old mesh is still queried on another thread |
+| A-2 dirty | computed by the residency from the prism sets it bakes (symmetric difference → bounds); damage changes add their building's bounds; a base change ⇒ `null` (full) | the caller passing rects — every caller would have to remember; the residency is the one place every bake passes (by construction) |
+| A-3 the index and cover | whole, unchanged (≈ 1 s) | incremental now — no add/remove API in either; a row if 1 s proves too slow |
+| A-4 scope | every node's obstacle bake, not only the editor — a hedge placed at run time pays the same 26 s today | an editor-only path — a second bake (ruling 9) |
+| B (DESIGN) | the editor's live overlay: an editor-only system expands changed blocks off-thread, merges, and feeds the same residency bake with the changed parts' bounds; 3-D chunks are ui's (the dirty rects exposed) | — |
+
+Acceptance A: a dirty bake's tile keys equal a full bake's for a moved wall and a moved block (rail); a too-small dirty rect is caught by that rail
+(red-proof); scale-1 warm move measured ≪ 26 s.

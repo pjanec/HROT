@@ -143,7 +143,8 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
         _lastTileKeys = baker.LastTileKeys;   // ⭐ CE-4391 S-3 (P3-a)
         var st = LastStats;
         Fdp.Core.Logging.FdpLog<RecastNavmeshFactory>.Info(
-            $"[Navmesh] '{world.Name}': {st.Tiles} tiles ({st.FineTiles} fine) — {st.Baked} baked, {st.FromCache} from the cache, {st.Milliseconds} ms.");
+            $"[Navmesh] '{world.Name}': {st.Tiles} tiles ({st.FineTiles} fine) — {st.Baked} baked, {st.FromCache} from the cache, {st.Milliseconds} ms "
+          + $"(parallel {st.ParallelMs} ms wall; thread-ms: gather {st.GatherMs}, hash {st.HashMs}, cache {st.CacheMs}, bake {st.BakeMs}; assemble {st.AssembleMs} ms wall).");
         return meshes;
     }
 
