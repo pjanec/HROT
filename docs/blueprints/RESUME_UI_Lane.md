@@ -255,6 +255,17 @@ A-6 RTS checkmark (CE-4347) · A-7 the wheel past the eyes (CE-4348) · A-8 the 
 
 **Traps measured this session:** the frame harness's default font is ASCII-only (`—`, `·` draw as `?`) — a rail that cares initialises `EditorFontService` first (the transfers rails do) · editing a project while a background build of it runs gives phantom "no such member" errors — re-build before believing them · ClusterRunner needed `dotnet restore` after the backend merge (`DeployFlowSystem` / Hrot.Gameplay "not referenced").
 
+## ⭐⭐⭐ SESSION 2026-11-11 — OVERNIGHT: USER FINDINGS + NEXT_3 *(state at `ui` after `eb6b23ec2`, pushed, tree clean)*
+
+| handoff | status | state |
+|---|---|---|
+| [User findings overnight](batches/HANDOFF_Coordinator_To_Ui_User_Findings_Overnight.md) | [STATUS](batches/STATUS_Ui_User_Findings_Overnight.md) | ✅ all closed or remainder filed: CE-1476 (U-10 Windows measure), CE-1477 (U-5 the real click on Windows), CE-1478 (U-2 frame apply + per-tick systems in replay); U-12's exit 1 needs one Windows run |
+| [Destruction drawing](batches/HANDOFF_Coordinator_To_Ui_Destruction_Drawing.md) | [STATUS](batches/STATUS_Ui_Destruction_Drawing.md) | ✅ (built by an earlier session; re-verified, a breach rebuild = 26 ms) |
+| [Next_3](batches/HANDOFF_Coordinator_To_Ui_Next_3.md) | [STATUS](batches/STATUS_Ui_Next_3.md) | ✅ C-0 … C-10 |
+
+**Next:** after backend moves `NodeIdRanges` ([REQUEST](batches/NOTE_Ui_To_Backend_NodeIdRanges_Home.md)), drop `Hrot.ReplayBrowser → Hrot.Orchestrator`. Then merge `coordinator` and look for the next handoff (`ls -t docs/blueprints/batches | grep -E "HANDOFF.*Ui|To_Ui"` — ⚠ check a STATUS file does not already exist before creating one: other ui sessions run on Windows).
+**Traps:** container restarts kill workers — stash their WIP (look for a leftover mutation first), never commit it unseen; workers now revert a mutation in the same shell command that tests it.
+
 ## ⭐⭐⭐ SESSION 2026-11-08 — RUN CONTROLS, BATCH Z, AFTER-Z (PAUSED) *(state at `ui@7a302a3c2`, pushed, tree clean; the user said PAUSE — token allowance near; nothing in flight)*
 
 **Three handoffs this session — the status files are the record (one row per item, sha, gates):**

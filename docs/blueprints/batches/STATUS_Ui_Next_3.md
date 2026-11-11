@@ -14,3 +14,5 @@
 | C-8 | CE-3330 | DONE | (this commit) | audit: every T1..T13 + §10b item is built with a rail (T9/T10 read only); 41 timeline tests green; K/J/L (no rate seam) named in the row, not a defect |
 | C-9 | CE-4285 | DONE | (this commit) | already 0 B (BoxedOf once per epoch); the row's rail added (6 scalars, 0 B steady), red-proved by a per-frame box (24 B) |
 | C-10 | CE-4036 | DONE | (this commit) | already built (CE-1115, Visual Effects §9; rail CE1115_V_FlaresAndChaff green under Xvfb) - the row was filed without the design; nothing built |
+
+⚠ Review finding (ui, 2026-11-11): C-4 added a direct `Hrot.ReplayBrowser → Hrot.Orchestrator` reference for `NodeIdRanges.NameOf` — REQUEST to backend to move the table to `Fdp.Toolkits` ([NOTE](NOTE_Ui_To_Backend_NodeIdRanges_Home.md)); ui drops the reference after.
