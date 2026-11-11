@@ -16,10 +16,10 @@ namespace Fdp.Toolkit.Terrain
     public static class OverlayExpansion
     {
         /// <summary>Expands one block placed at <paramref name="at"/>; every part's label is prefixed by <paramref name="key"/> (the block entity's scenario guid).</summary>
-        public static BlockExpansion Block(string key, string recipeId, uint seed, float headingDeg, byte fit, Vector2 at, TerrainWorld baseWorld, TerrainAssets assets, IEnumerable<string?> recipeRoots)
+        public static BlockExpansion Block(string key, string recipeId, uint seed, float headingDeg, byte fit, Vector2 at, TerrainWorld baseWorld, TerrainAssets assets, IEnumerable<string?> recipeRoots, TerrainRoads? roads = null)
         {
             var recipe = TerrainRecipe.Find(recipeId, recipeRoots);
-            var x = FeatureExpander.Expand(recipe, seed, at, headingDeg, fit, baseWorld, key, assets);
+            var x = FeatureExpander.Expand(recipe, seed, at, headingDeg, fit, baseWorld, key, assets, roads);
             var outline = new JsonArray();
             foreach (var p in Hull(x.Points)) outline.Add(new JsonArray(MathF.Round(p.X * 100f) / 100f, MathF.Round(p.Y * 100f) / 100f));
             var summary = new JsonObject { ["key"] = key, ["recipe"] = recipeId, ["seed"] = seed, ["houses"] = x.Houses, ["woods"] = x.Woods, ["clutter"] = 0, ["outline"] = outline };

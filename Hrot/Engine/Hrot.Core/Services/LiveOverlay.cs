@@ -76,6 +76,7 @@ public sealed class LiveOverlay
     private TerrainWorld? _cacheBase;
     private string? _cacheFolder;
     private TerrainAssets? _assets;
+    private TerrainRoads? _roads;   // ⭐ T-5 — the terrain folder's roads (AlignRoad), the same reader the compiler uses
     private IEnumerable<string?>? _roots;
 
     // ⭐ CE-4427 R-7 — the files of the live cache, polled ONCE A SECOND by wall time (a stat each, no per-frame IO): an edit moves the epoch, which joins the signature, which re-bakes; the re-expansion then finds the stamp changed
@@ -221,6 +222,7 @@ public sealed class LiveOverlay
             {
                 _cache.Clear(); _cacheBase = baseWorld; _cacheFolder = terrainFolder;
                 _assets = TerrainAssets.ForFolder(terrainFolder);
+                _roads = TerrainRoads.ForFolder(terrainFolder);
                 _roots = new List<string?>(TerrainRecipe.RootsFor(terrainFolder));
             }
 
@@ -271,7 +273,7 @@ public sealed class LiveOverlay
             entry.Files = files.ToArray();
             entry.Stamp = StampOf(entry.Files);
             if (s.Kind == OverlaySource.BlockKind)
-                entry.Features.AddRange(OverlayExpansion.Block(s.Key, s.Name, s.Seed, s.HeadingDeg, s.Fit, s.At, baseWorld, _assets!, _roots!).Features);
+                entry.Features.AddRange(OverlayExpansion.Block(s.Key, s.Name, s.Seed, s.HeadingDeg, s.Fit, s.At, baseWorld, _assets!, _roots!, _roads).Features);
             else
                 entry.Features.AddRange(OverlayExpansion.Feature(new OverlayExpansion.FeatureSpec(s.Key, s.Kind, s.Name, s.HeadingDeg, s.Pad, s.Seed, s.At, s.Points ?? Array.Empty<Vector2>()), baseWorld, _assets!, _roots!));
             foreach (var f in entry.Features)

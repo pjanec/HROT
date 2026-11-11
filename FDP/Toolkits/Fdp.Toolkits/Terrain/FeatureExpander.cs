@@ -14,16 +14,18 @@ namespace Fdp.Toolkit.Terrain
     /// forest surface polygons (label <c>&lt;keyPrefix&gt;/w&lt;i&gt;</c>).
     /// <para>Fit: <see cref="TerrainBlock.AvoidBuildings"/> rejects a house whose footprint box (+ the recipe's spacing) meets a base building / building prism or an already placed house;
     /// <see cref="TerrainBlock.AvoidWater"/> rejects a house with a corner or centre in a base water surface and a wood centred in water; <see cref="TerrainBlock.LevelPads"/> writes
-    /// <c>"pad"</c> = the base's ground height at the house centre. ⚠ <see cref="TerrainBlock.AlignRoad"/> is NOT implemented (it needs the road network): the bit is ignored.</para>
+    /// <c>"pad"</c> = the base's ground height at the house centre. ⭐ T-5: <see cref="TerrainBlock.AlignRoad"/> turns the block's heading to the nearest road edge within the recipe's radius (<see cref="TerrainRoads.TryAlign"/>); with no road net passed, or none in reach, the heading is as placed.</para>
     /// </summary>
     public static partial class FeatureExpander
     {
         private const int Attempts = 40;
 
-        public static FeatureExpansion Expand(TerrainRecipe recipe, uint seed, Vector2 origin, float headingDeg, byte fit, TerrainWorld baseWorld, string keyPrefix, TerrainAssets? assets = null)
+        public static FeatureExpansion Expand(TerrainRecipe recipe, uint seed, Vector2 origin, float headingDeg, byte fit, TerrainWorld baseWorld, string keyPrefix, TerrainAssets? assets = null, TerrainRoads? roads = null)
         {
             var rng = new Rng(seed);
             assets ??= TerrainAssets.None;
+            // ⭐ T-5 — AlignRoad: the block turns to the nearest road edge within its radius (none in reach, or no road net ⇒ the heading as placed)
+            if ((fit & TerrainBlock.AlignRoad) != 0 && roads != null && roads.TryAlign(origin, recipe.Radius, headingDeg, out float aligned)) headingDeg = aligned;
             float rad = headingDeg * MathF.PI / 180f, cos = MathF.Cos(rad), sin = MathF.Sin(rad);
             var features = new List<JsonObject>();
             var points = new List<Vector2>();

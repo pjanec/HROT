@@ -134,9 +134,11 @@ public sealed class RandomTerrainPipeline
         var assets = TerrainAssets.ForFolder(Path.Combine(_terrainsRoot, "_preview"));
         var features = new List<JsonObject>();
         int houses = 0, woods = 0;
+        // ⭐ T-5 — the generator's roads, so the preview aligns a block as the compile / import will (AlignRoad)
+        var blockRoads = TerrainRoads.FromEdges(roads.SelectMany(r => Enumerable.Range(0, Math.Max(0, r.Points.Length - 1)).Select(i => (r.Points[i], r.Points[i + 1]))));
         foreach (var b in layout)
         {
-            var x = OverlayExpansion.Block(b.Guid.ToString("D"), b.Recipe, b.Seed, b.HeadingDeg, TerrainBlock.FitAll, new Vector2((float)(b.X - cx), (float)(b.Y - cy)), world, assets, _recipeRoots);
+            var x = OverlayExpansion.Block(b.Guid.ToString("D"), b.Recipe, b.Seed, b.HeadingDeg, TerrainBlock.FitAll, new Vector2((float)(b.X - cx), (float)(b.Y - cy)), world, assets, _recipeRoots, blockRoads);
             features.AddRange(x.Features);
             houses += x.Houses; woods += x.Woods;
             var outline = (JsonArray)x.Summary["outline"]!;
