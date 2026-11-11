@@ -1396,3 +1396,31 @@ closure would hang on). Acceptance (handoff T-7): a vehicle routes over a new br
 JSON and, when the base has a SUMO net and netconvert is present, an overlay `.net.xml` (`overlay.json` `bridges[]` names each bridge's key and its
 edge ids); the residency loads base + overlay road segments (appended) and the overlay net. **T-7b** — the closure system + `Engine.CloseEdge`
 (SumoSharp, vendored: ~25 lines) + the vehicles' re-plan + CE-3438.
+
+#### 18k-2. T-7a as built — the bridge is road *(backend `2026-11-11`; build-state: T-7a BUILT, T-7b (closure + re-plan + CE-3438) open)*
+
+```mermaid
+graph TD
+  F[Bridge feature: first and last point] --> P[BridgeRoads.Plan: snap each end to the nearest road NODE within 25 m]
+  P -->|snapped| RJ[overlay.roads.json: one segment, base node indices, appended index = base count + k]
+  P -->|snapped, base has sumoNet| NB[IBridgeNet = Hrot.Traffic.BridgeNetBuilder]
+  NB --> NC[netconvert -s base -e bridges.edg -x bridges.con] --> N[overlay NAME.net.xml]
+  P -->|not snapped| W[a deck, not road: one warning]
+  RJ & N & WD[overlay.world.geojson] --> H[OfOverlay hash]
+  RJ --> L1[RoadNetworkLoader.LoadFromJson - appendJsonPath: base first, bridge appended]
+  N --> L2[SumoNetTerrainLoader.Prepare - overlay header sumoNet replaces the base net path]
+```
+*What it shows:* ONE compile writes both nets; ONE `TerrainResidency.Prepare` loads both (the overlay folder is handed to each content loader — `ITerrainContentLoader.Prepare` gained `overlayFolder`).
+
+| as built | where |
+|---|---|
+| `TerrainRoads` (the one reader) exposed only EDGES; it now also keeps the road NODES (`TryNearestNode`, `NodeCount`, `SegmentCount`) | `Terrain/TerrainRoads.cs` |
+| snap + roads file: `BridgeRoads.Plan` / `RoadsJson` (a bridge is road only when both ends snap, to two different nodes; the segment is a straight Hermite, 14 m/s, 1 lane, naming base nodes by global index; the file has no nodes of its own) | `Terrain/BridgeRoads.cs` |
+| SUMO net seam `IBridgeNet`; `Hrot.Traffic.BridgeNetBuilder` finds netconvert through `Hrot.Terrain.InputSet.Netconvert` (the one locator), puts the road nodes into net metres through `SumoNetPlacement.ToNet`, snaps to the nearest junction within 30 m, writes two edges (`bridge-<key>`, `bridge-<key>-r`; residential values written out, not by type: demo-city declares none) | `Hrot.Traffic/BridgeNetBuilder.cs` |
+| ⚠ **found by the route rail: `netconvert -s` keeps the connections of edges already in the net, so a new edge LEAVING a junction gets none from the edges arriving there (a vehicle could leave the bridge, never enter it).** The builder adds an explicit `-x` connection file: every vehicle lane arriving at a bridge end → the bridge's lane 0 | `BridgeNetBuilder.cs` |
+| `overlay.json` gains `bridges[]` (`key`, `snapped`, `segments`, `sumoEdges`), `hasRoads`, `sumoNet`; `OfOverlay` hashes `overlay.roads.json` and top-level `*.net.xml` (an overlay with neither hashes as before) | `OverlayCompiler.cs`, `TerrainContentHash.cs`, `TerrainOverlay.cs` |
+| the load: `RoadNetworkLoader.LoadFromJson(base, appendJsonPath:)` (nodes then segments appended); the traffic loader reads the overlay header's `sumoNet` | `TerrainResidency.Prepare`, `SumoNetTerrainLoader.cs` |
+| no netconvert / no `IBridgeNet`: one warning, no net; the vehicles' net still has the bridge | `OverlayCompiler.cs` |
+
+**Measured / stated:** netconvert output for a small net DIFFERED between runs without a seed (scale-1's did not) — the builder passes `--seed 42` and strips the generated-on comment, so two compiles are byte-identical (rail). ⚠ **Not done in T-7a:** the SUMO edge is flat (no deck height; SUMO edges carry no z without node z); `TerrainBake.SaveAs` (bake an overlay into a new terrain) does not carry the bridge roads or net; the editor's live overlay shows the deck, the road appears at save; a bridge between a base node and a node of ANOTHER bridge is not snapped (base nodes only).
+**Rails:** `BridgeRoadsTests` (Fdp.Toolkits.Tests: route over the bridge, indices, unsnapped, byte-identical + hash), `BridgeNetTests` (Hrot.Traffic.Tests: SUMO route, base edge+lane ids kept, byte-identical net, no-netconvert), `BridgeLoadTests` (Hrot.SimHost.Tests: the residency).

@@ -559,7 +559,7 @@ public sealed class TerrainLoadStepTests : IDisposable
     private sealed class CountingContentLoader : ITerrainContentLoader
     {
         public int Prepares;
-        public object? Prepare(TerrainDefinition definition, string terrainFolder, string terrainName, TerrainWorld world) { Prepares++; return null; }
+        public object? Prepare(TerrainDefinition definition, string terrainFolder, string terrainName, TerrainWorld world, string? overlayFolder) { Prepares++; return null; }
         public void Commit(EntityRepository world, object? prepared) { }
         public void Unload(EntityRepository world) { }
     }

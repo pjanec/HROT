@@ -10,6 +10,13 @@ namespace Fdp.Toolkit.Terrain
         public const int CurrentFormat = 1;
         public const string FileName = "overlay.json";
         public const string DefaultWorldFileName = "overlay.world.geojson";
+        /// <summary>⭐ T-7a (CE-4423) — the overlay's road segments (the terrain's <c>roadNetworks</c> format), appended after the base's.</summary>
+        public const string RoadsFileName = "overlay.roads.json";
+
+        /// <summary>⭐ T-7a — the overlay's own SUMO net (a file of the overlay folder), or null: the base's is then the one.</summary>
+        public string? SumoNet { get; init; }
+        /// <summary>⭐ T-7a — whether the overlay carries <see cref="RoadsFileName"/>.</summary>
+        public bool HasRoads { get; init; }
 
         public static TerrainOverlayHeader Parse(string json, string where)
         {
@@ -26,7 +33,8 @@ namespace Fdp.Toolkit.Terrain
                 (string?)baseNode?["name"] ?? "",
                 (string?)baseNode?["contentHash"] ?? "",
                 (string?)obj["scenario"] ?? "",
-                (string?)obj["world"] ?? DefaultWorldFileName);
+                (string?)obj["world"] ?? DefaultWorldFileName)
+            { SumoNet = (string?)obj["sumoNet"], HasRoads = (bool?)obj["hasRoads"] ?? false };
         }
     }
 

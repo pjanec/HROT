@@ -290,7 +290,9 @@ public sealed class TerrainResidency
                     $"[Terrain] Terrain '{terrainName}' declares road network '{definition.RoadNetworks[0]}', "
                   + $"which does not exist at '{roadPath}'.", roadPath);
 
-            staged.RoadNetwork    = RoadNetworkLoader.LoadFromJson(roadPath);
+            // ⭐ T-7a (CE-4423, §18k) — a scenario overlay's bridges are road: its segments are appended AFTER the base's (every base index stays)
+            string? overlayRoads = !string.IsNullOrEmpty(overlayFolder) && File.Exists(Path.Combine(overlayFolder, TerrainOverlayHeader.RoadsFileName)) ? Path.Combine(overlayFolder, TerrainOverlayHeader.RoadsFileName) : null;
+            staged.RoadNetwork    = RoadNetworkLoader.LoadFromJson(roadPath, appendJsonPath: overlayRoads);
             staged.HasRoadNetwork = true;
         }
 
@@ -300,7 +302,7 @@ public sealed class TerrainResidency
         foreach (var loader in _contentLoaders)
         {
             Fdp.Core.LoadProgress.Report();
-            staged.Contents.Add((loader, loader.Prepare(definition, folder, terrainName, staged.World ?? (staged.PreparedEmptyWorld ??= new TerrainWorld { Name = terrainName }))));
+            staged.Contents.Add((loader, loader.Prepare(definition, folder, terrainName, staged.World ?? (staged.PreparedEmptyWorld ??= new TerrainWorld { Name = terrainName }), overlayFolder)));
         }
 
         return staged;
@@ -851,7 +853,8 @@ public interface ITerrainContentLoader
     /// <summary>Reads and builds this terrain's content from <paramref name="terrainFolder"/>; <c>null</c> when it has none.</summary>
     /// <param name="world">The terrain world staged with it (parsed just before; empty when the terrain has none) — e.g. its footprint,
     /// which the SUMO road layer's ambient ground stays outside of (AQ93 V8).</param>
-    object? Prepare(TerrainDefinition definition, string terrainFolder, string terrainName, TerrainWorld world);
+    /// <param name="overlayFolder">⭐ T-7a (CE-4423) — the scenario overlay merged into this terrain (its folder), or null: a loader whose content the overlay extends (the SUMO net with a bridge) reads it from there.</param>
+    object? Prepare(TerrainDefinition definition, string terrainFolder, string terrainName, TerrainWorld world, string? overlayFolder);
 
     /// <summary>Publishes what <see cref="Prepare"/> built (or clears the content when it built nothing).</summary>
     void Commit(EntityRepository world, object? prepared);

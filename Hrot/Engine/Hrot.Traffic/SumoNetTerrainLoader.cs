@@ -14,11 +14,18 @@ namespace Hrot.Traffic;
 public sealed class SumoNetTerrainLoader : ITerrainContentLoader
 {
     /// <inheritdoc/>
-    public object? Prepare(TerrainDefinition definition, string terrainFolder, string terrainName, TerrainWorld world)
+    public object? Prepare(TerrainDefinition definition, string terrainFolder, string terrainName, TerrainWorld world, string? overlayFolder)
     {
         if (definition.SumoNet is not { } declared) return null;
 
         string path = Path.Combine(terrainFolder, declared.File);
+        // ⭐ T-7a (CE-4423, §18k) — the overlay's own net (the base's plus its bridges) takes the base's place: the SAME load, one path, no second reader. Same placement (netconvert keeps the net's location).
+        if (!string.IsNullOrEmpty(overlayFolder))
+        {
+            string header = Path.Combine(overlayFolder, TerrainOverlayHeader.FileName);
+            if (System.IO.File.Exists(header) && TerrainOverlayHeader.Parse(System.IO.File.ReadAllText(header), header).SumoNet is { Length: > 0 } own)
+                path = Path.Combine(overlayFolder, own);
+        }
         if (!System.IO.File.Exists(path))
             throw new FileNotFoundException(
                 $"[Traffic] Terrain '{terrainName}' declares the SUMO net '{declared.File}', which does not exist at '{path}'.", path);

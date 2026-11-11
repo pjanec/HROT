@@ -16,7 +16,11 @@ namespace CarKinem.Road
         /// <summary>
         /// Load road network from JSON file.
         /// </summary>
-        public static RoadNetworkBlob LoadFromJson(string jsonPath, ReadOnlyMigrationAdapter? migrationAdapter = null)
+        /// <param name="appendJsonPath">
+        /// ⭐ T-7a (CE-4423, docs/DESIGN_Terrain_Authoring.md §18k) — a scenario overlay's roads file (<c>overlay.roads.json</c>, the same format): its nodes are APPENDED after the base's and its segments after the base's,
+        /// so every base node and segment index stays what it was (a <c>RoadGraph</c> vehicle holds a segment index). Its segments name nodes by GLOBAL index (a base node, or an appended one). Null = the base alone.
+        /// </param>
+        public static RoadNetworkBlob LoadFromJson(string jsonPath, ReadOnlyMigrationAdapter? migrationAdapter = null, string? appendJsonPath = null)
         {
             if (!File.Exists(jsonPath))
                 throw new FileNotFoundException($"Road network file not found: {jsonPath}");
@@ -36,6 +40,11 @@ namespace CarKinem.Road
             if (roadData == null)
                 throw new InvalidOperationException("Failed to deserialize road network JSON");
             
+            RoadNetworkJson? extra = null;
+            if (!string.IsNullOrEmpty(appendJsonPath))
+                extra = JsonSerializer.Deserialize<RoadNetworkJson>(Fdp.Core.ProgressStream.ReadAllText(appendJsonPath), FdpJsonOptionsRegistry.DefaultRelaxed)
+                    ?? throw new InvalidOperationException("Failed to deserialize the overlay road network JSON");
+
             var builder = new RoadNetworkBuilder();
             
             // Add nodes
@@ -62,6 +71,14 @@ namespace CarKinem.Road
                 );
             }
             
+            if (extra != null)
+            {
+                foreach (var node in extra.Nodes) builder.AddNode(node.Position.ToVector2(), node.AboveGround);
+                foreach (var seg in extra.Segments)
+                    builder.AddSegment(seg.ControlPoints.P0.ToVector2(), seg.ControlPoints.T0.ToVector2(), seg.ControlPoints.P1.ToVector2(), seg.ControlPoints.T1.ToVector2(),
+                                       seg.SpeedLimit, seg.LaneWidth, seg.LaneCount, seg.StartNodeId, seg.EndNodeId);
+            }
+
             // Build with metadata
             float cellSize = roadData.Metadata?.GridCellSize ?? 5.0f;
             var bounds = roadData.Metadata?.WorldBounds;

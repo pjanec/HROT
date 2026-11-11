@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Traffic\Hrot.Traffic.csproj" />
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Navigation.Recast\Fdp.Toolkits.Navigation.Recast.csproj" />   <!-- T-7a: the overlay compile, for the bridge net rails -->
   </ItemGroup>
 
   <ItemGroup>
