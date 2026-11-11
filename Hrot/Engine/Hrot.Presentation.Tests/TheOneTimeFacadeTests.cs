@@ -1704,6 +1704,70 @@ public sealed class TheOneTimeFacadeTests
         frame.Screenshot(System.IO.Path.Combine(ShotsDir(), "ce4115-splash.png"));
     }
 
+    /// <summary>⭐ <c>CE-4400</c> (docs/UX/loading-message-box-visual.svg; 🔒 user, 2026-11-10: <i>"some dark gray rectangle, solid one, under the text and under the close button, so they together feel like a message box"</i>) —
+    /// the text AND the Cancel sit in ONE opaque panel, darker than the veiled screen, with the whole block and the button inside it; read off a real frame. 🔴 Red-proof (compiles): the panel's
+    /// <c>AddRectFilled</c> removed ⇒ the pixel inside the panel is the veil's (light scene ⇒ R≈78) ⇒ red.</summary>
+    [SkippableFact]
+    public void CE4400_TheLoadingText_AndCancel_SitInOneSolidDarkPanel()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        const int W = UiFrameHarness.DefaultWidth, H = UiFrameHarness.DefaultHeight;
+        var rig = With(ClusterState.OperatingLive, cancelLoad: _ => { });
+        var screen = new Hrot.UI.Common.Panels.LoadingScreen(rig.Choice);
+        HearGate(rig, ClusterState.OperatingLive, loadProgress: "CGF (node 2): Terrain");
+        using var frame = UiFrameHarness.Begin();
+        void Scene()
+        {
+            ImGui.SetNextWindowPos(System.Numerics.Vector2.Zero);
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(W, H));
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, 0xFFE0E0E0u);
+            ImGui.Begin("scene##ce4400", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoSavedSettings);
+            ImGui.PopStyleColor();
+            ImGui.End();
+            screen.Render();
+        }
+        frame.StepN(4, Scene);
+        var panel = screen.LastPanel!.Value; var layout = screen.LastLayout!.Value;
+        Assert.True(panel.Min.X < W / 2f && panel.Max.X > W / 2f && panel.Min.Y < layout.BlockCenterY && panel.Max.Y > layout.CancelTop!.Value, "the panel holds the text block and the Cancel");
+        Assert.True(layout.CancelTop!.Value + ImGui.GetFontSize() < panel.Max.Y, "the Cancel button is inside the panel, not below it");
+
+        var img = Raylib.LoadImageFromScreen();
+        try
+        {
+            var inside = Raylib.GetImageColor(img, (int)panel.Min.X + 6, (int)(panel.Min.Y + panel.Max.Y) / 2);
+            var outside = Raylib.GetImageColor(img, (int)panel.Min.X - 12, (int)(panel.Min.Y + panel.Max.Y) / 2);
+            Assert.InRange(inside.R, 10, 40);                 // the solid panel (#14161B)
+            Assert.True(outside.R > inside.R + 25, $"the panel is darker than the veiled screen round it ({inside.R} vs {outside.R})");
+        }
+        finally { Raylib.UnloadImage(img); }
+        Directory.CreateDirectory(ShotsDir());
+        frame.Screenshot(System.IO.Path.Combine(ShotsDir(), "ce4400-loading-box.png"));
+    }
+
+    /// <summary>⭐ <c>CE-4406</c> — opening a recording shows the SAME loading box from the committed open (past the door's questions) until the replay is up (🔒 user: <i>"nothing appears … until, a while later,
+    /// the Replay Browser opens"</i>); Cancel ends it. 🔴 Red-proof (compiles): <c>RecordingOpening</c> not starting the pending state ⇒ the box is never visible ⇒ red.</summary>
+    [Fact]
+    public void CE4406_OpeningARecording_ShowsTheLoadingBox_UntilTheReplayIsUp_AndCancelEndsIt()
+    {
+        var rig = With(ClusterState.Idle, cancelLoad: _ => { });
+        var screen = new Hrot.UI.Common.Panels.LoadingScreen(rig.Choice);
+        Assert.False(screen.Visible);
+        rig.Choice.OpenRecording(RunId);
+        Assert.Equal(new[] { $"OpenRecording:{RunId}" }, rig.C.Calls);
+        Assert.True(screen.Visible, "from the open until the replay is up the box shows");
+        Assert.Equal("Opening recording…", screen.Text);
+
+        HearGate(rig, ClusterState.OperatingReplay);                 // the replay is up
+        Assert.False(screen.Visible, "…and goes when the replay is up");
+
+        var again = With(ClusterState.Idle, cancelLoad: _ => { });
+        var screen2 = new Hrot.UI.Common.Panels.LoadingScreen(again.Choice);
+        again.Choice.OpenRecording(RunId);
+        Assert.True(screen2.Visible);
+        screen2.Cancel();
+        Assert.False(screen2.Visible, "Cancel ends the pending box");
+    }
+
     /// <summary>⭐ <c>CE-4115</c> — a multi-line text keeps one line per '\n', centred as a block on the golden line; the Cancel is under the block for an operator and ABSENT for a player (CE-1445).
     /// 🔴 Mutation: <c>CanCancel</c> always true ⇒ the player cell reds; the Cancel drawn above the text ⇒ the order cell reds.</summary>
     [SkippableFact]

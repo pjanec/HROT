@@ -55,7 +55,7 @@ public sealed class LoadingScreen
     public bool IsPlayer => _policy == HostGatePolicy.Player;
 
     /// <summary>Operator: a load is in progress. Player: the gate is closed for any reason (⭐ CE-1445) — a player parked in the lobby sees it too.</summary>
-    public bool Visible => IsPlayer ? !_choice.Gate.Open : _choice.Gate.Loading;
+    public bool Visible => IsPlayer ? !_choice.Gate.Open : _choice.Gate.Loading || _choice.OpeningRecording;   // ⭐ CE-4406 — a recording open shows the SAME box as a load
 
     /// <summary>
     /// What the screen says: the load's progress (the cluster's, else this node's step). The player's, while not loading, is <i>Waiting for the scenario…</i> with the gate's reason on a second line.
@@ -65,7 +65,7 @@ public sealed class LoadingScreen
         get
         {
             var gate = _choice.Gate;
-            if (gate.Loading || !IsPlayer) return gate.Progress.Length > 0 ? $"Loading — {gate.Progress}" : "Loading…";
+            if (gate.Loading || !IsPlayer) return gate.Progress.Length > 0 ? $"Loading — {gate.Progress}" : !gate.Loading && _choice.OpeningRecording ? "Opening recording…" : "Loading…";
             return gate.Reason is { Length: > 0 } reason ? $"Waiting for the scenario…\n{reason}" : "Waiting for the scenario…";
         }
     }
@@ -76,7 +76,9 @@ public sealed class LoadingScreen
     /// <summary>The Cancel button: the host's slave cancels the load. A player's screen has none — this does nothing there.</summary>
     public void Cancel()
     {
-        if (CanCancel) _choice.CancelLoad(CancelReason);
+        if (!CanCancel) return;
+        _choice.CancelOpeningRecording();
+        if (_choice.Gate.Loading) _choice.CancelLoad(CancelReason);
     }
 
     /// <summary>⭐ <c>CE-4115</c> — the veil's ONE alpha: black over the whole display, so the world stays barely visible under the splash.</summary>
@@ -88,6 +90,12 @@ public sealed class LoadingScreen
     /// <summary>⭐ <c>CE-4115</c> — a rail surface: the text size, the text block's vertical centre (px) and the Cancel button's top (px) of the last drawn frame; <see langword="null"/> before any.</summary>
     public (float TextSize, float BlockCenterY, float? CancelTop)? LastLayout { get; private set; }
 
+    /// <summary>⭐ CE-4400 — the message box's colour (opaque, darker than the veiled screen under it) and its 1.5 px border (ImGui ABGR).</summary>
+    public const uint PanelColour = 0xFF1B1614u, PanelBorder = 0xFF5C4F4Au;
+
+    /// <summary>⭐ CE-4400 — a rail surface: the message box's rectangle (display-relative px) of the last drawn frame; <see langword="null"/> before any.</summary>
+    public (System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)? LastPanel { get; private set; }
+
     /// <summary>
     /// ⭐ <c>CE-4115</c> — called each frame inside an active ImGui frame. A FULL-DISPLAY modal (so it is on top and swallows every click but its own Cancel), its background replaced by ONE dark veil
     /// (<see cref="VeilAlpha"/>); the text is big — sized by the film subtitles' rule (<c>SubtitleBand.TextSizeFor</c>) — one line per
@@ -95,7 +103,7 @@ public sealed class LoadingScreen
     /// </summary>
     public void Render()
     {
-        if (!Visible) { _popupOpen = false; LastLayout = null; return; }
+        if (!Visible) { _popupOpen = false; LastLayout = null; LastPanel = null; return; }
         if (!_popupOpen) { ImGui.OpenPopup(PopupId); _popupOpen = true; }
 
         var vp = ImGui.GetMainViewport();
@@ -119,6 +127,22 @@ public sealed class LoadingScreen
         float step = s * 1.4f;
         float block = (lines.Length - 1) * step + s;
         float y = vp.Pos.Y + size.Y * GoldenLine - block / 2f;
+
+        // ⭐ CE-4400 — ONE solid, dark message box round the text AND the Cancel (docs/UX/loading-message-box-visual.svg): the text used to sit straight on the veil.
+        float textW = 0f;
+        for (int i = 0; i < lines.Length; i++) textW = Math.Max(textW, font.CalcTextSizeA(s, float.MaxValue, 0f, lines[i]).X);
+        const string label = "Cancel";
+        float bw = CanCancel ? ImGui.CalcTextSize(label).X + ImGui.GetStyle().FramePadding.X * 4f : 0f;
+        float btnH = CanCancel ? ImGui.GetFrameHeight() : 0f;
+        float gap = CanCancel ? s * 0.8f : 0f;
+        float pad = s * 0.9f;
+        float panelW = Math.Max(textW, bw) + 2f * pad;
+        var panelMin = new System.Numerics.Vector2(vp.Pos.X + (size.X - panelW) / 2f, y - pad);
+        var panelMax = new System.Numerics.Vector2(panelMin.X + panelW, y + block + gap + btnH + pad);
+        dl.AddRectFilled(panelMin, panelMax, PanelColour, 6f);
+        dl.AddRect(panelMin, panelMax, PanelBorder, 6f, ImDrawFlags.None, 1.5f);
+        LastPanel = (panelMin - vp.Pos, panelMax - vp.Pos);
+
         for (int i = 0; i < lines.Length; i++)
         {
             float w = font.CalcTextSizeA(s, float.MaxValue, 0f, lines[i]).X;
@@ -128,9 +152,7 @@ public sealed class LoadingScreen
         float? cancelTop = null;
         if (CanCancel)
         {
-            const string label = "Cancel";
-            float bw = ImGui.CalcTextSize(label).X + ImGui.GetStyle().FramePadding.X * 4f;
-            cancelTop = y + block + s * 0.8f;
+            cancelTop = y + block + gap;
             ImGui.SetCursorScreenPos(new System.Numerics.Vector2(vp.Pos.X + (size.X - bw) / 2f, cancelTop.Value));
             if (ImGui.Button(label, new System.Numerics.Vector2(bw, 0))) Cancel();
         }

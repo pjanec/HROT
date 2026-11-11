@@ -122,13 +122,48 @@ public sealed class RunModeChoice
             _door = (control as IHasScenarioDoor)?.Door ?? new ScenarioDoor(control, () => transport.Mode);
             _door.Bind(() => transport.Mode, _unsaved, _asker);
             _door.Notify = text => Notify(text);   // ⭐ CE-4099 A7 — "the autosave was not offered" goes to the ONE toast
-            _door.RecordingOpening = exercise => LastExercise = exercise;   // bookkeeping for EVERY caller
+            _door.RecordingOpening = exercise => { LastExercise = exercise; BeginOpeningRecording(); };   // bookkeeping for EVERY caller · ⭐ CE-4406 — and the loading box shows from here
             // ⭐⭐ CE-1443 (R-1043) — a scenario LOAD goes into the cluster's CURRENT armed mode: the door asks THIS choice (one resolver, below). ⛔ No open sends an armed mode (CE-3341 decision ③ withdrawn); only the indicator's Choose does.
             _door.LoadTarget = () => LoadTarget;
             _door.ClosedReason = () => ClosedReason;   // ⭐ CE-1442 — the backstop: the door refuses every non-leave move while the gate is closed
             _door.AlsoBusy = () => _asking;   // ▶ Live's own check round shares the one unsaved seam
         }
     }
+
+    // ── ⭐ CE-4406 — "opening a recording" shows the loading box from the committed open until the replay is up ───────────────────────────────
+
+    /// <summary>The longest the "Opening recording…" box stays up on its own (a failed open must not leave it for good).</summary>
+    public const double OpeningRecordingTimeoutSeconds = 60.0;
+
+    private long _openingSince;                 // Stopwatch timestamp of the committed open; 0 = none
+    private bool _openedFromReplay, _openingSawLoading;
+
+    /// <summary>⭐ CE-4406 — a recording open was committed (past the door's questions) and the replay is not up yet: the loading box says <i>Opening recording…</i>.
+    /// Ends when this host is in Replay (or, opened FROM a replay, when the load the open caused has finished), on <see cref="CancelOpeningRecording"/>, or after
+    /// <see cref="OpeningRecordingTimeoutSeconds"/>.</summary>
+    public bool OpeningRecording
+    {
+        get
+        {
+            if (_openingSince == 0) return false;
+            bool loading = Gate.Loading;
+            _openingSawLoading |= loading;
+            bool up = _openedFromReplay ? _openingSawLoading && !loading : _transport.Mode == TransportMode.Replay;
+            double age = (System.Diagnostics.Stopwatch.GetTimestamp() - _openingSince) / (double)System.Diagnostics.Stopwatch.Frequency;
+            if (up || age > OpeningRecordingTimeoutSeconds) _openingSince = 0;
+            return _openingSince != 0;
+        }
+    }
+
+    private void BeginOpeningRecording()
+    {
+        _openingSince = Math.Max(1, System.Diagnostics.Stopwatch.GetTimestamp());
+        _openedFromReplay = _transport.Mode == TransportMode.Replay;
+        _openingSawLoading = false;
+    }
+
+    /// <summary>⭐ CE-4406 — the loading box's Cancel while a recording opens: the box goes (and a load already running is cancelled by the caller).</summary>
+    public void CancelOpeningRecording() => _openingSince = 0;
 
     private long? _pendingBranchSeekWall;   // ⭐ D5: ■ in a branched run — seek the parent's AAR here once its session is known
     private int _branchInFrames;   // ⭐ D21 "Go live from here": the branch intent goes out this many frames AFTER the seek's (see GoLiveFromHere)
