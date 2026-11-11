@@ -1419,3 +1419,18 @@ presentation module ⇒ the snapshot port is never created and nothing is publis
 drains the HTTP job queue there, and costs exactly what it costs today; the background modules' own snapshots (EQS, navigation) are unchanged.
 ⚠ The one check during the §13 migration: UI state that lives on World A entities today (e.g. `MapDisplayComponent`) must not be READ by simulation or
 egress code before it moves to the presentation store — else moving it changes every host alike.
+
+### 13.6 Where the gizmos' and UI's WORKING MEMORY lives — today vs (c) *(coordinator, `2026-11-11`; measured by grep over Hrot.Presentation, Fdp.Presentation, the toolkit's gizmo code)*
+
+🔒 User, `2026-11-11`: *"If the gizmos or UIs need its own working memory, where is this one stored? Now in the current design and in the POC, what
+will be the difference?"*
+
+| today | examples | under (c) |
+|---|---|---|
+| ① components on World A entities | `SelectionStateComponent` (6 writes), `MapDisplayComponent` (2) | ⛔ a snapshot is read-only ⇒ into the presentation STORE, keyed by entity |
+| ② World A singletons the presentation writes | `CanvasContextMenuState`, `IOrderForm` | into the store |
+| ③ ⚠ side tables keyed by the WORLD OBJECT — `ConditionalWeakTable<EntityRepository, …>` in **21 files** (`MapUiStates.cs:16-21` rubber band, RTS mode, canvas, hat arbiter; `MissionPresentationGizmo`, `KillFeed`, `PlayerMessages`, `ViewTelemetry`, `EntityFacts`, `GameScore`, `AuthoredRules` …) | "presentation state, never replicated, saved or recorded … keyed by the world both are given" (`MapUiStates.cs:8-12`) | ⛔⛔ **the silent trap**: under (c) the view is a different POOLED snapshot each publish (2–3 rotate) ⇒ the state would reset or flip between copies with no error ⇒ re-key to the host's PRESENTATION CONTEXT; a threaded-mode rail that the band / RTS mode / hat arbiter survive several publishes |
+| ④ fields on the gizmo / system objects | the drag gizmo's `_isDragging`, cached arrays | unchanged (created once with the host); ⚠ cached QUERIES are bound to one repository — rebuilt per snapshot (PoC T-4) |
+
+The PoC: ONE `UiStore`, created with the presentation module and handed to its systems — independent of whichever snapshot is leased; the snapshot stays
+read-only, only commands go back. ⇒ (c)'s cost grows by: re-key 21 side-table files (small each, silent if missed).
