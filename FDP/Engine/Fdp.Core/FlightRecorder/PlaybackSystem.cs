@@ -103,7 +103,7 @@ namespace Fdp.Core.FlightRecorder
                     
                     if (len > 0)
                     {
-                        byte[] data = reader.ReadBytes(len);
+                        byte[] data = ChunkBuffer(reader, len);
                         
                         // LOGIC:
                         // 1. Find the component table for typeId
@@ -311,6 +311,46 @@ namespace Fdp.Core.FlightRecorder
         /// <summary>⭐ CE-4050 — the component type ids whose recorded data this playback skipped (no assembly declares them).</summary>
         public IReadOnlyCollection<int> UnresolvedTypes => _unresolvedTypes;
 
+        // ⭐ CE-4407 (R-2084) — a chunk's bytes were `reader.ReadBytes(len)` per component per chunk: 11–65 MB of garbage per applied frame of a 1 000-man recording. The restorers
+        //   COPY out of the array (native memcpy / a MemoryStream deserialise) and never keep it, and a table's chunk length is the same for every chunk ⇒ one array per EXACT length
+        //   is reused (a restorer may read `data.Length`). Bounded: a managed blob's length varies, so at most MaxChunkBuffers distinct lengths are pooled — the rest allocate as before.
+        private readonly Dictionary<int, byte[]> _chunkBuffers = new();
+        private const int MaxChunkBuffers = 64;
+
+        private byte[] ChunkBuffer(BinaryReader reader, int len)
+        {
+            if (!_chunkBuffers.TryGetValue(len, out var buffer))
+            {
+                if (_chunkBuffers.Count >= MaxChunkBuffers) return reader.ReadBytes(len);
+                _chunkBuffers[len] = buffer = new byte[len];
+            }
+            int got = 0;
+            while (got < len)
+            {
+                int n = reader.Read(buffer, got, len - got);
+                if (n <= 0) throw new EndOfStreamException("The recording ended inside a chunk.");
+                got += n;
+            }
+            return buffer;
+        }
+
+        // ⭐ CE-4407 — the table of a type id: the registered tables were walked (an interface enumerator, boxed) for EVERY chunk of EVERY component; now one lookup, rebuilt when the repository
+        //   or its table count changes (a type registered on first use, CE-3299).
+        private readonly Dictionary<int, IComponentTable> _tablesByTypeId = new();
+        private EntityRepository? _tablesRepo;
+        private int _tablesCount = -1;
+
+        private IComponentTable? TableOf(EntityRepository repo, IReadOnlyDictionary<Type, IComponentTable> tables, int typeId)
+        {
+            if (!ReferenceEquals(_tablesRepo, repo) || _tablesCount != tables.Count)
+            {
+                _tablesByTypeId.Clear();
+                foreach (var kvp in tables) _tablesByTypeId.TryAdd(kvp.Value.ComponentTypeId, kvp.Value);   // the first of a type id wins, as the walk did
+                _tablesRepo = repo; _tablesCount = tables.Count;
+            }
+            return _tablesByTypeId.TryGetValue(typeId, out var table) ? table : null;
+        }
+
         private void ApplyChunkData(EntityRepository repo, int typeId, int chunkIndex, byte[] data)
         {
             
@@ -331,15 +371,7 @@ namespace Fdp.Core.FlightRecorder
             // Find the component table by type ID
             var componentTables = repo.GetRegisteredComponentTypes();
             
-            IComponentTable? targetTable = null;
-            foreach (var kvp in componentTables)
-            {
-                if (kvp.Value.ComponentTypeId == typeId)
-                {
-                    targetTable = kvp.Value;
-                    break;
-                }
-            }
+            IComponentTable? targetTable = TableOf(repo, componentTables, typeId);
             
             // ⭐ CE-3299 B5 (D10) — a type the recording's process registered on first use, which this world has not used yet: register it
             //   now (its [ComponentId] names it), as a fresh process restoring a checkpoint or replaying a recording must
@@ -487,6 +519,8 @@ namespace Fdp.Core.FlightRecorder
         /// Repairs the EntityIndex after loading chunk data.
         /// This is the "Index Repair Pass" from FDP-DES-005.
         /// </summary>
+        private int[] _componentIds = Array.Empty<int>();   // ⭐ CE-4407 — reused by RepairEntityIndex
+
         private void RepairEntityIndex(EntityRepository repo)
         {
             var entityIndex = repo.GetEntityIndex();
@@ -494,6 +528,10 @@ namespace Fdp.Core.FlightRecorder
             
             int maxIndex = entityIndex.MaxIssuedIndex;
             int chunkCapacity = entityIndex.GetChunkCapacity();
+            int idCount = 0;
+            if (_componentIds.Length < componentTables.Count) _componentIds = new int[componentTables.Count];
+            var ids = _componentIds;
+            foreach (var kvp in componentTables) ids[idCount++] = kvp.Value.ComponentTypeId;
             
             // Iterate all entities and check if they have components
             for (int i = 0; i <= maxIndex; i++)
@@ -502,10 +540,12 @@ namespace Fdp.Core.FlightRecorder
                 ref var          compREI  = ref entityIndex.GetComponentMask(i);
                 
                 // Check if this entity has any components
+                // ⭐ CE-4407 (R-2084) — over a plain array of the type ids, built once per pass: this walked the interface dictionary (a boxed enumerator, and every registered
+                //   table) for EVERY entity of EVERY applied frame
                 bool hasComponents = false;
-                foreach (var kvp in componentTables)
+                for (int k = 0; k < idCount; k++)
                 {
-                    if (compREI.IsSet(kvp.Value.ComponentTypeId))
+                    if (compREI.IsSet(ids[k]))
                     {
                         hasComponents = true;
                         break;

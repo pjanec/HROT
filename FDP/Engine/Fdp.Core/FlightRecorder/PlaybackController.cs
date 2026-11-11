@@ -397,21 +397,33 @@ namespace Fdp.Core.FlightRecorder
             // Skip the structured header to reach the compressed payload
             _fileStream.Position += FrameOuterHeader.SizeFor(FormatVersion);
 
-            // Read compressed data
-            byte[] compressedData = _reader.ReadBytes(metadata.CompressedSize);
-            
+            // ⭐ CE-4407 (R-2084) — the two buffers are REUSED (grown, never shrunk): a frame of a 1 000-man recording is 15–65 MB uncompressed, and a fresh
+            //   `new byte[]` for it every applied frame was 11–65 MB of large-object garbage per frame (gen-2 collections on a 1.2 GB heap).
+            int compressedSize = metadata.CompressedSize, rawSize = metadata.UncompressedSize;
+            if (_compressedBuffer.Length < compressedSize) _compressedBuffer = new byte[compressedSize];
+            if (_rawBuffer.Length < rawSize) _rawBuffer = new byte[rawSize];
+            int got = 0;
+            while (got < compressedSize)
+            {
+                int n = _fileStream.Read(_compressedBuffer, got, compressedSize - got);
+                if (n <= 0) throw new EndOfStreamException("The recording ended inside a frame.");
+                got += n;
+            }
+
             // Decompress
-            byte[] rawFrame = new byte[metadata.UncompressedSize];
-            K4os.Compression.LZ4.LZ4Codec.Decode(compressedData, 0, metadata.CompressedSize, rawFrame, 0, metadata.UncompressedSize);
-            
+            K4os.Compression.LZ4.LZ4Codec.Decode(_compressedBuffer, 0, compressedSize, _rawBuffer, 0, rawSize);
+
             // Apply frame
-            using (var ms = new MemoryStream(rawFrame))
+            using (var ms = new MemoryStream(_rawBuffer, 0, rawSize, writable: false))
             using (var frameReader = new BinaryReader(ms))
             {
                 _playback.ApplyFrame(repo, frameReader, EventBus);
             }
         }
-        
+
+        private byte[] _compressedBuffer = System.Array.Empty<byte>();   // ⭐ CE-4407 — reused by every ApplyFrame
+        private byte[] _rawBuffer = System.Array.Empty<byte>();
+
         /// <summary>
         /// Optional EventBus to restore events into during playback.
         /// </summary>

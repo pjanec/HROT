@@ -26,13 +26,14 @@ namespace Fdp.Tests
             }
         }
         
-        private void CreateTestRecording(int frameCount, int keyframeInterval)
+        private void CreateTestRecording(int frameCount, int keyframeInterval, int extraEntities = 0)
         {
             using var repo = new EntityRepository();
             repo.RegisterComponent<Position>();
             
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new Position { X = 0, Y = 0, Z = 0 });
+            for (int i = 0; i < extraEntities; i++) repo.AddComponent(repo.CreateEntity(), new Position { X = i, Y = 0, Z = 0 });   // ⭐ CE-4407 — a frame worth measuring
             
             using var recorder = new AsyncRecorder(_testFilePath);
             uint prevTick = 0;
@@ -144,6 +145,29 @@ namespace Fdp.Tests
             Assert.Equal(1, controller.CurrentFrame);
         }
         
+        /// <summary>⭐ <c>CE-4407</c> (R-2084) — applying a frame allocates no frame-sized buffer: the compressed and the decompressed buffers are reused (a frame of a 1 000-man
+        /// recording is 15–65 MB uncompressed; a fresh <c>new byte[]</c> for each was 11–65 MB of large-object garbage per frame). Measures the SMALLEST allocation of several
+        /// windows (JIT tiering can allocate inside one). 🔴 Red-proof (compiles): the two <c>new byte[]</c> back in <c>ApplyFrame</c> ⇒ every window ≥ the frame's size ⇒ red.</summary>
+        [Fact]
+        public void CE4407_StepForward_ReusesItsFrameBuffers_NoFrameSizedGarbage()
+        {
+            CreateTestRecording(frameCount: 40, keyframeInterval: 100, extraEntities: 30000);
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<Position>();
+            using var controller = new PlaybackController(_testFilePath);
+            long rawSize = controller.GetFrameMetadata(5).UncompressedSize;
+            Assert.True(rawSize > 64 * 1024, $"the test frame is only {rawSize} B");
+            for (int i = 0; i < 6; i++) controller.StepForward(repo);   // warm: the buffers grow to the largest frame
+            long best = long.MaxValue;
+            for (int w = 0; w < 4; w++)
+            {
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                for (int i = 0; i < 6; i++) controller.StepForward(repo);
+                best = Math.Min(best, (GC.GetAllocatedBytesForCurrentThread() - before) / 6);
+            }
+            Assert.True(best < Math.Max(256, rawSize / 2), $"a stepped frame allocated {best} B (the frame is {rawSize} B raw)");
+        }
+
         [Fact]
         public void StepForward_AtEnd_ReturnsFalse()
         {
