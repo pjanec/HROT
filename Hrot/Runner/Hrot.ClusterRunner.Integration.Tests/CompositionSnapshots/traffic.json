@@ -8,12 +8,12 @@
   },
   "counts": {
     "modules": 6,
-    "systems": 50,
-    "translators": 130,
+    "systems": 52,
+    "translators": 132,
     "capabilities": 2,
     "providers": 0,
-    "singletons": 4,
-    "componentTypes": 122
+    "singletons": 5,
+    "componentTypes": 126
   },
   "modules": [
     "EntityLifecycleModule | name=EntityLifecycleManager | run=Synchronous | data=Direct | hz=60",
@@ -58,7 +58,8 @@
     "Simulation 000 Fdp.ModuleHost.Scheduling.TogglableSimulationGroup | module=TrafficSim",
     "Simulation 000.000 Fdp.Toolkit.Combat.Systems.HealthApplicationSystem | module=TrafficSim",
     "Simulation 000.001 Fdp.Toolkit.Combat.Systems.BleedOutSystem | module=TrafficSim",
-    "Simulation 000.002 Hrot.Traffic.TrafficShadowFollowSystem | module=TrafficSim",
+    "Simulation 000.002 Hrot.Traffic.BridgeClosureSystem | module=TrafficSim",
+    "Simulation 000.003 Hrot.Traffic.TrafficShadowFollowSystem | module=TrafficSim",
     "PostSimulation 000 Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup | module=Global",
     "PostSimulation 001 Fdp.Toolkit.Replication.Systems.LightweightRoundIdentitySystem | module=Global",
     "PostSimulation 002 Hrot.Common.Systems.EntityRequestFinalizationSystem | module=Global",
@@ -73,7 +74,8 @@
     "Export 003 Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem | module=Global",
     "Export 004 Fdp.Network.Cyclone.Systems.CycloneEgressSystem | module=NedReplication",
     "Export 005 Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem | module=NedReplication",
-    "Manual 000 Hrot.Network.Systems.DeferredTakeoverSystem | module=Unknown"
+    "Export 006 Fdp.Network.Cyclone.Egress.EgressPipelineLaunchSystem | module=NedReplication",
+    "Manual 000 Hrot.Network.Systems.DeferredTakeoverSystem | module=NedReplication"
   ],
   "translators": [
     "CycloneNetworkIngressSystem | Bidirectional | Fdp_Toolkit_Time_Messages_SwitchTimeModeWireDto | ordinal=201",
@@ -85,6 +87,7 @@
     "CycloneNetworkIngressSystem | Bidirectional | Hrot_NED_Messages_FireInteractionEvent | ordinal=0",
     "CycloneNetworkIngressSystem | Ingress | Hrot_NED_Descriptors_EntityDamage | ordinal=30",
     "CycloneNetworkIngressSystem | Ingress | Hrot_NED_Descriptors_EntityDoorState | ordinal=120",
+    "CycloneNetworkIngressSystem | Ingress | Hrot_NED_Descriptors_EntityBuildingDamage | ordinal=183",
     "CycloneNetworkIngressSystem | Ingress | Hrot_NED_Descriptors_EntityObstacleShape | ordinal=123",
     "CycloneNetworkIngressSystem | Ingress | Hrot_NED_Descriptors_EntityStableGuid | ordinal=157",
     "CycloneNetworkIngressSystem | Ingress | Hrot_NED_Descriptors_EntityMacroInstance | ordinal=158",
@@ -150,6 +153,7 @@
     "CycloneEgressSystem | Bidirectional | Hrot_NED_Messages_FireInteractionEvent | ordinal=0",
     "CycloneEgressSystem | Egress | Hrot_NED_Descriptors_EntityDamage | ordinal=30",
     "CycloneEgressSystem | Egress | Hrot_NED_Descriptors_EntityDoorState | ordinal=120",
+    "CycloneEgressSystem | Egress | Hrot_NED_Descriptors_EntityBuildingDamage | ordinal=183",
     "CycloneEgressSystem | Egress | Hrot_NED_Descriptors_EntityObstacleShape | ordinal=123",
     "CycloneEgressSystem | Egress | Hrot_NED_Descriptors_EntityStableGuid | ordinal=157",
     "CycloneEgressSystem | Egress | Hrot_NED_Descriptors_EntityMacroInstance | ordinal=158",
@@ -216,7 +220,8 @@
     "Fdp.Interfaces.ITkbDatabase",
     "Fdp.Modules.Geographic.IGeographicTransform",
     "Fdp.Toolkit.Replay.ReplayState",
-    "Fdp.Toolkit.Replication.Services.NetworkEntityMap"
+    "Fdp.Toolkit.Replication.Services.NetworkEntityMap",
+    "Hrot.Common.Editing.StationMode"
   ],
   "componentTypes": [
     "CarKinem.Core.VehicleParams",
@@ -308,6 +313,7 @@
     "Fdp.Toolkit.Scenario.RefKey",
     "Fdp.Toolkit.Scenario.ScenarioDescriptionResident",
     "Fdp.Toolkit.Scenario.ScenarioIgnoreTag",
+    "Fdp.Toolkit.Scenario.VariantForms",
     "Fdp.Toolkit.ScenarioRules.Actions.ActionArgs",
     "Fdp.Toolkit.ScenarioRules.Actions.ActionFailure",
     "Fdp.Toolkit.ScenarioRules.ExerciseResult",
@@ -320,11 +326,14 @@
     "Fdp.Toolkit.Squad.SquadLeadership",
     "Fdp.Toolkit.Squad.SquadMemberSense",
     "Fdp.Toolkit.Squad.SquadUnitSense",
+    "Fdp.Toolkit.Terrain.BuildingDamage",
     "Fdp.Toolkit.Terrain.DoorState",
     "Fdp.Toolkit.Terrain.ObstacleShape",
     "Fdp.Toolkit.Terrain.StaticObstacle",
     "Fdp.Toolkit.Terrain.TerrainAssetLoadState",
+    "Fdp.Toolkit.Terrain.TerrainBlock",
     "Fdp.Toolkit.Terrain.TerrainDefinition",
+    "Fdp.Toolkit.Terrain.TerrainFeature",
     "Fdp.Toolkit.Terrain.TerrainObjectKey",
     "Fdp.Toolkit.Traffic.TrafficDemand",
     "Fdp.Toolkit.Weather.ScenarioClock",

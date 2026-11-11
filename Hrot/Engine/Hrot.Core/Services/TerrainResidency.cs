@@ -49,6 +49,7 @@ public sealed class TerrainResidency
         internal DateTime           FileTimestamp;
         internal long               BakeSerial = -1;
         internal string?            BaseHash;        // ⭐ O-8 — the base terrain's content hash, known when an overlay is merged
+        internal TerrainBridges     Bridges = TerrainBridges.None;   // ⭐ T-7b (CE-4423) — the overlay's bridges (overlay.json bridges[]), for the BridgeClosureSystem
         internal string?            OverlayFolder;   // ⭐ O-4 — the CONTENT HASH of the overlay merged into World, if any
         internal Fdp.Toolkit.Navigation.INavmeshProvider? Navmesh;
         internal Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider? Cover;
@@ -234,6 +235,7 @@ public sealed class TerrainResidency
             if (!string.IsNullOrEmpty(overlayFolder))
             {
                 // ⭐ O-4 (C-5) — an overlay is bound to the base it was compiled against, by CONTENT: a name stands for nothing
+                OverlayStaging.Touch(overlayFolder);   // ⭐ T-6 (CE-3432) — a use: the node's overlay cache keeps the recently used
                 var header = TerrainOverlayHeader.Parse(File.ReadAllText(Path.Combine(overlayFolder, TerrainOverlayHeader.FileName)), overlayFolder);
                 string actualBase = TerrainContentHash.OfTerrain(definitionPath);
                 staged.BaseHash = actualBase;
@@ -247,6 +249,7 @@ public sealed class TerrainResidency
                         $"[Terrain] The overlay '{overlayFolder}' is torn: its header says content hash '{header.ContentHash}', its files hash to '{actualOverlay}' (terrain '{terrainName}').");
                 var overlay = TerrainFolderWorld.ReadOverlay(overlayFolder, terrainName, TerrainAssets.RecipesSibling(Path.GetDirectoryName(Path.GetFullPath(definitionPath))!));
                 baseWorld = TerrainWorldMerge.Merge(baseWorld, overlay.World);
+                if (header.Bridges.Count > 0) staged.Bridges = new TerrainBridges(header.Bridges);
             }
             staged.World = Indexed(baseWorld);
 
@@ -289,7 +292,9 @@ public sealed class TerrainResidency
                     $"[Terrain] Terrain '{terrainName}' declares road network '{definition.RoadNetworks[0]}', "
                   + $"which does not exist at '{roadPath}'.", roadPath);
 
-            staged.RoadNetwork    = RoadNetworkLoader.LoadFromJson(roadPath);
+            // ⭐ T-7a (CE-4423, §18k) — a scenario overlay's bridges are road: its segments are appended AFTER the base's (every base index stays)
+            string? overlayRoads = !string.IsNullOrEmpty(overlayFolder) && File.Exists(Path.Combine(overlayFolder, TerrainOverlayHeader.RoadsFileName)) ? Path.Combine(overlayFolder, TerrainOverlayHeader.RoadsFileName) : null;
+            staged.RoadNetwork    = RoadNetworkLoader.LoadFromJson(roadPath, appendJsonPath: overlayRoads);
             staged.HasRoadNetwork = true;
         }
 
@@ -299,7 +304,7 @@ public sealed class TerrainResidency
         foreach (var loader in _contentLoaders)
         {
             Fdp.Core.LoadProgress.Report();
-            staged.Contents.Add((loader, loader.Prepare(definition, folder, terrainName, staged.World ?? (staged.PreparedEmptyWorld ??= new TerrainWorld { Name = terrainName }))));
+            staged.Contents.Add((loader, loader.Prepare(definition, folder, terrainName, staged.World ?? (staged.PreparedEmptyWorld ??= new TerrainWorld { Name = terrainName }), overlayFolder)));
         }
 
         return staged;
@@ -335,6 +340,7 @@ public sealed class TerrainResidency
         staged.Definition!.ResolvedName = staged.TerrainName ?? string.Empty;
         staged.Definition.ResolvedOverlayHash = staged.OverlayFolder ?? string.Empty;   // ⭐ O-8 — stamped into a recording's metadata
         staged.Definition.ResolvedBaseHash = staged.OverlayFolder != null ? staged.BaseHash ?? string.Empty : string.Empty;
+        staged.Definition.ResolvedBridges = staged.Bridges;   // ⭐ T-7b (CE-4423) — always set, so a re-load never keeps the previous terrain's bridges
         world.SetSingletonManaged(staged.Definition!);
         Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the commit's stages report (docs/DESIGN_Cluster_Load_Phase.md §12)
 
@@ -632,7 +638,8 @@ public sealed class TerrainResidency
         foreach (var e in world.Query().With<BuildingDamage>().WithLifecycle(Fdp.Core.EntityLifecycle.All).Build())
         {
             var d = world.GetComponentRO<BuildingDamage>(e);
-            if (BuildingDamages.Remap(ref d, from, to)) world.SetComponent(e, d);
+            string? key = world.HasManagedComponent<TerrainObjectKey>(e) ? world.GetComponent<TerrainObjectKey>(e).Key : null;   // ⭐ CE-3439 — by the entity's own key (an Unpack re-keys it)
+            if (BuildingDamages.Remap(ref d, from, to, key)) world.SetComponent(e, d);
         }
     }
 
@@ -849,7 +856,8 @@ public interface ITerrainContentLoader
     /// <summary>Reads and builds this terrain's content from <paramref name="terrainFolder"/>; <c>null</c> when it has none.</summary>
     /// <param name="world">The terrain world staged with it (parsed just before; empty when the terrain has none) — e.g. its footprint,
     /// which the SUMO road layer's ambient ground stays outside of (AQ93 V8).</param>
-    object? Prepare(TerrainDefinition definition, string terrainFolder, string terrainName, TerrainWorld world);
+    /// <param name="overlayFolder">⭐ T-7a (CE-4423) — the scenario overlay merged into this terrain (its folder), or null: a loader whose content the overlay extends (the SUMO net with a bridge) reads it from there.</param>
+    object? Prepare(TerrainDefinition definition, string terrainFolder, string terrainName, TerrainWorld world, string? overlayFolder);
 
     /// <summary>Publishes what <see cref="Prepare"/> built (or clears the content when it built nothing).</summary>
     void Commit(EntityRepository world, object? prepared);

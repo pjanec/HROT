@@ -10,6 +10,8 @@ namespace Fdp.Toolkit.Terrain
     {
         /// <summary>⭐ Terrain authoring U-2 — the world polygons the placing ghost and the tile picture draw: every house footprint first (<see cref="Houses"/> of them, the recipe's houses and the elements' alike), then every wood ring — without parsing the GeoJSON back.</summary>
         public IReadOnlyList<Vector2[]> ShapesOrEmpty => Shapes ?? System.Array.Empty<Vector2[]>();
+        /// <summary>⭐ T-3 part 2 — the templates the block's UNIQUE houses are (name → building-template JSON): the compiler writes them into the overlay's <c>buildings/</c>, the live overlay resolves them in memory.</summary>
+        public IReadOnlyDictionary<string, string> Templates { get; init; } = new Dictionary<string, string>();
     }
 
     /// <summary>
@@ -24,14 +26,14 @@ namespace Fdp.Toolkit.Terrain
     {
         private const int Attempts = 40;
 
-        public static FeatureExpansion Expand(TerrainRecipe recipe, uint seed, Vector2 origin, float headingDeg, byte fit, TerrainWorld baseWorld, string keyPrefix, TerrainAssets? assets = null, TerrainRoads? roads = null)
+        public static FeatureExpansion Expand(TerrainRecipe recipe, uint seed, Vector2 origin, float headingDeg, byte fit, TerrainWorld baseWorld, string keyPrefix, TerrainAssets? assets = null, TerrainRoads? roads = null, IUniqueBuildings? unique = null)
         {
             var rng = new Rng(seed);
             assets ??= TerrainAssets.None;
             // ⭐ T-5 — AlignRoad: the block turns to the nearest road edge within its radius (none in reach, or no road net ⇒ the heading as placed)
             if ((fit & TerrainBlock.AlignRoad) != 0 && roads != null && roads.TryAlign(origin, recipe.Radius, headingDeg, out float aligned)) headingDeg = aligned;
             float rad = headingDeg * MathF.PI / 180f, cos = MathF.Cos(rad), sin = MathF.Sin(rad);
-            var st = new ElementState { Recipe = recipe, Origin = origin, Heading = headingDeg, Cos = cos, Sin = sin, Fit = fit, Base = baseWorld, Assets = assets, Key = keyPrefix };
+            var st = new ElementState { Recipe = recipe, Origin = origin, Heading = headingDeg, Cos = cos, Sin = sin, Fit = fit, Base = baseWorld, Assets = assets, Key = keyPrefix, Unique = unique };
 
             // the footprints this block must keep out of: the base's buildings (and solid building prisms), then what it has placed
             if ((fit & TerrainBlock.AvoidBuildings) != 0)
@@ -89,7 +91,7 @@ namespace Fdp.Toolkit.Terrain
             }
             var shapes = new List<Vector2[]>(st.HouseShapes.Count + st.WoodShapes.Count);
             shapes.AddRange(st.HouseShapes); shapes.AddRange(st.WoodShapes);
-            return new FeatureExpansion(st.Features, st.Houses, woods, st.Points, shapes);
+            return new FeatureExpansion(st.Features, st.Houses, woods, st.Points, shapes) { Templates = st.Templates };
         }
 
         /// <summary>⭐ T-3 — what one block expansion shares between its houses and its elements: the stream, the frame (origin, heading), the fit, and what is placed so far.</summary>
@@ -108,6 +110,11 @@ namespace Fdp.Toolkit.Terrain
             public readonly List<(Vector2 Min, Vector2 Max)> Avoid = new();
             private readonly Dictionary<string, Vector2[]> _footprints = new(StringComparer.Ordinal);
             public int Houses, Parts;
+            public IUniqueBuildings? Unique;
+            public readonly Dictionary<string, string> Templates = new(StringComparer.Ordinal);
+            /// <summary>⭐ T-3 part 2 — the lane strips so far (world centre-line segments and half widths): a house keeps ≥ <see cref="LaneGap"/> off every one (the block's streets are not built over).</summary>
+            public readonly List<(Vector2 A, Vector2 B, float Half)> Lanes = new();
+            public const float LaneGap = 1f;
 
             public Vector2[] LocalOf(string template)
             {
@@ -136,6 +143,7 @@ namespace Fdp.Toolkit.Terrain
                 var padded = (new Vector2(box.Min.X - spacing * 0.5f, box.Min.Y - spacing * 0.5f), new Vector2(box.Max.X + spacing * 0.5f, box.Max.Y + spacing * 0.5f));
                 if ((Fit & TerrainBlock.AvoidWater) != 0 && InWater(Base, centre, world)) return false;
                 if ((Fit & TerrainBlock.AvoidBuildings) != 0 && Overlaps(Avoid, padded)) return false;
+                foreach (var (la, lb, half) in Lanes) if (PolygonToSegment(world, la, lb) < half + LaneGap) return false;   // ⭐ T-3 part 2 — off every lane strip, by the footprint
                 // placed: later houses keep out of this one too (its own box, unpadded — the later house pads itself)
                 Avoid.Add(box);
                 var props = new JsonObject { ["kind"] = "building", ["template"] = template, ["rotation"] = rot, ["label"] = $"{Key}/{Houses}", ["name"] = "", ["baseZ"] = BaseZ(Base, world) };
@@ -175,6 +183,33 @@ namespace Fdp.Toolkit.Terrain
             var w = new Vector2[local.Length];
             for (int i = 0; i < w.Length; i++) w[i] = at + new Vector2(local[i].X * c - local[i].Y * s, local[i].X * s + local[i].Y * c);
             return w;
+        }
+
+        /// <summary>The distance from the polygon <paramref name="poly"/> (a footprint) to the segment a→b; 0 when they cross or the segment starts inside it.</summary>
+        internal static float PolygonToSegment(Vector2[] poly, Vector2 a, Vector2 b)
+        {
+            if (PolygonMath.Contains(poly, a) || PolygonMath.Contains(poly, b)) return 0f;
+            float best = float.MaxValue;
+            for (int i = 0; i < poly.Length; i++)
+            {
+                var p = poly[i]; var q = poly[(i + 1) % poly.Length];
+                if (SegmentsCross(p, q, a, b)) return 0f;
+                best = MathF.Min(best, MathF.Min(MathF.Min(PointSegment(p, a, b), PointSegment(q, a, b)), MathF.Min(PointSegment(a, p, q), PointSegment(b, p, q))));
+            }
+            return best;
+        }
+
+        private static float PointSegment(Vector2 p, Vector2 a, Vector2 b)
+        {
+            var ab = b - a; float l2 = ab.LengthSquared();
+            float t = l2 <= 0f ? 0f : Math.Clamp(Vector2.Dot(p - a, ab) / l2, 0f, 1f);
+            return Vector2.Distance(p, a + ab * t);
+        }
+
+        private static bool SegmentsCross(Vector2 a, Vector2 b, Vector2 c, Vector2 d)
+        {
+            static float O(Vector2 p, Vector2 q, Vector2 r) => (q.X - p.X) * (r.Y - p.Y) - (q.Y - p.Y) * (r.X - p.X);
+            return O(a, b, c) * O(a, b, d) < 0f && O(c, d, a) * O(c, d, b) < 0f;
         }
 
         private static (Vector2 Min, Vector2 Max) Box(IReadOnlyList<Vector2> pts)

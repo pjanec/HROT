@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-09
-current-answer: ⭐⭐⭐⭐ §TERRAIN OVERLAY (2026-11-11, LATEST) below — HANDOFF_Coordinator_To_Backend_Terrain_Overlay: O-0…O-8 ALL DONE (O-5/O-7 engine side; dialog + Edit terrain are ui's); status file STATUS_Backend_Terrain_Overlay.md. Before it: ⭐⭐⭐⭐ the LARGE-TERRAIN PERFORMANCE programme (2026-11-10, LATEST) has its OWN resume doc: docs/blueprints/RESUME_Backend_Large_Terrain_Perf.md — start there (a many-core Windows machine: measure, then optimise). Before it: §THE X QUEUE IS DONE (2026-11-09) below: X-3…X-6 + the run-mode fix built; NEXT = CE-3421 (editor memory per load). Before it: §RECORDING STORAGE + THE V / X QUEUE (2026-11-08 evening): W-1…W-4, V-1, V-2, X-1 built; X-2 filed on behaviors; NEXT = X-3…X-6, then W-3 ⑤'s lab measurement. Before it: §STRUCT EDITOR OVERNIGHT — DONE (2026-11-08) below: N-0…N-11 built and pushed; open = the pen QUESTION + the follow-ups listed there. Then §SCENARIO PRESETS (2026-11-07) — CE-3374 now BUILT. Then §LIFECYCLE FIXES (2026-11-07) — L-4, L-6, L-8, L-9 DONE; L-7 waits on the user (QUESTION note). Then §MISSION PLAN — P-1…P-6 DONE. Older: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
+current-answer: ⭐⭐⭐⭐ §TERRAIN AUTHORING 2 (2026-11-11, LATEST) below — HANDOFF_Coordinator_To_Backend_Terrain_Authoring_2: T-0…T-8 ALL DONE (STATUS_Backend_Terrain_Authoring_2.md). Before it: §TERRAIN OVERLAY — HANDOFF_Coordinator_To_Backend_Terrain_Overlay: O-0…O-8 ALL DONE (O-5/O-7 engine side; dialog + Edit terrain are ui's); status file STATUS_Backend_Terrain_Overlay.md. Before it: ⭐⭐⭐⭐ the LARGE-TERRAIN PERFORMANCE programme (2026-11-10, LATEST) has its OWN resume doc: docs/blueprints/RESUME_Backend_Large_Terrain_Perf.md — start there (a many-core Windows machine: measure, then optimise). Before it: §THE X QUEUE IS DONE (2026-11-09) below: X-3…X-6 + the run-mode fix built; NEXT = CE-3421 (editor memory per load). Before it: §RECORDING STORAGE + THE V / X QUEUE (2026-11-08 evening): W-1…W-4, V-1, V-2, X-1 built; X-2 filed on behaviors; NEXT = X-3…X-6, then W-3 ⑤'s lab measurement. Before it: §STRUCT EDITOR OVERNIGHT — DONE (2026-11-08) below: N-0…N-11 built and pushed; open = the pen QUESTION + the follow-ups listed there. Then §SCENARIO PRESETS (2026-11-07) — CE-3374 now BUILT. Then §LIFECYCLE FIXES (2026-11-07) — L-4, L-6, L-8, L-9 DONE; L-7 waits on the user (QUESTION note). Then §MISSION PLAN — P-1…P-6 DONE. Older: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/DESIGN_Struct_Editor.md — the one struct-editor library (✅ APPROVED 2026-11-07: S1–S12, §8 the ONE widget kit K1–K6, §9 the inspector)
@@ -19,6 +19,33 @@ related-designs:
   - docs/DESIGN_Subsystem_Composition_Unification.md — B5 (not started) gates CE-3006 / CE-524 / CE-513.
 -->
 # RESUME — backend lane
+
+## ⭐⭐⭐⭐ TERRAIN AUTHORING 2 (`2026-11-11`, LATEST) — start here
+
+📄 [handoff](batches/HANDOFF_Coordinator_To_Backend_Terrain_Authoring_2.md) (frozen at `21392507c`) · ⭐ per-item record + gates:
+[`batches/STATUS_Backend_Terrain_Authoring_2.md`](batches/STATUS_Backend_Terrain_Authoring_2.md) · design + as-built: [`DESIGN_Terrain_Authoring.md`](../DESIGN_Terrain_Authoring.md)
+§18f (generator library) · §18g (kinds + scatter) · §18h (block ops, AlignRoad) · §18i (recipes) · §18j (missions check) · §18k (bridges in the road nets).
+
+| item | state | sha |
+|---|---|---|
+| T-0 CE-4427 review findings R-1…R-7 | ✅ | `9c4e9c845` |
+| T-1 CE-4428 synth library + random-terrain pipeline (3 km town loads in 8.2 s) | ✅ | `0fa19b12d` |
+| T-2 CE-4429 ten feature kinds + area scatter | ✅ | `dc680a442` |
+| T-3 CE-4430 recipe vocabulary, ten mockup blocks, unique generated houses | ✅ | `78eb37d3d`, `bfa8474d2` |
+| T-4 CE-4431 / T-5 CE-3431 block operations; AlignRoad | ✅ | `528e94fc2` |
+| T-6 CE-3432…3435 overlay pruning; compile after the save's answer; playback obstacles; stale navtiles | ✅ | `fd675719f` |
+| T-7 CE-4423 + CE-3438 bridges in both road nets, closed on a fall; rubble off the river | ✅ | `8cbe77152`, `d98913f1a`, `bb33a5f9f` |
+| T-8 CE-4424 missions check + CE-3439 undo keeps door state | ✅ | `aab286227` |
+
+**Open, backend block:** CE-3437 (the live overlay's once-a-second file poll, allocation unmeasured) · CE-3440 (a breached-wall allocation rail red 1
+in 3 full runs — prove pre-existing at `157418c69` before marking flaky) · from T-7: a vehicle ON a bridge at its fall, an undone collapse re-opens
+only on reload, *Save terrain as* does not carry bridge roads. **ui's** (their handoff): the wizard U-8, the block menu U-3, the feature tools U-7, the
+save dialog (mockup 4), *Edit terrain* (E-2).
+
+**Traps measured this batch:** a design commit swept in the worker's STAGED renames (`46ea45429`) — commit by explicit paths and never let the
+worker stage · the code graph was stale (built before the overlay work) and a re-index aborts while files change — re-index between worker tasks ·
+`netconvert -s` gives a new edge no incoming connections, and is not deterministic without `--seed` · the host-composition goldens can be stale
+from other lanes — capture (`HROT_COMPOSITION_CAPTURE=1`) and diff the system SETS with ordinals stripped before accepting.
 
 ## ⭐⭐⭐⭐ TERRAIN OVERLAY — compiled at save (`2026-11-11`, LATEST) — start here
 

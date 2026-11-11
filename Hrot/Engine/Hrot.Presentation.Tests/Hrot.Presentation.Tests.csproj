@@ -21,6 +21,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Presentation\Hrot.Presentation.csproj" />
+    <ProjectReference Include="..\Hrot.Terrain.Random\Hrot.Terrain.Random.csproj" />   <!-- ⭐ T-3 part 2 — the frame rail compiles the town block with its unique houses -->
     <ProjectReference Include="..\Hrot.Terrain.Import\Hrot.Terrain.Import.csproj" />   <!-- ⭐ CE-4378 — the wizard with the REAL importer -->
     <ProjectReference Include="..\..\Subsystems\Hrot.Player\Hrot.Player.csproj" />
 

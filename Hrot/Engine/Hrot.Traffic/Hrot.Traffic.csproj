@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
     <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
+    <ProjectReference Include="..\Hrot.Terrain.InputSet\Hrot.Terrain.InputSet.csproj" />   <!-- T-7a (CE-4423): the ONE netconvert locator, for BridgeNetBuilder -->
     <ProjectReference Include="..\..\..\FDP\ExtDeps\SumoSharp\src\Sim.Ingest\Sim.Ingest.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\SumoSharp\src\Sim.LiveCity\Sim.LiveCity.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\SumoSharp\src\Sim.Viewer.Motion\Sim.Viewer.Motion.csproj" />

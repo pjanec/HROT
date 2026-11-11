@@ -1590,6 +1590,64 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.True(bytes == 0, $"a steady BakeRecordedObstacles allocated {bytes} B over 20 calls");
     }
 
+    /// <summary>
+    /// ⭐⭐ T-6 (CE-3434) — an obstacle BORN mid-recording shows during uninterrupted forward playback, without a seek: stepping frame by frame (a step is not a jump), the displayed terrain holds no obstacle before its birth frame and holds it within
+    /// <c>ObstacleCheckEveryFrames</c> shown frames after (the signature walk costs 1.56 ms at 2 000 obstacles — measured — so it is throttled, not per frame); and once it shows, a steady check allocates 0 B. 🔴 Red-proof: drop the throttled
+    /// <c>BakeRecordedObstacles</c> from <c>CaptureEventsAtTheNewFrame</c> ⇒ the obstacle never shows ⇒ red.
+    /// </summary>
+    [Fact]
+    public void T6_AnObstacleBornDuringPlayback_ShowsWithinTheCheckInterval_WithoutASeek_AndASteadyCheckAllocatesNothing()
+    {
+        const int birth = 5, frames = 30;
+        var (root, _, _) = MakeTerrainWithOverlay();
+        string path = Path.Combine(_tempDir, "born.fdp");
+        using (var repo = new EntityRepository())
+        {
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainDefinition>();
+            repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainDefinition { ResolvedName = "base-t" });
+            repo.RegisterComponent<Fdp.Toolkit.Terrain.StaticObstacle>(); repo.RegisterComponent<Fdp.Toolkit.Terrain.ObstacleShape>(); repo.RegisterComponent<Fdp.Core.SimTransform>();
+            using var rec = new AsyncRecorder(path, new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()), NodeId = (Fdp.Core.NodeId)(1) });
+            Fdp.Toolkit.Replay.RecorderTickSystem.StampWorld(repo, rec.Metadata);
+            for (int f = 0; f < frames; f++)
+            {
+                if (f == birth)
+                {
+                    var e = repo.CreateEntity();
+                    repo.AddComponent(e, new Fdp.Toolkit.Terrain.StaticObstacle { Material = new Fdp.Core.FixedString32("concrete") });
+                    repo.AddComponent(e, new Fdp.Toolkit.Terrain.ObstacleShape { Length = 4f, Width = 2f, Height = 1.5f });
+                    repo.AddComponent(e, new Fdp.Core.SimTransform { Position = new System.Numerics.Vector3(150f, 150f, 0f), Rotation = System.Numerics.Quaternion.Identity });
+                }
+                repo.Tick();   // the frame's changes are versioned: the delta carries the new entity
+                long t = TimeSpan.FromSeconds(1 + f).Ticks;
+                if (f == 0) rec.CaptureKeyframe(repo, t, blocking: true, eventBus: repo.Bus);
+                else rec.CaptureFrame(repo, (uint)(f - 1), t, blocking: true, eventBus: repo.Bus);
+                repo.Bus.SwapBuffers();
+            }
+        }
+        _subsystem.TerrainCatalog = new Fdp.Toolkit.Terrain.TerrainCatalog(new[] { root });
+        _subsystem.Initialize(HeadlessConfig());
+        var provider = _subsystem.CreateDebugProvider()!;
+        Assert.Null(provider.ReplayBrowser!.Open(new[] { path }, 0));
+
+        int Obstacles() => _subsystem.ActiveRepo!.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>().Prisms.Count(p => p.Label!.StartsWith(Fdp.Toolkit.Terrain.TerrainObstacles.LabelPrefix));
+        Assert.Equal(0, Obstacles());
+        int firstShown = -1;
+        for (int f = 1; f < frames; f++)
+        {
+            provider.Drive!.Step();
+            Assert.Equal(f, _subsystem.PrimaryNodeCurrentFrame());
+            if (firstShown < 0 && Obstacles() > 0) firstShown = f;
+        }
+        int live = 0; foreach (var x in _subsystem.ActiveRepo!.Query().With<Fdp.Toolkit.Terrain.StaticObstacle>().WithLifecycle(Fdp.Core.EntityLifecycle.All).Build()) live++;
+        Assert.True(firstShown >= birth, $"the obstacle showed at frame {firstShown} (birth {birth}); the replayed world holds {live} obstacle entities; prisms {_subsystem.ActiveRepo!.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>().Prisms.Count}");
+        Assert.InRange(firstShown, birth, birth + ReplayBrowserSubsystem.ObstacleCheckEveryFrames);
+
+        for (int i = 0; i < 5; i++) _subsystem.BakeRecordedObstacles();
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 20; i++) _subsystem.BakeRecordedObstacles();
+        Assert.True(GC.GetAllocatedBytesForCurrentThread() - before == 0, "a steady check allocates nothing");
+    }
+
     /// <summary>⭐ O-8 — moving one obstacle by 5 cm moves <c>SignatureOfWorld</c> and the next <c>BakeRecordedObstacles</c> REBAKES the displayed terrain (the prism follows); an unmoved obstacle does not.</summary>
     [Fact]
     public void O8_AnObstacleMovedBy5cm_ChangesTheSignature_AndRebakesTheWorld()

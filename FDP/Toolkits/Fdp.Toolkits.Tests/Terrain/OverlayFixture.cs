@@ -37,6 +37,23 @@ namespace Fdp.Toolkit.Terrain.Tests
             File.WriteAllText(Path.Combine(Recipes, "woodlot.recipe.json"), """{"id":"woodlot","woods":{"count":[3,3],"size":[8,12]}}""");
         }
 
+        /// <summary>
+        /// ⭐ T-7a (CE-4423) — the base declares a road net cut by the river at x 200..230: a WEST road (nodes 0 (150,200) – 1 (190,200), segment 0) and an EAST road (nodes 2 (240,200) – 3 (300,200), segment 1) that never meet. A
+        /// Bridge from (198,200) to (232,200) snaps to nodes 1 and 2 (8 m each).
+        /// </summary>
+        public void WithRoads()
+        {
+            File.WriteAllText(Definition, """{"schemaVersion":2,"name":"base-t","world":"w.geojson","roadNetworks":["roads.json"]}""");
+            const string Roads = """
+                {"$meta":{"docType":"Fdp.RoadNetwork","schemaVersion":1},
+                 "nodes":[{"id":0,"position":{"x":150,"y":200}},{"id":1,"position":{"x":190,"y":200}},{"id":2,"position":{"x":240,"y":200}},{"id":3,"position":{"x":300,"y":200}}],
+                 "segments":[
+                  {"id":0,"startNodeId":0,"endNodeId":1,"controlPoints":{"p0":{"x":150,"y":200},"t0":{"x":40,"y":0},"p1":{"x":190,"y":200},"t1":{"x":40,"y":0}},"speedLimit":14,"laneWidth":3.5,"laneCount":1},
+                  {"id":1,"startNodeId":2,"endNodeId":3,"controlPoints":{"p0":{"x":240,"y":200},"t0":{"x":60,"y":0},"p1":{"x":300,"y":200},"t1":{"x":60,"y":0}},"speedLimit":14,"laneWidth":3.5,"laneCount":1}]}
+                """;
+            File.WriteAllText(Path.Combine(TerrainFolder, "roads.json"), Roads);
+        }
+
         public TerrainRecipe Recipe(string id) => TerrainRecipe.Find(id, new[] { Recipes });
         public TerrainWorld BaseWorld() => TerrainFolderWorld.ReadWorld(Definition, TerrainFolderWorld.ReadDefinition(Definition), "base-t")!;
         public string? Resolve(string name) => name == "base-t" ? Definition : null;

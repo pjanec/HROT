@@ -147,8 +147,8 @@ namespace Fdp.Toolkit.Terrain
                 foreach (int b in damage.CollapsedBuildings)
                 {
                     if ((uint)b >= (uint)world.Buildings.Count) continue;
-                    var rubble = damage.RubbleOf(world, b);
-                    if (ch.ChunkOf(rubble.Min, rubble.Max) == k) AddHeap(rubble, v, t, g);
+                    foreach (var rubble in BuildingDamageTable.PiecesOf(world, b))   // ⭐ CE-3438 — the mound clipped to land
+                        if (ch.ChunkOf(rubble.Min, rubble.Max) == k) AddHeap(rubble, v, t, g);
                 }
             }
             foreach (int w in ch.Walkables[k])

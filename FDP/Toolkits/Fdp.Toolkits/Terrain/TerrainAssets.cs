@@ -107,6 +107,18 @@ namespace Fdp.Toolkit.Terrain
             return recipes == null ? Path.Combine(terrainFolder, BuildingsFolderName) : Path.Combine(recipes, ContentLayout.BuildingsDirectoryName);
         }
 
+        /// <summary>⭐ T-3 part 2 — these assets plus in-memory templates (a block's generated houses, before they are written into the overlay folder); an inline name wins.</summary>
+        public TerrainAssets WithInlineTemplates(System.Collections.Generic.IReadOnlyDictionary<string, string> inline)
+        {
+            if (inline.Count == 0) return this;
+            var outer = Templates;
+            return new TerrainAssets
+            {
+                Folder = Folder, Materials = Materials, Breaches = Breaches, ReadFile = ReadFile, OpenFile = OpenFile, TemplatePath = TemplatePath,
+                Templates = name => inline.TryGetValue(name, out var t) ? t : outer?.Invoke(name),
+            };
+        }
+
         /// <summary>The template <paramref name="name"/> as JSON; throws naming <paramref name="where"/> when absent or invalid.</summary>
         internal JsonObject LoadTemplate(string name, string where)
         {

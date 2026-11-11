@@ -6,7 +6,11 @@ using System.Text.Json.Nodes;
 namespace Fdp.Toolkit.Terrain
 {
     /// <summary>One block's expansion: its feature objects (GeoJSON, labelled <c>&lt;key&gt;/&lt;i&gt;</c>), the counts and the <c>overlay.json</c> summary row.</summary>
-    public sealed record BlockExpansion(IReadOnlyList<JsonObject> Features, int Houses, int Woods, JsonObject Summary);
+    public sealed record BlockExpansion(IReadOnlyList<JsonObject> Features, int Houses, int Woods, JsonObject Summary)
+    {
+        /// <summary>⭐ T-3 part 2 — the generated templates of the block's unique houses (name → JSON); see <see cref="FeatureExpansion.Templates"/>.</summary>
+        public IReadOnlyDictionary<string, string> Templates { get; init; } = new Dictionary<string, string>();
+    }
 
     /// <summary>
     /// ⭐ O-7 B (CE-4418, docs/DESIGN_Terrain_Authoring.md §18e-2 B-2) — the ONE per-entity expansion of a terrain block / feature and the overlay world document they go into. The scenario-save
@@ -16,14 +20,14 @@ namespace Fdp.Toolkit.Terrain
     public static class OverlayExpansion
     {
         /// <summary>Expands one block placed at <paramref name="at"/>; every part's label is prefixed by <paramref name="key"/> (the block entity's scenario guid).</summary>
-        public static BlockExpansion Block(string key, string recipeId, uint seed, float headingDeg, byte fit, Vector2 at, TerrainWorld baseWorld, TerrainAssets assets, IEnumerable<string?> recipeRoots, TerrainRoads? roads = null)
+        public static BlockExpansion Block(string key, string recipeId, uint seed, float headingDeg, byte fit, Vector2 at, TerrainWorld baseWorld, TerrainAssets assets, IEnumerable<string?> recipeRoots, TerrainRoads? roads = null, IUniqueBuildings? unique = null)
         {
             var recipe = TerrainRecipe.Find(recipeId, recipeRoots);
-            var x = FeatureExpander.Expand(recipe, seed, at, headingDeg, fit, baseWorld, key, assets, roads);
+            var x = FeatureExpander.Expand(recipe, seed, at, headingDeg, fit, baseWorld, key, assets, roads, unique);
             var outline = new JsonArray();
             foreach (var p in Hull(x.Points)) outline.Add(new JsonArray(MathF.Round(p.X * 100f) / 100f, MathF.Round(p.Y * 100f) / 100f));
             var summary = new JsonObject { ["key"] = key, ["recipe"] = recipeId, ["seed"] = seed, ["houses"] = x.Houses, ["woods"] = x.Woods, ["clutter"] = 0, ["outline"] = outline };
-            return new BlockExpansion(x.Features, x.Houses, x.Woods, summary);
+            return new BlockExpansion(x.Features, x.Houses, x.Woods, summary) { Templates = x.Templates };
         }
 
         /// <summary>

@@ -17,6 +17,26 @@ namespace Fdp.Toolkit.Terrain
     {
         private const int SamplesPerSegment = 8;
         private readonly List<(Vector2 A, Vector2 B)> _edges = new();
+        private readonly List<Vector2> _nodes = new();
+        private int _segments;
+
+        /// <summary>⭐ T-7a — how many road NODES the file declares (a hand-built <see cref="FromEdges"/> road has none: only edges). A node's index is its position in the file, as <c>RoadNetworkLoader</c> numbers it.</summary>
+        public int NodeCount => _nodes.Count;
+
+        /// <summary>⭐ T-7a — how many road SEGMENTS the file declares (the index the first appended segment takes).</summary>
+        public int SegmentCount => _segments;
+
+        /// <summary>⭐ T-7a (CE-4423) — the road node nearest <paramref name="p"/> within <paramref name="radius"/> metres (ties: the lowest index), or false when none is in reach. Nodes only — a <see cref="FromEdges"/> road has none.</summary>
+        public bool TryNearestNode(Vector2 p, float radius, out int index, out Vector2 position)
+        {
+            index = -1; position = default; float best = radius * radius;
+            for (int i = 0; i < _nodes.Count; i++)
+            {
+                float d2 = Vector2.DistanceSquared(p, _nodes[i]);
+                if (d2 < best || (index < 0 && d2 <= best)) { best = d2; index = i; position = _nodes[i]; }
+            }
+            return index >= 0;
+        }
 
         /// <summary>How many straight edges the road centre lines were cut into.</summary>
         public int EdgeCount => _edges.Count;
@@ -44,6 +64,8 @@ namespace Fdp.Toolkit.Terrain
         public static TerrainRoads FromJson(RoadNetworkJson json)
         {
             var r = new TerrainRoads();
+            foreach (var n in json.Nodes) r._nodes.Add(n.Position.ToVector2());
+            r._segments = json.Segments.Length;
             foreach (var s in json.Segments)
             {
                 var p0 = s.ControlPoints.P0.ToVector2(); var t0 = s.ControlPoints.T0.ToVector2();

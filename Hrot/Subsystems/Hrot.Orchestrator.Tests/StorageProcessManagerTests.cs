@@ -241,6 +241,7 @@ public sealed class StorageProcessManagerTests
                     new() { RelativeDest = Path.Combine("scenarios", scenario, ".slices", "node_1.json"), DocType = "Hrot.Scenario" },
                 });
                 Assert.True(File.Exists(Path.Combine(scenarioDir, "scenario.json")), $"{scenario}: the scenario itself saved");
+                OverlayCompileTracker.WaitAsync(scenario).GetAwaiter().GetResult();   // ⭐ T-6 — the compile runs after the save answers
             }
 
             var header = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(nas, "scenarios", "x", "terrain-overlay", "overlay.json")))!;
@@ -250,6 +251,65 @@ public sealed class StorageProcessManagerTests
             Assert.False(Directory.Exists(Path.Combine(nas, "scenarios", "y", "terrain-overlay")), "a failed compile leaves no overlay");
         }
         finally { if (Directory.Exists(nas)) Directory.Delete(nas, recursive: true); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ T-6 (CE-3433) — the save answers BEFORE the overlay compile: while a Live holds the compile back (it does not start while one runs — the give-way), <c>MergeScenarioSlices</c> has already written <c>scenario.json</c> and returned, the overlay is not there yet, and a PREFETCH of the scenario
+    /// WAITS (it does not complete, and stages no overlay) until the compile has run — then it stages the overlay and names it in the header. 🔴 Red-proof: compile inline in <c>MergeScenarioSlices</c> (the old behaviour) ⇒ the overlay exists at once and the Live is not given way ⇒ the first
+    /// assertions fail; drop the <c>WaitAsync</c> in the prefetch ⇒ it completes without the overlay ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public async Task T6_TheSaveAnswersFirst_TheCompileGivesWayToALive_AndALoadsPrefetchWaitsForIt()
+    {
+        const string hut = "{\"footprint\":[[0,0],[10,0],[10,8],[0,8]],\"storeys\":[{\"height\":3,\"walls\":[{\"from\":[0,0],\"to\":[10,0]},{\"from\":[10,0],\"to\":[10,8]},{\"from\":[10,8],\"to\":[0,8]},{\"from\":[0,8],\"to\":[0,0]}]}]}";
+        string nas = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        string root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var savedLivePoll = OverlayCompileTracker.LivePoll;
+        OverlayCompileTracker.LivePoll = TimeSpan.FromMilliseconds(10);
+        try
+        {
+            string terrain = Path.Combine(ContentLayout.TerrainAssets(nas), "base-t");
+            Directory.CreateDirectory(terrain); Directory.CreateDirectory(ContentLayout.BuildingAssets(nas)); Directory.CreateDirectory(ContentLayout.TerrainRecipeAssets(nas));
+            File.WriteAllText(Path.Combine(terrain, "terrain.json"), "{\"schemaVersion\":2,\"world\":\"w.geojson\"}");
+            File.WriteAllText(Path.Combine(terrain, "w.geojson"), "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[0,0,300,300],\"groundZ\":0},\"features\":[]}");
+            File.WriteAllText(Path.Combine(ContentLayout.BuildingAssets(nas), "hut.building.json"), hut);
+            File.WriteAllText(Path.Combine(ContentLayout.TerrainRecipeAssets(nas), "village.recipe.json"), "{\"id\":\"village\",\"houses\":{\"templates\":[\"hut\"],\"count\":[4,4],\"radius\":40,\"minSpacing\":4}}");
+            string scenarioDir = Path.Combine(nas, "scenarios", "tx"), slicesDir = Path.Combine(scenarioDir, ".slices");
+            Directory.CreateDirectory(slicesDir);
+            var dom = System.Text.Json.Nodes.JsonNode.Parse("{\"Header\":{\"TerrainName\":\"base-t\"},\"Entities\":{\"b1000000-0000-4000-8000-000000000001\":{\"TerrainBlock\":{\"Recipe\":\"village\",\"Seed\":3,\"HeadingDeg\":0,\"Fit\":15},\"SimTransform\":{\"Position\":[150,150,0]}}}}")!.AsObject();
+            Fdp.Core.Serialization.Migrations.JsonEnvelope.Write(dom, new Fdp.Core.Serialization.Migrations.DocumentMeta("Hrot.Scenario", 2));
+            File.WriteAllText(Path.Combine(slicesDir, "node_1.json"), dom.ToJsonString());
+
+            bool live = true;
+            var manager = new StorageProcessManager(new FdpEventBus(), new StorageGatewayModule(), nas) { IsLive = () => live };
+            manager.MergeScenarioSlices("tx", new List<FileManifestEntry> { new() { RelativeDest = Path.Combine("scenarios", "tx", ".slices", "node_1.json"), DocType = "Hrot.Scenario" } });
+
+            // the save has answered; the compile has not run (a Live runs: it gives way)
+            Assert.True(File.Exists(Path.Combine(scenarioDir, "scenario.json")));
+            Assert.True(OverlayCompileTracker.IsCompiling("tx"));
+            Assert.False(Directory.Exists(Path.Combine(scenarioDir, "terrain-overlay")));
+
+            // a prefetch of the scenario WAITS for the compile
+            var targets = new List<NodeDistributionTarget> { new() { NodeId = (Fdp.Core.NodeId)(1), DestinationPath = Path.Combine(OrchestrationConstants.GetNodeStagingRoot(root, 1), OrchestrationConstants.ScenariosDirectoryName, "tx"), TkbDestinationPath = OrchestrationConstants.GetNodeTkbStagingRoot(root, 1) } };
+            var prefetch = new StorageGatewayModule().PrefetchScenarioAsync("tx", targets, nas);
+            await Task.Delay(300);
+            Assert.False(prefetch.IsCompleted, "the prefetch waits for the in-flight compile");
+
+            live = false;   // the Live ends: the compile starts, then the prefetch goes on
+            var result = await prefetch;
+            Assert.Equal(0, result.FailureCount);
+            Assert.True(File.Exists(Path.Combine(scenarioDir, "terrain-overlay", "overlay.json")));
+            string? hash = Fdp.Toolkit.Terrain.ScenarioTerrainName.ReadOverlayHash(OrchestrationConstants.GetNodeStagingRoot(root, 1));
+            Assert.False(string.IsNullOrEmpty(hash), "the load's prefetch staged the overlay the compile made");
+            Assert.True(Directory.Exists(Path.Combine(OrchestrationConstants.GetNodeStagingRoot(root, 1), "Terrain", "overlays", hash!)));
+        }
+        finally
+        {
+            OverlayCompileTracker.LivePoll = savedLivePoll;
+            await OverlayCompileTracker.WaitAsync("tx");
+            if (Directory.Exists(nas)) Directory.Delete(nas, recursive: true);
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
     }
 
     /// <summary>
@@ -284,6 +344,7 @@ public sealed class StorageProcessManagerTests
                 {
                     new() { RelativeDest = Path.Combine("scenarios", "x", ".slices", "node_1.json"), DocType = "Hrot.Scenario" },
                 });
+                OverlayCompileTracker.WaitAsync("x").GetAwaiter().GetResult();   // ⭐ T-6 — the compile runs after the save answers
             }
 
             Save();

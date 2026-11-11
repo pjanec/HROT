@@ -69,7 +69,12 @@ namespace Fdp.Toolkit.Replay
         private static bool IsReplicationIdentity(int id)
             => id == ComponentType<NetworkIdentity>.ID || id == ComponentType<NetworkAuthority>.ID
             || id == ComponentType<ReplicationRoute>.ID
-            || id == ComponentType<Fdp.Toolkit.Scenario.EntityGuid>.ID;   // ⭐ T-4 (CE-4431) — the scenario KEY is the entity's identity too: a block restored by an undone unpack without it would be a block with another key (its parts' keys, doors and saved damage hang on it)
+            || id == ComponentType<Fdp.Toolkit.Scenario.EntityGuid>.ID
+            // ⭐ CE-3439 (T-8 batch) — a TERRAIN OBJECT's runtime state: a door's state and key, a building's damage. All three are NoScenario (a scenario file never carries the entities), so "authored" left them out and ANY undo stripped them from the door
+            //   entities (measured with a plain re-roll). The undo ring is the ONLY user of the Authored set (autosave and the world-change check read other sets), so this changes nothing any file or recording holds.
+            || id == ComponentType<Fdp.Toolkit.Terrain.DoorState>.ID
+            || id == ComponentTypeRegistry.GetId(typeof(Fdp.Toolkit.Terrain.TerrainObjectKey))   // managed: by the registry
+            || id == ComponentType<Fdp.Toolkit.Terrain.BuildingDamage>.ID;
 
         internal Func<int, bool>? Filter => Types switch
         {

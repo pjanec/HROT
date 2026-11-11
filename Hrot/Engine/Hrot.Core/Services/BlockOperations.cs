@@ -12,14 +12,14 @@ using Hrot.Map.Common.Components;
 namespace Hrot.Map.Common.Services;
 
 /// <summary>What <see cref="BlockOperations.Unpack"/> expands a block over: the resident base terrain and the folder's side files (the same the live overlay reads).</summary>
-public sealed record BlockExpansionContext(TerrainWorld Base, TerrainAssets Assets, IReadOnlyList<string?> Roots, TerrainRoads? Roads)
+public sealed record BlockExpansionContext(TerrainWorld Base, TerrainAssets Assets, IReadOnlyList<string?> Roots, TerrainRoads? Roads, IUniqueBuildings? Unique = null)
 {
     /// <summary>The context of <paramref name="residency"/>'s resident terrain (its base world and terrain folder); null when none is resident or its folder is not found.</summary>
-    public static BlockExpansionContext? Of(TerrainResidency residency)
+    public static BlockExpansionContext? Of(TerrainResidency residency, IUniqueBuildings? unique = null)
     {
         var (world, _, folder) = residency.ExpansionBase();
         if (world == null || string.IsNullOrEmpty(folder)) return null;
-        return new BlockExpansionContext(world, TerrainAssets.ForFolder(folder), new List<string?>(TerrainRecipe.RootsFor(folder)), TerrainRoads.ForFolder(folder));
+        return new BlockExpansionContext(world, TerrainAssets.ForFolder(folder), new List<string?>(TerrainRecipe.RootsFor(folder)), TerrainRoads.ForFolder(folder), unique);
     }
 }
 
@@ -72,7 +72,7 @@ public static class BlockOperations
     /// <summary>
     /// H-3 — the block becomes its parts: ONE <see cref="TerrainFeature"/> per part the ONE <see cref="OverlayExpansion"/> makes (a house → House with template, position and heading; a tree, a clutter prism with its type; a wall / fence / hedge line, a wood / scrub / water area, a lane → the kind with an <see cref="EditablePolyline"/>), then
     /// the block is destroyed — all in ONE bracket. ⭐ Same parts: the same geometry, materials and ORDER (the new guids rise in the order of the block's part labels, and a part label is <c>&lt;guid&gt;/0</c>); only the KEYS change,
-    /// so every door entity of the block's houses is re-keyed to its house's new key in the same step, and keeps its state. ⚠ A damaged house's <c>BuildingDamage</c> entity is not re-keyed (it follows its building by the key the OLD world gave its index).
+    /// so every door entity of the block's houses is re-keyed to its house's new key in the same step, and keeps its state; ⭐ so is a damaged house's <c>BuildingDamage</c> entity (CE-3439): the bake that follows re-points it by that key (<c>BuildingDamages.Remap</c>).
     /// </summary>
     public static BlockOpResult Unpack(EntityRepository world, Entity block, BlockExpansionContext ctx)
     {
@@ -86,7 +86,8 @@ public static class BlockOperations
         List<JsonObject> parts;
         try
         {
-            var x = OverlayExpansion.Block(guid.ToString("D"), b.Recipe.ToString() ?? "", b.Seed, b.HeadingDeg, b.Fit, new Vector2(at.Position.X, at.Position.Y), ctx.Base, ctx.Assets, ctx.Roots, ctx.Roads);
+            var x = OverlayExpansion.Block(guid.ToString("D"), b.Recipe.ToString() ?? "", b.Seed, b.HeadingDeg, b.Fit, new Vector2(at.Position.X, at.Position.Y), ctx.Base, ctx.Assets, ctx.Roots, ctx.Roads, ctx.Unique);
+            if (x.Templates.Count > 0) return BlockOpResult.Refused("the block's unique houses are generated templates that exist only in its overlay: they cannot be unpacked to features");
             parts = new List<JsonObject>(x.Features);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException) { return BlockOpResult.Refused($"the block does not expand: {ex.Message}"); }
@@ -111,9 +112,13 @@ public static class BlockOperations
                 CreateFeature(world, m.NewGuid, m.Kind, m.Template, m.Heading, m.Pad, m.At, at.Position.Z, m.Shape);
                 // the doors of this part (a house): "<terrain>/<old part key>/<doorId>" → "<terrain>/<new feature key>/0/<doorId>"
                 string oldPrefix = Join(terrain, m.OldLabel) + "/", newPrefix = Join(terrain, m.NewGuid.ToString("D") + "/0") + "/";
+                string oldBuilding = Join(terrain, m.OldLabel), newBuilding = Join(terrain, m.NewGuid.ToString("D") + "/0");
                 foreach (var (door, key) in doors)
-                    if (key.Key.StartsWith(oldPrefix, StringComparison.Ordinal) && world.IsAlive(door))
-                        world.SetManagedComponent(door, key with { Key = newPrefix + key.Key.Substring(oldPrefix.Length) });
+                {
+                    if (!world.IsAlive(door)) continue;
+                    if (key.Key.StartsWith(oldPrefix, StringComparison.Ordinal)) world.SetManagedComponent(door, key with { Key = newPrefix + key.Key.Substring(oldPrefix.Length) });
+                    else if (key.Key == oldBuilding) world.SetManagedComponent(door, key with { Key = newBuilding });   // ⭐ CE-3439 — a damaged house's BuildingDamage entity: the next bake finds its house by this key (BuildingDamages.Remap)
+                }
             }
             world.DestroyEntity(block);
         }
@@ -138,7 +143,9 @@ public static class BlockOperations
     public static Guid PartGuid(Guid block, int index)
     {
         var bytes = block.ToByteArray();   // little-endian first three groups; the LAST 4 bytes are the big-endian tail of the "D" text
+        uint tail = (uint)(bytes[12] << 24 | bytes[13] << 16 | bytes[14] << 8 | bytes[15]);
         uint n = (uint)index + 1u;
+        if (tail >= 1u && n >= tail) n++;   // never the block's own guid (a feature must not share the destroyed block's key): still strictly ascending
         bytes[12] = (byte)(n >> 24); bytes[13] = (byte)(n >> 16); bytes[14] = (byte)(n >> 8); bytes[15] = (byte)n;
         return new Guid(bytes);
     }

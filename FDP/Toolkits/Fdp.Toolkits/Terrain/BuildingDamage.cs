@@ -117,15 +117,17 @@ namespace Fdp.Toolkit.Terrain
 
         /// <summary>
         /// ⭐ CE-4427 R-4 — re-keys <paramref name="d"/> from the world <paramref name="from"/> it was written against to the world <paramref name="to"/> that replaces it: the building by its stable KEY
-        /// (<see cref="KeyOf"/> → <see cref="IndexOfKey"/>), each breach's panel by its within-building rank (<see cref="BuildingPanelIndex"/>). The live overlay re-sorts its parts when a block changes, so a house's index
+        /// (<see cref="KeyOf"/> → <see cref="IndexOfKey"/>; or <paramref name="key"/>, the entity's own key, when given), each breach's panel by its within-building rank (<see cref="BuildingPanelIndex"/>). The live overlay re-sorts its parts when a block changes, so a house's index
         /// and its panels' indices MOVE; a damage entity that kept the old numbers would breach another house. A building the new world no longer has loses its damage (Building −1, no breaches). Returns true when
         /// <paramref name="d"/> changed; allocation-free.
         /// </summary>
-        public static bool Remap(ref BuildingDamage d, TerrainWorld from, TerrainWorld to)
+        public static bool Remap(ref BuildingDamage d, TerrainWorld from, TerrainWorld to, string? key = null)
         {
             if (ReferenceEquals(from, to)) return false;
             int nb = -1;
-            if ((uint)d.Building < (uint)from.Buildings.Count) nb = IndexOfKey(to, KeyOf(from, d.Building));
+            // ⭐ CE-3439 — the entity's OWN key (its TerrainObjectKey) wins when it has one: an Unpack re-keys a house, and the old numbering's label no longer names it in the new world
+            if (!string.IsNullOrEmpty(key)) nb = IndexOfKey(to, key);
+            else if ((uint)d.Building < (uint)from.Buildings.Count) nb = IndexOfKey(to, KeyOf(from, d.Building));
             var n = default(BuildingDamage);
             n.Building = nb;
             if (nb >= 0)

@@ -159,7 +159,7 @@ public sealed class BlockOperationsTests : IDisposable
     {
         var block = Block();
         string oldKey = $"base-t/{BlockGuid:D}/3/front";
-        Door(oldKey, TerrainDoorState.Locked);
+        var door = Door(oldKey, TerrainDoorState.Locked);
         string shapeBefore = Shape(Expand());
         Tick();
         Assert.True(BlockOperations.Unpack(_world, block, _ctx).Done);
@@ -176,12 +176,16 @@ public sealed class BlockOperationsTests : IDisposable
         AssertAt(back);
         Assert.Equal(0, Features());
         Assert.Equal(shapeBefore, Shape(Expand()));
-        // ⚠ the door entity is NOT asserted after an undo: its DoorState / TerrainObjectKey are NoScenario, so the undo's authored-only restore strips them from ANY undo (measured with a plain re-roll: finding, not T-4's)
+        // ⭐ CE-3439 — the door comes back WITH its key and its state (DoorState / TerrainObjectKey are in the undo capture now)
+        Assert.Equal(oldKey, _world.GetComponent<TerrainObjectKey>(door).Key);
+        Assert.Equal(TerrainDoorState.Locked, _world.GetComponentRO<DoorState>(door).State);
 
         Assert.True(_history.Redo());
         Assert.Equal(14, Features());
         Assert.Equal(keysAfter, Keys());   // the same guids: an unpack that is undone and done again makes the same keys
         Assert.Equal(Entity.Null, FindBlock());
+        Assert.Equal($"base-t/{BlockOperations.PartGuid(BlockGuid, 5):D}/0/front", _world.GetComponent<TerrainObjectKey>(door).Key);   // (the part label order is ordinal: G/0 G/1 G/10 G/11 G/2 G/3 → "G/3" is the 6th) redo: the door is on its house's new key again
+        Assert.Equal(TerrainDoorState.Locked, _world.GetComponentRO<DoorState>(door).State);
     }
 
     /// <summary>
@@ -314,5 +318,23 @@ public sealed class BlockOperationsTests : IDisposable
         var r = BlockOperations.Unpack(_world, block, _ctx);
         Assert.True(r.Done, r.Why);
         Assert.Equal(before, Shape(Expand()));
+    }
+
+    /// <summary>
+    /// ⭐ CE-3439 — an undo does NOT strip a door of its state and key: re-roll, then undo, then redo, and the door keeps its <c>TerrainObjectKey</c> and <c>DoorState</c> every time. 🔴 Red-proof: drop <c>DoorState</c> from the undo capture's identity set
+    /// (<c>WorldKeyframes.IsReplicationIdentity</c>) ⇒ the door has no state after the undo ⇒ red; drop <c>TerrainObjectKey</c> ⇒ no key ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE3439_AnUndoKeepsADoorsStateAndKey()
+    {
+        var block = Block();
+        var door = Door("base-t/x/3/front", TerrainDoorState.Locked);
+        Assert.True(BlockOperations.Reroll(_world, block).Done);
+        Assert.True(_history.Undo());
+        Assert.Equal("base-t/x/3/front", _world.GetComponent<TerrainObjectKey>(door).Key);
+        Assert.Equal(TerrainDoorState.Locked, _world.GetComponentRO<DoorState>(door).State);
+        Assert.True(_history.Redo());
+        Assert.Equal("base-t/x/3/front", _world.GetComponent<TerrainObjectKey>(door).Key);
+        Assert.Equal(TerrainDoorState.Locked, _world.GetComponentRO<DoorState>(door).State);
     }
 }

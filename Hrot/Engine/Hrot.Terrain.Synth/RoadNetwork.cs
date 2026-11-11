@@ -69,6 +69,24 @@ public sealed class RoadNetwork
 
     private bool InBounds(double x, double y) => x >= _p.MinX && x <= _p.MaxX && y >= _p.MinY && y <= _p.MaxY;
 
+    /// <summary>
+    /// ⭐ T-3 part 2 (CE-4430) — a network of exactly these residential streets (centre lines, widths) with ONE village over their bounds: what the building generator needs to place houses along a site's streets, without a generated ground.
+    /// </summary>
+    public static RoadNetwork FromStreets(SynthProfile p, IReadOnlyList<(double Ax, double Ay, double Bx, double By, double Width)> streets)
+    {
+        var net = new RoadNetwork(p, new Dictionary<RoadClass, double>());
+        var (lanes, speed, _) = Spec(RoadClass.Residential);
+        foreach (var s in streets)
+        {
+            string a = net.AddNode(s.Ax, s.Ay), b = net.AddNode(s.Bx, s.By);
+            net._edges.Add(new RoadEdge("e" + net._edges.Count.ToString(CultureInfo.InvariantCulture), a, b, RoadClass.Residential, lanes, speed, s.Width));
+        }
+        double cx = (p.MinX + p.MaxX) / 2, cy = (p.MinY + p.MaxY) / 2;
+        net._villages.Add(new Village(cx, cy, Math.Sqrt(p.Width * p.Width + p.Height * p.Height)));
+        net.BuildHash();
+        return net;
+    }
+
     public static RoadNetwork Generate(SynthProfile p, Rng rng)
     {
         var adjust = new Dictionary<RoadClass, double>();
@@ -160,7 +178,7 @@ public sealed class RoadNetwork
             var a = _nodeById[e.From];
             var b = _nodeById[e.To];
             int si = _segs.Count;
-            _segs.Add((a.X, a.Y, b.X, b.Y, Spec(e.Class).Width / 2));
+            _segs.Add((a.X, a.Y, b.X, b.Y, e.WidthM / 2));   // the edge's own width (= the class's for every generated edge)
             int x0 = (int)Math.Floor((Math.Min(a.X, b.X) - _p.MinX) / CellSize), x1 = (int)Math.Floor((Math.Max(a.X, b.X) - _p.MinX) / CellSize);
             int y0 = (int)Math.Floor((Math.Min(a.Y, b.Y) - _p.MinY) / CellSize), y1 = (int)Math.Floor((Math.Max(a.Y, b.Y) - _p.MinY) / CellSize);
             for (int ix = x0; ix <= x1; ix++)

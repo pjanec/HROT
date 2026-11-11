@@ -509,6 +509,34 @@ public sealed class TerrainLoadStepTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ T-8 follow-up (ui NOTE_Ui_To_Backend_Edit_Terrain, §18d-1) — a source whose ground terrain was DELETED still loads: the editor's scenario load path (a fresh residency's <c>Prepare(groundName, overlay)</c>, the catalogue resolving
+    /// the name) finds the ground in the terrain that kept it, and the overlay compiled against the original is accepted (a kept copy hashes as the original). 🔴 Red-proof: skip the catalogue's kept-ground fallback ⇒ the load throws.
+    /// </summary>
+    [Fact]
+    public void ASourceWhoseGroundWasDeleted_StillLoads_ThroughTheKeptCopy()
+    {
+        const string hut = """{"footprint":[[0,0],[10,0],[10,8],[0,8]],"storeys":[{"height":3,"walls":[{"from":[0,0],"to":[10,0]},{"from":[10,0],"to":[10,8]},{"from":[10,8],"to":[0,8]},{"from":[0,8],"to":[0,0]}]}]}""";
+        string assets = Path.Combine(_stagingRoot, "assets");
+        string terrains = Path.Combine(assets, "terrain"), ground = Path.Combine(terrains, "ground-t");
+        Directory.CreateDirectory(ground); Directory.CreateDirectory(Path.Combine(assets, "buildings")); Directory.CreateDirectory(Path.Combine(assets, "terrain-recipes"));
+        File.WriteAllText(Path.Combine(ground, "terrain.json"), """{"schemaVersion":2,"world":"w.geojson"}""");
+        File.WriteAllText(Path.Combine(ground, "w.geojson"), """{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,400,400],"groundZ":0},"features":[]}""");
+        File.WriteAllText(Path.Combine(assets, "buildings", "hut.building.json"), hut);
+        File.WriteAllText(Path.Combine(assets, "terrain-recipes", "village.recipe.json"), """{"id":"village","houses":{"templates":["hut"],"count":[4,4],"radius":50,"minSpacing":4}}""");
+        string scenarioDir = Path.Combine(_stagingRoot, "src-scn"); Directory.CreateDirectory(scenarioDir);
+        var dom = System.Text.Json.Nodes.JsonNode.Parse("""{"header":{"terrainName":"ground-t"},"entities":{"b1000000-0000-4000-8000-000000000001":{"TerrainBlock":{"Recipe":"village","Seed":5,"HeadingDeg":0,"Fit":15},"SimTransform":{"Position":[200,200,0]}}}}""")!.AsObject();
+        File.WriteAllText(Path.Combine(scenarioDir, "scenario.json"), dom.ToJsonString());
+        var catalog = new TerrainCatalog(new[] { terrains });
+        TerrainBake.SaveAs(scenarioDir, Path.Combine(terrains, "made-t"), "made-t", catalog.ResolveDefinition, new[] { Path.Combine(assets, "terrain-recipes") }, bakeNavtiles: false);
+        string overlay = Path.Combine(scenarioDir, OverlayCompiler.FolderName);
+        Directory.Delete(ground, true);                                                              // the ground terrain is gone
+
+        using var holder = new RoadNetworkHolder();
+        var world = new TerrainResidency(catalog, holder).Prepare("ground-t", overlay).World!;
+        Assert.Equal(4, world.Buildings.Count);                                                       // the source's block, over the kept ground
+    }
+
+    /// <summary>
     /// ⭐ O-4 part 2 (CE-4415, DESIGN_Terrain_Authoring §18c) — compile, then load: a scenario with a block and a house over a base terrain compiles to <c>terrain-overlay/</c>; a FRESH
     /// residency's <c>Prepare(name, folder)</c> accepts it (the hashes agree), the merged world holds the expanded houses labelled <c>&lt;guid&gt;/&lt;i&gt;</c> with their doors, and the base's own
     /// parts keep their indices; changing a byte of the base afterwards makes the same overlay REFUSED. 🔴 Red-proof: have the compiler hash another base (or none) ⇒ the load refuses.
@@ -559,7 +587,7 @@ public sealed class TerrainLoadStepTests : IDisposable
     private sealed class CountingContentLoader : ITerrainContentLoader
     {
         public int Prepares;
-        public object? Prepare(TerrainDefinition definition, string terrainFolder, string terrainName, TerrainWorld world) { Prepares++; return null; }
+        public object? Prepare(TerrainDefinition definition, string terrainFolder, string terrainName, TerrainWorld world, string? overlayFolder) { Prepares++; return null; }
         public void Commit(EntityRepository world, object? prepared) { }
         public void Unload(EntityRepository world) { }
     }

@@ -100,8 +100,12 @@ public sealed class TrafficPack : INodeCapability, IDisposable
         }
         if (!context.World.IsComponentTypeRegistered<TrafficShadowFollow>())
             context.World.RegisterComponent<TrafficShadowFollow>();   // ⭐ R-3039 S1 — the follow's memory, on the body
+        simulation.Add(new BridgeClosureSystem(Runtime, () => TrajectoryPool));   // ⭐ T-7b (CE-4423) — a fallen bridge stops being road: the vehicles' net, SUMO's, and the vehicles on their way
         simulation.Add(new TrafficShadowFollowSystem());   // ⭐ AQ93 §14 — a handed-over body follows its SUMO shadow where it is moved
     }
+
+    /// <summary>⭐ T-7b (CE-4423) — the node's trajectory pool, set by the role table where the node has vehicles (<c>RoleCapabilityTable.Plan</c>); the <see cref="BridgeClosureSystem"/> reads a vehicle's baked route from it. Null = no vehicle here to re-plan.</summary>
+    public CarKinem.Trajectory.TrajectoryPoolManager? TrajectoryPool { get; set; }
 
     public void Dispose() => Runtime?.Dispose();
 }

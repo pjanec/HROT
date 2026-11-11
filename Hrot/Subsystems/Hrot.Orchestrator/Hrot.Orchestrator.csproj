@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Engine\Hrot.Terrain.Random\Hrot.Terrain.Random.csproj" />   <!-- ⭐ T-3 part 2 (CE-4430) — SynthUniqueBuildings: unique houses for a block's grid -->
     <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
     <!-- CE-4002: the orchestrator offers a debug surface (the master's roster, cancel) like every other subsystem. -->
     <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
