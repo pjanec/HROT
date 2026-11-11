@@ -20,7 +20,7 @@ namespace Hrot.Presentation.Tests.Gizmos;
 
 /// <summary>
 /// ⭐ Terrain authoring U-3 (docs/DESIGN_Terrain_Authoring.md §15a; mockup 2) — a placed block on the map: the outline FOLLOWS what the live bake held (dashed, solid blue when selected), its chip, clickable on the outline; the block menu's
-/// writes (Re-roll · Rotate · Change recipe) are ONE edit step each and deterministic; the menu is the block's own (Unpack greyed). ✅ Red-proofs (compiling mutations, one command): <c>TerrainBlockOps.Reroll</c> not bracketing ⇒ the
+/// writes (Re-roll · Rotate · Change recipe) are ONE edit step each and deterministic; the menu is the block's own (Unpack live, T-4). ✅ Red-proofs (compiling mutations, one command): <c>TerrainBlockOps.Reroll</c> not bracketing ⇒ the
 /// one-step rail red; the gizmo ignoring the bake info's bounds ⇒ the follow rail red.
 /// </summary>
 public sealed class TerrainBlockGizmoTests : IDisposable
@@ -136,7 +136,7 @@ public sealed class TerrainBlockGizmoTests : IDisposable
     }
 
     [Fact]
-    public void U3_TheBlockHasItsOwnMenu_ReRollRotateUnpackGreyed_ChangeRecipe_AndDelete()
+    public void U3_TheBlockHasItsOwnMenu_ReRollRotateUnpack_ChangeRecipe_AndDelete()
     {
         var e = Block();
         string json = MapMenuActions.JsonFor(_repo, e);
@@ -145,7 +145,7 @@ public sealed class TerrainBlockGizmoTests : IDisposable
         string flat = string.Join("|", rows.Select(r => r.GetProperty("label").GetString())) + "|" + string.Join("|", rows.Where(r => r.TryGetProperty("tooltip", out _)).Select(r => r.GetProperty("tooltip").GetString()));
         foreach (var label in new[] { "Re-roll layout", "Rotate", "Unpack into houses and features", "Change recipe…", "Delete" }) Assert.Contains(label, flat);
         Assert.Contains(GlobalActionIds.TerrainReroll.ToString(), json);
-        Assert.Contains("T-4", flat);   // Unpack is a greyed row naming why
+        Assert.DoesNotContain("T-4", flat);   // Unpack is a live row now (backend's T-4 is wired): no "not built yet" tooltip
         // ⭐ the mockup's six rows, in its order, each with its icon key; the generic Select / Center View / Properties rows are not in the block's menu
         var labels = rows.Select(r => r.GetProperty("label").GetString()).ToList();
         Assert.Equal(new[] { "Re-roll layout", "Rotate", "Move", "Unpack into houses and features", "Change recipe…", "Delete" }, labels);
