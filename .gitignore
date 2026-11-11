@@ -85,6 +85,9 @@ assets/terrain/*
 !assets/terrain/test-town/
 # the authoring source kept inside a terrain (R-4201 — the source scenario + the ground base) and a scenario's compiled overlay (§18 C-1)
 assets/terrain/*/source/
+# the content-hash cache TerrainContentHash writes beside terrain.json (per machine, by length + mtime) — never in git, demos included
+assets/terrain/*/terrain.hash
+**/terrain.hash
 **/terrain-overlay/
 scenarios/scale-rig-*/
 
