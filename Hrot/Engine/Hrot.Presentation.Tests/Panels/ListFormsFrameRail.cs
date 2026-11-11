@@ -170,6 +170,21 @@ public sealed class ListFormsFrameRail
     private static string KeyNames(IEditSession s) => string.Join(",", ((KeysDoc)s.Commit()).Rows.Select(x => x.Name));
     private static string Names(IEditSession s) => string.Join(",", ((StepsDoc)s.Commit()).Steps.Select(x => x.Name));
 
+    public sealed class ScalarsDoc { public float Speed = 1.5f; public int Count = 3; public bool Armed; public float Range = 40f; public double Ratio = 0.5; public string Label = "alpha"; }
+
+    /// <summary>⭐ CE-4285 — a struct of scalar fields drawn through <c>ComponentEditDrawer</c> allocates NOTHING in a steady frame (the row measured 64 B for one float, 160 B for five: one boxed value per leaf).
+    /// The Rig times only the drawer's <c>DrawRoot</c>, on a warmed (tier-1) frame. ✅ Red-proof: a boxing read added to the leaf draw ⇒ red.</summary>
+    [SkippableFact]
+    public void CE4285_ASteadyFrameOfScalarFields_AllocatesNothing()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        using var r = new Rig(new ScalarsDoc(), typeof(ScalarsDoc));
+        r.Steady();
+        long best = long.MaxValue;
+        for (int k = 0; k < 4; k++) { r.Frame.StepN(10, r.Draw); best = Math.Min(best, r.Bytes); }   // JIT tiering can allocate in a window: the smallest of several
+        Assert.True(best == 0, $"a steady frame of six scalar fields allocates nothing ({best} bytes)");
+    }
+
     // ── B1 chips ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
     [SkippableFact]
