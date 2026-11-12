@@ -18,7 +18,7 @@ using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.CodeAnalysis.Operations;
 
 internal sealed record RootSpec(string Side, string Type, string[] Methods);
-internal sealed record RootsFile(RootSpec[] Roots, string[] WorldNamespaces, string[] SkipProjectsContaining);
+internal sealed record RootsFile(RootSpec[] Roots, string[] WorldNamespaces, string[] SkipProjectsContaining, string[]? PresentationInTick = null);
 
 internal sealed class MethodNode
 {
@@ -54,6 +54,8 @@ internal static class Program
         var roots = JsonSerializer.Deserialize<RootsFile>(File.ReadAllText(args[1]), new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
         Directory.CreateDirectory(outDir);
 
+        PresentationInTick = new HashSet<string>(roots.PresentationInTick ?? Array.Empty<string>());
+        roots = roots with { Roots = roots.Roots.Concat(PresentationInTick.Select(t => new RootSpec("ui", t, new[] { "*" }))).ToArray() };
         MSBuildLocator.RegisterDefaults();
         var sw = System.Diagnostics.Stopwatch.StartNew();
         using var ws = MSBuildWorkspace.Create();
@@ -81,15 +83,24 @@ internal static class Program
 
         BuildDispatch();
 
+        // ⭐ a root counts only if its type is CONSTRUCTED somewhere in non-test code (a `new T(...)`, or named as a generic argument / typeof —
+        //   AddSystem<T>() composition); an unregistered implementation is not part of any host. ⚠ composition by reflection / string is missed:
+        //   every dropped type is listed in rootsDropped.json for review.
+        var constructed = new HashSet<string>();
+        foreach (var n in Methods.Values) foreach (var c in n.Callees) if (c.StartsWith("M:", StringComparison.Ordinal) && c.Contains(".#ctor", StringComparison.Ordinal)) constructed.Add(c[2..c.IndexOf(".#ctor", StringComparison.Ordinal)]);
+        foreach (var t in TypeMentions.Keys) constructed.Add(t);
+        var dropped = new SortedSet<string>();
         var rootSets = new Dictionary<string, HashSet<string>>();
         var rootReport = new List<object>();
         foreach (var r in roots.Roots)
         {
-            var found = RootMethods(r).ToList();
+            var found = RootMethods(r, constructed, dropped).ToList();
             rootReport.Add(new { r.Side, r.Type, r.Methods, Found = found.Count });
             if (!rootSets.TryGetValue(r.Side, out var set)) rootSets[r.Side] = set = new HashSet<string>();
             set.UnionWith(found);
         }
+        File.WriteAllLines(Path.Combine(outDir, "rootsDropped.txt"), dropped);
+        Console.WriteLine($"[reach] {dropped.Count} root types never constructed in non-test code — dropped (rootsDropped.txt)");
         var reach = rootSets.ToDictionary(kv => kv.Key, kv => Reach(kv.Key, kv.Value));
         foreach (var kv in reach) Console.WriteLine($"[reach] side {kv.Key}: {rootSets[kv.Key].Count} roots → {kv.Value.Count} reachable methods");
 
@@ -188,11 +199,14 @@ internal static class Program
         return string.Join(" → ", parts);
     }
 
-    private static IEnumerable<string> RootMethods(RootSpec r)
+    private static IEnumerable<string> RootMethods(RootSpec r, HashSet<string> constructed, SortedSet<string> dropped)
     {
         foreach (var t in SourceTypes)
         {
             if (!Matches(t, r.Type)) continue;
+            if (!t.IsStatic && !t.IsAbstract && !constructed.Contains(DocName(t))) { dropped.Add(Full(t)); continue; }
+            // ⭐ §13.5: presentation that runs INSIDE the tick today is counted on the PRESENTATION side (it moves out first, S-1)
+            if (r.Side == "sim" && PresentationInTick.Contains(Full(t))) continue;
             foreach (var m in t.GetMembers().OfType<IMethodSymbol>())
             {
                 if (m.IsAbstract) continue;
@@ -209,6 +223,12 @@ internal static class Program
         for (var b = t.BaseType; b != null; b = b.BaseType) if (Full(b.OriginalDefinition) == full) return true;
         return false;
     }
+
+    private static HashSet<string> PresentationInTick = new();
+
+    private static string DocName(INamedTypeSymbol t) => (t.OriginalDefinition.GetDocumentationCommentId() ?? "T:" + Full(t))[2..];
+
+    private static readonly ConcurrentDictionary<string, bool> TypeMentions = new();   // types named in typeof(T) or as a generic type argument
 
     private static string Full(ITypeSymbol t) => t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat).Replace("global::", "");
 
@@ -295,9 +315,13 @@ internal static class Program
     {
         switch (o)
         {
-            case IInvocationOperation inv: node.Callees.Add(Key(inv.TargetMethod)); break;
+            case IInvocationOperation inv:
+                node.Callees.Add(Key(inv.TargetMethod));
+                foreach (var ta in inv.TargetMethod.TypeArguments) if (ta is INamedTypeSymbol nt && InSource(nt)) TypeMentions[DocName(nt)] = true;   // AddSystem<T>() / Register<T>()
+                break;
             case IObjectCreationOperation oc when oc.Constructor != null: node.Callees.Add(Key(oc.Constructor)); break;
             case IMethodReferenceOperation mr: node.Callees.Add(Key(mr.Method)); break;   // a delegate: it may run — over-approximated
+            case ITypeOfOperation to when to.TypeOperand is INamedTypeSymbol tt && InSource(tt): TypeMentions[DocName(tt)] = true; break;
             case IPropertyReferenceOperation pr:
                 {
                     var p = pr.Property;
