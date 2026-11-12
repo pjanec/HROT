@@ -16,11 +16,11 @@ cloud VM, 4 cores (correctness and trends); the Windows command is `scripts/para
 | item | state | sha | result |
 |---|---|---|---|
 | measurement blind spot | ✅ | `exp/parallel-sim-2` | the rig reports EVERY system (`all_ms`); the script sums it — a system under the top-8 cut no longer reads 0.00 |
-| Q-0 profile | ✅ | — | §Q-0 |
-| Q-1 emitter writes on change | | | |
-| Q-2 off-frame state egress | | | |
+| Q-0 profile | ✅ | — | §Q-0 — ⭐ + the per-query timer costs ~13 ms of the brain on the VM (D-1) |
+| Q-1 writes stamp only on change | 🔨 | `exp/parallel-sim-2` | D-2: done in the TICK SYSTEMS, not the emitter; the false writes are BTree / HSM, not blueprints (D-3) — measuring |
+| Q-2 off-frame state egress | 🔨 | — | switched on in the rig; CGF egress is dominated by `EqsSensorConfigTopic` (17 ms), which is NOT an off-frame translator (D-4); replication suites OFF vs ON queued |
 | Q-3 recorder capture off the frame | | | |
-| Q-4 brains in parallel (Throughput) | | | |
+| Q-4 brains in parallel (Throughput) | 🔨 | `exp/parallel-sim-2` | D-5: the posture SCORING pre-scored in parallel ahead of the serial walk; serial-vs-prescore rail green at 1/2/4/8 — measuring |
 | Q-5 weapon dispatcher | | | |
 | Q-6 verdict | | | |
 
@@ -62,3 +62,44 @@ Squad 5.7 · Threat 5.5.
 ### The order stays as the handoff has it, with one sharpening
 Q-1 first is confirmed by the recorder (its two biggest parts scale with false-dirty chunks). Q-4 is the big one (the brain's 67 % is per-unit
 scoring). Q-5's cheapest win is not parallelism: 12 % of the dispatcher looks up turrets a soldier does not have.
+
+
+## Decisions (claim tables)
+
+### D-1 — the per-query timer (`QueryTimings`, ON by default) costs ~13 ms of the brain on the VM
+| claim | basis |
+|---|---|
+| the trace put 38 % of the brain inclusive in `QueryTimings.End` | `q0trace/cgf.speedscope.json` (sampled; inlining may inflate it) |
+| ⭐ the A/B says ~13 ms is real | `q0` vs `q0off` (`HROT_QUERY_TIMINGS=0`), both recorded: BrainTick **82.9 → 70.1 ms**, the recorder and egress unchanged (28 / 12 ms both) |
+| ~37 k timed calls / frame (≈ 0.35 µs each, against 32 ns per raw clock read measured here) | the rig's query table; a 2 M-call micro-benchmark on this VM |
+⇒ the measurement is not free at 1 000 men. ⭐ The Windows script runs a timer-off column (`--poc2`). ⚠ Not changed by this POC (it is an instrument the rig itself reads).
+
+### D-2 — Q-1 is done in the tick systems (compare the bytes after the tick), not in the blueprint emitter
+| claim | basis |
+|---|---|
+| the emitter fix (§10.2) needs a new tick contract (a "wrote" flag) and regenerates every blueprint emit golden | `StatementEmitter.cs:1296-1300` (edge memory), `TickDelegate` returns void (`BlueprintDelegates.cs:17`) |
+| a payload compare after the tick gives the same precise stamp with no contract change, no shadow memory (a per-call reused buffer) | `BlueprintTickSystem.TickTier` (this branch) + `BlueprintTickStampOnChangeTests` (3 rails, 0 B steady) |
+| it catches every same-value write, generated or not | by construction |
+
+### D-3 — the 4 KB tier's no-op writes are BTree / HSM ticks, not blueprints
+| claim | basis |
+|---|---|
+| with the blueprint-tick compare ON, the 4 KB tier still showed 48 % unchanged-dirty, 1 149 writable refs / frame | `q1m1` M-1 |
+| the brain's per-tick store view stamps a block on its first writable lookup, whatever the tick then writes | `OccurrenceStoreAccess.ViewBlockRW` (`OccurrenceStoreAccess.cs:293`) |
+⇒ the compare moved to the view's end too (`TickViewState.Defer` / `StampChanged`) — same knob, `HROT_BP_STAMP_ON_CHANGE=1`; rail `TheBrainTickView_StampsItsBlock_OnlyWhenTheTickChangedIt`.
+
+### D-4 — on the CGF, the egress cost is one translator the off-frame path does not cover
+| claim | basis |
+|---|---|
+| CGF egress 36–45 ms / frame (several systems), of which `EqsSensorConfigTopic` 17–18 ms | the rig's egress table, `recbase` / `recq2` |
+| that translator builds a full topic (strings, `PointsOf`) for every sensor every frame, then compares it with the last one sent | `EqsSensorConfigEgressTranslator.cs:107-170` (`SameConfig` after the build) |
+| it is not an `IOffFrameEgress` translator | resume B-9 ③ ("is it a pure scan?" — open) |
+⇒ ⭐ the cheap fix is a change gate BEFORE the build (not parallelism) — recorded as a finding for the egress owner, not built here.
+
+### D-5 — Q-4 as a parallel PRE-SCORE, not a parallel tree walk
+| claim | basis |
+|---|---|
+| 67 % of the brain is the posture decision's `Evaluate` (step 1 of `SelectPosture`) | Q-0 |
+| its nine inputs only read the world; the part index serialises behind its own lock; the timers are per thread; the TKB dictionary is read-only | `CombatPostureDecision.cs` inputs; `StandardInputs.cs` (no statics); `PartIndex.cs:65` (lock) |
+| the tree walk is tangled with shared state (cadence windows, dedup dictionaries, finish, the frame ECB) | E-5's inventory (`STATUS_Backend_Parallel_Simulation_Experiment.md` §E-5) |
+⇒ `UtilityPrescore`: the (unit, decision) pairs that scored last frame are scored in parallel at the brain tick's start; `ChooseOption` applies only the hysteresis. ⚠ Semantics: a pre-scored decision sees the world as it was at the START of the brain phase (Throughput only, R-4207 — the class of R-4208). Rail: `Q4_ThePrescoredPosture_IsTheSerialPosture_AtEveryThreadCount` (200 units, all 200 taken, equal at 1/2/4/8).
