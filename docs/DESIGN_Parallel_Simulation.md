@@ -255,3 +255,9 @@ threaded design's §13.8, on `exp/threaded-analysis`).
 
 ⇒ ⭐ **Converting more small systems cannot move the frame much: the serial 70 % is brains + egress + weapons + recorder.** The next evidence is a
 PROFILE of those four (what inside them costs, how much is false change), before any more parallel work.
+
+## 12. The per-query timer is SAMPLED *(R-4209)*
+
+🔒 User, `2026-11-12`: *"sampled timer approved"* — on the proposal: `QueryTimings` (CE-3427) stays ON by default but times 1 call in 16 and scales
+the time up; the call counts stay exact. POC 2 measured the always-timed version at ~13 ms of the brain on the VM (37 000 timed calls / frame at
+1 000 men: two clock reads + a per-thread record each). Built in [CE-4443](blueprints/batches/HANDOFF_Coordinator_To_Backend_Parallel_Sim_POC_3.md).
