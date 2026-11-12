@@ -1,5 +1,5 @@
 <!--STATUS
-state: DRAFT — waiting for exp/perf to build and be pushed
+state: LIVE — dispatched, not started
 updated: 2026-11-12
 current-answer: the whole file
 related-designs:
