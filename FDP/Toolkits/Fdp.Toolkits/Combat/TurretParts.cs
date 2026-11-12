@@ -52,8 +52,16 @@ namespace Fdp.Toolkit.Combat
         public static Entity Find(ISimulationView view, Entity parent, int index)
         {
             int partId = FirstPartId + index;
-            foreach (var e in view.Query().With<PartMetadata>().With<TurretPose>().Build())
+            // ⭐ POC 2 Q-5 (the parallel-simulation experiment; Q-0 profile: 12 % of WeaponDispatcherSystem) — the parent's parts from the
+            //   shared parts index (CE-2412), not a query built and scanned over EVERY turret of the world for every soldier every tick
+            //   (a soldier has none, so the whole scan was waste). A turret's instance id is unique per parent ⇒ the same answer.
+            Span<Entity> parts = stackalloc Entity[32];
+            int n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(view, parent, parts);
+            if (n > parts.Length) { parts = new Entity[n]; n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(view, parent, parts); }
+            for (int k = 0; k < n; k++)
             {
+                var e = parts[k];
+                if (!view.HasComponent<TurretPose>(e) || !view.HasComponent<PartMetadata>(e)) continue;
                 ref readonly var meta = ref view.GetComponentRO<PartMetadata>(e);
                 if (meta.InstanceId == partId && meta.ParentEntity.Equals(parent)) return e;
             }
