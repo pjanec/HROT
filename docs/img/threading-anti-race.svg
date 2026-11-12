@@ -85,13 +85,13 @@
 <rect x="1140" y="420" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
 <text x="1305.0" y="437.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">A's bus</text>
 <rect x="30" y="452" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
-<text x="195.0" y="469.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">gizmo OVERLAYS (47) drawn on the sim thread</text>
+<text x="195.0" y="469.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">remote nodes' gizmo streams (CGF, SimHost …)</text>
 <rect x="420" y="452" width="660" height="26" rx="5" fill="#f1eaff" stroke="#7c3aed" stroke-width="1.3"/>
-<text x="750.0" y="469.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">PRIMITIVE FRAME published — triple buffer, leased by the map</text>
+<text x="750.0" y="469.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">RECEIVED over the network, published to the map — triple buffer</text>
 <line x1="362" y1="465.0" x2="418" y2="465.0" stroke="#7c3aed" stroke-width="2" marker-end="url(#a7c3aed)"/>
 <line x1="1080" y1="465.0" x2="1138" y2="465.0" stroke="#7c3aed" stroke-width="2" marker-end="url(#a7c3aed)"/>
 <rect x="1140" y="452" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
-<text x="1305.0" y="469.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">the map draws the latest frame</text>
+<text x="1305.0" y="469.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">the map draws them with A's own gizmos</text>
 <text x="30" y="508" font-size="14" fill="#0f8a5f" font-weight="bold" text-anchor="start">UI → SIM   (the UI never writes S)</text>
 <rect x="1140" y="518" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
 <text x="1305.0" y="535.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">edits: move, delete, spawn, orders, rules</text>
@@ -136,45 +136,45 @@
 <text x="1305.0" y="711.5" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">effects, panel layout — written directly</text>
 <rect x="30" y="736" width="1440" height="30" rx="5" fill="#fff6d6" stroke="#b88a00" stroke-width="1.3"/>
 <text x="750.0" y="755.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">⚠ READS MUST BE READS: a managed-component read and a singleton read stop returning a writable ref / stamping the chunk (A1-2)  ·  the 3 unsafe statics get a lock / Concurrent / Lazy  ·  a Debug guard throws on a write to S off the sim thread</text>
-<text x="30" y="796" font-size="17" fill="#1f2430" font-weight="bold" text-anchor="start">The gizmo split — 79 gizmo classes (75 registered in the editor): overlays stay with the simulation, tools move to the frame</text>
-<rect x="30.0" y="810" width="466.6666666666667" height="210" rx="7" fill="#fff0e6" fill-opacity="0.55" stroke="#c2410c" stroke-width="1.4"/>
-<text x="44.0" y="832" font-size="14" fill="#c2410c" font-weight="bold" text-anchor="start">OVERLAYS (47) — sim thread</text>
-<text x="44.0" y="854" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">navmesh, cover, EQS, brain debug, routes, health,</text>
-<text x="44.0" y="871" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">names, traces, roads, squads, missions …</text>
-<text x="44.0" y="888" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
-<text x="44.0" y="905" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">Draw(view of S) → the primitive buffer</text>
-<text x="44.0" y="922" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">→ published once per tick (triple buffer)</text>
-<text x="44.0" y="939" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">→ the map draws it at the frame rate</text>
-<text x="44.0" y="956" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
-<text x="44.0" y="973" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">content changes only when S ticks ⇒ no loss;</text>
-<text x="44.0" y="990" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">remote nodes' overlays arrive the same way</text>
-<text x="44.0" y="1007" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">cost moved off the UI frame: ≈ 4.4–5.5 ms</text>
-<rect x="516.6666666666667" y="810" width="466.6666666666667" height="210" rx="7" fill="#f1eaff" fill-opacity="0.55" stroke="#7c3aed" stroke-width="1.4"/>
-<text x="530.6666666666667" y="832" font-size="14" fill="#7c3aed" font-weight="bold" text-anchor="start">MIXED (6) — split in two</text>
-<text x="530.6666666666667" y="854" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">EntityPresentation, NamedPoint: overlay on sim,</text>
-<text x="530.6666666666667" y="871" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">their PICK BOXES on main from the copied positions</text>
-<text x="530.6666666666667" y="888" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">TerrainBlock, Route, Designation, FireMission:</text>
-<text x="530.6666666666667" y="905" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">overlay on sim, SELECTION styling on main</text>
-<text x="530.6666666666667" y="922" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
-<text x="530.6666666666667" y="939" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">⭐ pick boxes and the pickers move TOGETHER —</text>
-<text x="530.6666666666667" y="956" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">the pickers hit-test this frame's boxes (CE-259r)</text>
-<text x="530.6666666666667" y="973" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
-<text x="530.6666666666667" y="990" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">the zoom-dependent sizes come from A's camera</text>
+<text x="30" y="796" font-size="17" fill="#1f2430" font-weight="bold" text-anchor="start">The gizmos — the WHOLE gizmo block runs on the main thread over world A (R-4211: no split by kind)</text>
+<rect x="30.0" y="810" width="466.6666666666667" height="210" rx="7" fill="#e6efff" fill-opacity="0.55" stroke="#2f6fde" stroke-width="1.4"/>
+<text x="44.0" y="832" font-size="14" fill="#2f6fde" font-weight="bold" text-anchor="start">ONE BLOCK — main thread, every frame</text>
+<text x="44.0" y="854" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">all 75 registered gizmos: overlays (navmesh, cover,</text>
+<text x="44.0" y="871" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">EQS, brain debug, routes, names, traces …), tools</text>
+<text x="44.0" y="888" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">(drag, rotate, editors, pickers, RTS mode, box select)</text>
+<text x="44.0" y="905" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">and UI gizmos — one module, one place, as today</text>
+<text x="44.0" y="922" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
+<text x="44.0" y="939" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">pick boxes, pickers and selection stay together</text>
+<text x="44.0" y="956" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">(CE-259r: they hit-test THIS frame's boxes)</text>
+<text x="44.0" y="973" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
+<text x="44.0" y="990" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">maintained as one thing — no per-kind homes</text>
+<text x="44.0" y="1007" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
+<rect x="516.6666666666667" y="810" width="466.6666666666667" height="210" rx="7" fill="#fff6d6" fill-opacity="0.55" stroke="#b88a00" stroke-width="1.4"/>
+<text x="530.6666666666667" y="832" font-size="14" fill="#b88a00" font-weight="bold" text-anchor="start">WHAT IT READS — world A</text>
+<text x="530.6666666666667" y="854" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">the overlays read A's copies, so the S→A mask</text>
+<text x="530.6666666666667" y="871" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">carries what every gizmo reads (A-1: map + 3-D +</text>
+<text x="530.6666666666667" y="888" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">gizmos ≈ 57 types, tables ≈ 1.3 ms)</text>
+<text x="530.6666666666667" y="905" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
+<text x="530.6666666666667" y="922" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">content still changes only when S ticks — drawn</text>
+<text x="530.6666666666667" y="939" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">at the frame rate from the latest copy</text>
+<text x="530.6666666666667" y="956" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
+<text x="530.6666666666667" y="973" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">cost moved off the SIM tick: ≈ 4.4–5.5 ms</text>
+<text x="530.6666666666667" y="990" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">(it now runs on the main thread's ~16 ms frame)</text>
 <text x="530.6666666666667" y="1007" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
-<rect x="1003.3333333333334" y="810" width="466.6666666666667" height="210" rx="7" fill="#e6efff" fill-opacity="0.55" stroke="#2f6fde" stroke-width="1.4"/>
-<text x="1017.3333333333334" y="832" font-size="14" fill="#2f6fde" font-weight="bold" text-anchor="start">TOOLS &amp; UI (26) — main thread</text>
-<text x="1017.3333333333334" y="854" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">drag, rotate, vertex / waypoint / mission editors,</text>
-<text x="1017.3333333333334" y="871" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">measure, place / paste ghosts, pickers, RTS mode,</text>
-<text x="1017.3333333333334" y="888" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">box select, layer panel, selection highlight, menus</text>
-<text x="1017.3333333333334" y="905" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
-<text x="1017.3333333333334" y="922" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">input → the tool's FSM every frame → a GHOST in A</text>
-<text x="1017.3333333333334" y="939" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">→ the commit is ONE COMMAND to S</text>
-<text x="1017.3333333333334" y="956" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
-<text x="1017.3333333333334" y="973" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">⛔ today the drag writes SimTransform every frame</text>
-<text x="1017.3333333333334" y="990" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">(EntityDragGizmo.cs:278) — that becomes the ghost</text>
+<rect x="1003.3333333333334" y="810" width="466.6666666666667" height="210" rx="7" fill="#e3f6ee" fill-opacity="0.55" stroke="#0f8a5f" stroke-width="1.4"/>
+<text x="1017.3333333333334" y="832" font-size="14" fill="#0f8a5f" font-weight="bold" text-anchor="start">WHAT IT WRITES — commands only</text>
+<text x="1017.3333333333334" y="854" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">input → the tool's FSM every frame → a GHOST in A</text>
+<text x="1017.3333333333334" y="871" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">→ the commit is ONE COMMAND to S</text>
+<text x="1017.3333333333334" y="888" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
+<text x="1017.3333333333334" y="905" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">⛔ today the drag writes SimTransform every frame</text>
+<text x="1017.3333333333334" y="922" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">(EntityDragGizmo.cs:278) — that becomes the ghost</text>
+<text x="1017.3333333333334" y="939" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
+<text x="1017.3333333333334" y="956" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">headless nodes (CGF, SimHost) have no main-thread</text>
+<text x="1017.3333333333334" y="973" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">presentation: their gizmo stream is produced in</text>
+<text x="1017.3333333333334" y="990" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">their own tick and sent over the network, as today</text>
 <text x="1017.3333333333334" y="1007" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
 <rect x="30" y="1034" width="1440" height="30" rx="5" fill="#eef0f4" stroke="#c9cfd9" stroke-width="1.3"/>
-<text x="750.0" y="1053.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">the gizmo MODULE itself is split too: it also runs world WRITERS (action dispatch: Delete / LoadZone, effect + wreck spawn, lifespan) — those stay in the tick</text>
+<text x="750.0" y="1053.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">the gizmo MODULE also runs non-gizmo world WRITERS (action dispatch: Delete / LoadZone, effect + wreck spawn, lifespan) — those are simulation and stay in the tick</text>
 <rect x="30" y="1078" width="14" height="14" fill="#fff6d6" stroke="#b88a00"/>
 <text x="50" y="1090" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">copied at the sync, under A's lock (the only lock)</text>
 <rect x="420" y="1078" width="14" height="14" fill="#f1eaff" stroke="#7c3aed"/>

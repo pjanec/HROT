@@ -55,7 +55,7 @@ rows_sim_to_ui = [
     ("native memory: the road graph", "LEASED — the old version lives until the last reader lets go", "pub", "a lease per sync"),
     ("logs: shots, detonations, edit outcomes, squad reports", "FORWARDED — the new entries copied at the sync", "lock", "A's own logs"),
     ("events on S's bus (hits, deaths, outcomes)", "FORWARDED into A's bus at the sync — each reader gets each once", "lock", "A's bus"),
-    ("gizmo OVERLAYS (47) drawn on the sim thread", "PRIMITIVE FRAME published — triple buffer, leased by the map", "pub", "the map draws the latest frame"),
+    ("remote nodes' gizmo streams (CGF, SimHost …)", "RECEIVED over the network, published to the map — triple buffer", "pub", "the map draws them with A's own gizmos"),
 ]
 rows_ui_to_sim = [
     ("edits: move, delete, spawn, orders, rules", "COMMAND — a thread-safe queue, drained at the tick's start (Input), validated; refused ⇒ the edit outcome"),
@@ -102,24 +102,22 @@ box(30, y, W - 60, 30, C["lockf"], C["lock"],
     "⚠ READS MUST BE READS: a managed-component read and a singleton read stop returning a writable ref / stamping the chunk (A1-2)  ·  the 3 unsafe statics get a lock / Concurrent / Lazy  ·  a Debug guard throws on a write to S off the sim thread", 11.5)
 y += 46
 
-# ---------------------------------------------------------------- the gizmo split
-text(30, y + 14, "The gizmo split — 79 gizmo classes (75 registered in the editor): overlays stay with the simulation, tools move to the frame", 17, weight="bold")
+# ---------------------------------------------------------------- the gizmo block (R-4211)
+text(30, y + 14, "The gizmos — the WHOLE gizmo block runs on the main thread over world A (R-4211: no split by kind)", 17, weight="bold")
 y += 28
 gw = (W - 60 - 40) / 3
 g = [
-    ("OVERLAYS (47) — sim thread", C["sim"], C["simf"],
-     ["navmesh, cover, EQS, brain debug, routes, health,", "names, traces, roads, squads, missions …",
-      "", "Draw(view of S) → the primitive buffer", "→ published once per tick (triple buffer)", "→ the map draws it at the frame rate",
-      "", "content changes only when S ticks ⇒ no loss;", "remote nodes' overlays arrive the same way", "cost moved off the UI frame: ≈ 4.4–5.5 ms"]),
-    ("MIXED (6) — split in two", C["pub"], C["pubf"],
-     ["EntityPresentation, NamedPoint: overlay on sim,", "their PICK BOXES on main from the copied positions",
-      "TerrainBlock, Route, Designation, FireMission:", "overlay on sim, SELECTION styling on main",
-      "", "⭐ pick boxes and the pickers move TOGETHER —", "the pickers hit-test this frame's boxes (CE-259r)",
-      "", "the zoom-dependent sizes come from A's camera", ""]),
-    ("TOOLS & UI (26) — main thread", C["main"], C["mainf"],
-     ["drag, rotate, vertex / waypoint / mission editors,", "measure, place / paste ghosts, pickers, RTS mode,",
-      "box select, layer panel, selection highlight, menus", "", "input → the tool's FSM every frame → a GHOST in A",
-      "→ the commit is ONE COMMAND to S", "", "⛔ today the drag writes SimTransform every frame", "(EntityDragGizmo.cs:278) — that becomes the ghost", ""]),
+    ("ONE BLOCK — main thread, every frame", C["main"], C["mainf"],
+     ["all 75 registered gizmos: overlays (navmesh, cover,", "EQS, brain debug, routes, names, traces …), tools",
+      "(drag, rotate, editors, pickers, RTS mode, box select)", "and UI gizmos — one module, one place, as today",
+      "", "pick boxes, pickers and selection stay together", "(CE-259r: they hit-test THIS frame's boxes)", "", "maintained as one thing — no per-kind homes", ""]),
+    ("WHAT IT READS — world A", C["lock"], C["lockf"],
+     ["the overlays read A's copies, so the S→A mask", "carries what every gizmo reads (A-1: map + 3-D +", "gizmos ≈ 57 types, tables ≈ 1.3 ms)",
+      "", "content still changes only when S ticks — drawn", "at the frame rate from the latest copy", "", "cost moved off the SIM tick: ≈ 4.4–5.5 ms", "(it now runs on the main thread's ~16 ms frame)", ""]),
+    ("WHAT IT WRITES — commands only", C["cmd"], C["cmdf"],
+     ["input → the tool's FSM every frame → a GHOST in A", "→ the commit is ONE COMMAND to S", "",
+      "⛔ today the drag writes SimTransform every frame", "(EntityDragGizmo.cs:278) — that becomes the ghost", "",
+      "headless nodes (CGF, SimHost) have no main-thread", "presentation: their gizmo stream is produced in", "their own tick and sent over the network, as today", ""]),
 ]
 for i, (title, col, fill, lines) in enumerate(g):
     gx = 30 + i * (gw + 20)
@@ -130,7 +128,7 @@ for i, (title, col, fill, lines) in enumerate(g):
         text(gx + 14, y + 44 + 17 * k, l, 12)
 y += gh + 14
 box(30, y, W - 60, 30, C["grey"], C["line"],
-    "the gizmo MODULE itself is split too: it also runs world WRITERS (action dispatch: Delete / LoadZone, effect + wreck spawn, lifespan) — those stay in the tick", 11.5)
+    "the gizmo MODULE also runs non-gizmo world WRITERS (action dispatch: Delete / LoadZone, effect + wreck spawn, lifespan) — those are simulation and stay in the tick", 11.5)
 y += 44
 add(f'<rect x="30" y="{y}" width="14" height="14" fill="{C["lockf"]}" stroke="{C["lock"]}"/>')
 text(50, y + 12, "copied at the sync, under A's lock (the only lock)", 12)

@@ -310,3 +310,29 @@ chunk). Built and measured in [CE-4445](blueprints/batches/HANDOFF_Coordinator_T
 ⚠ **Two open anomalies:** ① off-frame egress + the parallel replica sync ALONE on a serial CGF frame makes it **slower** (252 → 337–339 ms,
 reproduced; brain, weapons, ingress all grow) — invisible with everything on; suspected CPU contention on the 7 pinned logical CPUs, not measured.
 ② network ingress falls 14 → 3.6 ms with threads though it is not parallelised — unexplained.
+
+## 18. ⭐ Per-entity parallel brains — the proposal and what decides it *(threaded POC 4 session + the user, `2026-11-12`; a lean, not ruled)*
+
+🔒 User, `2026-11-12`: *"todays computers have 16+ physical cores so parallelization is the way to go."* Today only the brains' READ-ONLY scoring is
+parallel (the pre-score: BrainTick 96 → 42 ms on Windows); the tree / HSM / action / blueprint execution is serial because it may write OTHER
+entities (A-1: BrainTick writes 42 component types, squad-shared ones among them — `UnitRoster`, `SquadCognitiveState`) and a later brain may read them.
+
+**The rule proposed** (the standard ECS discipline): a brain writes its OWN entity directly; anything aimed at another entity is a command in a
+per-batch buffer, played in a fixed order after the phase; a read of another entity's brain-written component sees LAST tick's value. Precedents:
+R-4208 (cover claims one tick late), `ParallelEntities` per-batch merge (POC 1), `ParallelGuard`.
+
+| what decides it | how to measure | status |
+|---|---|---|
+| how many cross-entity WRITES, and where (each becomes a command) | a census: BrainTick sets a thread-local "current brain entity"; every component write / read classified own vs other, by type and call site, sampled stacks; one 1 000-man run | ⛔ not measured (A-1 counts per TYPE, not per entity) |
+| cross-entity READS of brain-written components (must see last tick) | the same census | ⛔ not measured |
+| ⭐ beyond components — the census must also count | ① STRUCTURAL changes, even on the own entity (create / destroy, add / remove: EQS child sensors are created in-tick) ⇒ deferred · ② bus publishes ⇒ per-batch event lists (exist) · ③ shared state outside components: `DecisionCadence`, dedup dictionaries, `BlueprintSharedState`, sim statics (`ObjectiveCensus.s_men`, `MemberEvaluationBehavior.s_current` — A-2 "sim-only scratch, unconfirmed") · ④ entities created this tick and read by a later brain · ⑤ leader → soldier orders within one tick (with commands they arrive a tick later — a behaviour change like R-4208, the user's call) | ⛔ |
+| the prize | a trace splitting BrainTick's remaining ~42 ms (Windows) into scoring vs execution | ⛔ |
+
+⭐ **Determinism comes for free with this rule.** The serial order is what makes today's result order-dependent; if every cross-entity effect is a
+command merged in a FIXED order and every cross-entity read sees last tick, the result no longer depends on thread count or batch split — parallel
+AND deterministic (Jacobi instead of Gauss-Seidel). It is a DIFFERENT result from today's serial one (a friend's claim seen a tick later), so the
+regression goldens are re-baselined once — and R-4208's "Throughput only" could extend to Deterministic mode.
+
+**The prize, bounded honestly:** the brains are one link of the measured chain (stress → threat → brain → callouts → weapons → squad, §16 J-3); the
+same rule applies to every per-entity system in it, and that — not the brains alone — is what lets 16 cores pay. ⇒ census the brains first; if the
+lists are short, the rule becomes the engine's rule for per-entity systems, enforced by `ParallelGuard`.
