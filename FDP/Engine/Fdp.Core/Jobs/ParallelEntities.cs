@@ -52,7 +52,8 @@ namespace Fdp.Core.Jobs
     /// </summary>
     public interface IEntityBatchJob
     {
-        void Execute(Entity e, BatchContext ctx);
+        /// <param name="index">The entity's position in the list being run (a slot of the job's own per-entity output array, written by this entity only).</param>
+        void Execute(Entity e, int index, BatchContext ctx);
         void ApplyDeferred(EntityRepository repo, in Deferred d);
     }
 
@@ -64,6 +65,10 @@ namespace Fdp.Core.Jobs
     /// </summary>
     public static class ParallelEntities
     {
+        /// <summary>⭐ The experiment's switch (branch exp/parallel-sim): converted systems take their parallel path only when ON —
+        /// <c>HROT_PARALLEL_SIM=1</c>, read once; tests set it. Off ⇒ every converted system runs its serial path, so before / after is one binary.</summary>
+        public static bool Enabled { get; set; } = Environment.GetEnvironmentVariable("HROT_PARALLEL_SIM") == "1";
+
         /// <summary>The mode the loops run in (set by whoever owns the run: the kernel from the time mode, the tests). Default Deterministic.</summary>
         public static SimulationMode Mode { get; set; } = SimulationMode.Deterministic;
 
@@ -129,7 +134,7 @@ namespace Fdp.Core.Jobs
             {
                 int from = batch * _batchSize, to = Math.Min(_count, from + _batchSize);
                 var ctx = _contexts[batch];
-                for (int i = from; i < to; i++) _job.Execute(_entities[i], ctx);
+                for (int i = from; i < to; i++) _job.Execute(_entities[i], i, ctx);
             }
         }
     }

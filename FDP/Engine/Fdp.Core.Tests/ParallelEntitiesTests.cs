@@ -28,7 +28,7 @@ public sealed class ParallelEntitiesTests
         public Entity Target;          // every 11th entity writes this one THROUGH the command buffer: last writer in batch order wins
         public List<int> Log;          // the deferred step's record (serial, so a plain list is fine)
 
-        public void Execute(Entity e, BatchContext ctx)
+        public void Execute(Entity e, int index, BatchContext ctx)
         {
             // ⭐ the parallel body reads only what nobody writes this run (Input) and writes only its own entity in place
             var repo = Repo;
@@ -140,7 +140,7 @@ public sealed class ParallelEntitiesTests
 
     private struct Throws : IEntityBatchJob
     {
-        public void Execute(Entity e, BatchContext ctx) { if (e.Index == 333) throw new InvalidOperationException("boom"); }
+        public void Execute(Entity e, int index, BatchContext ctx) { if (e.Index == 333) throw new InvalidOperationException("boom"); }
         public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
     }
 
