@@ -24,10 +24,59 @@ handoff names). Every instrument is opt-in (an env switch, default OFF) and chan
 | # | instrument | state | sha | note |
 |---|---|---|---|---|
 | A-1 | runtime access tracer (`HROT_ACCESS_TRACE=1`) | ⏳ building (worker) | | |
-| A-2 | static reachability (Roslyn) | ⏳ design (Opus) | | |
+| A-2 | static reachability (Roslyn) | ✅ first pass | this commit | §A-2 below; per type: [A2_Crossing_Types.md](threaded-analysis/A2_Crossing_Types.md) |
 | A-3 | the treatments' costs (`PublishProbe` extended) | | | needs A-1's masks |
 | A-4 | presentation-out-of-the-tick dependencies | ✅ first pass (read-only sweep + Opus spot-checks) | this commit | §A-4 below |
 | A-5 | verdict + fold into §13 | | | |
+
+## A-2 — static reachability: the fields one side writes and the other reads *(Opus, `2026-11-12`)*
+
+**Tool:** `Hrot/Tools/Hrot.Tools.ReachAnalysis` (`hrot-reach`, Roslyn 4.11 over `HROT.sln`, outside the solution; roots in `roots.json`). Run:
+`dotnet run -c Release --project Hrot/Tools/Hrot.Tools.ReachAnalysis -- HROT.sln Hrot/Tools/Hrot.Tools.ReachAnalysis/roots.json <out>` (≈ 2 min).
+📐 93 non-test projects, **0 compile errors**, 57 522 methods indexed. **Roots** — simulation: every `IEcsModuleSystem.Execute` / `IEcsModule.Tick` /
+`ISystemGroup` / `ILoadPartProvider`, `OrchestratorCore.Tick` + `TickUi`, the hot-reload drain, `HrotNodeContext.StepTimeline`; presentation:
+`ManagedWindow` draw, `IMapLayer`, `IMeshLayer3D`, `IPanelViewModel`, the after-kernel `BrainObservation` / `UnitDebugSettingsMemory` /
+`RegenerationScheduler`, and **§13.5's 19 presentation-in-tick systems** (the gizmo module's, selection, tool drain, centre-on-entity) counted on the
+presentation side (they move out first). A root counts only if its type is constructed in code reachable from a `Main` (34 types dropped, listed
+in the scratchpad's `rootsDropped.txt`: example-only, test-host, Stride, debug-only). ⇒ **sim 14 889 reachable methods, UI 21 580.**
+
+**Result:** **647 fields in 186 types** outside the world cross the line (+ 222 world internals — A-1's subject); **20 statics** among them
+(+ 94 `[ThreadStatic]` excluded — per thread by construction). Per type: [A2_Crossing_Types.md](threaded-analysis/A2_Crossing_Types.md).
+
+| §13 object | seen by A-2? |
+|---|---|
+| ✅ confirmed — `ClusterUiCache`, `ClusterView`, `MasterSyncController`, `DebugPrimitiveBuffer`, `BehaviorRegistry`, `TkbDatabase` (`KnowledgeBaseLoadStep.PrepareAsync → TkbDatabase.Clear` vs `TryGetByName`), `DataBreakpointManager`, `MapUserConfig`, `Map3DBuild`, `NetworkEntityMap` (`LightweightRoundIdentitySystem → Register` vs `TryGetNetworkId`), `RoadNetworkHolder`, `ClusterScenarioPanel`, `LiveRefScope`, `ShotLog` | 14 of 25 |
+| ⭐ **stop crossing once §13.5's split is done** — `MapCameraViewport`, `GizmoSettingsRegistry`, `GizmoRuleTimings`, `BrainObservation`, `RegenerationScheduler`: every reader / writer is on the presentation side after the move | a CONFIRMATION of the split's value |
+| in the world — `UnitDebugSettings` (a singleton) | A-1's |
+| ⛔ not visible to a static pass — `TrafficFrame` (the module's lists exposed under another name), `KillFeed`, `EditJournal` (per-world side tables mutated through a local) | aliasing: stated limit below |
+| the four §13.7 untraced: `TimelineLaneCatalog`, `GizmoUiStateHub` — no field touched by both sides; `ScenarioPanel` — seen (`ClusterScenarioPanel`, 5 fields, both write); the mission service's acks — not identified as a type | 2 cleared (static only), 1 confirmed, 1 open |
+
+**⭐ The 20 process-wide statics both sides write** (§13 lists none):
+
+| static | thread-safe today? | treatment |
+|---|---|---|
+| `RunTokens._next` | ✅ `Interlocked` | — |
+| `QueryTimings.*` (5) · `OrderMenu._orders` / `_builtFrom` · `ParamsDtoRegistry.*` (3) | ✅ a lock (`Gate`) | — |
+| `ScenarioFolderIndex.Cache` · StructEdit's `FieldReadWriterCache` / `RuntimeTypeOpsFactory` | ✅ `ConcurrentDictionary` | — |
+| ⛔ `RunModeChoice.PresetCache` (`RunModeChoice.cs:566`) | a plain `Dictionary`, both sides write | lock or `ConcurrentDictionary` |
+| ⛔ `UtilityInputNames._names` (`UtilityInputNames.cs:12`) | a lazily built plain `Dictionary` | build once, publish by reference |
+| ⛔ `UtilityDecisionCatalog._shared ??=` (`UtilityDecisionCatalog.cs:72`) | two threads may build two registries — registrations on the loser are lost | `Lazy<T>` / `Interlocked.CompareExchange` |
+| ⚠ `VehicleBody.s_maxBoundRadius`, `BuildingPanelIndex.s_built` (a counter), `FeatureExpander.s_warnedNoUnique` (log once) | unsynchronised, benign (a max / a diagnostic / a flag) | none needed, or `Interlocked` |
+
+**Instance types not in §13** (from the per-type table; triage by reading the paths): the orchestrator's own state — `ClusterMaster`, `NodeRoster`,
+`DistributedTransaction`, `ClusterTimeTransportAdapter`, `RunModeChoice`, `ScenarioDoor`, `EditorScenarioSession` — written by `OrchestratorCore.Tick`
+/ `TickUi` and read by the panels (same family as §13.6's `ClusterUiCache` ⇒ **publish an immutable view**); the terrain's load objects —
+`TerrainResidency` + its `Staged`, `RecastNavmeshFactory`, `NavTileCache`, `TerrainDefinition` — written by the load steps and the obstacle bake, read
+by the 3-D build and the panels (⇒ the load is a worker step; the UI reads the committed result only); the 3-D layers (`TerrainChunks3D`,
+`TerrainLayer3D`, `TrafficLayer3D`, `BackgroundMeshBuild`) reached from the SIM side through `MapBuildLoadStep.Commit → IMapBuildStatus.Request3D`
+(§13.6's `Map3DBuild` row, wider than it says: the load phase drives the 3-D layers' build). ⚠ The rest — per-call scratch types (`ImportReport`,
+`StructureAcc`, `Plan`, `Entry`, `Slot`, `BinaryPatchContext`, `CircleSearch`, `NearestPolyQuery` …) — are the same code on DIFFERENT instances, not
+shared state.
+
+**⚠ Limits (so a "not seen" is never read as "safe")**: one instance vs another is not distinguished · a mutation through a LOCAL alias of a field's
+object (`var list = _x; list.Add(…)`, a table value returned by `GetValue`) is not a write · a struct mutated through a method is not tracked · BCL
+interfaces and virtuals (`IEnumerable`, `object.ToString`) are not expanded · a lambda counts as its enclosing method's · composition by reflection /
+string is missed (the dropped-root list is the check) · `check_index_coverage` is not in the CLI (codebase-memory).
 
 ## A-4 — what the presentation work relies on by running INSIDE the frame *(read-only sweep, `2026-11-12`; line numbers as read on this branch, the tree was being edited by A-1)*
 
