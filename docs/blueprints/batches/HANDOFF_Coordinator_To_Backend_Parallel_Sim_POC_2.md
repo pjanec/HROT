@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: an OVERNIGHT EXPERIMENT — POC 2 of the simulation's throughput: attack the serial 70 %
 
-**For:** a backend session. **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen there. ⭐ **Still an EXPERIMENT** — 🔒 user,
+**For:** a backend session. **From:** coordinator. **Dispatched at `a89010765`**, scope frozen there. ⭐ **Still an EXPERIMENT** — 🔒 user,
 `2026-11-12`: *"write the handoffs for the next POC — still experimental."*
 
 ⛔⛔ **Autonomous — never stop for a question** (R-4156). Decide, record with a claim table, continue; a failed premise stops THAT item (R-106).

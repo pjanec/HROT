@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: an OVERNIGHT EXPERIMENT — POC 2 of the threaded editor: build the TARGET SHAPE and prove it
 
-**For:** a backend session. **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen there. ⭐ **Still an EXPERIMENT** — 🔒 user,
+**For:** a backend session. **From:** coordinator. **Dispatched at `a89010765`**, scope frozen there. ⭐ **Still an EXPERIMENT** — 🔒 user,
 `2026-11-12`: *"looks good at least for next version of the POC to verify it"* · *"write the handoffs for the next POC — still experimental."*
 
 ⛔⛔ **Autonomous — never stop for a question** (R-4156). Decide, record with a claim table in the status file, continue; a failed premise stops
