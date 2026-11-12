@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: an OVERNIGHT EXPERIMENT — POC 4 of the simulation's throughput: ONE pool, and is a dependency scheduler worth it?
 
-**For:** the simulation-throughput backend session. **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen there. ⭐ **Still an experiment.**
+**For:** the simulation-throughput backend session. **From:** coordinator. **Dispatched at `f3376866a`**, scope frozen there. ⭐ **Still an experiment.**
 🔒 User, `2026-11-12`: *"yes, queue both for the simulation lane"* — on §13's lean: one pool with two priorities, and measure before a dependency scheduler.
 ⛔⛔ **Autonomous — never stop for a question** (R-4156). Decide, record with a claim table, continue; a failed premise stops THAT item (R-106).
 
