@@ -9,7 +9,7 @@ known-conflict: none.
 
 # REPORT — Typed event nodes (E1–E6)
 
-**Handoff:** [`HANDOFF_Typed_Event_Nodes.md`](HANDOFF_Typed_Event_Nodes.md) · **design:** [`DESIGN_Typed_Event_Nodes.md`](../DESIGN_Typed_Event_Nodes.md)
+**Handoff:** `HANDOFF_Typed_Event_Nodes.md` · **design:** [`DESIGN_Typed_Event_Nodes.md`](../DESIGN_Typed_Event_Nodes.md)
 (as-built in §6) · **branch:** `behaviors` (the session's push branch, per the user) · **scope frozen at** `33dbb52bf`;
 started-marker `13726f4ef`.
 

@@ -1807,7 +1807,7 @@ stopped, 50 m ⇒ dismounts), red under its mutant.
 wreck as driving and Squad A sat in it, 55 m from the enemy, stalling the convoy. ⇒ the dismount rows' "on the ground" test is now
 *standing* **or** `!ConvoyConditions.CanMove` (destroyed or a mobility kill) — still not pushing through, still not a pickup stop. Rail
 `CE2347_BasicSquadSop_ACarrierThatCannotMove_StandsForItsSquad_WhateverItsVelocity`, red under its mutant. ⚠ The frozen velocity and the
-passengers surviving the wreck (R-2011 C9) are backend's ([`CE-2348`](../../blueprints/batches/NOTE_Behaviors_To_Backend_Passengers_Survive_A_Wreck.md)).
+passengers surviving the wreck (R-2011 C9) are backend's (`CE-2348`).
 ⭐ **And the enemy must be near NOW** (`CE-2347`): a contact counts only when perceived within `HaltedContactFreshTicks` (600 ticks,
 10 s). 📐 Measured live: the convoy's squads, remounting after 30 s of quiet, were put out again every ~70 s by contacts minutes old —
 heard ones with no entity id, placed at the convoy's own guns and the mortar bursts. Rail

@@ -626,7 +626,7 @@ sequenceDiagram
 
 > ✅ **APPROVED by the user, `2026-08-22`** — *"good design approved."*
 > ⭐ **`build-state: READY-TO-BUILD`.** 📄 Dispatched as
-> [`TASKS_One_Shell_BP399.md`](batches/TASKS_One_Shell_BP399.md) — ⛔ that file is a task list only; the
+> `TASKS_One_Shell_BP399.md` — ⛔ that file is a task list only; the
 > design and its UML stay here.
 
 > 🔒 **User, verbatim:** *"we have one Details window in Scenario/HSM/Btree/Blueprint perspectives and it

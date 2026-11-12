@@ -35,7 +35,7 @@ git commit --allow-empty -m "chore: started <batch> at 5843055e7" && git push # 
 
 ## 2. ⭐⭐⭐ THE NEXT TASK — **fix what the harness caught, then MX1**
 
-📄 **Dispatch: [`docs/blueprints/batches/HANDOFF_Derisk_Engine_And_MX1.md`](batches/HANDOFF_Derisk_Engine_And_MX1.md)**
+📄 **Dispatch: `docs/blueprints/batches/HANDOFF_Derisk_Engine_And_MX1.md`**
 — **dispatched at `5843055e7`; scope FROZEN there.** ids `HN-`/`MX-`, tracker **Area J**.
 
 | # | task | ⭐ note |

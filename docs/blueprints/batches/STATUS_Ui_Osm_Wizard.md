@@ -10,7 +10,7 @@ related-designs:
 
 # STATUS — the terrain-from-OSM wizard (ui, CE-4375)
 
-Handoff: [HANDOFF_Coordinator_To_Ui_Osm_Wizard.md](HANDOFF_Coordinator_To_Ui_Osm_Wizard.md) (dispatched at `f473cab3a`; started at `c53ea3ceb`).
+Handoff: HANDOFF_Coordinator_To_Ui_Osm_Wizard.md (dispatched at `f473cab3a`; started at `c53ea3ceb`).
 Design: [DESIGN_Terrain_From_OSM.md](../../DESIGN_Terrain_From_OSM.md) §6b. Mockup: `docs/UX/terrain-osm-wizard-visual.svg`, `docs/UX/terrain-osm-preview-visual.svg`.
 
 | item | state |

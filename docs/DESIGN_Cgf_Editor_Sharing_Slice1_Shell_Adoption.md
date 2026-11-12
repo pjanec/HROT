@@ -314,7 +314,7 @@ shape this codebase keeps paying for.
 
 ## 10. ⭐⭐⭐ THE STEER, AND WHAT IT CHANGED *(`2026-08-25`, rule 1c — mid-batch)*
 
-📄 [`batches/STEER_Cgf_Shell_Adoption_Slice1.md`](blueprints/batches/STEER_Cgf_Shell_Adoption_Slice1.md)
+📄 `batches/STEER_Cgf_Shell_Adoption_Slice1.md`
 🔒 **User:** *"the editor never disallowed asset editing, so it is easier to take wholesale WITH editing
 than to refuse one artificially."* ⇒ ⛔ the *"read/diagnostics only"* framing in §1's NOT-row and §5 item ③
 is **SUPERSEDED**: register the windows wholesale, add no code that gates their editing.

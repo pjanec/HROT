@@ -21,7 +21,7 @@ related-designs:
 
 > 📄 **Settles `DESIGN_Variable_Watch_Pinning.md` §9c**, which named a `MapPickableEntityAttribute` lead but was
 > explicitly *"not measured; a lead, not a decision."* The watch-list finalization batch
-> *([`HANDOFF_Watch_List_Finalization.md`](batches/HANDOFF_Watch_List_Finalization.md))* ships the
+> *(`HANDOFF_Watch_List_Finalization.md`)* ships the
 > concrete-vs-chameleon CHOICE via the **current selection**; this question settles how to bind a concrete entity
 > that is **not** currently selected — i.e. the picker.
 

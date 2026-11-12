@@ -645,7 +645,7 @@ walking to the objective. Rails: `TacticsTreesTests.CE2105_WithNothingToFight_Th
 
 ### 3.3c `CE-3082` (G4) — CombatPostureHsm, the build design *(behaviors, `2026-10-06`; build-state: BUILT — as-built at the end)*
 
-**Frame:** [P2 handoff](blueprints/batches/HANDOFF_Utility_Demo_P2_Behaviors.md) G4 — the SAME decision as §3.3b hosted as an
+**Frame:** P2 handoff G4 — the SAME decision as §3.3b hosted as an
 HSM, reusing the BTree's option children (ruling 9), and closing **D3** (the HSM switch railed at runtime, not only at compile).
 Programme: [Utility demo](DESIGN_Utility_AI_Demo_Scenarios.md) §6 G4, U3.
 
@@ -749,7 +749,7 @@ no OnExit). Red-proof: with the fill removed, the generator rail and the switch 
 
 ### 3.3d `CE-3083` (G5) — CombatPostureBp + the decision picker, the build design *(behaviors, `2026-10-06`; build-state: BUILT — as-built at the end)*
 
-**Frame:** [P2 handoff](blueprints/batches/HANDOFF_Utility_Demo_P2_Behaviors.md) G5 — the SAME decision as §3.3b/§3.3c hosted as a
+**Frame:** P2 handoff G5 — the SAME decision as §3.3b/§3.3c hosted as a
 BLUEPRINT (one `ScoreDecision` + a Behaviour Task per option), plus the editor's decision picker (BP-27). Programme:
 [Utility demo](DESIGN_Utility_AI_Demo_Scenarios.md) §6 G5, U3.
 
@@ -836,7 +836,7 @@ same decisions) · `ScoreDecisionNodeDrawerTests.BP27_*` (6) · `BlueprintBehavi
 
 ### 3.3e `CE-3084` (G6) — AttackApproach, a decision nested in the advance, the build design *(behaviors, `2026-10-06`; build-state: BUILT — as-built at the end)*
 
-**Frame:** [P2 handoff](blueprints/batches/HANDOFF_Utility_Demo_P2_Behaviors.md) G6 — a NEW decision `AttackApproach`
+**Frame:** P2 handoff G6 — a NEW decision `AttackApproach`
 {Direct, Flank, FiringPosition} scored INSIDE CombatPosture's AdvanceAndAttack branch (the U1 shape one level down); Flank /
 FiringPosition are the CE-2108 actions (BUILT). Programme: [Utility demo](DESIGN_Utility_AI_Demo_Scenarios.md) §6 G6, U4. Answers
 CE-2110 for the posture case.

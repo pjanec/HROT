@@ -177,7 +177,7 @@ gates Preview or Live.*
 
 ### 2.8 LC-10 — *Run to …*, as built *(backend, `2026-11-07`, L-7 / CE-4316 — the user approved option A)*
 
-🔒 User, `2026-11-07`, on the [question](../blueprints/batches/NOTE_Backend_To_Coordinator_Run_To_Question.md): *"A"* — the ACK-gated stepped run
+🔒 User, `2026-11-07`, on the question: *"A"* — the ACK-gated stepped run
 with the frame cap lifted while it runs (B: several steps per barrier; C: a high time scale — rejected, it changes what happens).
 
 ⭐⭐ **SUPERSEDED IN PART, same day — A measured 0.3× (a step costs ~4 rendered frames).** 🔒 The user then ruled: on the NETWORKLESS editor node

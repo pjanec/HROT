@@ -175,7 +175,7 @@ gizmos) — applies as history, no ruling.
 ## 6. CE-4206 — the editor authors the reference types' FORMS *(ui, `2026-11-02` — build-state: READY-TO-BUILD; ✅ F1–F9 APPROVED by the user `2026-11-02`, verbatim: "Approved")*
 
 > 🔒 **User:** *"we will need to update the editor to support those XXXLink types."* · dispatched by
-> [HANDOFF_Coordinator_To_Ui_Scenario_Authoring](batches/HANDOFF_Coordinator_To_Ui_Scenario_Authoring.md) ① (frozen at `d358a8728`).
+> HANDOFF_Coordinator_To_Ui_Scenario_Authoring ① (frozen at `d358a8728`).
 > Basis: [`DESIGN_Scenario_Rules.md`](../DESIGN_Scenario_Rules.md) SR-133 (the leaf's form switch, what a pick writes), SR-134 (one `AreaLink`,
 > three shapes), SR-138 (what tools see), SR-140 (`EntityRef` vs `EntityLink`), SR-141 (*show on map* by type) · the types as built:
 > `FDP/Toolkits/Fdp.Toolkits/Replication/Links.cs`, `FDP/Engine/Fdp.Core/World/RefSpec.cs` (S0 item 5).

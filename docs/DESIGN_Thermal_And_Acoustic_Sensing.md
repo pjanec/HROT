@@ -940,7 +940,7 @@ mount, the FPV drone's warhead, a static obstacle car) and SUMO traffic, kept si
 | ✅ **SUMO traffic (`TrafficCar` 8851) stays silent** | hundreds of background cars as sound sources is load and noise the AI ears never had; the traffic programme (R-4040) owns that call | 🔒 user, `2026-10-20`: *"sumo not heard ok"* |
 
 ⚠ **Behaviour changes in every scenario using these types**: BDC soldiers' shots, tanks' guns and aircraft are now heard — a soldier who hears a
-shot reacts (CE-2106). Told behaviors ([note](blueprints/batches/NOTE_Backend_To_Behaviors_Catalogue_Heard.md)).
+shot reacts (CE-2106). Told behaviors (note).
 
 ### 8.8 AQ104 E ② ③ / AQ105 D — through walls and floors, door sounds, the voice *(backend, `2026-10-25`; R-2079, R-2080; behaviors' handoff items 2–4; build-state: BUILT)*
 

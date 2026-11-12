@@ -1228,7 +1228,7 @@ dictionary of tuples included) — `EntityCreationRequestSourceTests.BusSource_T
 > 🔒 *"EntityConstructionCompleted, EntityDestructionCompleted. Long but expressive."*
 
 ⭐ **Asked by** behaviors' `CE-2375` (the requester must learn which entity its request made — `OneManCommand` recognises its squad by
-name + force + type today) — [handoff](blueprints/batches/HANDOFF_Behaviors_To_Backend_Creation_Result.md).
+name + force + type today) — handoff.
 
 #### INVENTORY — what already announced a creation or a destruction *(grep + `search_code`; see the note on the graph below)*
 

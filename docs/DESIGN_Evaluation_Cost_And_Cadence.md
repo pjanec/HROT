@@ -1003,7 +1003,7 @@ functional difference — and **like for like, SimHost is 358 → 177 ms per fra
 | munition ghosts pile up | `GhostTimeoutSystem.MAX_GHOST_AGE` = 3 600 FRAMES ("60 seconds at 60 Hz") — at ~3 frames/s that is ~20 min; and `GeoSpatialIngressTranslator` / `MapEntitySymbolIngressTranslator` / `EntityInfoIngressTranslator` create ghosts with tick 0. A round's late position sample makes a ghost that lingers |
 | car mirroring around rounds | rounds are colliders without `ReplicationRoute` ⇒ the vicinity rule (`TrafficReplicas`) mirrors every car within 350 m of a flying round — as designed (a round must be able to hit the car), but a cost lever |
 
-### 11g. 📐 The BRAIN at 1 000 and 3 000 men — attributed, and the quadratic term removed *(CE-4395, backend `2026-11-10`; [handoff](blueprints/batches/HANDOFF_Coordinator_To_Backend_Brain_Cost_1000.md))*
+### 11g. 📐 The BRAIN at 1 000 and 3 000 men — attributed, and the quadratic term removed *(CE-4395, backend `2026-11-10`; handoff)*
 
 ⭐ Measured with the scale rig ([Scale Rig](DESIGN_Scale_Rig.md), `scale-1`, two sides fighting, Release, this 4-core VM) and `QueryTimings` slots
 added for it: the whole tick (`brain.Execute`), each behaviour's run (`brain.task:<name>`, `brain.sop:<name>`), each utility decision and input
@@ -1104,7 +1104,7 @@ version set back by playback) the index rebuilds exactly as before.
 45 → 0.9 ms, `PartsOf` 52 → 8 ms; 1 000 men — rebuilds 3.7 → 1 per tick, the tick unchanged within the fight's noise (20.5 ms): at 1 000 the
 walks were small and the utility decisions are the cost.
 
-#### 11g-2. ✅ APPROVED (R-3085) — a CADENCE for the combat decisions *(user, `2026-11-10`: "Yes, 0.2 seconds is very much acceptable."; behaviors informed — [note](blueprints/batches/NOTE_Backend_To_Behaviors_Brain_Cost.md))*
+#### 11g-2. ✅ APPROVED (R-3085) — a CADENCE for the combat decisions *(user, `2026-11-10`: "Yes, 0.2 seconds is very much acceptable."; behaviors informed — note)*
 
 📐 At 1 000 men the tick is 20 ms, and **~13 ms of it is three utility decisions** (`Combat posture`, `Threat ranking`, `Attack approach`)
 re-scored by every fighting man on **every** brain tick (§3.6 left soldiers at every frame — D6 "not now"). ⛔ No exact speed-up reaches the

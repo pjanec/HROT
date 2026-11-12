@@ -1041,7 +1041,7 @@ sequenceDiagram
 
 **Measured, `full-1` after CE-4379** (same set, Release): **1 752 enterable, 48 solid** (was 1 686 / 114 — solid share **6.3 % → 2.7 %**), 83 switch-back stairs, 2 572 ramps (was 2 340), 129 shared walls merged (was 115). ⚠ The 48 left are all 3–6-storey buildings (27 of them 5-storey) whose wells run out of wall, plus one 2-storey 14.9 × 11.5 m — not yet looked at. ⏭ **`real-1` (60 of 1 805 solid, 3.3 %) is NOT in this repo: re-run `hrot-terrain-import` on it and read the `buildings:` line.**
 
-## 12. ⭐ THE IMPORTER'S NAVMESH (CE-4393) AND THE UTM FRAME (CE-4394) — as designed *(backend, `2026-11-10`; frame: [HANDOFF](blueprints/batches/HANDOFF_Coordinator_To_Backend_Navmesh_Prefill_And_Utm.md), dispatched at `bedca0325`; build-state: BUILT — as built §12.3)*
+## 12. ⭐ THE IMPORTER'S NAVMESH (CE-4393) AND THE UTM FRAME (CE-4394) — as designed *(backend, `2026-11-10`; frame: HANDOFF, dispatched at `bedca0325`; build-state: BUILT — as built §12.3)*
 
 **INVENTORY** *(two explorer passes, `2026-11-10`; `scripts/cbm.sh search_graph name_pattern NavTileCache / Recast.*(Factory|Baker) / IGeographicTransform (Interface, 1) / .*Transform$ (Class, 22)` + `search_code` `HROT_NAVTILE_CACHE`, `Utm\.(ToGeodetic|FromGeodetic)` + grep `new WGS84Transform(`, `.SetOrigin(`, `RotationToHeadingDeg|HeadingDegToRotation`, `"frame"`; ⚠ `check_index_coverage` is not available through the CLI — the sets are not proven complete)*:
 

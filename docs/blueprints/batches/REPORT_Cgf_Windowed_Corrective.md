@@ -7,7 +7,7 @@ current-answer: this file is a REPORT — ephemeral. ⭐ The durable records are
 -->
 # REPORT — **CGF windowed corrective** *(+ Axis-C E4's design)* *(UI/CGF lane)*
 
-📄 **Handoffs:** [`HANDOFF_Cgf_Windowed_Corrective.md`](HANDOFF_Cgf_Windowed_Corrective.md) · [`HANDOFF_Cgf_View_Inspector.md`](HANDOFF_Cgf_View_Inspector.md)
+📄 **Handoffs:** `HANDOFF_Cgf_Windowed_Corrective.md` · `HANDOFF_Cgf_View_Inspector.md`
 📄 **Design authored (E4, from its FRAME):** [`docs/DESIGN_Cgf_View_Inspector_Slice.md`](../../DESIGN_Cgf_View_Inspector_Slice.md)
 ⭐ **IDs allocated (rule 5): `CE-052` · `CE-053` · `CE-054` *(done)* · `CE-055` · `CE-056` *(filed OPEN — see §4)*.**
 

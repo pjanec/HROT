@@ -9,7 +9,7 @@ related-designs:
 
 # STATUS — the OSM wizard LIVE (ui; CE-4381, CE-4382, CE-1466)
 
-Handoff [HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live.md](HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live.md), dispatched at `e233f69a6`; started at `ea546c50e`
+Handoff HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live.md, dispatched at `e233f69a6`; started at `ea546c50e`
 (coordinator merged). Cross-lane edits, all stated in the commits: `Hrot/Engine/Hrot.Terrain.Osm` (the coordinator's library, allowed by the handoff) and
 `FDP/ExtDeps/NodeEdit/src/NodeEditor.UI/Picker` (the shared image cache, CE-1468).
 

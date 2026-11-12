@@ -414,7 +414,7 @@ sequenceDiagram
 entity placed off the terrain that today's grid sees. **Publish the geometry from `TerrainResidency.Commit`** — a
 main-thread write into the perception grid while its builder runs on the perception thread.
 
-⭐ **`CE-2193` (backend, `2026-10-15`; behaviors' [handoff](blueprints/batches/HANDOFF_Behaviors_To_Backend_Collider_Grid.md)) — a collider
+⭐ **`CE-2193` (backend, `2026-10-15`; behaviors' handoff) — a collider
 OUTSIDE the grid is no longer silent.** 📐 Measured live (`ua-air-attack`, [Air Ops §9g](designs/air-attack/DESIGN_Air_Operations.md)): a truck
 at (0, 6 000) on `basic-desert` (grid ±750 m) took 0 of 1 358 rounds — `SpatialHashGrid.Add` dropped it with no word, so no round, near
 miss, avoidance or radius search could meet it. As built: `Add` returns **false** when it could not place the entity (outside the grid,
@@ -422,7 +422,7 @@ or over its capacity); `SpatialHashSystem` counts them per frame (`Dropped`) and
 position and the grid's extent) — a new fit clears the set, so whoever is still outside is named again. ⛔ The grid is **not** widened
 to the entities: it follows the terrain by design (W9 above); a unit off its terrain is an authoring error to surface, not to absorb.
 
-⭐ **`CE-2194` (backend, `2026-10-16`; behaviors' [handoff](blueprints/batches/HANDOFF_Behaviors_To_Backend_Perception_Grid.md)) — the
+⭐ **`CE-2194` (backend, `2026-10-16`; behaviors' handoff) — the
 PERCEPTION grid says so too.** 📐 Measured live on `basic-desert` ([0, 600]²): the two grids follow the terrain differently (perception
 [0, 1000), collider [−750, 750)), so a truck at (−150, 150) was hittable and seen by nobody for 40 s, silently. As built:
 `LocalGridBuilderSystem` places every entity through one `Place`, which logs **one** warning per entity per terrain fit (`Warnings`; the

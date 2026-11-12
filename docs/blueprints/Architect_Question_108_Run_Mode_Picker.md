@@ -426,7 +426,7 @@ master and the ONE load path; "unsaved?" is a round the master asks and every no
 → **0** (nothing to extend). `search_graph .*(ClusterState|ClusterUiCache|MasterGone|ClusterStatus).*` (Class/Interface) → `ClusterUiCache`,
 `SimpleClusterStateCache`, `ClusterStates`, `IClusterStateUpdateObserver`, the events. Production `new WindowManager(` → **one** cluster-runner site,
 `LocalWindowController.cs:109` (+ the exempt Stride host). Backend's CE-4094 API: `WindowManager.StartPerspectiveName` / `RememberedPerspective` /
-`IsStartShowing` / `TrySwitchPerspective` refusal / `LeaveStartPerspective` ([NOTE](batches/NOTE_Backend_To_Ui_Run_Modes_Start_Http.md)).
+`IsStartShowing` / `TrySwitchPerspective` refusal / `LeaveStartPerspective` (NOTE).
 Cluster state per host: `ISubsystemDebugProvider.ClusterState` (+ `PerspectiveScopedDispatcher.ClusterStateAnyNode`, the one-cluster-one-fact
 fallback) — set by Orchestrator, Editor, ExCon, RB; ⚠ **found at build:** CGF / SimHost / IG / Traffic pass `EcsNodeDebugProvider.For` (CE-163), which fills `ClusterState` from `ClusterSlave.LocalClusterState`: the node's own COMMITTED state, which stays Idle while the cluster loads. ⭐ So the gate needed a second, distinct fact (`FollowedClusterState`, below), not a first one. Every node's `ClusterSlave` follows the
 master's broadcast (`ClusterSlave.FollowClusterSession`, private `_clusterState`, MasterGone handled).
@@ -807,7 +807,7 @@ sequenceDiagram
 
 ⚠ **Not built (named):** a host that supplies `RunModeChoice.RecordedVersionDiffers` (the saved-vs-recorded hash compare — the inventory carries no hash and the copy's `RecordedScenarioStamp` lives in the master's staging, so until a host reads it the AAR → Preview confirmation is the plain one; the two-button form is built and railed); D15's *Keep / Discard* prompt and its setting (CE-4090 built none); `EnterReview()`'s default (D9, UI facade); a back-to-`Start` / exit guard; a live multi-process proof of *Go live from here* and of an ECS node answering the check round.
 
-📌 **Why CE-1436 was needed (measured `2026-10-29`):** an ECS-node host (CGF / SimHost / IG / Traffic) could not ask the round — the master's answer (DDS `ClusterOpStatus`, `ClusterOpMasterTranslator.cs:66`) was read back only by `OrchestrationObserverTranslator` (ExCon); the node's `NodeOpSlaveTranslator` had no reader. Root cause: two cluster ingress translators and two read models ⇒ unified into one `ClusterView` per node ([NOTE](batches/NOTE_Ui_To_Backend_One_Cluster_Ingress_And_Read_Model.md)); ▶ on CGF now asks the round (`HrotNodeBuilderTests.CE1436_CgfShapedHost_PlayLive_…`).
+📌 **Why CE-1436 was needed (measured `2026-10-29`):** an ECS-node host (CGF / SimHost / IG / Traffic) could not ask the round — the master's answer (DDS `ClusterOpStatus`, `ClusterOpMasterTranslator.cs:66`) was read back only by `OrchestrationObserverTranslator` (ExCon); the node's `NodeOpSlaveTranslator` had no reader. Root cause: two cluster ingress translators and two read models ⇒ unified into one `ClusterView` per node (NOTE); ▶ on CGF now asks the round (`HrotNodeBuilderTests.CE1436_CgfShapedHost_PlayLive_…`).
 
 ### 2.9 CE-4083 — the status-bar time control is removed — ⭐ **AS-BUILT `2026-10-29` (ui)**
 
@@ -949,7 +949,7 @@ a plain model + one static draw already covers · **retiring the two controllers
 
 🔒 User, on CE-1438: *"this again looks like missing unification, isnt there still dupliction?"* — the DECISION is one (§2.11), the DOOR is not:
 `IScenarioSession.OpenForEdit` / `LoadForLive` / `OpenRecording` stayed public and unguarded, so each caller had to remember the choice. Frame:
-[NOTE](batches/NOTE_Coordinator_To_Ui_One_Guarded_Scenario_Door.md) (coordinator, widened by the user).
+NOTE (coordinator, widened by the user).
 
 **INVENTORY** (`2026-10-29`, re-measured before the build: `scripts/cbm.sh search_code` for `OpenForEdit(` · `LoadForLive(` · `OpenRecording(` · `LoadScenarioByName(` · `ClusterState.Idle` + whole-tree grep over `Hrot/ FDP/ Stride/`
 (excluding `obj`, tests, `.claude/worktrees`); ⚠ `check_index_coverage` is not available through the CLI, so coverage of the graph itself was not checked — the greps are the whole-tree answer).
@@ -1296,7 +1296,7 @@ File
 
 ### 2.15a ⭐⭐⭐ CE-1443 part A (U2a) — THE ONE FILE MENU + R-1043 — ✅ **AS-BUILT `2026-10-29` (ui)** *(`build-state: BUILT` for part A; the table at the end of this section lists the deviations)*
 
-Frame: §2.15 (the menu, the rules, R-1043 — the user's rulings are binding) · [NOTE backend→ui](batches/NOTE_Backend_To_Ui_File_Menu_And_Error_State.md) · [NOTE ui→backend](batches/NOTE_Ui_To_Backend_Load_Follows_The_Armed_Mode.md) · the run gate it must keep: `DESIGN_Cluster_Load_Phase.md` §11.7 (a command registered through `ScenarioMenuCommands.RegisterCommand` gets the gate). ⛔ Part B (named saves, *Save … as Recipe…*, *Save All (N changed)*) is NOT here: `shell.save` / `scenario.save` stay as they are.
+Frame: §2.15 (the menu, the rules, R-1043 — the user's rulings are binding) · NOTE backend→ui · NOTE ui→backend · the run gate it must keep: `DESIGN_Cluster_Load_Phase.md` §11.7 (a command registered through `ScenarioMenuCommands.RegisterCommand` gets the gate). ⛔ Part B (named saves, *Save … as Recipe…*, *Save All (N changed)*) is NOT here: `shell.save` / `scenario.save` stay as they are.
 
 **INVENTORY** (`2026-10-29`; `scripts/cbm.sh search_graph` for `.*(ScenarioMenu|ScenarioDoor|RunModeChoice|ScenarioSession|ShellToolbar|TerrainPicker|RunArmed).*` Class — ⚠ the worktree's graph was still indexing when the answer was due, so the SETS below are the whole-tree grep over `Hrot/ FDP/ Stride/ tools/` (excluding `obj`, worktrees); `check_index_coverage` is not available through the CLI):
 
@@ -1647,7 +1647,7 @@ sequenceDiagram
 
 **Cost (asked by the review):** one capture per node per interval — ≈30 ms (`uc-urban-battle` 6.8 MiB keyframe, Debug; §4a measured capture ≈33 ms) every 2 min = one frame hitch per node per interval, ONLY while editing (the clock is stopped). The JSON extraction and the write run on the worker. ⛔ Never in Live, Preview or AAR — no autosave runs outside `OperatingEdit` (A1).
 
-`build-state` for §4c: ✅ **BUILT (`aecbad03e` + `afaaaecba`) on the §4c.1 amendment (option A, user-approved); A8 not needed (§4c.2)** — ⛔ HISTORY: *BLOCKED — A0 FAILED as designed; an amendment that holds is measured and awaits the user* (QUESTION: [NOTE_Backend_To_Coordinator_CE4099_A0_Failed](batches/NOTE_Backend_To_Coordinator_CE4099_A0_Failed.md)). ⛔ HISTORY: *READY-TO-BUILD, gated on A0 (the review accepted A0–A7; A8 added at its request).*
+`build-state` for §4c: ✅ **BUILT (`aecbad03e` + `afaaaecba`) on the §4c.1 amendment (option A, user-approved); A8 not needed (§4c.2)** — ⛔ HISTORY: *BLOCKED — A0 FAILED as designed; an amendment that holds is measured and awaits the user* (QUESTION: NOTE_Backend_To_Coordinator_CE4099_A0_Failed). ⛔ HISTORY: *READY-TO-BUILD, gated on A0 (the review accepted A0–A7; A8 added at its request).*
 
 #### 4c.1 ⛔ A0 MEASURED (`2026-11-08`, backend) — the designed gate FAILS; the amended one HOLDS
 
@@ -1720,7 +1720,7 @@ timer, and the merge's destination; every node path, the wire and the merge core
 | deviation / finding | why |
 |---|---|
 | ⛔ **A8 (never-saved scenarios) is not needed** | 📐 *New Scenario…* is New FROM A RECIPE (CE-4140): the recipe picker, then the Save-As naming, then `ScenarioNewAssetService.CreateNew` SAVES the copy under the new name (`ScenarioMenuCommands.cs:190`). Every scenario open for editing therefore has its folder and `scenario.json` — A5's home always exists. A8 stays recorded as history |
-| ✅ A1's `autosaveMinutes`: built, ``afaaaecba`` | CE-3415's shape end to end: `SetRunSettingsIntent.AutosaveMinutes` (`int?`, null = no change) → `SetRunSettingsPayloadDto` → master `AutosaveMinutes` ⇄ `AutosaveEvery` (minutes → `TimeSpan`, 0 / negative = off, default 2) → broadcast `ClusterStateTransitionedEvent` / `ClusterStateUpdateEvent` / `ClusterStateTopic.AutosaveMinutes` (appended, R-42) → `ClusterView` / `ClusterUiCache` / `ClusterSlave`; `GET /run-settings` shows `autosaveMinutes`, `POST /run-settings {autosaveMinutes}` takes a whole number >= 0 (400 otherwise); MCP catalog + SKILL.md regenerated. No UI widget (ui: [`NOTE_Backend_To_Ui_Autosave_Setting.md`](batches/NOTE_Backend_To_Ui_Autosave_Setting.md)). Rails: `ClusterMasterRunRecordingTests.CE4099_AutosaveMinutes_…` · `ClusterMasterUnsavedCheckTests.CE4099_AutosaveMinutes_…` (0 ⇒ no check round) · `TranslatorDtoTests` · `NodeOpSlaveTranslatorTests.CE4099_TheClusterStateBroadcast_…` · `ClusterViewTests` · `TheRunRecordingGatesAnswer409Tests` (GET / POST). Red-proof: `ProcessSetRunSettingsIntent` not applying it ⇒ both master rails red |
+| ✅ A1's `autosaveMinutes`: built, ``afaaaecba`` | CE-3415's shape end to end: `SetRunSettingsIntent.AutosaveMinutes` (`int?`, null = no change) → `SetRunSettingsPayloadDto` → master `AutosaveMinutes` ⇄ `AutosaveEvery` (minutes → `TimeSpan`, 0 / negative = off, default 2) → broadcast `ClusterStateTransitionedEvent` / `ClusterStateUpdateEvent` / `ClusterStateTopic.AutosaveMinutes` (appended, R-42) → `ClusterView` / `ClusterUiCache` / `ClusterSlave`; `GET /run-settings` shows `autosaveMinutes`, `POST /run-settings {autosaveMinutes}` takes a whole number >= 0 (400 otherwise); MCP catalog + SKILL.md regenerated. No UI widget (ui: `NOTE_Backend_To_Ui_Autosave_Setting.md`). Rails: `ClusterMasterRunRecordingTests.CE4099_AutosaveMinutes_…` · `ClusterMasterUnsavedCheckTests.CE4099_AutosaveMinutes_…` (0 ⇒ no check round) · `TranslatorDtoTests` · `NodeOpSlaveTranslatorTests.CE4099_TheClusterStateBroadcast_…` · `ClusterViewTests` · `TheRunRecordingGatesAnswer409Tests` (GET / POST). Red-proof: `ProcessSetRunSettingsIntent` not applying it ⇒ both master rails red |
 | ✅ phase 2 (`afaaaecba`) | A1's `autosaveMinutes` run setting and A7 recovery — §4c.3 is its as-built (route as a query: `GET /scenario/autosave?name=`; the UI prompt and the session door are ui's, note sent) |
 
 #### 4c.3 Phase 2 — A7 RECOVERY, decided (`2026-11-08`, backend)

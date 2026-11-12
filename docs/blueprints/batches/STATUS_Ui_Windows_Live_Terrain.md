@@ -10,7 +10,7 @@ related-designs:
 
 # STATUS — the OSM wizard live and the first real frame rates (ui; CE-4386, CE-4383, CE-4384, CE-4385, CE-1449)
 
-Handoff [HANDOFF_Coordinator_To_Ui_Windows_Live_Terrain.md](HANDOFF_Coordinator_To_Ui_Windows_Live_Terrain.md), dispatched at `894ca0d98`; started at `bc6b5d8f0`.
+Handoff HANDOFF_Coordinator_To_Ui_Windows_Live_Terrain.md, dispatched at `894ca0d98`; started at `bc6b5d8f0`.
 ⚠ **This run is on the CLOUD VM (Linux, Xvfb, Mesa software GL), not the Windows machine the handoff is written for** — 🔒 user, `2026-11-10`: *"so please do what you
 can in VM"*. Measured here: `overpass-api.de`, `overpass.kumi.systems` time out and `maps.mail.ru`'s Overpass answers 504 ⇒ no live preview from this VM.
 Cross-lane edits, stated in the commits: `Hrot/Engine/Hrot.Terrain.Osm` (the coordinator's library — allowed), `FDP/Engine/Fdp.Presentation` (the hidden-window switch),

@@ -23,7 +23,7 @@ related-designs:
 (handoff for yourself) and i will continue in another session with that"* ⇒ **the coordinator BUILDS destructible buildings** — tracker
 **CE-4391**. The design is done and approved: [DESIGN_Terrain_Import_UTM.md §8 + §8.1](../DESIGN_Terrain_Import_UTM.md) (backend wrote §8.1 as
 L-8, `READY-TO-BUILD`). ⚠ It touches backend's navigation code (`Fdp.Toolkits.Navigation.Recast`) and combat (`AreaEffectSystem`) — backend
-is told in [NOTE_Coordinator_To_Backend_Destruction_Taken.md](batches/NOTE_Coordinator_To_Backend_Destruction_Taken.md); state every such
+is told in NOTE_Coordinator_To_Backend_Destruction_Taken.md; state every such
 edit in the commit (cross-lane edits are allowed, said).
 
 ## 1. Settled — do not reopen *(R-4188, user-approved `2026-11-09`)*

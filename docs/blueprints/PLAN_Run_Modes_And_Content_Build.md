@@ -125,7 +125,7 @@ Out of this effort: CE-3342 (`bt-window-duel`, user).
 | 1 | CE-3344 | **R1 cluster ready** — latch over names AND roles, role loss ⇒ Degraded, `WaitingFor`, `ClusterView.CanOperate`, HTTP 409 | backend | ✅ built `effbceed1` |
 | 2 | CE-3345 | **R2** the readiness report on the heartbeat, local + cluster play-ready, load progress, `CancelLoad` with a reason, a failed load ⇒ Idle, the gate-policy parameter · **+ R-3073** the cluster ERROR state (Degraded + reason, clock paused, no teardown, sticky, cleared at Idle), `LeaveReason.Close` and every way back to Idle exempt from the gate, Load follows the armed mode on the master | backend | next — 2 measurements first (the recorder under the error pause; does the master's load already follow the armed mode) |
 | 3 | — | **U1** greyed controls + "waiting for …" (`CanOperate`, built), the loading screen (progress + Cancel), the lobby screen, the red error indicator, pickers waiting for their list | ui | greyed controls now; the rest after #2 |
-| 4 | — | **U2** the ONE File menu (AQ108 §2.15): Load / New / Load Checkpoint / Open Exercise Recording / Save Checkpoint / named saves + Save as Recipe / Close / Exit; Terrain… removed | ui | now ([NOTE](batches/NOTE_Backend_To_Ui_File_Menu_And_Error_State.md)) |
+| 4 | — | **U2** the ONE File menu (AQ108 §2.15): Load / New / Load Checkpoint / Open Exercise Recording / Save Checkpoint / named saves + Save as Recipe / Close / Exit; Terrain… removed | ui | now (NOTE) |
 | 5 | CE-3343 | the test repo-root walk-ups (unification) | backend | after #2 |
 | 6 | CE-4078 | **R3** the 3-D map rebuild as a load step | backend + ui | with CE-4078 |
 | 7 | CE-3346 | **R4** the admission policy as a parameter (today's two values) | backend | after #2 |

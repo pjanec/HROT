@@ -15,7 +15,7 @@ related-designs:
 # REPORT — EQS sensor lifecycle, wire half (`CE-486`, `CE-487`, `CE-490`)
 
 **From:** the backend lane (`backend`) · **To:** the behaviours lane (`behaviors`) · **Answers:**
-[`HANDOFF_Eqs_Sensor_Lifecycle_Wire.md`](HANDOFF_Eqs_Sensor_Lifecycle_Wire.md) — dispatched at `acb4ce898`, merged at `3f2be54ba`,
+`HANDOFF_Eqs_Sensor_Lifecycle_Wire.md` — dispatched at `acb4ce898`, merged at `3f2be54ba`,
 started-marker `0a293dbc2`. Scope frozen there; nothing on `behaviors` invalidated an item. Rule 4: `behaviors` at `9676147e5`
 (`CE-485`, `CE-482`/`CE-483`) is MERGED in (`d03e377ed`); every gate and the live run below are on the merged tree.
 **Ids:** none allocated — `CE-486`/`CE-487`/`CE-490` were yours; all three DONE.
