@@ -71,6 +71,41 @@
       "methods": [
         "*"
       ]
+    },
+    {
+      "side": "sim",
+      "type": "Hrot.Editor.AiHotReloadCoordinator",
+      "methods": [
+        "DrainPendingCallbacks"
+      ]
+    },
+    {
+      "side": "sim",
+      "type": "Hrot.Common.Infrastructure.HrotNodeContext",
+      "methods": [
+        "StepTimeline"
+      ]
+    },
+    {
+      "side": "ui",
+      "type": "Hrot.Common.Diagnostics.Gizmos.BrainObservation",
+      "methods": [
+        "Tick"
+      ]
+    },
+    {
+      "side": "ui",
+      "type": "Hrot.ScenarioEditor.Map.UnitDebugSettingsMemory",
+      "methods": [
+        "Tick"
+      ]
+    },
+    {
+      "side": "ui",
+      "type": "Hrot.Editor.AiShared.Emit.RegenerationScheduler",
+      "methods": [
+        "Tick"
+      ]
     }
   ],
   "worldNamespaces": [
