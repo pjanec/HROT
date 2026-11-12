@@ -146,6 +146,13 @@ namespace Fdp.Core.Jobs
             {
                 int from = batch * _batchSize, to = Math.Min(_count, from + _batchSize);
                 var ctx = _contexts[batch];
+                if (EntityCensus.On)
+                {   // ⭐ N-1 — each entity of the batch is the one being processed (serial runs; a pool worker has no system reader)
+                    int slot = EntityCensus.Push();
+                    for (int i = from; i < to; i++) { EntityCensus.Set(slot, _entities[i].Index); _job.Execute(_entities[i], i, ctx); }
+                    EntityCensus.Pop(slot);
+                    return;
+                }
                 for (int i = from; i < to; i++) _job.Execute(_entities[i], i, ctx);
             }
         }

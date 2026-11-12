@@ -16,6 +16,11 @@ public sealed class EverySystemForgetsTheLastWorldTests
     /// <summary>Fields that need no reset — each REBUILT before use in every Execute (scratch), or holding no handle across frames.</summary>
     public static readonly IReadOnlyDictionary<string, string> Exempt = new Dictionary<string, string>
     {
+        // ⭐ exp/perf (POC 1-4, the parallel steps) — the batch lists a ParallelEntities run reads: refilled from index 0 every run, read only below n
+        ["Hrot.AI.Behaviors.Brains.CalloutSystem._list"] = "scratch — refilled from 0 each run; the parallel job reads only [0, n)",
+        ["Hrot.AI.Behaviors.Brains.CalloutSystem._about"] = "scratch — written by this run's DecideJob at its own index, read by the same run's deferred Say",
+        ["Hrot.AI.Behaviors.Brains.StressSystem._list"] = "scratch — refilled from 0 each run; the parallel job reads only [0, n)",
+        ["Fdp.Toolkit.Physics.Systems.RaycastSolverSystem._turretOf"] = "scratch — built at the top of Execute, nulled in its finally",
         ["Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem._doorsSeen"] = "scratch — cleared at the top of each door pass and filled from this frame's world (AQ104 E ③)",
         ["Fdp.Toolkit.Vis2D.Systems.HierarchyOrderSystem._visited"] = "scratch — cleared at the top of each run and filled from this frame's world",
         ["CarKinem.Systems.PathTraceSystem._writes"] = "scratch — cleared at the top of each run and filled from this frame's world",
