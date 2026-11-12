@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (VM): ONE COMBINED POC — the whole threaded + parallel architecture working TOGETHER
 
-**For:** one backend VM session. **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen at that sha; later documents are FYI only.
+**For:** one backend VM session. **From:** coordinator. **Dispatched at `9f35f4436`**, scope frozen at that sha; later documents are FYI only.
 🔒 User, `2026-11-12`: *"we need to measure first, and once we are sure, then we will start the overnight batch"* · *"We need to prove that it
 will work all together, not each separately."* ⛔⛔ **Autonomous** (R-4156) — a blocked item stops THAT item, never the run (R-106).
 
