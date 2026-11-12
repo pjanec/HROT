@@ -24,6 +24,7 @@ related-designs:
 | | | | `DESIGN_Threaded_Simulation_Presentation.md` | POC 2–4's as-built §14 kept; the linked CE-4436 line |
 | 3 | **`exp/measure-2`** (its current head; K-5 not landed yet — re-merge when it does) | `bdd9fd8d5` | `AccessTrace.cs` · `EntityRepository.cs` · both designs | measure-2 already carries poc-4 + the census and resolved `AccessTrace` the same way ⇒ HEAD kept, the read-check hook kept; the designs keep both additions (Parallel Simulation §18 as measured + §19; Threaded §14.5–14.7) |
 | 4 | **`coordinator`** | `75e399786` | none | Parallel Simulation §18 renumbered after the merges: **18.1a** the census detail · **18.2** the declared last-tick copy (coordinator's) · **18.3** the read-check cost — §18.2 now points at its measurement |
+| 5 | **`exp/measure-2` again** (its K-5 verdict) | `07be20f0e` | `DESIGN_Parallel_Simulation.md` | both kept: measure-2's heavier-combat section numbered **§18.4**; its one code change (the threaded editor drains the staging remap inside the worker's locked sync) builds clean |
 
 ⭐ **One read path, one pool** (checked after the merges): `ThreadedReads.PureReads` is the only read-mode switch (`ThreadedReads.cs:18`),
 `FdpWorkerPool` the only worker pool (`Jobs/FdpWorkerPool.cs:23`) — graph `search_graph` `.*Pool$` (Class) + `git grep "class \w*(WorkerPool|JobPool|JobSystem)"`.
