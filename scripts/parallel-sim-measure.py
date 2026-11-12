@@ -7,6 +7,7 @@ count with HROT_PARALLEL_SIM=1, and prints the converted systems' ms/frame side 
     python scripts/parallel-sim-measure.py                      # serial + 1/2/4/8 threads (Deterministic)
     python scripts/parallel-sim-measure.py --threads 2 6 --mode throughput
     python scripts/parallel-sim-measure.py --content          # + commit by content (D-5), live and recorded
+    python scripts/parallel-sim-measure.py --pin --poc2       # POC 2: each item against a recorded serial baseline
 
 Build Release first:  dotnet build Hrot/Runner/Hrot.ClusterRunner/Hrot.ClusterRunner.csproj -c Release
 Windows: HROT_HIDDEN_WINDOW=1 is set for every node (no window ever shows). Results land in --out (default ./parallel-sim-results).
@@ -16,7 +17,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SYSTEMS = ["BrainTickSystem", "StressSystem", "CgfThreatEvaluationSystem", "CalloutSystem",
-           "WeaponDispatcherSystem", "SquadCoordinationSystem"]
+           "WeaponDispatcherSystem", "SquadCoordinationSystem", "RecorderTickSystem", "CycloneEgressSystem", "CycloneNetworkIngressSystem"]
+
+# ⭐ POC 2 (exp/parallel-sim-2) — one recorded column per item, each against the same recorded serial baseline. Every item is opt-in.
+POC2 = [
+    ("rec-serial",   {}),
+    ("rec-qtoff",    {"HROT_QUERY_TIMINGS": "0"}),                        # Q-0: the per-query timer's own cost
+    ("rec-q1",       {"HROT_BP_STAMP_ON_CHANGE": "1"}),                   # Q-1: blueprint chunks stamped only on a real change
+    ("rec-q2",       {"FDP_EGRESS_OFFFRAME": "1"}),                       # Q-2: the state egress off the frame
+    ("rec-all",      {"HROT_QUERY_TIMINGS": "0", "HROT_BP_STAMP_ON_CHANGE": "1", "FDP_EGRESS_OFFFRAME": "1",
+                      "HROT_PARALLEL_SIM": "1", "HROT_SIM_MODE": "throughput"}),   # everything together (+ the POC 1 systems)
+]
 
 
 def run(name, env_extra, out, rig_args):
@@ -45,9 +56,15 @@ def main():
     ap.add_argument("--pin", action="store_true", help="pass --pin to the rig (Windows)")
     ap.add_argument("--content", action="store_true",
                     help="also run the largest thread count with HROT_CONTENT_VERSION=1 (D-5 commit by content), and a RECORDED pair with/without it")
+    ap.add_argument("--poc2", action="store_true",
+                    help="POC 2: RECORDED serial vs each item (timer off, Q-1 stamp on change, Q-2 off-frame egress) and all together")
     a = ap.parse_args()
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     rig_args = ["--pin"] if a.pin else []
+    if a.poc2:
+        runs = {name: run(name, env, out, rig_args + ["--record"]) for name, env in POC2}
+        report(runs, out)
+        return
     runs = {"serial": run("serial", {}, out, rig_args)}
     for t in a.threads:
         runs[f"par-{t}"] = run(f"par-{t}", {"HROT_PARALLEL_SIM": "1", "HROT_SIM_THREADS": str(t), "HROT_SIM_MODE": a.mode},
@@ -58,6 +75,10 @@ def main():
         runs[f"par-{t}+cv"] = run(f"par-{t}-cv", dict(base, HROT_CONTENT_VERSION="1"), out, rig_args)
         runs[f"rec-{t}"] = run(f"rec-{t}", base, out, rig_args + ["--record"])
         runs[f"rec-{t}+cv"] = run(f"rec-{t}-cv", dict(base, HROT_CONTENT_VERSION="1"), out, rig_args + ["--record"])
+    report(runs, out)
+
+
+def report(runs, out):
     cols = [k for k, v in runs.items() if v]
     print("\nms/frame (CGF node)" + "".join(f"{c:>11}" for c in cols))
     print(f"{'whole frame':<26}" + "".join(f"{runs[c]['work_ms']:>11.1f}" for c in cols))
