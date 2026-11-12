@@ -59,3 +59,39 @@ dotnet Hrot/Tools/Hrot.Tools.ManagedMutationAudit/bin/Release/net8.0/hrot-mutati
 *"is the object a READ returned mutated afterwards"* — it needs the read's result followed to its uses, which reach does not do.
 
 ### The table — every in-place mutation of a managed object obtained by a read
+
+📐 Run `2026-11-12` on a clean tree: 90 projects, **0 compile errors, 406 managed reads tracked, 26 sites** (13 direct, 13 method calls), 87 s.
+Classified by hand:
+
+| # | site | type (policy) | mutation | verdict |
+|---|---|---|---|---|
+| 1 | `SmartEgressSystem.cs:114, 115, 128` | `EgressPublicationState` (Transient · NodeLocal) | `LastPublishedTickMap[k] = tick`, `DirtyDescriptors.Add/Remove` | ⭐ **real, harmless** — see "Transient bookkeeping" |
+| 2 | `SmartEgressUtil.cs:156, 157, 181, 199` | `EgressPublicationState` | same maps; `LastPublishedTickMap.Clear()` | ⭐ same |
+| 3 | `EqsSensorConfigEgressTranslator.cs:241` | `EgressPublicationState` | `LastPublishedTickMap.Remove` | ⭐ same |
+| 4 | `OwnershipRecomputeSystem.cs:115` · `PartialOwnerReclaimSystem.cs:99` | `OutgoingGrantsPending` (Transient) | `Descriptors.Remove` | ⭐ same |
+| 5 | `EgressHold.cs:50, 61, 62` | `EgressHold` — a managed **singleton** | `Reason = null`, `Lapsed++` | out of scope: a singleton read (`storage[0]`) never stamped |
+| 6 | `WorldKeyframes.cs:189`, `EcsRecordReplayController.cs:247`, `ReplayBrowserSubsystem.cs:932-933` | `NetworkEntityMap` (singleton) | `RebuildFromWorld`, `Clear` | out of scope (singleton, a service) |
+| 7 | `VehicleCommandSystem.cs:219` · `TerrainResidency.cs:799` · `DoorLeaf3D.cs:55` · `WorldInfoReport.cs:85` | `RoadNetworkHolder` · `IGeographicTransform` · `TerrainWorld` · `INavmeshProvider` (singletons) | `Borrow`, `SetOrigin`, queries | out of scope (singleton services) |
+| 8 | `OwnershipRecomputeSystem.cs:322` | `DescriptorOwnership` | `WithOwner(...)` | ✅ false positive — returns a copy (`this with { … }` over new collections) |
+| 9 | `DeferredTakeOwnershipIngressTranslator.cs:138` | `PendingAuthorityGrants` | `WithGrant(...)` | ✅ false positive — a copy |
+| 10 | `RouteWaypointGizmo.cs:340` · `PersonalRouteAuthoringSystem.cs:114` | `RoutePlan` | `WithWaypoints(...)` | ✅ false positive — a copy |
+| 11 | `MacroInstanceTranslator.cs:37` | `VariantForms` | `MacroListWith(...)` | ✅ false positive — parses into a new list |
+
+**Found outside the tool** (the graph inventory of read methods — `search_graph name_pattern "^(Try)?Get(Managed)?(Component|Singleton)[A-Za-z]*$"
+label Method`, 130 nodes, 2 pages — named read paths the tool's set lacked):
+
+| # | site | verdict |
+|---|---|---|
+| 12 | ⭐ `JsonAttributeCompiler.cs:58-59` `ReferenceInvoker<T>` — the replication attribute patch: `context.GetManagedComponent<T>()` then the setter mutates it in place | ⭐ **real**. No production caller (`RegisterReferencePath` is used only by `EntityAttributeSchemaTests`); R1's `ReplaceInvoker` is the live path. **Fixed (M-3):** re-sets the same instance (`SetManagedComponent`), so the version moves; 0 B. Missed by the tool: `T` is a type parameter |
+| 13 | `ParamUsage.cs:100-115` (named by the handoff) — a non-generic `GetComponent(e, t)`, rewritten in place (SR-160 "mutable DTO state by design") | ✅ **recorded today and after the flip** — it calls `SetComponent` after the walk. ⚠ Separate hazard, not a stamp question: the object is shared with every earlier snapshot. Missed by the tool: non-generic read |
+| 14 | `UnitDebugSettingsMemory.cs:43-48` (named by the handoff) | out of scope — a singleton store |
+| 15 | `ComponentReflector.GetComponent` · `RepositoryAdapter` / `SimulationViewAdapter.GetComponent` (editor inspector, non-generic) | they call the generic reads by reflection ⇒ the runtime detector (M-2) sees them |
+
+**Transient bookkeeping (rows 1-4).** Both types are `Transient` ⇒ never recorded, snapshotted or replicated; a grep for
+`HasComponentChanged` / a version read on either type finds nothing ⇒ **no consumer reads their chunk version**, so the flip changes nothing
+for them. Replacing them whole would allocate a new dictionary per publish on the egress hot path (R-2084) ⇒ ⭐ **kept as mutable node-local
+bookkeeping**, and the detector reports such hits tagged `[Transient]` rather than as defects.
+
+**Coverage, stated:** one method at a time; one alias level; generic `T` reads and non-generic reads are not followed (rows 12, 13 were found
+by the graph + grep instead); `check_index_coverage` is not in the CLI, so the graph inventory's completeness could not be checked. ⇒ the
+runtime detector (M-2) is the second net.
