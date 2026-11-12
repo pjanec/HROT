@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: FDP/Engine/Fdp.ModuleHost/docs/UserGuide/06_SimulationViewsAndExecutionModes.md shows a two-replica swap in DoubleBufferProvider — the code syncs ONE replica in place (DoubleBufferProvider.cs:63-66); this design does not rely on it
 related-designs:
+  - blueprints/batches/HANDOFF_Coordinator_To_Backend_Threaded_POC_4.md — CE-4448, POC 4: the guard silent, stepping / Run-to / hot reload threaded, the combination with the parallel simulation
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Threaded_POC_2.md — CE-4439, POC 2: builds §14's target shape on exp/threaded-poc-2
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Threaded_Analysis_Instruments.md — CE-4436, the instruments that answer §13.7's unknowns
   - DESIGN_Parallel_Simulation.md — parallelism INSIDE the worker's tick (data-parallel loops in the hot systems); the two share one core budget
