@@ -158,6 +158,18 @@ draws **one frame every 2.4 s** while playing (update 2.2 s, paused 246 ms); thr
 visible window) · Run-to off · input is processed on world frames only (the camera on every frame) · no commands — the UI writes World A directly on
 the frames that hold the lock (correct, but it is why the lock exists) · the 3-D view not measured (its bodies read the world) · 2 runs.
 
+## Gates — on `exp/threaded-kernel`, the switch OFF (the normal editor)
+
+| suite | result | reds |
+|---|---|---|
+| Fdp.Core.Tests (whole) | 1 309 / 3 / 22 skipped | `NoSystemSchedulesOnTheWallClock` (Gameplay's deploy systems), `OneSharedJsonOptions` ×2 (terrain, notes, storage…) — ⭐ all three red at the base `c3380f3b4` (clean worktree) |
+| Fdp.ModuleHost.Tests (whole — the kernel) | **258 / 0** | — |
+| Fdp.Presentation.Tests (whole, xvfb) | 839 / 1 | `CE4351_AFixedBufferOfStructs` — red at the base |
+| Hrot.Editor.Tests (whole) | 953 / 2 / 3 skipped | `EditorTerrainSourceService.E2`, `TheOneSpawnAdapterConstructionHandsItTheArbiter` (a source scan of `EntityAuthoring.cs`, untouched here) — both red at the base |
+| Hrot.Presentation.Tests (whole, xvfb) | 2 118 / 4 / 11 skipped | `FilmFrameRail.CE1380`, `Map3DFrameRail.CE1227_V_DemoCity` (red at ui's base since the W-3 gates), `OneWindowPerProcess.CE1039` (order-dependent), `Map3DFrameRail.CE4388 …AndFaster` (a timing assertion on a loaded VM) — none in code this experiment touched (with the switch off, `ReaderFrame` = `GetFrame` and `DrawFilter` = null) |
+
+⇒ **0 reds from the experiment.** ⚠ The threaded mode itself has no rails yet (§8 ⑥ — the leased triple buffer, the gate, a stale command) — S-2's job.
+
 ## Decisions taken (claim tables)
 
 | decision | code — how it is | design — how it was meant |
