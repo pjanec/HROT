@@ -9,7 +9,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: VALIDATE `exp/perf` from every side, and keep working there
 
-**For:** a backend session. **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen there.
+**For:** a backend session. **From:** coordinator. **Dispatched at `07e178275`**, scope frozen there.
 🔒 User, `2026-11-12`: *"ok to merge both into a single but still experimental branch. If that one is ok from various perspectives, it be merged to
 all other lanes. Until then lets keep working in experimental backend branch. I do not want other lanes accidentally import the backend yet."*
 ⛔⛔ **Autonomous** (R-4156); a failed premise stops THAT item (R-106).

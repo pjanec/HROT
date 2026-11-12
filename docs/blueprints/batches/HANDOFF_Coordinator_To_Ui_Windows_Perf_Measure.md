@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → the Windows session: MEASURE the combined performance branch and the threaded editor POC 3 (one machine, one session)
 
-**For:** the ui session on the user's Windows machine (Ryzen 7 6800H, 8 cores). **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen.
+**For:** the ui session on the user's Windows machine (Ryzen 7 6800H, 8 cores). **From:** coordinator. **Dispatched at `07e178275`**, scope frozen.
 🔒 User, `2026-11-12`: *"yes, write the Windows handoff"*.
 
 ⛔⛔ **Every process HIDDEN** (`HROT_HIDDEN_WINDOW=1` — the scripts set it). ⛔ **Autonomous** (R-4156). ⛔ **Measure only — change no code.**
