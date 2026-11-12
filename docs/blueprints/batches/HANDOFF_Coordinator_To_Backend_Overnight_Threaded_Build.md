@@ -12,7 +12,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (VM): OVERNIGHT, AUTONOMOUS — build the threaded editor + per-entity parallel simulation, END TO END
 
-**For:** one backend VM session, running all night. **From:** coordinator. **Dispatched at `<stamp>`** — scope frozen at that sha; later
+**For:** one backend VM session, running all night. **From:** coordinator. **Dispatched at `e9638d40b`** — scope frozen at that sha; later
 documents are FYI only.
 
 🔒 **User, `2026-11-12`, verbatim:** *"write a handoff for autonomous overnight implementation of the design we just settled. Use 2 staging
