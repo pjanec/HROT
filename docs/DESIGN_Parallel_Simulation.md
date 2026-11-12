@@ -391,3 +391,15 @@ asset, which component types it reads and whether the entity is the unit itself 
 
 ⚠ Not yet measured: the per-read cost of that check on the hot path (the tracer counted ~10⁹ accesses per run) — a static "parallel phase active"
 flag checked first keeps serial code near free; to measure before the build.
+
+### 11.2 ⭐ Scaling past 4 threads — measured on Windows *(`STATUS_Ui_Windows_Scaling.md` on exp/perf, CE-4451)*
+
+| | measured (CGF on 6 cores of its own) |
+|---|---|
+| the flattening is NOT the CPU pin | whole frame at 8 threads 151.2 ms (own cores) vs 150.2 ms (pinned) |
+| ⭐ BrainTick | 90.6 → 46.8 → 43.1 → 39.6 ms at 1 / 4 / 8 / 12 threads (2.3×) — a fit gives **~36 ms SERIAL** (the walk after the pre-score) + ~43 ms parallel |
+| per system, 1 → 12 threads | Threat 4.7× (still falling) · Stress 2.7× (flat from 6) · Callouts no gain |
+| unpinned (three nodes left to the scheduler) | SLOWER: serial 327 ms vs 229 pinned — the nodes contend; pinning helps every node |
+| the whole CGF frame | best **1.50×** vs 1 thread |
+⇒ ⭐ the census prize model (2.5× at 8 cores) was an upper bound; the measured ceiling today is the brain's SERIAL walk (~36 ms) — exactly what the
+per-entity rule (§18, R-4212 / R-4214) converts. ⚠ Several nodes on one machine need a machine-wide core budget (inventory §7.2 F-15).
