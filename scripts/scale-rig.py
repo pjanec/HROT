@@ -322,6 +322,7 @@ def garbage(port):
 
 def main():
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")   # the tables print ≤ ⛔ ✅ — a Windows console is cp1252
+    os.environ.setdefault("HROT_QUERY_TIMINGS", "1")   # ⭐ R-4213 — the per-query timer is OFF by default; the rig's query table asks for it
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--terrain", default="demo-city")
     ap.add_argument("--men", type=int, default=100)

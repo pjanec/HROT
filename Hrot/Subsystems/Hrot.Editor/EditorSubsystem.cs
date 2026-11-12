@@ -2976,9 +2976,14 @@ namespace Hrot.Editor
             if (_simWorld != null) Fdp.Core.WorldGuard.Arm(_simWorld, _world!, Environment.CurrentManagedThreadId);   // ⭐ POC 2
             var tickWatch = new System.Diagnostics.Stopwatch();
             double tickSum = 0; long tickN = 0, lastReport = Environment.TickCount64;
+            var k1 = new System.Diagnostics.Stopwatch();
+            var k1Work = new double[2]; var k1Acquire = new double[2]; var k1Hold = new double[2]; var k1Yield = new double[2]; var k1N = new long[2];   // [0] playing · [1] paused
             while (!_kernelWorkerStop)
             {
+                int k1S = _timeTransport?.IsPaused == true ? 1 : 0;
+                k1.Restart();
                 Fdp.ModuleHost.ThreadedKernelGate.WorkerYield();
+                double k1Y = k1.Elapsed.TotalMilliseconds;
                 float dt;
                 lock (_workerDtLock)
                 {
@@ -2993,9 +2998,18 @@ namespace Hrot.Editor
                     {
                         if (_gizmoBuffer != null) Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(_gizmoBuffer, GizmoFeedAddress);
                         _gizmoBuffer?.EndFrame(dt);
+                        k1.Restart();
                         TickNodeFrame(dt);
+                        k1Work[k1S] += k1.Elapsed.TotalMilliseconds; k1Yield[k1S] += k1Y;
                         _gizmoBuffer?.PublishFrame();
-                        lock (Fdp.ModuleHost.ThreadedKernelGate.WorldLock) SyncPresentationWorld();
+                        // ⭐ K-1 (CE-4450) — the wait to ACQUIRE the world, then the sync's HOLD, timed apart
+                        k1.Restart();
+                        Fdp.ModuleHost.ThreadedKernelGate.WorkerEnter();
+                        k1Acquire[k1S] += k1.Elapsed.TotalMilliseconds;
+                        k1.Restart();
+                        try { SyncPresentationWorld(); }
+                        finally { k1Hold[k1S] += k1.Elapsed.TotalMilliseconds; Fdp.ModuleHost.ThreadedKernelGate.WorkerExit(); }
+                        k1N[k1S]++;
                     }
                     catch (Exception ex)
                     {
@@ -3034,6 +3048,14 @@ namespace Hrot.Editor
                     var f = Fdp.ModuleHost.ThreadedKernelGate.TakeFrameStats();
                     Console.WriteLine($"[X-4] {tickN} ticks, node frame mean {tickSum / tickN:F1} ms · drawing frames: {g} with the world, {m} map-only (cumulative) · yields {Fdp.ModuleHost.ThreadedKernelGate.YieldWaits} · faults {_kernelWorkerFaults}");
                     Console.WriteLine($"[X-4F] world frames {f.WN} mean {f.WMean:F1} p95 {f.WP95:F1} ms · map-only frames {f.MN} mean {f.MMean:F1} p95 {f.MP95:F1} ms");
+                    for (int st = 0; st < 2; st++)
+                    {
+                        if (k1N[st] == 0) continue;
+                        long n = k1N[st];
+                        Console.WriteLine($"[K-1] {(st == 1 ? "PAUSED" : "PLAYING")} {n} ticks · per tick: work {k1Work[st] / n:F1} ms · lock acquire {k1Acquire[st] / n:F1} ms · sync hold {k1Hold[st] / n:F1} ms · yield {k1Yield[st] / n:F1} ms"
+                            + $" · main exits while the worker waited {Fdp.ModuleHost.ThreadedKernelGate.MainExitsWhileWorkerWaits} · hand-over waits {Fdp.ModuleHost.ThreadedKernelGate.MainHandoverWaits} · fair {Fdp.ModuleHost.ThreadedKernelGate.FairHandover}");
+                        k1Work[st] = k1Acquire[st] = k1Hold[st] = k1Yield[st] = 0; k1N[st] = 0;
+                    }
                     tickSum = 0; tickN = 0; lastReport = Environment.TickCount64;
                 }
             }
@@ -3194,6 +3216,7 @@ namespace Hrot.Editor
         /// bus swap), then the cluster orchestrator and the transport's read-back. <see cref="Update"/> runs it once per frame; Run to …'s turbo loop
         /// (<see cref="TurboStep"/>) runs it once per step — the SAME frame, never a second copy of it.
         /// </summary>
+        private static readonly bool K3Log = Environment.GetEnvironmentVariable("HROT_INSYNC_LOG") == "1";   // ⭐ K-3 (CE-4450)
         private void TickNodeFrame(float deltaTime)
         {
             using var traceNode = Fdp.Core.AccessTrace.Scope("node: shared frame (slave, bus swap, timeline)", Fdp.Core.TraceContext.Tick);   // ⭐ A-1 — the whole node frame is the TICK context
@@ -3207,7 +3230,13 @@ namespace Hrot.Editor
 
                         // Drain AI hot-reload callbacks safely on the main thread: any BTreeInterpreter pointer swaps queued by the background ALC worker are applied here, between kernel
                         // ticks, so no active simulation tick can observe a half-swapped pointer.
-                        using (Fdp.Core.AccessTrace.Scope("node: afterKernel hot-reload drain")) _aiCoordinator?.DrainPendingCallbacks();   // ⭐ A-1
+                        using (Fdp.Core.AccessTrace.Scope("node: afterKernel hot-reload drain"))
+                        {
+                            long k3 = K3Log ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+                            _aiCoordinator?.DrainPendingCallbacks();   // ⭐ A-1
+                            if (K3Log) { double ms = (System.Diagnostics.Stopwatch.GetTimestamp() - k3) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                                         if (ms > 1.0) Console.WriteLine($"[K-3] {DateTime.Now:HH:mm:ss.fff} hot-reload drain {ms:F1} ms on thread {Environment.CurrentManagedThreadId} (the node frame, blocked)"); }
+                        }
                         // ⭐ CE-1317 (BV-48) — disarm the traces of units no Brain tab has drawn for ~1 s
                         if (!Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds) TickDebugSettingsUi();   // ⭐ POC 4 F-2 ② — mode 3: the presentation step runs it (main thread, A)
                         // AIE-026: tick the regeneration scheduler — flushes debounced dirty saves (BTree/HSM emit-on-dirty). Safe in headless mode.

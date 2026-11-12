@@ -11,8 +11,27 @@ namespace Fdp.Toolkits.Tests.Diagnostics
     /// call allocates nothing (R-2084), and a reset zeroes the counts but keeps the names.
     /// </summary>
     [Collection("QueryTimings")]   // process-wide counters: never two of these at once
-    public class QueryTimingsTests
+    public class QueryTimingsTests : IDisposable
     {
+        // ⭐ R-4213 — the timer is OFF by default; these rails test the timer itself, so they switch it on for their own duration
+        private readonly bool _wasEnabled = QueryTimings.Enabled;
+        public QueryTimingsTests() => QueryTimings.Enabled = true;
+        public void Dispose() => QueryTimings.Enabled = _wasEnabled;
+
+        /// <summary>⭐ R-4213 (CE-4450 K-4) — off by default: with <c>HROT_QUERY_TIMINGS</c> unset, a host starts with the timer OFF, and an off
+        /// timer counts nothing. 🔴 Red-proof: the default back to <c>!= "0"</c> ⇒ the default reads on.</summary>
+        [Fact]
+        public void R4213_TheTimerIsOffByDefault_AndOffItCountsNothing()
+        {
+            if (Environment.GetEnvironmentVariable("HROT_QUERY_TIMINGS") is { Length: > 0 }) return;   // someone set it for this run
+            Assert.False(_wasEnabled);
+            QueryTimings.Enabled = false;
+            int slot = QueryTimings.Slot("test.off");
+            QueryTimings.Reset();
+            for (int i = 0; i < 10; i++) QueryTimings.End(slot, QueryTimings.Begin());
+            Assert.DoesNotContain(QueryTimings.Snapshot().Rows, r => r.Name == "test.off" && r.Calls > 0);
+        }
+
         /// <summary>
         /// ⭐ R-4209 (POC 3 T-1) — the SAMPLED timer: every call still counted exactly; the total time, measured on 1 call in 16 and scaled,
         /// within 30 % of timing every call (8 000 calls of a ~5 µs busy wait — ~500 samples); a steady sampled call allocates nothing.

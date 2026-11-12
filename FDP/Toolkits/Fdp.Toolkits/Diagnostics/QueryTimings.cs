@@ -12,7 +12,10 @@ namespace Fdp.Toolkit.Diagnostics
     /// separates the terrain's cost from the logic's.
     /// <para>⭐ Allocation-free and contention-free on the hot path (R-2084): each thread accumulates into its OWN buffer (registered once
     /// per thread); <see cref="Snapshot"/> sums them. A slot is named once (<see cref="Slot"/>, cached by the caller) — the per-call cost is
-    /// two <see cref="Stopwatch.GetTimestamp"/> reads. Off with <c>HROT_QUERY_TIMINGS=0</c>. Process-wide: one node per process.</para>
+    /// two <see cref="Stopwatch.GetTimestamp"/> reads. Process-wide: one node per process.</para>
+    /// <para>⭐⭐ R-4213 (CE-4450 K-4) — OFF BY DEFAULT in every host: the census measured the sampled timer at 11.9 % of BrainTick. On with
+    /// <c>HROT_QUERY_TIMINGS=1</c> (the scale rig and the measurement scripts set it) or at runtime (<c>GET /diagnostics/queries?enable=true</c>);
+    /// the R-4209 sampling applies while it is on.</para>
     /// </summary>
     public static class QueryTimings
     {
@@ -20,7 +23,7 @@ namespace Fdp.Toolkit.Diagnostics
         public const int MaxSlots = 512;
 
         /// <summary>False ⇒ <see cref="Begin"/> returns 0 and <see cref="End"/> records nothing.</summary>
-        public static bool Enabled { get; set; } = Environment.GetEnvironmentVariable("HROT_QUERY_TIMINGS") != "0";
+        public static bool Enabled { get; set; } = Environment.GetEnvironmentVariable("HROT_QUERY_TIMINGS") == "1";   // ⭐ R-4213 — off unless asked
 
         private static readonly object Gate = new();
         private static readonly Dictionary<string, int> ByName = new(StringComparer.Ordinal);

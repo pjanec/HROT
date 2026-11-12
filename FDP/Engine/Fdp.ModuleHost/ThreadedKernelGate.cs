@@ -73,6 +73,7 @@ namespace Fdp.ModuleHost
             double now = FrameClock.Elapsed.TotalMilliseconds;
             if (_lastFrameAt >= 0) lock (StatLock) (_lastWasWorld ? WorldMs : MapMs).Add(now - _lastFrameAt);
             _lastFrameAt = now;
+            if (FairHandover && _workerWants) { MainHandoverWaits++; WorkerSyncDone.WaitOne(2); }   // ⭐ K-1 — let the waiting worker sync first
             MainHasWorld = Monitor.TryEnter(WorldLock, 2);
             _locked = MainHasWorld;
             if (MainHasWorld) { _mainWants = false; WorldFrames++; } else { _mainWants = true; MapOnlyFrames++; }
@@ -98,8 +99,23 @@ namespace Fdp.ModuleHost
         }
 
         /// <summary>The drawing thread, at its frame's end.</summary>
+        // ⭐ K-1 (CE-4450) — the hand-over measured: the worker's want, the main thread's exits while it waits, and the FAIR hand-over prototype
+        /// <summary><c>HROT_FAIR_HANDOVER=1</c>: while the worker waits for the world to sync, the drawing thread waits ≤ 2 ms for that sync before it
+        /// takes the lock again (otherwise it re-enters at once and the unfair monitor starves the worker).</summary>
+        public static readonly bool FairHandover = Environment.GetEnvironmentVariable("HROT_FAIR_HANDOVER") == "1";
+        private static volatile bool _workerWants;
+        private static readonly AutoResetEvent WorkerSyncDone = new(false);
+        public static long MainExitsWhileWorkerWaits, MainHandoverWaits;
+
+        /// <summary>The worker takes the world for its sync (and says so while it waits).</summary>
+        public static void WorkerEnter() { _workerWants = true; Monitor.Enter(WorldLock); _workerWants = false; }
+
+        /// <summary>The worker's sync is done.</summary>
+        public static void WorkerExit() { Monitor.Exit(WorldLock); WorkerSyncDone.Set(); }
+
         public static void MainExit()
         {
+            if (_workerWants) MainExitsWhileWorkerWaits++;
             if (!Enabled || !MainHasWorld) return;
             MainHasWorld = false;
             if (!_locked) return;   // mode 2 disengaged at this frame's start: nothing was taken
