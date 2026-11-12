@@ -55,7 +55,8 @@ namespace Fdp.Core
         {
             int sim = s_simRepo;
             if (sim == 0 || !IsWrite(kind)) return;
-            bool onSim = Environment.CurrentManagedThreadId == s_simThread;
+            // the sim thread, or a pool thread working FOR the tick (Parallel.For inside a system: the tracer's context flows into it — AccessTraceOffTests)
+            bool onSim = Environment.CurrentManagedThreadId == s_simThread || AccessTrace.CurrentContextIsTick;
             string? violation = null;
             if (kind == TraceKind.BusPublish)   // `repo` is a BUS id here (a separate counter)
             {

@@ -56,6 +56,7 @@ namespace Fdp.Core
         /// <summary>The name of a reader id (the guard's report).</summary>
         internal static string ReaderName(int id) { lock (s_nameLock) return id >= 0 && id < s_readerNames.Count ? s_readerNames[id] : "(?)"; }
         internal static int CurrentReaderId => CurrentReader();
+        internal static bool CurrentContextIsTick => CurrentContext == TraceContext.Tick;
 
         private static readonly string OutPath = Environment.GetEnvironmentVariable("HROT_ACCESS_TRACE_OUT") is { Length: > 0 } o
             ? o : Path.Combine(Path.GetTempPath(), "hrot-access-trace.json");

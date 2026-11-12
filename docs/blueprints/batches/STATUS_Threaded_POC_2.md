@@ -24,11 +24,11 @@ Switch: **`HROT_THREADED_KERNEL=2`** (default OFF ⇒ the editor is today's).
 |---|---|---|---|---|
 | P-1 | reads are reads | ✅ built + rails (worker, Opus-reviewed) | next commit | §P-1 below |
 | P-2 | the 3 unsafe statics | ✅ 2 fixed + rails; 1 premise failed | next commit | §P-1 below |
-| P-3 | the UI work leaves the tick | | | |
-| P-4 | two worlds | ⏳ built, not yet run | | §P-4 below |
-| P-5 | the S→A sync | ⏳ built, not yet run | | §P-4 below |
-| P-6 | the gizmo frame published; picking | | | |
-| P-7 | UI writes as commands; the guard | ⏳ the guard built | | §P-7 below |
+| P-3 | the UI work leaves the tick | ⛔ not built — its split measured | — | §P-3 below |
+| P-4 | two worlds | ⚠ runs; 2 live runs; the retarget's limits measured | `ebb14e995` `3a3cf2b16` | §P-4 below |
+| P-5 | the S→A sync | ✅ built, 4 rails, measured live | `ebb14e995` `3a3cf2b16` | §P-4 below |
+| P-6 | the gizmo frame published; picking | ✅ the A-4 ⑥ race fixed + 2 rails (red-proved) | `5d637d1d6` | §P-6 below |
+| P-7 | UI writes as commands; the guard | ⚠ the guard built and run; events forwarded (the baseline command path); no typed commands | `ebb14e995` `5d637d1d6` | §P-7 below |
 
 ## P-1 / P-2 — reads are reads; the unsafe statics *(Sonnet worker, Opus review, `2026-11-12`)*
 
@@ -87,9 +87,51 @@ immutable, replaced whole" — each needs a `SetManagedComponent` of a new value
 | `NetworkEntityMap`: A gets its OWN, rebuilt | ✅ A-3: rebuilt and kept 0.76 ms, 0 B; ✅ two plain dictionaries changed in place every tick (§13.1) | §14.1 row 3 "REBUILT (`NetworkEntityMap`)" |
 | managed singletons: the same object in both worlds | ✅ the clone copies the slot (`CopySingletonsFrom`) | §14.1 row 4 — ⚠ an object the simulation changes IN PLACE (not swapped) is a race this POC does not fix; §13.1 names them |
 
+
+### P-4 live runs *(1 000-man rig, VM, Release, hidden window under Xvfb; `HROT_THREADED_KERNEL=2`, `HROT_WORLD_GUARD=1`, mask `ui-no-inspector`, lock for the sync only)*
+
+| run | result |
+|---|---|
+| **1** | ⛔ died at ENGAGE: `MissingMethodException` — a managed singleton's table has only an OPTIONAL-parameter constructor (`ManagedComponentTable(int chunkSize = 16384)`), not a parameterless one for `Activator`. ⇒ fixed (`NewTableLike`) and the defect a rail did not have yet is now `TwoWorldsTests`; the rails also found the second: singletons skipped by the version-gated table sync ⇒ a forced row copy (`3a3cf2b16`) |
+| **2** | ✅ engaged in **154 ms** (S cloned from A: 8 276 networked entities, 99-type mask, 0 unregistered). **Sync: tables 9.3 ms, rows + `NetworkEntityMap` + events 4.5 ms** (mean, VM). 17 of 21 scripted steps ok — play 120 s, step ×5, 3-D view, spawn / move / delete, two orders. ⛔ **pause never settled** (twice: *"the cluster pause barrier appears stuck"*); ⛔ **worker faults every tick** after the edits; the Edit-state save refused (*"a preview runs a copy"* — the preview could not stop cleanly) |
+
+**What run 2 measured about the RETARGET shortcut — the verdict's main fact:**
+
+| finding | evidence | ⇒ |
+|---|---|---|
+| ⛔⛔ **a CACHED QUERY stays bound to the world it was built on** | the faults: `MapLayerAssignmentSystem.Execute:79` — `_query ??= view.Query()…Build()` was built on A before the retarget, so it walks A's entities while `GetDisType` asks S ⇒ *"Entity(12714, v3) is not alive"* every tick. 📐 **~26–28 production sites** cache a query that way (`_x ??= view.Query()…`, `_x = repo.Query()…` once) | ⭐ the guard cannot see it (a READ). Retargeting a kernel is NOT enough: S must be COMPOSED as its own node (§12.4's main build item), or every cached query must check its world |
+| ⛔ pause barrier stuck | twice, 20 s each; `IsPausedOrNull` → `_time.IsPaused` (`DebugApiService.cs:1209`) never turned true | open: the pause path reads or writes the world it captured (not traced further tonight) |
+| ⚠ S's perception grid is not the terrain's | 8 531 *"outside the perception grid [0..1000]"* warnings (`LocalGridBuilderSystem`) — S runs with a default grid | another object built over A at load that S does not get |
+| ✅ the pool writes S legitimately | the guard flagged `CarKinematicsSystem` (493 263 writes ×4 types) and `LinearKinematicsSystem` from `Parallel.For` threads | ⭐ a FALSE positive of the first guard: fixed — a thread whose tracer context is the tick is the sim side (the context flows into pool workers) |
+| ⭐ UI writes LOST at the sync | the guard: `EntityInfo`, `SimTransform`, `BlueprintBlackboard256` written into A by `api-job: debug-API jobs` (the scripted `edit_component` / patch) | the P-7 list: each becomes a command to S |
+
+## P-3 — the UI work leaving the tick *(not built; the split, measured)*
+
+⛔ **Not built tonight.** The live runs showed the order is wrong: with presentation systems still in the tick, they run on S and work only because the
+sync brings their output back. Moving them first needs a SECOND gizmo buffer (the drawing rules left on the worker write the same buffer the moved
+pickers and tools would write on the main thread). The split, from `MapInteraction.InteractionSystems` (`MapInteraction.cs:304`) and A-4:
+
+| stays in the tick (writes the simulated world) | moves to the main thread |
+|---|---|
+| `ActionDispatch` (Delete, LoadZone handlers), `DebugStatePatch`, `EffectSpawn`, `WreckSpawn`, `Lifespan` | `MenuOrders`, `MenuShortcuts`, `Hats` · from `GizmoGroup`: the pickers + the tool gizmos WITH the pick-box producers (CE-259r) · `SelectionRequest` / `SelectionNotification` / `ToolActivationDrain` / `CenterOnEntity` (`ScenarioEditorModule`) |
+| the drawing rules of `GizmoGroup` (what a gizmo DRAWS from S — §14.2) | ⚠ needs a main-side gizmo buffer the drawing layers merge with the worker's published frame |
+
+## P-6 — the published gizmo frame *(Opus, `2026-11-12`)*
+
+`DebugGizmoLayer`'s input hit-test (`:335`, `:344`), picker (`:479`) and canvas fallback (`:565`), and the debug API's gizmo route, now read
+`DebugPrimitiveBuffer.ReaderFrame()` — the frame leased once per drawn frame (`EditorSubsystem.cs` `LeasePublished`) while a worker ticks, the live
+buffer otherwise (OFF ⇒ unchanged). Rails `PublishedGizmoFrameTests` (a leased frame does not change while the writer publishes two more; a racing
+writer never shows a torn frame) — 🔴 red-proved: `ReaderFrame` returning the live buffer ⇒ 2/2 red. ⚠ "picking a moving unit while playing" was not
+driven live (the script has no pick step).
+
 ## P-7 — the guard *(Opus, `2026-11-12`)*
 
 `Fdp.Core.WorldGuard` (`HROT_WORLD_GUARD=1` record · `=throw`): rides the A-1 tracer's write hooks without its counting. It records
 **S written off the sim thread** (a UI write that should be a command), **A written by the sim thread** outside the sync (a system that captured
 A instead of using the view the kernel passes), and either world's **bus published from the wrong thread** — once per (violation, kind, type,
-reader), with the first stack, to `HROT_WORLD_GUARD_OUT`.
+reader), with the first stack, to `HROT_WORLD_GUARD_OUT`. ⭐ A fourth: **A written by the UI for a table / singleton the sync overwrites** —
+lost at the next sync, so it should be a command. ⚠ It sees WRITES only: a cached query or a captured world READ (the run-2 faults) is invisible to it.
+
+**Commands:** ⛔ no typed commands built. ✅ The baseline: every event the UI publishes on A's bus reaches S's systems one tick later
+(`SyncPresentationWorld`: A's bus swapped and copied into S's pending) — the spawn, delete and both orders of run 2 went through it.
+⛔ Direct writes do not: the guard's list above is the work left (each `edit_component` / patch route, then the ~15 X-2 direct-write sites).
