@@ -5,6 +5,7 @@ updated: 2026-11-12
 current-answer: ⭐ §8 interleaving and quantizing (do less per frame) · §7 determinism is a switchable MODE (R-4207) and what per-batch buffers cost · §2 the lean · §1 what exists (measured) · §3 the options · §4 the hazards · §5 the staged plan · §6 open
 stale-below: nothing
 related-designs:
+  - blueprints/batches/HANDOFF_Coordinator_To_Backend_Managed_Reads_Audit.md — CE-4445, the managed-read audit and the default flip (R-4210)
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Parallel_Sim_POC_4.md — CE-4444, POC 4: §13's one pool and the dependency-scheduler measurement
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Parallel_Sim_POC_2.md — CE-4440, POC 2: the serial 70 % on exp/parallel-sim-2
   - blueprints/batches/HANDOFF_Coordinator_To_Ui_Windows_Parallel_Sim_Measure.md — CE-4437, the 8-core Windows measurement of exp/parallel-sim
@@ -287,3 +288,11 @@ DEPENDENCIES from declared reads / writes, so independent systems run at the sam
 | ⭐ **ONE pool, two priorities** (frame-critical: parallel systems, the sync; background: egress, recorder, EQS, background modules) — merge `FdpWorkerPool` into `WorkerPool`, move `Parallel.ForEach` and the background modules' `Task.Run` onto it | cheap, removes the duplicate and the oversubscription; one core budget (cores − 2) by construction |
 | **measure before a dependency scheduler**: the access tracer (threaded-analysis A-1) already records each system's reads / writes — compute which systems are disjoint and the critical path; build declared-access scheduling only if it shows a gain | the brain is 43 % of the frame in ONE system — running the others side by side is bounded by it |
 | ⛔ not a Unity-style job system with safety handles and a compiler | .NET has no Burst; the per-batch merge + `ParallelGuard` already give determinism and race checks where they matter |
+
+## 14. Managed component reads stop stamping — the default, after an audit *(R-4210)*
+
+🔒 User, `2026-11-12`: *"yes, queue the audit; the other backend lane is free, if it can be done in parallel with POC4"* — on the lean: a managed
+`GetComponent` READ must not bump the chunk version (A1-2); it becomes the DEFAULT once an audit has found and fixed every in-place mutation of a
+managed component (already forbidden — CLAUDE.md: managed components are immutable and replaced whole). Both lanes hit it: the threaded editor
+(a read off the sim thread is a write race) and the egress visit gate (POC 3 T-2: 0 skips, because `OwnershipEgressSystem`'s reads stamp every
+chunk). Built and measured in [CE-4445](blueprints/batches/HANDOFF_Coordinator_To_Backend_Managed_Reads_Audit.md).
