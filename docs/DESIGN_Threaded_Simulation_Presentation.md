@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — ✅ the concept APPROVED (R-4205, `2026-11-11`); next S-0 (the architect question for the details + a FDP-DES-012 section) before any build; a proof of concept exists (§7)
 updated: 2026-11-12
-current-answer: ⭐ §13 SHARED STATE — every singleton / side table the UI reads, classified (no blocker; NetworkEntityMap, TrafficFrame, the TKB, the road graph are the real torn reads) · §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
+current-answer: ⭐ §13 SHARED STATE (13.7 the verdict: no blocker; S-1 = take the presentation out of the node frame first) — every singleton / side table the UI reads, classified (no blocker; NetworkEntityMap, TrafficFrame, the TKB, the road graph are the real torn reads) · §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
 stale-below: nothing
 known-rot: none
 known-conflict: FDP/Engine/Fdp.ModuleHost/docs/UserGuide/06_SimulationViewsAndExecutionModes.md shows a two-replica swap in DoubleBufferProvider — the code syncs ONE replica in place (DoubleBufferProvider.cs:63-66); this design does not rely on it
@@ -417,3 +417,65 @@ the backend in an ECS-agnostic core. ⛔ But in a threaded editor that puts ever
 ⚠ If ALL gizmos moved to the main thread instead, their reads join 13.1: ⛔ the spatial grid is the same `_grid` rebuilt in place every tick
 (`SpatialHashSystem.cs:98,120`) ⇒ a torn read; the navmesh's tiles change (`INavmeshTileVersions`) — in place or by a new mesh is ⛔ not measured.
 ⚠ Not done yet: the inventory of gizmos into the two kinds, and what producing them costs inside the tick.
+
+### 13.5 ⭐ The sweep's main finding — the tick already CONTAINS presentation work *(two read-only sweeps, `2026-11-12`)*
+
+The threading line is NOT "the kernel vs the UI": the editor's node frame runs presentation code today, so it must be split out FIRST (S-1).
+
+```mermaid
+flowchart LR
+  subgraph TICK[the node frame today - one thread]
+    K[simulation systems]
+    G[gizmo systems - 79 gizmos: 47 overlays, 26 tools / UI, 6 mixed]
+    T[tool activation, centre-on-entity camera, selection systems]
+    H[afterKernel: hot-reload drain, BrainObservation, debug-settings memory, regeneration scheduler]
+    O[orchestrator core + its UI cache, time transport]
+  end
+  K --> W1[stays on the WORKER]
+  O --> W1
+  G -->|47 overlays| W1
+  G -->|26 tools + 6 mixed| M1[moves to the MAIN thread]
+  T --> M1
+  H --> M1
+```
+*What the picture shows that prose hid:* half of what "the kernel" runs in the editor is presentation; moving the WHOLE frame to the worker (the
+experiment's D-7) carries the tools, the camera, the selection and four editor objects across the thread line with it.
+
+| where in the frame today | what | ⭐ treatment |
+|---|---|---|
+| gizmo systems (`MapInteractionPack.cs:170-260`, run by `GizmoInteractionModule`; ~8.0 ms playing / 5.9 paused at 1 000 men on Windows, §11h) | **47 overlays** of simulation state | stay on the worker; the map draws the published primitive frame (triple buffer, X4-2) |
+| | **26 tools / UI gizmos** (drag, rotate, vertex / waypoint / mission editors, measuring, placement / paste ghosts, pickers, RTS command mode, box select, layer panel, selection highlight, rubber band, context menu) | the main thread, every frame, against the UI's copy; ⛔ the drag preview writes `SimTransform` / `VehicleState` every drag frame (`EntityDragGizmo.cs:278,284`, `GroupTransform.cs:260,266`) ⇒ a ghost on the UI side, the commit a command |
+| | **6 mixed** — `EntityPresentationGizmo`, `NamedPointGizmo` emit the PICK BOXES the pickers hit-test, and read the map zoom; `TerrainBlockGizmo`, `RouteGizmo`, the designation / fire-mission overlays style by the UI SELECTION | split: the overlay on the worker, the pick boxes and the selection styling on the main thread from the copied positions |
+| `ScenarioEditorModule.cs:103-130` | `ToolActivationDrainSystem` (activates tools), `CenterOnEntitySystem` (moves `MapCamera`), the selection systems | the main thread |
+| `afterKernel` (`EditorSubsystem.cs:2833-2846`) | `BrainObservation` (two writers, no lock), `UnitDebugSettingsMemory` (file I/O), `RegenerationScheduler` (asset saves; two writers), the hot-reload drain (fires UI events: the hot-reload log, document lambdas) | the main thread; the hot-reload SWAP stays a worker step between ticks and its UI events are marshalled to the main thread |
+
+### 13.6 Shared state OUTSIDE the world — what the simulation side writes and the UI reads (or the reverse)
+
+| object | how it changes | thread-safe today | ⭐ treatment |
+|---|---|---|---|
+| `ClusterUiCache` + `ClusterView` (`ClusterUiCache.cs:173-219`; 11 / 19 UI files) | every tick, in place: 3 dictionaries, a list, ~25 scalars | ⛔ none | **publish** an immutable view after `UiCache.Update()`, swap the reference |
+| `MasterSyncController` (8 UI files: sim-time readout, awaiting-acks) | every tick, in place | ⛔ none | **publish** a small status struct per tick; Play / Pause / Step / Run-to become commands (Q111-D) |
+| `DebugPrimitiveBuffer` (16 UI files) | every tick; `EndFrame` resets the cursor | writes `Interlocked`, ⛔ no read / reset fence | **triple buffer** (prototyped, X4-2) |
+| `BehaviorRegistry` (58 UI files) | hot reload `MergeFrom` in place (`BehaviorRegistry.cs:954`), ~12 dictionaries | ⛔ only an `Interlocked` revision | **swap the inside** — ✔ precedent `BlueprintRegistry` swaps with `Interlocked.Exchange` |
+| `TkbDatabase` (30 UI files) | `Clear` + refill on a load (13.1) | ⛔ none | **swap the inside** |
+| `DataBreakpointManager` (7 UI files) | both ways: the kernel records hits, the panels add / remove / enable | ⛔ none | edits → commands; hits → a forwarded log |
+| `MapCameraViewport`, `MapUserConfig`, `GizmoSettingsRegistry` (UI → worker: culling and the overlays read them) | UI writes, every frame / rarely | ⛔ none | **copy** to the worker with the commands each tick |
+| `Map3DBuild` status (UI → the load phase, `Map3DBuild.cs:85-91`) | UI writes rarely | ⛔ none | a `volatile` status the load step polls |
+| `GizmoRuleTimings` (static, `HROT_FRAME_STATS` only) | every tick | ⛔ none | per thread, or a lock (diagnostics only) |
+| the buses (UI publishes intents) | every tick | publish / swap locked, ⛔ a read across a swap is not | commands (F-4) |
+| the debug API's HTTP jobs (`MainThreadJobQueue.DrainAll`) | both | — | by job: world jobs on the worker between ticks (Q111-E), UI jobs on the main thread |
+
+✔ **Already safe** (locked, `Concurrent*`, `volatile` / `Interlocked` swap): `BlueprintRegistry`, `RoadNetworkHolder`, `SwitchableNavmeshProvider`,
+`LiveTimelineSource`, `DiagnosticEventHistoryService`, `PanelSnapshot`, the log targets, `LoadProgress`, `TerrainContentRegistry`,
+`ComponentTypeRegistry`, `EntityClassTable`, the id allocators. ⭐ DI singletons are UI-only (the AI and blueprint editors' services).
+⚠ Correction to one sweep claim: `NetworkEntityMap` is `ConcurrentDictionary` only in `Fdp.Network.Cyclone`; the one the UI reads
+(`Fdp.Toolkits/Replication/Services/NetworkEntityMap.cs:15-16`) is two plain dictionaries — 13.1 stands.
+
+### 13.7 Verdict of the analysis
+
+| | |
+|---|---|
+| ✅ **no blocker** | every shared object found — 16 world singletons, 5 simulation-written logs, 17 objects outside the world, 79 gizmos — fits one of the treatments: share · copy · rebuild · lease · swap the inside · publish an immutable view · forward a log · move to the main thread · command |
+| ⭐ **the real work is a SPLIT, not a lock** | S-1 is "take the presentation OUT of the node frame" (13.5) before any thread moves — the tools, gizmo tools, camera, selection and four `afterKernel` objects. ⭐ It is worth doing even single-threaded: it is the seam R-4205's pulled presentation module (Q111-G `RunMode.Pulled`) needs |
+| ⚠ **not measured** | per tick: rebuilding `NetworkEntityMap`, copying the traffic lists, publishing `ClusterUiCache`; the per-rule gizmo cost at 1 000 men |
+| ⚠ **not traced** | `TimelineLaneCatalog` (UI lane edits vs `Step`), `OrchestratorCore.ScenarioPanel`, `GizmoUiStateHub`, the mission service's async acks; the 170 static collections triaged by mutation count, not read one by one; ⛔ `check_index_coverage` is not in the CLI |
