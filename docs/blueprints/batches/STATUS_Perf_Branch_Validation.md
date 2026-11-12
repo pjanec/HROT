@@ -76,6 +76,16 @@ steps the paused live run and reads `/entities/{id}` was used; the repo script i
 The serial-vs-parallel rails at 1 / 2 / 4 / 8 threads (`ParallelEntitiesTests` P0, `ThreatEvaluationParallelRailTests`, `StressSystemTests` P1,
 `CalloutsTests` P1) are green in V-1's suites.
 
+## V-4 — the scenario regression: ⛔ STOPPED (user, `2026-11-12`)
+
+> 🔒 **User, verbatim:** *"the check can not depend on how many scenarios we have"* · *"we need to test features, not scenarios"*
+
+⇒ The validation runs on the **feature rails** (V-1, V-3, V-5, V-6), whose cost does not grow with the scenario catalogue. The 3 × ~3 h
+regression (exp/perf serial, Throughput, base) was stopped after 66 of 107 scenarios of the first run.
+⚠ That partial run had NO base run beside it, so it is evidence of nothing either way. For the record: 12 scenarios failed their checks.
+29 more passed their checks and differed only from their goldens. The scenario regression's own history shows 15–21 check reds of 103 at
+recent lane heads (`DESIGN_Scenario_Regression.md` §7).
+
 ## V-5 — replication and recording
 
 | check | result |
@@ -84,7 +94,8 @@ The serial-vs-parallel rails at 1 / 2 / 4 / 8 threads (`ParallelEntitiesTests` P
 | record → replay → seek | `Fdp.Core.Tests` flight-recorder rails and `Fdp.Toolkits.Tests` Replay — green in V-1; `Hrot.ReplayBrowser.Tests` 96 / 0 / 8 (V-6, under a display); `ManagedReadsReplayEquivalenceTests` (both read modes, the same state hash) |
 | ⭐ the managed-read detector (`HROT_MANAGED_MUTATION_CHECK=1`) over a 12-scenario subset (`bc-house-clear, bc-house-defended, bc-room-clear, bt-doors, bt-grenade-posture, bt-mortar-roof, bt-window-duel, cc-platoon-bound, df-civilian-ordered, pc-ambush-bypass, pc-attack-dry, uc-a10-zu23-dry`) | ✅ **0 hits** — 12 editor processes, 74 726 frames, 175 781 managed reads checked |
 
-⚠ 6 of those 12 scenarios failed their checks with the detector on — compared against the full regression (V-4), serial and at the base.
+⚠ 6 of those 12 scenarios failed their checks with the detector on. The detector's verdict is the 0 hits; the scenario checks were not
+compared with the base (V-4 stopped).
 
 ## V-6 — the editor and the UI (under `xvfb-run -a`)
 
