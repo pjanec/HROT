@@ -229,3 +229,45 @@ the census method and its short conversion list · the one pool's two lanes (no 
 | memory per node | ✅ CE-4456 N-1: CGF 1.77–2.10 GB at 1 000 men, 2.94 GB at 3 000, ~3.8 GB at 5 000 (fits only with two fixes: chunk-version arrays sized for `MAX_ENTITIES`, 84–217 MB per world even when empty — `NativeChunkTable.cs:56,65`; the recording's ~0.5 GB of buffers). ⛔ the EDITOR is over 4 GB at 1 000 men (4.24–4.29 GB, threaded or not — A adds only ~106 MB; ~1.2 GB unattributed); `--mode all` 5.65 GB |
 | same-tick cover / contact | ✅ CE-4456 N-2: two units committing to the same point on one tick NEVER happened (0 in ~88 000 ticks) ⇒ cover recovery (F-9) is a rare tie-break; new contacts arrive in BURSTS (up to 96 units on one tick) ⇒ callout de-dup (F-10) must expect tens; a cover-thrashing unit found — CE-3444 (behaviors) |
 | the integration base | ✅ CE-4456: `exp/integration` built, 0 errors; one read path, one pool; a merge defect (test component ids colliding across branches) fixed |
+
+## 8. ⭐ THE DECISION LIST — every decision the overnight build rests on, with what it rests on *(`2026-11-12`; the page the user asked for: "you need to check rows marked ⛔ only")*
+
+✅ = measured (evidence linked) · ⛔ = assumed / not measured. ⭐ A decision with a load-bearing ⛔ row is NOT final.
+
+### 8.1 Decided by the user
+
+| decision | ruling | rests on |
+|---|---|---|
+| the simulation on a worker thread, the UI on the main thread over its own world A, commands from the UI | R-4205, R-4214 | ✅ POC 3: 0 faults; Windows UI frame 97 → 15.6 ms (§14.5) |
+| no host handled differently — the threading lives in the SHARED node frame / presentation shell | R-4215 | ✅ every host shares `HrotNodeContext` / `SharedApplicationBootstrapper` (`PlayerApplication.cs:235,849`); the prototype lives in `EditorSubsystem.cs` only |
+| the whole gizmo block on the main thread, once per tick | R-4211 + the user's word in POC 4 (§14.2.0 on exp/threaded-poc-4) | ✅ the ordered edits measured (§4); ✅ interaction 1.3 ms + overlays ~10 ms per tick (VM) |
+| per-entity parallelism: own entity direct, others by command (heard a tick later), squad systems per squad, cross reads of in-phase-written types from last tick | R-4212, R-4214 | ✅ census: 18 READY / 11 CONVERTIBLE / 6 GLOBAL, a short conversion list; ✅ K-2 heavier combat: no change |
+| ONE behaviour rule in both time modes; one process-wide determinism setting owned by the time mode; no separate parallel switch | R-4214, R-4215 | ✅ the rule is thread-count invariant (rails at 1/2/4/8); ✅ a continuous run is non-deterministic by its dt anyway (user) |
+| `--mode all`: every kernel of the process on the one worker, in sequence | R-4214 | ⛔ not prototyped — the first task proves it |
+| the last-tick view = a separate masked copy taken serially from S at the START of the Simulation phase; only types written by the same / a concurrent system | R-4214 | ✅ 21 types, 2.6–2.7 ms on the CGF (K-2); ✅ the generator knows each asset's typed reads (§18.2) |
+| the per-query timer off by default | R-4213 | ✅ BrainTick −8 % (K-4) |
+| UI writes EXECUTED on the sim thread through one job queue — not rewritten as `EditOp`s | D-5 | ✅ undo is a world snapshot, path-independent (`WorldUndoRecorder.cs:9-17`); ⛔ every caller copes with a result arriving a tick later — the write-path POC (CE-4455) proves it |
+| a dynamic step (no fixed step) | D-3 withdrawn | ✅ the user: a fixed step spirals or falls behind under overload |
+
+### 8.2 Open — needs the user (each with a lean)
+
+| # | decision | ⭐ lean | rests on |
+|---|---|---|---|
+| O-1 | ⭐ **the lock shape**: the sim waits ≈ ONE whole drawing frame for A, because the main thread holds A for its whole frame (K-1: 150–175 ms / tick on the VM; a fair hand-over changed nothing). Releasing A before drawing is NOT possible — map layers read A while drawing (X4-1: `EffectLayer.Draw`), and double-buffering A breaks "A is one object for life" (44 world-keyed side tables) | ⭐ **the sim NEVER waits**: at the end of a tick it TRIES the lock; if the UI holds A, it skips this sync and keeps simulating; the next free sync catches up | ✅ the wait is one drawing frame (K-1) · ⛔ the S→A copy catches up after a skipped sync (it must copy by version, not "this tick's changes") — `SyncPresentationFrom` not read for that · ⛔ events / logs / edit outcomes forwarded at the sync must ACCUMULATE across skipped syncs — not verified ⇒ ⭐ both rows are the first measurement of track A |
+
+### 8.3 Fixes — no decision needed (the reviews and measurements require them)
+
+| fix | evidence |
+|---|---|
+| the ORCHESTRATION bus becomes a command queue — a blocking item before any lock change | ✅ K-1: "Collection was modified", 3 of 3 runs once the hand-over was fair |
+| the hot-reload DRAIN prepared off the frame, only the swap on it (not threading) | ✅ K-3: the drain blocks 3.7–4.4 s against a 5 s heartbeat eject |
+| the pool carries the tick context and the current entity (F-1) — before anything parallel is trusted | ✅ census / POC 4: `AsyncLocal` does not reach the pool |
+| §7.2's F-2…F-16 (bus in parallel phases, debug probes serial, native-handle singletons, field-level commands, deferred structure, managed chunk lock, child-sensor handles, cover tie-break, callout de-dup at playback (bursts of tens — N-2), per-squad ownership, seek / restore full resync, hot reload between ticks, never wait holding A's lock, egress scan priority, the guard extended) | §7.2 |
+| memory: chunk-version arrays grown with the committed chunks; the recording's buffers bounded — and attribute the editor's ~1.2 GB unexplained (a `dotnet-gcdump`) | ✅ CE-4456 N-1: editor 4.24 GB at 1 000 men; nodes fit to 3 000 |
+| Windows scheduling opt-outs (CE-4452 / CE-4458) — independent, dispatched now | ✅ CE-4453: windowless nodes at HALF speed |
+
+### 8.4 Still unmeasured, and where it gets measured
+- O-1's two ⛔ rows → track A's first task.
+- `--mode all` on one worker → track A.
+- every caller copes with a delayed write result → the write-path POC (CE-4455), track B's first task.
+- 8-core scaling with the per-entity rule (today's measured ceiling is the brain's ~36 ms serial walk — §11.2) → Windows after track C lands.
