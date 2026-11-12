@@ -3007,7 +3007,7 @@ namespace Hrot.Editor
                         Fdp.ModuleHost.ThreadedKernelGate.WorkerEnter();
                         k1Acquire[k1S] += k1.Elapsed.TotalMilliseconds;
                         k1.Restart();
-                        try { SyncPresentationWorld(); }
+                        try { SyncPresentationWorld(); DrainStagingRemap(); }   // ⭐ K-1 — the orchestration bus read inside the lock (the main thread is shut out)
                         finally { k1Hold[k1S] += k1.Elapsed.TotalMilliseconds; Fdp.ModuleHost.ThreadedKernelGate.WorkerExit(); }
                         k1N[k1S]++;
                     }
@@ -3133,7 +3133,11 @@ namespace Hrot.Editor
             if (_directorPack != null)
                 _commandLineVerify?.Tick(_directorPack.Runner, _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.Idle, _requestAppExit);
 
-            using (Fdp.Core.AccessTrace.Scope("editor: staging remap drain")) DrainStagingRemap();   // ⭐ A-1
+            // ⭐ K-1 (CE-4450) — in threaded mode the drain reads the ORCHESTRATION bus, which the worker's node frame publishes to and swaps outside the
+            //   world lock: "Collection was modified" 3 of 3 runs once the hand-over was fair (the starved worker had hidden it). It runs in the worker's
+            //   locked sync instead (SyncPresentationWorld below). ⚠ An experiment's patch: the UI's PUBLISHES onto that bus still race — commands (§14.1).
+            if (!(Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds && Fdp.ModuleHost.ThreadedKernelGate.Engaged))
+                using (Fdp.Core.AccessTrace.Scope("editor: staging remap drain")) DrainStagingRemap();   // ⭐ A-1
 
             Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.ClearCaptured();
 

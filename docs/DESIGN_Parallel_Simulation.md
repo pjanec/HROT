@@ -636,6 +636,12 @@ of `EntityRepository`, which every typed read reaches (`GetComponentRO/RW`, `Try
 typed path; ③ ONE per-thread current entity shared with the census. ⚠ Not measured: the cross-entity write → command redirect, and a parallel run with
 the flag on (needs §18's per-entity jobs).
 
+### 18.4 Measured on heavier combat + the timer off *(CE-4450 K-2 / K-4, `exp/measure-2`)*
+
+Combat ~2× heavier changes nothing in §18.1's verdict: 2 new cross-entity writes (the brain's order journal `CommandOrderHistory`; squad-level
+`SquadMemberSense`), 3 new last-tick types (`CoverClaim`, `BallisticProjectile`, `NetworkIdentity`); the masked last-tick copy 2.6–2.7 ms on the
+CGF (21 types), 0.7 ms on the SimHost. ⭐ R-4213 built: the per-query timer off by default — BrainTick 59.0 → 54.4 ms (−8 %).
+
 ## 19. Windows scheduling: power throttling, hybrid cores, console pauses *(user, `2026-11-12`: "what about windows frontend / backend throttling and intel performance cores vs e-cores … i do not want headless mode running in console to be any slower")*
 
 Measured: graph + grep for `PowerThrottling|SetProcessInformation|timeBeginPeriod|ThreadPriority|PriorityClass|EcoQoS|CpuSet|EfficiencyClass|ProcessorAffinity`
