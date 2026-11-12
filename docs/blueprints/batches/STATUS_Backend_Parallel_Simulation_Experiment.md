@@ -259,3 +259,11 @@ copies — the consumers D-5 helps — are not in the measured path. ⇒ the Win
 | 🔴 Callouts rail, `Say` from the worker (batch-crossing world) | red **3 / 3** tries |
 | 🔴 interleave rail, one frame's dt integrated instead of the elapsed time | red |
 | tree clean after every mutation | ✅ |
+
+### The scenario regression — STOPPED, one failure root-caused *(D-6)*
+| claim | basis |
+|---|---|
+| the full regression is 107 scenarios × a fresh editor each ≈ **3 h per mode** on the VM | 📐 23 done in 40 min (serial mode) — stopped; it is the nightly job, not an experiment gate |
+| of the 23: 11 pass, 12 fail | `regr-0` log (scratchpad) |
+| `bc-room-clear` fails the SAME way at `coordinator@72b4ed0e6` | 📐 clean-worktree run: `ArgumentException` — a ±infinity `SimInstant` (`SquadUnitSense.AskedAt`) written by `SimInstantJsonConverter` into the golden snapshot ⇒ **pre-existing, filed `CE-3441`** (not fixed here — not this experiment's) |
+⇒ the other 11 failures are NOT individually checked; several are combat / squad scenarios that likely hit `CE-3441` first. ⭐ The converted systems are covered by their byte-equal serial-vs-parallel rails; the regression in parallel mode belongs to the Windows run.
