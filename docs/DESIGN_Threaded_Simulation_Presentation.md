@@ -636,7 +636,21 @@ waits exist — headless pays for no presentation, a playing editor pays one mas
 mechanism, and only the yellow ones (copied at the sync) take a lock — publishing, sharing, leasing and commands need none. The gizmo split
 follows the same line: what a gizmo DRAWS from S stays on the sim thread; what answers the mouse moves to the main thread.
 
-#### 14.2.1 ⭐ The two halves of a split gizmo are INTERLINKED — each says it needs the other, and where the other is *(user, `2026-11-12`)*
+#### 14.2.0 ⭐⭐ NO GIZMO SPLIT — the WHOLE gizmo group moves to the presentation step *(user, `2026-11-12`, POC 4; SUPERSEDES the split above and §14.2.1)*
+
+> 🔒 User, verbatim: *"split is complicating things, lets move whole group to presentation."*
+
+| measured (POC 4, VM, 1 000 men, mode 3, during play) | |
+|---|---|
+| the group per tick | overlays (`StatelessGizmoSystem`, already sliced: 256 fresh per rule per frame) **8.7–10.6 ms** · interaction (`GlobalGizmoManager` + `DataDrivenGizmoSystem` + `MapSelfCheckSystem`) **≈ 1.3 ms** |
+| what a split would have bought vs moving everything | keeping ≈ 10 ms off the drawing thread — paid for by keeping it on the simulation tick (node frame 159 ms), plus four crossings and a two-part gizmo design every gizmo author maintains |
+| the types the gizmos read that the presentation mask lacks | **9** (`DebugState`, `AcousticEmitter`, `HeardTraces`, `NavigationIntent`, `Utterance`, `ScenarioIgnoreTag`, `RoutePlan`, `ObstacleShape`, `DangerAreaCognitiveBuffer`) — all already read by the inspector; the threaded sync copies ALL types today (tables 5.5 ms) |
+
+⇒ in mode 3 the gizmo group (overlays, arbiters, tools, pickers, selection systems) runs ONCE PER TICK in the presentation step, on the main thread, against A,
+after the sync; the drawing thread draws the last published gizmo frame every drawn frame. One implementation, its order unchanged, no crossings.
+⚠ Unmeasured: the ≈ 10 ms on real hardware's main thread (the VM draws in software GL) — the Windows command answers it.
+
+#### 14.2.1 ⛔ SUPERSEDED (by §14.2.0) — The two halves of a split gizmo are INTERLINKED — each says it needs the other, and where the other is *(user, `2026-11-12`)*
 
 > 🔒 User, verbatim: *"the gizmo parts after the gizmo split must be carefully interlinked so it is very clear (a) that it needs the other
 > part and (b) where the other part is"*
