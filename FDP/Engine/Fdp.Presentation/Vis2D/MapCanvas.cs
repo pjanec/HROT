@@ -203,8 +203,13 @@ namespace Fdp.Toolkit.Vis2D
             return ctx;
         }
 
+        /// <summary>⭐ EXPERIMENT (threaded kernel X-4) — when set, a layer it refuses is not drawn this frame (a frame without the world lock
+        /// draws only the layers that read no world).</summary>
+        public Func<IMapLayer, bool>? DrawFilter { get; set; }
+
         private bool IsLayerVisible(IMapLayer layer)
         {
+            if (DrawFilter != null && !DrawFilter(layer)) return false;
             if (layer.LayerBitIndex < 0) return true; // Always visible
             if (layer.LayerBitIndex >= 32) return false; // Out of range
 

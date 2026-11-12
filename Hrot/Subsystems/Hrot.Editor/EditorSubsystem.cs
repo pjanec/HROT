@@ -2702,8 +2702,12 @@ namespace Hrot.Editor
         private volatile bool _kernelWorkerStop;
         private long _kernelWorkerFaults;
 
+        private static bool MapOnlyLayer(Fdp.Toolkit.Vis2D.Abstractions.IMapLayer l)
+            => l is Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer || l.GetType().Name is "GridMapLayer" or "TerrainLayer2D";
+
         private void EnsureKernelWorker()
         {
+            if (_canvas != null) Console.WriteLine("[X-4] map layers: " + string.Join(", ", _canvas.Layers.Select(x => x.GetType().Name)));
             if (_kernelWorker != null) return;
             if (_gizmoBuffer != null) _gizmoBuffer.ReaderUsesPublished = true;
             _kernelWorker = new System.Threading.Thread(KernelWorkerLoop) { IsBackground = true, Name = "HROT kernel (X-4)" };
@@ -2947,6 +2951,9 @@ namespace Hrot.Editor
         {
             if (_headless) return;
             if (_kernelWorker != null) _gizmoBuffer?.LeasePublished();   // ⭐ X-4 — this frame draws the worker's latest finished gizmo frame
+            // ⭐ X-4 (finding X4-1) — a frame WITHOUT the world draws only the layers that read no world: the gizmo primitives, the grid, the 2-D
+            //   terrain (its retained geometry). Effects, projectiles, the cursor and the 3-D bodies query World A in Draw ⇒ drawn on world frames only.
+            if (_canvas != null) _canvas.DrawFilter = _kernelWorker != null && !Fdp.ModuleHost.ThreadedKernelGate.MainHasWorld ? MapOnlyLayer : null;
             _canvas?.Draw();
         }
 

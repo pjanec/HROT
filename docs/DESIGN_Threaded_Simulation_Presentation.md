@@ -340,3 +340,90 @@ The PoC ran a toy world: no singletons, no managed tables, no editor frame aroun
 ⭐ **Recommendation:** keep the concept; do S-0b first (a measurement plus an inventory — no production change) so the build is sized on numbers;
 meanwhile take (b)'s cheap items from Evaluation Cost §11h, which help both shapes. If the real publish turns out large (tens of ms per tick at
 1 000 men), the fallback inside the same concept is a NARROW published view (only what the map and panels draw), not the whole world.
+
+## 12. ⭐ The experiment's answer to §11 *(behaviors lane, overnight `2026-11-11/12`, branch `exp/threaded-kernel`; [status](blueprints/batches/STATUS_Threaded_Kernel_Experiment.md))*
+
+⭐ **Proposal: invert the worlds. The PRESENTATION keeps World A — the object every panel, gizmo, side table and HTTP read is already bound to —
+and the SIMULATION moves to a second repository, World S, ticked on the worker. At each tick's end the worker syncs S → A (a dirty-chunk copy through
+a declared PRESENTATION mask) under one short world lock. The UI's writes to simulated state become commands drained into S.** It keeps R-4205's
+concept (the kernel on a worker, the presentation never waits for a tick, the UI writes commands) and overturns its mechanism (the presentation does
+NOT read a different leased snapshot each frame).
+
+### 12.1 The picture
+
+```mermaid
+sequenceDiagram
+  participant W as Worker - World S (the kernel, the node frame)
+  participant L as the world lock
+  participant M as Main - World A (the presentation, the window)
+  loop each tick, at the simulation's own rate
+    W->>W: drain the UI's commands into S, tick S (the node frame, the orchestrator core, the clock)
+    W->>L: take the lock (waits at most one presentation frame's world work)
+    W->>M: sync S into A through the presentation mask - forward this tick's events and outcomes into A's queues
+    W->>L: release
+  end
+  loop each drawn frame, at the render rate
+    M->>L: take the lock for the world work (input, panels, presentation systems), never longer than a frame
+    M->>M: read A as today - queue commands for S - keep UI-only state in A
+    M->>L: release, then draw
+  end
+```
+*What the picture shows that the prose hid:* A is ONE object for the presentation's whole life ⇒ the 44 world-keyed side tables, ~650 bindings and
+33 casts (§11 F-13 / F-14) need NO migration; the drawing thread waits at most for one SYNC (a copy, ~7–14 ms), never for a TICK (63–170 ms).
+
+```mermaid
+classDiagram
+  class WorldS { <<new EntityRepository>> the simulation - every sim module, the node frame }
+  class WorldA { <<existing EntityRepository>> the presentation's world - unchanged bindings }
+  class PresentationMask { <<new>> component types + singleton policy the presentation reads }
+  class WorldSync { <<new>> SyncFrom(S into A, mask) + singleton policy + event / outcome forwarding }
+  class CommandIngress { <<new>> UI writes to simulated state - drained into S at Input }
+  class ThreadedKernelGate { <<prototyped X-4>> the world lock, the drawing thread's try / the worker's yield }
+  class PulledPresentationRunner { <<new>> presentation systems run on main against A }
+  WorldSync --> WorldS : reads
+  WorldSync --> WorldA : writes, under the lock
+  WorldSync --> PresentationMask
+  CommandIngress --> WorldS : drains
+  PulledPresentationRunner --> WorldA
+  ThreadedKernelGate <.. WorldSync
+  ThreadedKernelGate <.. PulledPresentationRunner
+```
+*What it shows:* the new pieces sit at the two crossings (sync S→A, commands A→S); nothing in between changes.
+
+### 12.2 The decisions
+
+| # | decision | claim — code (how it is) | claim — design (how it was meant) |
+|---|---|---|---|
+| D-1 | ⭐ **the presentation keeps World A; the simulation gets World S** — overturns §3.2's leased-snapshot reader | ✔ 44 side tables keyed by the world object, ~650 bindings, 33 casts (X-2); ✔ the prototype ran the existing editor UI against A unchanged | FDP-DES-012 names the UI a replica consumer — a replica that is always the SAME object is still a replica; ⛔ searched, no design requires the replica to be a pooled object |
+| D-2 | ⭐ **a PRESENTATION mask**, declared once: the 125 component types the presentation reads (X-2 §3), never the brains' memory | ✔ the top eight tables of a publish are brain memory (`BlueprintBlackboard4096` alone 3.6 of 13.8 ms, 21 of 107 MB — X-1) | §11 F-5's remedy "a narrow published view" — this is it, by mask, not by a new view type |
+| D-3 | **UI-only state stays in A, outside the mask** — selection, map display, canvas menu, the effects' entities | ✔ `SelectionStateComponent`, `MapDisplayComponent`, `CanvasContextMenuState`, `SortedHierarchyData` (X-2 writes) | §5 ① ② wanted a separate store; ⭐ outside the mask A IS that store, with no re-keying. ⚠ entities A creates (effects) need an id range the sync never overwrites — a cost (12.4) |
+| D-4 | **singletons by policy:** immutable services shared (TKB, templates, geo), per-tick values copied (`GlobalTime`, traces, `WorldEpoch`), maps rebuilt from A's own components (`NetworkEntityMap`) | ✔ 16 singleton types read, 10 not in `SyncFrom`'s list (X-2) | §11 F-1 / F-2 |
+| D-5 | **`NoPreview` records are in the mask** (shallow references) | ✔ all 11 managed types read are `record`s; CLAUDE.md: a managed component is immutable and replaced whole | `NoPreview` exists for the preview's RESTORE, not for reads (`ComponentType.cs:196-201`) |
+| D-6 | **the sync runs on the WORKER, under the lock, at the tick's end**; the drawing thread never copies | ✔ X-1: 13–17 ms per copy on the VM, ~6.5 ms on Windows (§11h) — a fifth of the tick, affordable there, never on the drawing thread | R-6 (never write what is read) — the lock gives it without a pool: ONE copy target, 107 → ~40 MB (12.4) instead of 2–3 × 107 |
+| D-7 | **the whole node frame, the orchestrator core, the clock and Run-to's evaluator run on the worker** (F-3) | ✔ the prototype ran `TickNodeFrame` (slave, kernel, afterKernel hooks, timeline, bus swap, orchestrator core, time transport) on a worker with 0 faults | §11 F-3's remedy, confirmed |
+| D-8 | **paused / Edit: the worker keeps ticking with the frame's dt** (the clock decides pause, exactly as today) | ✔ the prototype's worker took every frame's dt; the clock held the world still while paused | F-6 dissolves: the cadence never stopped, only the clock |
+| D-9 | **the UI writes simulated state ONLY as commands into S** (absolute, idempotent, one per user action, a delta not a whole value); UI-only state written into A directly | ✔ ~100 publishes on three buses, 20 `Edits.Submit` that write locally, ~15 direct writes (X-2) | R-7, F-4, F-10, F-18 |
+| D-10 | **reads of A happen only under the lock** — the drawing thread holds it for its world work, the worker for the sync | ✔ X4-1: `EffectLayer.Draw` queried A during a tick and crashed the process | R-6 |
+| D-11 | **undo captures S on the worker** (a command), edit steps open at command apply | ✔ `WorldUndoRecorder` captures the whole world on the main thread today | F-7 |
+| D-12 | **HTTP: GET routes read A on the main thread as today; writes become commands** | ✔ 84 GET routes on the main thread, 16 more already off it (X-2) | revises Q111-E: ⭐ most routes need NO relabel — A is the main thread's |
+| D-13 | **headless hosts: S only, no A** (no presentation ⇒ no sync) | R-3 kept | |
+
+### 12.3 Rejected — one line each
+
+| alternative | the fact that ruled it out |
+|---|---|
+| the presentation leases a pooled snapshot each frame (§3, R-4205 as written) | it is a different object every publish ⇒ 44 side tables and ~650 bindings must be re-keyed / re-bound (F-13, F-14) |
+| a full-world snapshot | 65 % of 107 MB dirty per tick, the top costs the brains' own memory (X-1) |
+| the presentation draws only from published gizmo primitives (a dumb terminal locally too) | ✔ X4-1: map layers query the world in `Draw`; the panels read it everywhere |
+| a lock around the kernel's whole tick with the UI between ticks | the UI would wait a whole tick — today's shape with extra steps |
+
+### 12.4 Cost and what is still open
+
+| item | size |
+|---|---|
+| composition: build the node on S and the presentation on A in the editor and the player (one place each) | the main build item; every `_world` handed to the node vs to the presentation must be chosen once |
+| the presentation mask + singleton policy + a rail that every type the presentation reads is in it | small; the X-2 list is the seed |
+| commands for the ~15 direct writes, the 20 `Edits.Submit`, the drag / rotate previews (a ghost in A) | S-3 of §9 as before — the WRITE half of the migration remains |
+| A's own entities (effects) vs the entity-index sync | ⚠ open: an id range, or effects in a store |
+| events and edit outcomes forwarded S → A per tick | ⚠ open: the per-reader queue of R-4 becomes "copy into A's bus at the sync" |
+| ⏭ measure the presentation mask's copy (X-1b) | expected well under the 13.8 ms full copy |

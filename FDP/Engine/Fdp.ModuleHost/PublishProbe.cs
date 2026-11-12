@@ -64,7 +64,7 @@ namespace Fdp.ModuleHost
                 $"{{\"frame\":{_frame},\"tick\":{live.SimulationTick},\"entities\":{a.Entities},\"singletons\":{filled},\"prodMs\":{prodMs:F3},\"prodAlloc\":{prodAlloc},\"bgWarm\":{Json(a)},\"bgCold\":{Json(b)},\"allWarm\":{Json(c)},\"allCold\":{Json(d)}}}"));
             if (rows != null)
             {
-                foreach (var r in rows.OrderByDescending(r => r.Ms).Take(40))
+                foreach (var r in rows.OrderByDescending(r => r.Ms))
                     w.WriteLine(string.Create(CultureInfo.InvariantCulture,
                         $"{{\"row\":\"{r.Type}\",\"managed\":{(r.Managed ? "true" : "false")},\"ms\":{r.Ms:F3},\"dirtyChunks\":{r.DirtyChunks},\"bytes\":{r.Bytes},\"entries\":{r.Entries}}}"));
                 if (_samples == 1) w.WriteLine("{\"singletonNames\":\"" + string.Join(",", names) + "\"}");
