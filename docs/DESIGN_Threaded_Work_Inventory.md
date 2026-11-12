@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-12
-current-answer: the whole file — the MEASURED inventory the overnight threaded + parallel build works from
+current-answer: ⭐ §7 THE CRITICAL REVIEW (decisions U-1…U-6, fixes F-1…F-16, plan P-1…P-7, unmeasured) · then §0–§6 — the MEASURED inventory the overnight threaded + parallel build works from
 stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_Threaded_Simulation_Presentation.md §12 D-12 (on exp/threaded-kernel; "GET routes read A on the main thread") — SUPERSEDED by the user's rule that the debug API sees EVERY component ⇒ routes are SIM-side by default (Q111-E); §14.6 "every frame" vs exp/threaded-poc-4 §14.2.0 "once per tick" — open decision D-1 below
@@ -135,3 +135,69 @@ Measured build costs (CLAUDE.md): full solution ~115 s warm `--no-restore` (3 mi
 ## 6. Still to come
 - **Per-entity parallelism:** the census (CE-4449, `exp/entity-census`, running) — each system READY / CONVERTIBLE / GLOBAL, the last-tick set, the prize model. ⇒ track C's task list.
 - **The board:** written once D-1…D-5 are answered and the census lands.
+
+## 7. ⛔ CRITICAL REVIEW `2026-11-12` — four independent adversarial reviews *(user: "isnt this a good time to take a critical look on the proposal from different perspectives … trying to find gaps and flaws?" · "you can of course read the docs first to know intentions behind implementations")*
+
+Perspectives: concurrency · behaviour semantics · hosts / time / cluster · cost and the plan. Each read the owning designs first (docs/ then .dev/);
+evidence is `file:line` or a design §, else marked INFERENCE. Duplicates merged; ⭐ = found by two or more reviews.
+
+### 7.1 Decisions for the USER (each with the coordinator's lean)
+
+| # | decision | ⭐ lean | why |
+|---|---|---|---|
+| U-1 | ⭐ ONE behaviour rule in both modes? R-4207 / R-4208 keep the brains SERIAL in Deterministic mode ⇒ regression, films, stepped runs and tests would validate a different behaviour than 1 000-man live play (the cover over-allocation, the callout chorus, deferred sensors exist only live) | ⭐ yes — the per-entity rule in BOTH modes (it is deterministic at any thread count); re-baseline the goldens once; mark the "serial brains" halves of R-4207 / R-4208 superseded | one implementation per concept; tests must exercise what runs live |
+| U-2 | `--mode all` runs the editor's kernel on the worker and CGF / SimHost on the main thread IN ONE PROCESS ⇒ shared statics, one pool, one HTTP queue collide (`Program.cs:705`, `SubsystemOrchestrator.cs:236-243`; F-21's remedy was never carried forward) | every kernel of the process on the ONE worker, in sequence; one sim job queue per kernel | the shared pool / mode / timer statics collide otherwise |
+| U-3 | the Player: R-4205 rules it threaded, the inventory lists it unchanged | ⭐ editor first; the Player out of THIS round (its possession input edges, `GizmoUndoStack`, Delete stay as they are), added after | smaller night, one host proven first |
+| U-4 | ⭐ the last-tick view: D-4 said "it is R"; three reviews show R is a FULL copy that BORROWS live singletons (`EntityRepository.Sync.cs:154-166` — incl. the spatial grid rebuilt in place) and misses ingress / UI jobs / deferred creations | ⭐ a SEPARATE masked copy taken SERIALLY FROM S AT THE START OF THE SIMULATION PHASE (so it holds this tick's ingress, ghosts, UI jobs, deferred creations); R stays for egress / recorder only | correct timing by construction; fixes the "remote positions one more tick late" finding too |
+| U-5 | ⭐ which reads go to last tick: systems run one after another (no dependency scheduler, J-3) ⇒ data written by an EARLIER system in the phase is already safe live | only types written by the SAME system (or a system running concurrently) go to last tick | removes needless latency on perception → squad → order chains; shrinks the copy |
+| U-6 | the Deterministic / Throughput switch is a process static set by an environment variable, not derived from the node's time mode | derive it per kernel from the time controller (or state that it IS the time mode) | a second owner of one concept |
+
+### 7.2 Design fixes the reviews require (no user decision — they make the rule TRUE)
+
+| # | fix | evidence |
+|---|---|---|
+| F-1 | ⭐ the POOL carries the tick context and the current entity into every batch (try/finally per entity) — today `AsyncLocal` does not reach `FdpWorkerPool` workers ⇒ the guard, the tracer and the census are blind in exactly the threaded + parallel configuration; an access with no current entity inside a parallel phase throws in Debug | census status; `STATUS_Threaded_POC_4` "For F-5" |
+| F-2 | `world.Bus.Publish` inside a parallel phase routes to the current batch's event list (61 direct publish sites in behaviour code; `NativeEventStream.Write` can lose an event across a resize, `:88-124`, `:273-296`) | concurrency B1 |
+| F-3 | an armed debug probe / data breakpoint / step breakpoint makes its system SERIAL (a hit rewinds the whole world from a pool worker, `DataBreakpointManager.cs:586-589`) | concurrency B2 |
+| F-4 | an unmanaged singleton holding native handles is a REFERENCE: the spatial grid's `NativeArray`s are shared with A by the copy and rebuilt in place each tick (`SpatialHashGrid.cs:23-44`, `SpatialHashSystem.cs:79,98,120`) — publish / double-buffer it; audit every singleton with native or pointer fields | concurrency B3 |
+| F-5 | writes to ANOTHER entity only as field-level or append commands (`SetComponentFieldRaw`), never a whole-struct set; `GetComponentRW` on a non-own entity throws in Debug; commands are OPERATIONS (add, or, set-if), never a value computed from last tick (`ScenarioVerbs.cs:136-139` counter) | concurrency M2, behaviour M-3 |
+| F-6 | "write own directly" = VALUE writes on components already present; an add / remove (upsert `SetComponent` → `AddComponent`, `_structuralChanges++`) is deferred | concurrency M3 |
+| F-7 | the managed table's lazy chunk allocation takes a lock (`ManagedComponentTable.cs:186-190`; the native table already does) | concurrency M4 |
+| F-8 | deferred child-sensor creation: the parent link written in the same buffer, `Ensure` idempotent while a creation is pending (no duplicate sensors), the child used from the next tick | concurrency M6, behaviour M-5 |
+| F-9 | cover recovery is not built: a `Since` field on `CoverClaim`, a re-check in `Claim()` that drops a lost tie (`PeekAndFireNodes.cs:353,1198`, `VehicleFightFromCoverNodes.cs:925`); fold into DESIGN_Peek_And_Fire §10.7 | behaviour M-1 |
+| F-10 | callout de-duplication applied at command playback in fixed order (AQ105 E: the same call within 10 m / 2 s is not repeated) | behaviour M-2 |
+| F-11 | squads: a per-JOB ownership set (squad → members), exclusive within the phase | concurrency M10 |
+| F-12 | ⭐ seek / restore / branch-to-live: on the existing epoch signal (`WorldEpoch`, `EgressSignals.AllDirty`) force a FULL S→A sync, a full R sync and a rebuilt last-tick copy before the next phase (playback sets the version clock back, `PlaybackSystem.cs:71`; copies skip EQUAL versions) | hosts B2 |
+| F-13 | hot reload COMMITS as a sim job between ticks (the registry merge, `HsmActionDispatcher` tables swapped whole); a widened read mask copies its new types at the swap | concurrency M8, hosts minor |
+| F-14 | never wait on the simulation while holding A's lock — waits poll the published view | concurrency M9 |
+| F-15 | the off-frame egress scan is cluster latency, not background: frame lane / Normal priority; a MACHINE-wide core budget when several node processes share one box | hosts M5 |
+| F-16 | ParallelGuard extended: today it only catches a writable ref in a READ-ONLY body, and production `HROT` has none; tests turn on the read check and the world guard (no test sets them) | concurrency M7, cost M8 |
+
+### 7.3 The plan — what would make the night produce nothing
+
+| # | finding | fix |
+|---|---|---|
+| P-1 | ⭐ NO COMMON BASE: `git merge-tree` of exp/threaded-poc-4 and exp/read-check already conflicts (`EntityRepository.cs`, `AccessTrace.cs`, the threaded design); `coordinator` has none of the parallel machinery | ONE integration branch (exp/perf + threaded-poc-4 + read-check + measure-2), conflicts resolved and built, BEFORE dispatch; every handoff stamped there |
+| P-2 | track B needs track A's sim job queue; F-1 must land before anything parallel is trusted | sequence: base → F-1 + the sim job queue → B and C fan out |
+| P-3 | ⭐ the speed-up model (2.5× at 8 cores) is perfect scaling; measured scaling flattened at 4 threads, today's everything-on (163–173 ms) is already above the model's 4-core 125 ms | label it an UPPER BOUND until the Windows scaling run (CE-4451) gives a measured 8-core point |
+| P-4 | ⭐ serial costs the model omits, on the editor's sim thread every tick: S→A sync 5 ms, lock wait (8–16 ms INFERENCE), R sync 4 ms, last-tick copy 2–3 ms, command playback ~2 ms, GC (2.36 MB / frame), memory bandwidth ⇒ ~15–30 ms | a per-tick LEDGER from `tickWatch` (K-1 is running) |
+| P-5 | "done" undefined; perf cannot be measured on a 4-core VM | night-done = FUNCTIONAL (guard at 0, rails green, threaded == single-threaded hash); perf on Windows the next day |
+| P-6 | the gates cannot see behaviour drift: `DeterminismRails` compares id maps, not values; no `/world/hash`; no 0 B rails for the new buffers; frame rails skip without `xvfb-run`; ClusterRunner.Integration.Tests cannot gate (pre-existing crash) | `/world/hash` + a threaded-vs-single N-step hash case; a VALUE-level golden for the squad / callout chain; 0 B rails per new buffer; fixtures set the guard switches; a `--mode all` gate row |
+| P-7 | rate limits (CLAUDE.md: three parallel agents hit the 5-hour limit twice) and large tasks | every item landable alone; a ranked list per session; R-106 stop-and-report |
+
+### 7.4 Unmeasured, still load-bearing
+
+| assumption | where it gets measured |
+|---|---|
+| the threaded 4.8 Hz tick is lock starvation | K-1 (running, exp/measure-2) |
+| per-entity work scales past 4 threads | CE-4451 (running, Windows) |
+| the per-read check's cost on the real rig | R-2 (running, exp/read-check) |
+| no hidden cross-entity writes beyond the census — 36 systems were silent; rules, embarkation, custody, fire-and-movement were NOT exercised; BrainTick's "read-after-create 162 681 / run" is unexplained | K-2 (running) + a census on a rules scenario and a fire-and-movement scenario |
+| MEMORY per node: S, A, R, the last-tick copy, SoD snapshots, the undo ring, recorder keyframes, pooled snapshots — vs the ≤ 4 GB budget (1 000 men already peak at 1.88 GB); × the nodes in `--mode all` | ⛔ not measured anywhere — a new item |
+| the "off-frame egress alone makes the CGF slower" anomaly (252 → 337 ms) | ⛔ unexplained — likely F-15's oversubscription; a new item |
+| how often units commit to cover / see a new contact on the SAME tick | ⛔ a contact-onset scenario count — a new item |
+
+### 7.5 Sound — the reviews found no flaw in
+the census method and its short conversion list · the one pool's two lanes (no deadlock; the caller drains unclaimed batches) · the read check is free with its flag off (±1 ns) · the UI-write inventory and the HTTP split · the UI frame gain (97 → 15.6 ms) · the D-3 and D-5 withdrawals · the no-dependency-scheduler verdict · cluster time with the sim on a worker (the slave clock is wall-clock derived, barriers snap) · Run-to's fix · no target deconfliction to race (grep only) · room clearing, embarkation and possession go through single serial arbiters · orders already travel one frame late on the bus.
+
+⚠ Doc rot found (concurrency m4): Parallel Simulation on `coordinator` cites "§16 J-3" and the one-pool section, which exist only on exp branches; its section order runs 14 → 11.1 → 18 → 19 → 18.2 — to be tidied when the branches merge.
