@@ -19,7 +19,7 @@ namespace Hrot.Traffic;
 public static class TrafficDrape
 {
     /// <summary>The finest cut (m) of a draped road triangle on ground that really curves: the ground is checked every half of it along a road, and a triangle whose ground is a plane is not cut at all.</summary>
-    public const float RoadStep = 4f;
+    public const float RoadStep = 8f;
 
     /// <summary>The ambient ground's finest cut (m): its cells are 40 m and its relief is hills of ≥ 170 m wavelength.</summary>
     public const float GroundStep = 20f;
@@ -27,7 +27,7 @@ public static class TrafficDrape
     private const int MaxDepth = 24;
 
     /// <summary>How far (m) the ground may leave the plane of a triangle's corners before the triangle is cut further.</summary>
-    public const float PlanarTolerance = 0.01f;
+    public const float PlanarTolerance = 0.03f;
 
     /// <summary>True when no lane of <paramref name="net"/> carries a z (<c>Lane.ShapeZ == null</c>): such a net is draped (R-4030).</summary>
     public static bool IsFlat(NetworkModel net)
@@ -43,12 +43,12 @@ public static class TrafficDrape
         var verts = new List<Vector3>(mesh.Vertices.Length + mesh.Vertices.Length / 2);
         verts.AddRange(mesh.Vertices);
         var inds = new List<int>(mesh.Indices.Length * 2);
-        var mids = new Dictionary<long, int>();
+        var mids = new Dictionary<(int, int), int>();   // ⚠ a (lo << 32 | hi) long key hashes to lo ^ hi — a lattice's edges collide by the thousand
         float step2 = step * step;
 
         int Mid(int a, int b)
         {
-            long key = a < b ? ((long)a << 32) | (uint)b : ((long)b << 32) | (uint)a;
+            var key = a < b ? (a, b) : (b, a);
             if (mids.TryGetValue(key, out var m)) return m;
             verts.Add((verts[a] + verts[b]) * 0.5f);
             return mids[key] = verts.Count - 1;
@@ -108,7 +108,7 @@ public static class TrafficDrape
             float twiceArea = MathF.Abs((B.X - A.X) * (C.Y - A.Y) - (B.Y - A.Y) * (C.X - A.X));
             float height = twiceArea / MathF.Sqrt(longest);
             if (IsPlanar(a, b, c, longest, height)) { inds.Add(a); inds.Add(b); inds.Add(c); return; }   // the ground under it is a plane: cutting it adds nothing
-            if (height <= slab) { Cut(a, b, c, depth); return; }
+            if (height <= slab && height * height * 9f < longest) { Cut(a, b, c, depth); return; }   // thin (the long edge is over 3x the height); a squat one is bisected, which always shortens its long edge
             // a fat triangle: bisect the longest edge (the two halves keep the winding; the edge's midpoint is one shared vertex)
             if (ab >= bc && ab >= ca) { int m = Mid(a, b); Split(a, m, c, depth + 1); Split(m, b, c, depth + 1); }
             else if (bc >= ca) { int m = Mid(b, c); Split(a, b, m, depth + 1); Split(a, m, c, depth + 1); }
