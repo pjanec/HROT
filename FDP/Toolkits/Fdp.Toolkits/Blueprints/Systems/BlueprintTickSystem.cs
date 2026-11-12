@@ -98,7 +98,12 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
     {
         foreach (var entity in query)
         {
-            byte* memory = spec.Memory(repo, entity);
+            // ⭐ E-4 (DESIGN_Parallel_Simulation §8.2, check-before-write; M-1 measured): resolved READ-ONLY — the storage is native, so the
+            //   address is the same — and stamped writable (chunk version) only right before a blueprint slot runs. 📐 M-1: the 4096 tier stamped
+            //   149 of 167 chunks dirty per frame at 1 000 men, 53 % holding the same bytes — most units here host only BTree / HSM
+            //   occurrences, which the walk below skips; the occurrence store already stamps on first write (OccurrenceStoreAccess.ViewBlockRW).
+            byte* memory = spec.MemoryReadOnly(repo, entity);
+            bool stamped = false;
 
             ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
             if (header.MagicAndVersion != BlueprintBlackboardHeader.MagicValue) continue;
@@ -124,6 +129,7 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                 //   miss means the definition is absent from this host's registry, which is a real
                 //   condition (an asset this node did not compile) rather than "not ours".
                 if (!_registry.TryGetById(slot.BlueprintId, out var def)) continue;
+                if (!stamped) { spec.Memory(repo, entity); stamped = true; }   // ⭐ E-4 — a blueprint slot runs: this chunk is written
 
                 if (slot.StructureHash != (uint)def!.StructureHash) // DEBT-014 truncation
                 {
