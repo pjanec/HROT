@@ -2798,6 +2798,7 @@ namespace Hrot.Editor
             //   the orchestration-bus swap — the order every other ECS host runs (the slave used to be ticked INSIDE the kernel as OrchestrationLogicPack, and the swap and timeline step
             //   were spelled out here). The editor's own per-frame work rides the two seams the frame offers. ⚠ The kernel's world-bus swap is its own (Kernel.Update).
             TickNodeFrame(deltaTime);   // ⭐ CE-4316 — the node frame, extracted so Run to …'s turbo loop runs the SAME one (EditorSubsystem.TurboStep)
+            Fdp.ModuleHost.PublishProbe.AfterFrame(_world);   // ⭐ EXPERIMENT (threaded kernel X-1) — opt-in HROT_PUBLISH_PROBE=1
             _editorLogic?.Update();
             _orchestratorCore?.ScenarioPanel.Update(deltaTime);
 

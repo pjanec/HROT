@@ -211,6 +211,10 @@ namespace Fdp.Core
             _data?.Dispose();
         }
 
+        /// <summary>⭐ EXPERIMENT (threaded kernel X-1) — the chunks a sync from <paramref name="source"/> would copy now, and this table's committed bytes.</summary>
+        internal (int DirtyChunks, long CommittedBytes) ProbeStats(IComponentTable source)
+            => (source is ComponentTable<T> s ? _data.CountDirtyChunks(s._data) : 0, _data.GetMemoryStats().CommittedBytes);
+
         public void SyncFrom(IComponentTable source)
         {
             if (source is ComponentTable<T> typedSource)
