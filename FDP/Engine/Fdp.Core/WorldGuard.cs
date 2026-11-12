@@ -54,7 +54,19 @@ namespace Fdp.Core
         internal static void Check(TraceKind kind, object key, int repo)
         {
             int sim = s_simRepo;
-            if (sim == 0 || !IsWrite(kind)) return;
+            if (sim == 0) return;
+            if (!IsWrite(kind))
+            {   // ⭐ POC 3 C-2 — the READ guard: a world read from the wrong side (a cached query built on one world walked from the other, a captured
+                //   world) is exactly the POC 2 failure the write guard could not see
+                if (kind is TraceKind.BusRead or TraceKind.BusSwap or TraceKind.QueryExclude) return;
+                bool tick = Environment.CurrentManagedThreadId == s_simThread || AccessTrace.CurrentContextIsTick;
+                string? rv = null;
+                if (repo == s_presRepo && tick) rv = "A READ by the sim side";
+                else if (repo == sim && !tick && AccessTrace.CurrentContextIsPresentation) rv = "S READ by the presentation";
+                if (rv == null) return;
+                Note(rv, kind, key);
+                return;
+            }
             // the sim thread, or a pool thread working FOR the tick (Parallel.For inside a system: the tracer's context flows into it — AccessTraceOffTests)
             bool onSim = Environment.CurrentManagedThreadId == s_simThread || AccessTrace.CurrentContextIsTick;
             string? violation = null;
@@ -67,6 +79,13 @@ namespace Fdp.Core
             else if (repo == s_presRepo && onSim) violation = "A written by the sim thread";
             else if (repo == s_presRepo && !onSim && IsOverwritten(kind, key)) violation = "A written by the UI inside the sync (lost at the next sync — a command)";
             if (violation == null) return;
+            Note(violation, kind, key);
+            if (Throw && violation.StartsWith("S written", StringComparison.Ordinal))
+                throw new InvalidOperationException("[WorldGuard] " + violation + " | " + kind + " | " + (key is Type tt ? tt.FullName : key));
+        }
+
+        private static void Note(string violation, TraceKind kind, object key)
+        {
             string type = key is Type t ? t.FullName ?? t.Name : key.ToString() ?? "?";
             string id = violation + " | " + kind + " | " + type + " | " + AccessTrace.ReaderName(AccessTrace.CurrentReaderId);
             lock (s_lock)
@@ -76,7 +95,6 @@ namespace Fdp.Core
             }
             long now = Environment.TickCount64;
             if (now - Interlocked.Read(ref s_dumpAt) > 5000) { Interlocked.Exchange(ref s_dumpAt, now); try { Dump(); } catch { } }
-            if (Throw && violation.StartsWith("S written", StringComparison.Ordinal)) throw new InvalidOperationException("[WorldGuard] " + id);
         }
 
         private static volatile int s_simBus, s_presBus;

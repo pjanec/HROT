@@ -2811,6 +2811,8 @@ namespace Hrot.Editor
             _twTableMask.SetBit(Fdp.Core.ComponentType<Hrot.Map.Common.Components.SelectionState>.ID);
             _twSelQuery = s.Query().With<Hrot.Map.Common.Components.SelectionState>().Build();
             Fdp.Core.WorldGuard.ArmSyncMask(_twTableMask, _twSingletonExcept);
+            // single-threaded: no sim THREAD — the guard decides by the tracer's context (the node frame's scope is Tick); the worker re-arms with its id
+            Fdp.Core.WorldGuard.Arm(s, a, -1);
             Console.WriteLine($"[POC3] COMPOSED: node over S (ctx.World), presentation over A; table mask " + (_twMaskAll ? "ALL types" : $"'{maskName}'")
                 + $"; single-threaded: {Fdp.ModuleHost.ThreadedKernelGate.ComposedSingleThread}");
         }
@@ -3014,11 +3016,18 @@ namespace Hrot.Editor
             //   world work only when the drawing thread holds the world (ThreadedKernelGate); otherwise it moves the camera and returns.
             bool threaded = Fdp.ModuleHost.ThreadedKernelGate.Enabled && _node != null && !_headless;
             if (threaded && Fdp.ModuleHost.ThreadedKernelGate.TwoWorlds) threaded = TwoWorldsStep();   // ⭐ POC 2 — only while a preview runs
+            if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds && (Fdp.ModuleHost.ThreadedKernelGate.ComposedSingleThread || _simWorld == null)) threaded = false;   // ⭐ POC 3 single-threaded
             if (threaded)
             {
+                if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds && !Fdp.ModuleHost.ThreadedKernelGate.Engaged)
+                {   // ⭐ POC 3 — the node frame moves to the worker for good: from now on the drawing thread takes the world lock each frame
+                    Fdp.ModuleHost.ThreadedKernelGate.MainAdoptLock();
+                    Fdp.ModuleHost.ThreadedKernelGate.Engaged = true;
+                }
                 EnsureKernelWorker();
                 lock (_workerDtLock) _workerPendingDt += deltaTime;
                 if (!Fdp.ModuleHost.ThreadedKernelGate.MainHasWorld) { _canvas?.Camera.Update(deltaTime); return; }
+                if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds) RunPresentationStep(deltaTime);   // ⭐ POC 3 — the UI's own systems, on A, holding the world
             }
             else
             _runTo?.Tick();   // ⭐ CE-4316 — Run to …: one ACK-gated step per frame until reached   (⚠ X-4 shortcut: not in threaded mode — its turbo step ticks the node frame here)
