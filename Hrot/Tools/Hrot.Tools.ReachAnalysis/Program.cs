@@ -363,11 +363,20 @@ internal static class Program
         {
             case IInvocationOperation inv:
                 node.Callees.Add(Key(inv.TargetMethod));
+                // ⭐ a mutating call on a collection HELD IN A FIELD (`_map.Add(…)`, `_list.Clear()`) mutates the object the field names: a write of that field
+                if (IsCollectionMutator(inv.TargetMethod) && FieldOf(inv.Instance) is ISymbol held) Field(node, held, true, held.IsStatic);
                 foreach (var ta in inv.TargetMethod.TypeArguments) if (ta is INamedTypeSymbol nt && InSource(nt)) Mention(node, nt);   // AddSystem<T>() / Register<T>()
                 break;
             case IObjectCreationOperation oc when oc.Constructor != null: node.Callees.Add(Key(oc.Constructor)); break;
             case IMethodReferenceOperation mr: node.Callees.Add(Key(mr.Method)); break;   // a delegate: it may run — over-approximated
             case ITypeOfOperation to when to.TypeOperand is INamedTypeSymbol tt && InSource(tt): Mention(node, tt); break;
+            case IArrayElementReferenceOperation ae when IsWrite(ae) && FieldOf(ae.ArrayReference) is ISymbol arr:
+                Field(node, arr, true, arr.IsStatic);   // `_slots[i] = …` writes the array the field holds
+                break;
+            case IPropertyReferenceOperation pr when pr.Property.IsIndexer && IsWrite(pr) && FieldOf(pr.Instance) is ISymbol coll:
+                Field(node, coll, true, coll.IsStatic);   // `_map[key] = …`
+                if (pr.Property.SetMethod != null) node.Callees.Add(Key(pr.Property.SetMethod));
+                break;
             case IPropertyReferenceOperation pr:
                 {
                     var p = pr.Property;
@@ -389,6 +398,33 @@ internal static class Program
                     break;
                 }
         }
+    }
+
+    private static readonly HashSet<string> Mutators = new(StringComparer.Ordinal)
+    {
+        "Add", "AddRange", "Remove", "RemoveAt", "RemoveAll", "RemoveRange", "RemoveWhere", "Clear", "Insert", "InsertRange", "Sort", "Reverse",
+        "TryAdd", "TryRemove", "TryUpdate", "GetOrAdd", "AddOrUpdate", "Enqueue", "Dequeue", "TryDequeue", "Push", "Pop", "TryPop", "TrimExcess",
+        "EnsureCapacity", "UnionWith", "ExceptWith", "IntersectWith", "SymmetricExceptWith", "Set", "SetAll", "CopyTo",
+    };
+
+    // a BCL collection's mutating member (System.Collections.*, arrays' Array.Clear / Fill are static and not tracked)
+    private static bool IsCollectionMutator(IMethodSymbol m)
+    {
+        if (!Mutators.Contains(m.Name) || m.IsStatic) return false;
+        var ns = m.ContainingType.ContainingNamespace?.ToDisplayString() ?? "";
+        return ns.StartsWith("System.Collections", StringComparison.Ordinal);
+    }
+
+    // the field (or auto-property) an expression reads directly — the receiver of a mutation
+    private static ISymbol? FieldOf(IOperation? o)
+    {
+        while (o is IConversionOperation c) o = c.Operand;
+        return o switch
+        {
+            IFieldReferenceOperation f when !f.Field.IsConst => f.Field,
+            IPropertyReferenceOperation p when IsAutoProperty(p.Property) => p.Property,
+            _ => null,
+        };
     }
 
     private static bool IsAutoProperty(IPropertySymbol p)
