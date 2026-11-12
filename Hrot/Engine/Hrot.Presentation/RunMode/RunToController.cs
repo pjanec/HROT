@@ -20,7 +20,7 @@ namespace Hrot.UI.Common.RunMode;
 /// <item>⭐ <b>NETWORKED</b> — no turbo: the ACK-gated step above, one per frame — default step <see cref="NetworkedStepSeconds"/> (the 10× quantum).</item>
 /// </list>
 /// </summary>
-public sealed class RunToController
+public sealed class RunToController : IRunTo
 {
     /// <summary>The step every frame takes (the ▶ cadence).</summary>
     public const float StepSeconds = 1f / 60f;

@@ -24,6 +24,10 @@ Started marker `1cd3c2dbc`.
 
 ## 2. GATES
 
+⭐ **End-to-end milestone (session 4, `run-session.sh`, Debug, mode 3, strict guard, 1 000-man demo-city rig):** load → select → focus → play →
+pause → step ×5 → 3-D view → pause → view off — **all OK, 0 job faults, 0 worker faults, no crash; 0 skipped publishes; publish ~4 ms, pull
+~4–5 ms**; guard 17 distinct hits (the D-17 / D-18 / SelectionStore fixes target them).
+
 | gate | command | result |
 |---|---|---|
 | N-1 + N-3 rails + TwoWorlds | `dotnet test FDP/Engine/Fdp.Core.Tests --no-build --filter "FullyQualifiedName~SimJobQueueTests\|FullyQualifiedName~StagingWorldsTests\|FullyQualifiedName~TwoWorldsTests"` | 14 / 0 / 0 |
@@ -49,6 +53,9 @@ Started marker `1cd3c2dbc`.
 | D-13 | the editor's UI commands (tool, select, centre, rename, property commit) in mode 3 | post a job publishing on S's bus · ⭐ publish on the UI world's bus | they are EVENTS: published on A's bus they ride UP with the staging today, and are read in place once the interaction block runs over A (R-4211) | `ThreadedEditorLogic` |
 | D-14 | the session readout | recompute per tick · ⭐ only on change | `ReadIfChanged` allocates only when a value the UI reads changed; the migration sidecars (a file read) only when the loaded scenario changed | hot path R-2084 | `ThreadedScenarioSession.ReadIfChanged` |
 | D-15 | finding who writes a NaN position | read 1 000 lines · ⭐ an instrument | `NonFiniteTransformCheck` (`HROT_NAN_CHECK=1`, off = folded away): after each system, the first system that leaves a non-finite `SimTransform` is named with the entity's components — found `CarKinematicsSystem` in one run | `FDP/Engine/Fdp.ModuleHost/Diagnostics/NonFiniteTransformCheck.cs` |
+| D-16 | the gizmo commit (drag / rotate / place) in mode 3 (U-3) | a per-gizmo command · ⭐ the shared write router | `EntityWriteRouter.For(world)` — the factory EVERY host passes — returns, for a threaded presentation world, a writer that runs S's own router on the sim thread and answers `Requested`; the preview stays a ghost on A (the interaction block re-applies it after each pull); a refused write leaves S untouched, so the next pull snaps it back BY CONSTRUCTION | `EntityWriteRouter.SimThreadWriter` |
+| D-17 | the UI-side gizmo managers drew `_breakpointManager.ActiveView` (the SIM world) — §4's predicted hazard, found by the guard | hand them the breakpoint manager · ⭐ a presentation view provider | `PresentationViewProvider(() => A)`: a data-breakpoint hold pauses the sim, whose held state the staging publishes like any tick | `IActiveViewProvider.cs` |
+| D-18 | UI-side routes (selection, view) used the service's world (S) | ⭐ the SHOWN world | the service's own doc says "on the shown world": `PresentationWorld` / `PresentationMap` for those routes | `DebugApiService` |
 | D-5 | `SimLink` needs a component id | — | `GlobalComponentIds.SimLink = 475` (free in every lane and in every test) | — | `GlobalComponentIds.cs` |
 
 ## 4. BUGS FIXED

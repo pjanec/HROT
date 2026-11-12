@@ -32,7 +32,7 @@ public sealed class MainToolbarTimeControlSection
     private bool _modeSeen;
     private DateTime? _returnedToLiveAt;
     private readonly Func<IReadOnlyList<string>>? _runSetupLines;
-    private readonly RunToController? _runTo;   // ⭐ W-4 (LC-10) — Run to …, on a host that has one (the editor)
+    private readonly IRunTo? _runTo;   // ⭐ W-4 (LC-10) — Run to …, on a host that has one (the editor)
 
     /// <summary>F15 — how long ■ ignores presses after a review returned to live.</summary>
     public static readonly TimeSpan StopGuard = TimeSpan.FromSeconds(3);
@@ -43,7 +43,7 @@ public sealed class MainToolbarTimeControlSection
     /// choice's moves (each with its confirmation, drawn as a modal), ▶ ■ keep calling the facade. ⛔ A host that HAS one must pass it.</param>
     /// <param name="runTo">⭐ W-4 (LC-10) — the host's <see cref="RunToController"/>: the mode menu offers <i>Run to …</i> in Edit and Preview. ⛔ A host that HAS one must pass it.</param>
     public MainToolbarTimeControlSection(ITimeTransportFacade facade, Func<DateTime>? now = null, RunModeChoice? choice = null, Func<IReadOnlyList<string>>? runSetupLines = null,
-        RunToController? runTo = null)
+        IRunTo? runTo = null)
     {
         _runTo = runTo;
         _runSetupLines = runSetupLines;

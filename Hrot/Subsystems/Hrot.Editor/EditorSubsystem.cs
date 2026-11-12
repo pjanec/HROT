@@ -502,7 +502,9 @@ namespace Hrot.Editor
         private Hrot.UI.Common.RunMode.RunToController? _runTo;
         /// <summary>⭐ CE-4316 — Run to …, for the debug API and the mode menu.</summary>
         internal Hrot.UI.Common.RunMode.RunToController? RunTo => _runTo;
-        Hrot.UI.Common.RunMode.RunToController? Hrot.UI.Common.RunMode.IProvidesRunControls.RunTo => _runTo;   // ⭐ W-4 — the toolbar's Run to … (the silent-default rule: a host that HAS one hands it)
+        Hrot.UI.Common.RunMode.IRunTo? Hrot.UI.Common.RunMode.IProvidesRunControls.RunTo => Staged ? _uiRunTo : _runTo;   // ⭐ N-5 — mode 3: the UI's view (requests as jobs, state from the readout)
+        private Hrot.UI.Common.RunMode.ThreadedRunTo? _uiRunTo;
+        private Hrot.UI.Common.RunMode.ThreadedRunTo.Readout? _publishedRunTo;   // ⭐ W-4 — the toolbar's Run to … (the silent-default rule: a host that HAS one hands it)
         private MapViewConfig?                  _mapViewConfig;
 
         // ?? UI panels (legacy, always created) ????????????????????????????????
@@ -1695,6 +1697,7 @@ namespace Hrot.Editor
                 turbo:       _networkFactory is OfflineNetworkFactory ? TurboStep : null,
                 // ⭐ W-4 — Run to … from Edit: the run choice's dry run, paused at its first frame, then the run (one door into Preview)
                 enterPreview: () => _simTimeTransport?.RunChoice?.EnterPreviewPaused() ?? false);
+            if (Staged) _uiRunTo = new Hrot.UI.Common.RunMode.ThreadedRunTo(_runTo, PostToSim, () => _world);   // ⭐ N-5
             // ⭐ CE-1439 (AQ108 §2.12) — the cluster-control panel (the monitor window) asks through THIS host's transport, run choice and session: a caller that HAS them passes them,
             //   so the panel builds none of its own and its Pause / Load / Open AAR / Checkpoint are the toolbar's and the File menu's, not a second surface.
             if (UiScenarioPanel is { } uiPanel && _timeTransport.RunChoice is { } panelChoice
@@ -1890,6 +1893,7 @@ namespace Hrot.Editor
                     //   already uses — the kernel is replaced across a hot reload, so a captured service
                     //   would answer for a dead one.
                     debugService.RunToControl = _runTo;   // ⭐ CE-4316 — a held dependency is passed (the silent-default rule)
+                    if (Staged) { debugService.PresentationWorld = _world; debugService.PresentationMap = _twPresMap; }   // ⭐ N-8 / R-4211 — the UI-side routes act on the shown world
                     debugService.AttachArchitectureDiagnostics(
                         () => _kernel is null
                               ? null
@@ -2613,7 +2617,8 @@ namespace Hrot.Editor
                     IsSelectedPredicate = static (view, entity) =>
                         view.HasComponent<SelectionState>(entity) &&
                         view.GetComponentRO<SelectionState>(entity).IsSelected,
-                    BreakpointManager = _bpManager,
+                    // ⭐ R-4211 (§4 hazard) — mode 3: the gizmo managers run on the UI thread and draw the UI's world; the breakpoint manager is the sim's
+                    BreakpointManager = Staged ? new Fdp.Toolkit.Diagnostics.Gizmos.PresentationViewProvider(() => _world!) : _bpManager,
                     // ⭐⭐⭐ CE-1017 — the map's ENTITY-AUTHORING surface comes from the PACK, the same for Editor, CGF,
                     //   SimHost and IG: the shared spawn adapter (it also backs the Spawn tool — UXI-07's "the Spawn
                     //   tool's behaviour goes to the pack"), the Add Entity picker and submenu, the canvas menu. The
@@ -2760,8 +2765,7 @@ namespace Hrot.Editor
             if (Staged)
             {   // ⭐⭐ R-4211 / §4 ④ — mode 3: the interaction bus and its systems belong to the UI thread (RunInteractionBlock, over A, with A's
                 //   entity map); the tick keeps only the world writers (D-2), on a bus of their own that nothing else touches
-                _uiInteractionBus = interactionBus;
-                _uiContextIngress = new ContextActionIngressSystem(_twPresMap!, interactionBus);
+                _uiInteractionBus = interactionBus;   // its context ingress is built at the first block, over A's entity map (made after the bootstrap)
                 _kernel.RegisterModule(new GizmoInteractionModule(new FdpEventBus(), contextIngress: null,
                     interactionSystems: NodeSideInteractionSystems(), gizmoIngress: null, gizmoEgress: null));
             }
@@ -2877,6 +2881,7 @@ namespace Hrot.Editor
             if (_gizmoBuffer != null) Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(_gizmoBuffer, GizmoFeedAddress);
             _gizmoBuffer?.EndFrame(dt);
             _uiInteractionBus?.SwapBuffers();
+            if (_uiContextIngress == null && _uiInteractionBus != null && _twPresMap != null) _uiContextIngress = new ContextActionIngressSystem(_twPresMap, _uiInteractionBus);
             Run(_uiContextIngress, a, dt);
             for (int i = 0; i < _uiInteractionSystems.Count; i++) Run(_uiInteractionSystems[i], a, dt);
             if (_uiInteractionDeps != null) _uiScenarioEditorSystems ??= ScenarioEditorModule.BuildInteractionSystems(_uiInteractionDeps);
@@ -2942,6 +2947,7 @@ namespace Hrot.Editor
             _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Hrot.Common.Editing.StationMode>.ID);
             // ⭐ POC 4 F-2 ② — the per-unit debug switches: A owns its store (the Brain tab, the menus write it on the main thread); it rides to S at the sync
             _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings>.ID);
+            _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Hrot.Map.Common.Components.SelectionStore>.ID);   // ⭐ R-4211 §4 ⑧ — the selection is A's own
             _twPresMap = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
             _twPresMap.RebuildFromWorld(a);
             a.SetSingletonManaged(_twPresMap);
@@ -3115,6 +3121,11 @@ namespace Hrot.Editor
             {   // ⭐ D-9 — what the UI reads of the session, published with this tick (applied on the UI thread, in order)
                 _publishedReadout = readout;
                 _staging.Post(_ => uiSession.Apply(readout));
+            }
+            if (_uiRunTo is { } uiRunTo && _runTo != null && Hrot.UI.Common.RunMode.ThreadedRunTo.ReadIfChanged(_publishedRunTo, _runTo) is { } runToReadout)
+            {   // ⭐ N-5 — the run's visible state, published with this tick
+                _publishedRunTo = runToReadout;
+                _staging.Post(_ => uiRunTo.Apply(runToReadout));
             }
             _staging.Publish(s, ++_stagedTick);
         }

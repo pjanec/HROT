@@ -93,11 +93,11 @@ namespace Hrot.Editor.DebugApi
         {
             if (body?["entity"] is not JsonNode node) return (null, "entity is required: {\"entity\": 1042} (a network id).");
             int id = Int(node);
-            if (!_entityMap.TryGetEntity(id, out var entity) || !_world.IsAlive(entity))
+            if (!ShownMap.TryGetEntity(id, out var entity) || !ShownWorld.IsAlive(entity))
                 return (null, $"Entity {id} not found in this world.");
-            if (!_world.Bus.IsRegistered<Hrot.Common.Events.SelectEntityCommand>())
+            if (!ShownWorld.Bus.IsRegistered<Hrot.Common.Events.SelectEntityCommand>())
                 return (null, "This world runs no selection (SelectEntityCommand is not registered here).");
-            _world.Bus.Publish(new Hrot.Common.Events.SelectEntityCommand { NetworkId = id });
+            ShownWorld.Bus.Publish(new Hrot.Common.Events.SelectEntityCommand { NetworkId = id });
             return (new JsonObject { ["requested"] = id, ["note"] = "Applied on the next frame by the host's SelectionRequestSystem: GET /selection." }, null);
         }
     }

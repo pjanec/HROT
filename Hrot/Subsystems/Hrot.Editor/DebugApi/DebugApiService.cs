@@ -1106,6 +1106,13 @@ namespace Hrot.Editor.DebugApi
         /// <summary>⭐ CE-4316 — the host's Run to … (the editor passes its own; null on a host without one).</summary>
         internal Hrot.UI.Common.RunMode.RunToController? RunToControl { get; set; }
 
+        /// <summary>⭐ N-8 / R-4211 — the world the UI SHOWS (and its entity map), for the UI-side routes (the selection, the view): a threaded node's
+        /// presentation world, whose selection the UI's systems own. Null ⇒ the service's world (every single-world host).</summary>
+        internal EntityRepository? PresentationWorld { get; set; }
+        internal Fdp.Toolkit.Replication.Services.NetworkEntityMap? PresentationMap { get; set; }
+        private EntityRepository ShownWorld => PresentationWorld ?? _world;
+        private Fdp.Toolkit.Replication.Services.NetworkEntityMap ShownMap => PresentationMap ?? _entityMap;
+
         /// <summary>
         /// ⭐⭐ CE-4316 — <c>POST /sim/run-to {seconds?, condition?, cancel?}</c> (main thread): starts the ACK-gated stepped run to sim time
         /// <paramref name="seconds"/> and / or until <paramref name="conditionJson"/> holds (the condition language's JSON, e.g. a phase begins —
