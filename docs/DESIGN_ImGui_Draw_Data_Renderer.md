@@ -21,7 +21,7 @@ related-designs:
 
 **INVENTORY** *(prior art, `2026-11-12`)* — `scripts/cbm.sh search_graph '{"name_pattern":".*(ImGuiRenderer|RaylibPresentationShell|FdpApplication|UiFrameSession|PlayerApplication|StrideInspectorWindow).*","label":"Class"}'` → 11 (the hosts and their tests; no class
 renders draw data itself — `IImGuiRenderer` in `ImGui/Renderers/` is the per-type *widget* renderer registry, unrelated). grep `rlImGui\.(Begin|End|Setup)`: the editor shell (`RaylibPresentationShell`, `Program`), `PlayerApplication`, `FdpApplication`, `StrideInspectorWindow`, `UiFrameSession`,
-`ReplayBrowserSubsystemTests` — all routed through `ImGuiRenderer`; left on rlImGui (not HROT hosts): `GizmoMap.Presentation/GizmoViewerFrontend`, `FDP/Examples/*`, `FDP/ExtDeps/*/demos`, `tools/ui-probe`. `check_index_coverage` is not available through the CLI — coverage not checked.
+`ReplayBrowserSubsystemTests` — all routed through `ImGuiRenderer`; ⭐ `2026-11-12` (user): also `GizmoMap.Presentation/GizmoViewerFrontend` and the three `tools/ui-probe` probes — and so the renderer moved from `Fdp.Presentation/Raylib/` to **`FDP/ExtDeps/GizmoMap/GizmoMap.Presentation/ImGuiBackend/ImGuiRenderer.cs`** (the lowest raylib+ImGui assembly; `Fdp.Presentation` references it, so the viewer could not reach a copy above it without a cycle), namespace kept `Fdp.Presentation.Raylib` so no caller changed. Left on rlImGui (standalone samples): `FDP/Examples/*`, `FDP/ExtDeps/*/demos`. `check_index_coverage` is not available through the CLI — coverage not checked.
 
 ## 2. The render path — one place, every host
 

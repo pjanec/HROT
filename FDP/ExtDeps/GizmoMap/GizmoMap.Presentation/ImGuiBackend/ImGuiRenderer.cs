@@ -5,6 +5,8 @@ using ImGuiNET;
 using Raylib_cs;
 using rlImGui_cs;
 
+// ⭐ CE-1495 — lives in GizmoMap.Presentation, the lowest raylib+ImGui assembly every host references (Fdp.Presentation references it, so
+// the GizmoMap viewer could not reach a copy in Fdp.Presentation without a cycle). The namespace stays Fdp.Presentation.Raylib so no caller changes.
 namespace Fdp.Presentation.Raylib;
 
 /// <summary>

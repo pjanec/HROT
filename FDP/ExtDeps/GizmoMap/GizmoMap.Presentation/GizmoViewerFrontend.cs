@@ -35,7 +35,7 @@ namespace GizmoMap.Presentation
             var renderer = new DebugPrimitiveRenderer2D(imGuiAdapter: propertyAdapter);
             var layer = new DebugGizmoLayer(renderer); // buffer data passed per-call
 
-            rlImGui.Setup(true);
+            Fdp.Presentation.Raylib.ImGuiRenderer.Setup(true);   // ⭐ CE-1495 — the shared renderer (VtxOffset)
 
             while (!Raylib.WindowShouldClose())
             {
@@ -72,7 +72,7 @@ namespace GizmoMap.Presentation
                     (networkId, gizmoTypeId) =>
                         onInteraction(new GizmoPickToken { AnchorId = networkId, GizmoTypeId = gizmoTypeId },
                             GizmoInteractionEventKind.InspectorClosed, Vector3.Zero, 0, 0, null));
-                rlImGui.End();
+                Fdp.Presentation.Raylib.ImGuiRenderer.End();
 
                 Raylib.EndDrawing();
             }

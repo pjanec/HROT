@@ -7,7 +7,7 @@ class P {
       System.Console.WriteLine($"ImGuiIOPtr.{m}: {(io.GetMethods().Any(x=>x.Name==m) ? "YES" : "NO")}");
 
     Raylib.SetTraceLogLevel(TraceLogLevel.Warning);
-    Raylib.InitWindow(600, 300, "click"); rlImGui.Setup(true);
+    Raylib.InitWindow(600, 300, "click"); Fdp.Presentation.Raylib.ImGuiRenderer.Setup(true);
 
     int clicks = 0; string typed = ""; Vector2 btnCentre = default;
     for (int f = 0; f < 14; f++) {
@@ -29,7 +29,7 @@ class P {
       ImGui.InputText("##t", ref typed, 16);
       ImGui.Text($"clicks={clicks} typed='{typed}'");
       ImGui.End();
-      rlImGui.End(); Raylib.EndDrawing();
+      Fdp.Presentation.Raylib.ImGuiRenderer.End(); Raylib.EndDrawing();
     }
     Raylib.TakeScreenshot("click.png");
     System.Console.WriteLine($"RESULT clicks={clicks} typed='{typed}' buttonRectCentre={btnCentre}");
