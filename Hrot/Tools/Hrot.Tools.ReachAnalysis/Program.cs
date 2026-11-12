@@ -90,7 +90,7 @@ internal static class Program
             if (!rootSets.TryGetValue(r.Side, out var set)) rootSets[r.Side] = set = new HashSet<string>();
             set.UnionWith(found);
         }
-        var reach = rootSets.ToDictionary(kv => kv.Key, kv => Reach(kv.Value));
+        var reach = rootSets.ToDictionary(kv => kv.Key, kv => Reach(kv.Key, kv.Value));
         foreach (var kv in reach) Console.WriteLine($"[reach] side {kv.Key}: {rootSets[kv.Key].Count} roots → {kv.Value.Count} reachable methods");
 
         // per side: field → (read witnesses, write witnesses), construction writes excluded
@@ -112,6 +112,7 @@ internal static class Program
                     ["field"] = fi.Display, ["static"] = fi.IsStatic, ["namespace"] = fi.Namespace, ["declared"] = fi.Location, ["world"] = world,
                     ["direction"] = simW && uiW ? "both write" : simW ? "sim writes, ui reads" : "ui writes, sim reads",
                     ["simWriters"] = Witness(s?.Writes), ["simReaders"] = Witness(s?.Reads), ["uiWriters"] = Witness(u?.Writes), ["uiReaders"] = Witness(u?.Reads),
+                    ["simPath"] = WitnessPath("sim", simW ? s!.Writes : s?.Reads), ["uiPath"] = WitnessPath("ui", uiR ? u!.Reads : u?.Writes),
                 });
             }
         }
@@ -131,7 +132,8 @@ internal static class Program
         return 0;
     }
 
-    private static List<string> Witness(List<string>? w) => w == null ? new List<string>() : w.Take(3).ToList();
+    private static List<string> Witness(List<string>? w) => w == null ? new List<string>() : w.Take(3).Select(x => x.Split('\u0001')[0]).ToList();
+    private static string WitnessPath(string side, List<string>? w) => w == null || w.Count == 0 ? "" : PathTo(side, w[0].Split('\u0001')[1]);
 
     private sealed class Acc { public readonly List<string> Reads = new(); public readonly List<string> Writes = new(); }
 
@@ -141,7 +143,7 @@ internal static class Program
         foreach (var m in reachable)
         {
             if (!Methods.TryGetValue(m, out var n)) continue;
-            string who = $"{n.Display} ({n.Location})";
+            string who = $"{n.Display} ({n.Location})\u0001{m}";
             foreach (var f in n.Reads) { if (!d.TryGetValue(f, out var a)) d[f] = a = new Acc(); if (a.Reads.Count < 3) a.Reads.Add(who); }
             if (n.IsConstructor) continue;   // construction is not shared mutation
             foreach (var f in n.Writes) { if (!d.TryGetValue(f, out var a)) d[f] = a = new Acc(); if (a.Writes.Count < 3) a.Writes.Add(who); }
@@ -149,20 +151,41 @@ internal static class Program
         return d;
     }
 
-    private static HashSet<string> Reach(HashSet<string> roots)
+    private static readonly Dictionary<string, Dictionary<string, string?>> Parents = new();   // side → method → the method it was reached from (null = a root)
+
+    private static HashSet<string> Reach(string side, HashSet<string> roots)
     {
-        var seen = new HashSet<string>(roots);
+        var parent = new Dictionary<string, string?>();
+        foreach (var r in roots) parent[r] = null;
         var q = new Queue<string>(roots);
         while (q.Count > 0)
         {
             var m = q.Dequeue();
             if (Methods.TryGetValue(m, out var n))
-                foreach (var c in n.Callees) Visit(c);
+                foreach (var c in n.Callees) Visit(c, m);
             if (Dispatch.TryGetValue(m, out var impls))
-                foreach (var c in impls) Visit(c);
+                foreach (var c in impls) Visit(c, m + " ⇢dispatch");
         }
-        return seen;
-        void Visit(string c) { if (seen.Add(c)) q.Enqueue(c); }
+        Parents[side] = parent;
+        return new HashSet<string>(parent.Keys);
+        void Visit(string c, string from) { if (!parent.ContainsKey(c)) { parent[c] = from; q.Enqueue(c); } }
+    }
+
+    // the call path from a root to a method — what makes a crossing explainable (⇢dispatch marks an over-approximated interface / virtual step)
+    private static string PathTo(string side, string method)
+    {
+        var parent = Parents[side];
+        var parts = new List<string>();
+        string? cur = method;
+        for (int i = 0; cur != null && i < 12; i++)
+        {
+            bool viaDispatch = cur.EndsWith(" ⇢dispatch", StringComparison.Ordinal);
+            string k = viaDispatch ? cur[..^" ⇢dispatch".Length] : cur;
+            parts.Add((Methods.TryGetValue(k, out var n) ? n.Display : k) + (viaDispatch ? " ⇢" : ""));
+            cur = parent.TryGetValue(k, out var p) ? p : null;
+        }
+        parts.Reverse();
+        return string.Join(" → ", parts);
     }
 
     private static IEnumerable<string> RootMethods(RootSpec r)
@@ -278,7 +301,7 @@ internal static class Program
             case IPropertyReferenceOperation pr:
                 {
                     var p = pr.Property;
-                    bool write = IsWrite(pr);
+                    bool write = IsWrite(pr) && !InInitializer(pr) && !(p.SetMethod?.IsInitOnly ?? false);
                     if (IsAutoProperty(p)) Field(node, p, write, p.IsStatic);
                     else
                     {
@@ -291,7 +314,7 @@ internal static class Program
                 {
                     var f = fr.Field;
                     if (f.IsConst) break;
-                    Field(node, f, IsWrite(fr), f.IsStatic);
+                    Field(node, f, IsWrite(fr) && !InInitializer(fr), f.IsStatic);
                     if (IsReadWrite(fr)) Field(node, f, false, f.IsStatic);
                     break;
                 }
@@ -305,6 +328,8 @@ internal static class Program
     private static void Field(MethodNode node, ISymbol member, bool write, bool isStatic)
     {
         if (!InSource(member)) return;
+        // a struct's INSTANCE field is not shared state by itself: the copy lives in a local, an array element or a field — the container is what is shared
+        if (!isStatic && member.ContainingType.IsValueType) return;
         string key = Key(member);
         Fields.GetOrAdd(key, _ => new FieldInfo
         {
@@ -329,6 +354,17 @@ internal static class Program
         };
     }
 
+    // a write inside `new T { X = … }` / `with { … }` sets a fresh object: construction, not shared mutation
+    private static bool InInitializer(IOperation o)
+    {
+        for (var p = o.Parent; p != null; p = p.Parent)
+        {
+            if (p is IObjectOrCollectionInitializerOperation or IWithOperation) return true;
+            if (p is IBlockOperation or IMethodBodyOperation) return false;
+        }
+        return false;
+    }
+
     private static bool IsReadWrite(IOperation o)
         => o.Parent is ICompoundAssignmentOperation or ICoalesceAssignmentOperation or IIncrementOrDecrementOperation
            || (o.Parent is IArgumentOperation arg && arg.Parameter?.RefKind == RefKind.Ref);
@@ -336,14 +372,14 @@ internal static class Program
     private static void WriteMarkdown(string path, List<Dictionary<string, object>> rows)
     {
         using var w = new StreamWriter(path);
-        w.WriteLine("| field | static | direction | declared | a sim writer / reader | a UI reader / writer |");
-        w.WriteLine("|---|---|---|---|---|---|");
+        w.WriteLine("| field | static | direction | declared | a sim writer / reader | a UI reader / writer | sim path (⇢ = dispatch) | UI path |");
+        w.WriteLine("|---|---|---|---|---|---|---|---|");
         foreach (var r in rows.Where(r => !(bool)r["world"]))
         {
             string first(string k) => ((List<string>)r[k]).FirstOrDefault() ?? "";
             string sim = first("simWriters"); if (sim == "") sim = first("simReaders");
             string ui = first("uiReaders"); if (ui == "") ui = first("uiWriters");
-            w.WriteLine($"| `{r["field"]}` | {((bool)r["static"] ? "static" : "")} | {r["direction"]} | `{r["declared"]}` | {sim.Replace("|", "\\|")} | {ui.Replace("|", "\\|")} |");
+            w.WriteLine($"| `{r["field"]}` | {((bool)r["static"] ? "static" : "")} | {r["direction"]} | `{r["declared"]}` | {sim.Replace("|", "\\|")} | {ui.Replace("|", "\\|")} | {((string)r["simPath"]).Replace("|", "\\|")} | {((string)r["uiPath"]).Replace("|", "\\|")} |");
         }
     }
 }
