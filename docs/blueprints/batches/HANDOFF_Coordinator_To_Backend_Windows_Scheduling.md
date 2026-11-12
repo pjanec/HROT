@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: every HROT process opts out of Windows power throttling (and the other scheduling settings)
 
-**For:** the next free backend session. **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen.
+**For:** the next free backend session. **From:** coordinator. **Dispatched at `1507ba304`**, scope frozen.
 🔒 User, `2026-11-12`: *"i do not want headless mode running in console to be any slower"* · *"add both"* · *"Yes"* (do it now, on its own branch).
 ⭐ Measured (CE-4453, Windows): Windows puts a node with no visible window into EcoQoS by default — clock ~2.6 GHz vs ~3.8–4.1 GHz; hidden CGF
 **228 → 121 ms**, SimHost **101 → 44 ms** with the `powercfg` opt-out; minimised = hidden; a visible console is not throttled. ⇒ a ~1.9× win for
