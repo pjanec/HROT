@@ -9,7 +9,7 @@ related-designs:
 
 # HANDOFF — coordinator → the Windows session: is Windows throttling our hidden / background / console nodes?
 
-**For:** the ui session on the user's Windows machine. **From:** coordinator. **Dispatched at `<stamp>`**. ⭐ Run it AFTER
+**For:** the ui session on the user's Windows machine. **From:** coordinator. **Dispatched at `c3e9c903a`**. ⭐ Run it AFTER
 `HANDOFF_Coordinator_To_Ui_Windows_Scaling_Measure.md`, in the same session, never at the same time.
 🔒 User, `2026-11-12`: *"what about windows frontend / backend throttling … i do not want headless mode running in console to be any slower"* ·
 *"add both"*. ⛔ **Autonomous** (R-4156). ⛔ **Measure only — change no code.** ⛔ Windows other than the console runs below must stay hidden or
