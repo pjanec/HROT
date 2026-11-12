@@ -544,7 +544,11 @@ namespace Fdp.ModuleHost
         {
             long whole = KernelFrameTimings.Start();   // ⭐ CE-4433
             try { UpdateInternalCore(deltaTime, globalTime); }
-            finally { KernelFrameTimings.Stop("(kernel Update, whole)", whole); }
+            finally
+            {
+                KernelFrameTimings.Stop("(kernel Update, whole)", whole);
+                if (Fdp.Core.ManagedMutationCheck.On) Fdp.Core.ManagedMutationCheck.EndFrame();   // ⭐ CE-4445 M-2 — the frame's managed reads vs their baseline
+            }
         }
 
         private void UpdateInternalCore(float deltaTime, GlobalTime globalTime)

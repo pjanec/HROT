@@ -58,6 +58,9 @@ internal sealed class ReferenceInvoker<T> : IRoutingEntryInvoker where T : class
         if (!context.CanWriteManaged<T>()) { reader.Skip(); return; }
         T component = context.GetManagedComponent<T>();
         _setter(component, indices, ref reader);
+        // ⭐ CE-4445 — a managed READ no longer stamps the chunk (R-4210), so the in-place mutation above would go unrecorded: re-set the same
+        // instance so the version moves (no allocation). New paths use ReplaceInvoker (R1: a new instance, never mutated).
+        context.SetManagedComponent(component);
     }
 }
 

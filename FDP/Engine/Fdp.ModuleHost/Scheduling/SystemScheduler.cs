@@ -274,7 +274,11 @@ namespace Fdp.ModuleHost.Scheduling
                 if (system is ISystemGroup group)
                     ExecuteGroup(group, view, deltaTime, advancing, moduleGoverns);
                 else
+                {
+                    if (Fdp.Core.ManagedMutationCheck.On) Fdp.Core.ManagedMutationCheck.CurrentReader = system.GetType().Name;   // ⭐ CE-4445 M-2
                     system.Execute(view, deltaTime);
+                    if (Fdp.Core.ManagedMutationCheck.On) Fdp.Core.ManagedMutationCheck.CurrentReader = null;
+                }
             }
             finally
             {

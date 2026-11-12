@@ -304,9 +304,18 @@ namespace Fdp.Core.Internal
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static ref readonly T GetRO(EntityRepository repo, Entity e) 
             {
+                 if (ManagedMutationCheck.On) return ref CheckedGetRO(repo, e);   // ⭐ CE-4445 M-2 — the detector (a separate method: this one stays small)
                  if (ThreadedReads.PureReads) return ref _getRefRO(repo, e);   // POC 2 / P-1 - a read is a read: no stamp, no allocation
                  // Return RW as RO
                  return ref _getRW(repo, e);
+            }
+
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            private static ref readonly T CheckedGetRO(EntityRepository repo, Entity e)
+            {
+                 ref readonly T v = ref (ThreadedReads.PureReads ? ref _getRefRO(repo, e) : ref _getRW(repo, e));
+                 repo.NoteManagedRead<T>(e, v);
+                 return ref v;
             }
 
             /// <summary>POC 2 / P-1 - the pure read, callable regardless of the switch (rails).</summary>

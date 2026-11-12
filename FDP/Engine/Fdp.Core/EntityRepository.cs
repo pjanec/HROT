@@ -1088,14 +1088,19 @@ namespace Fdp.Core
         /// </summary>
         public bool TryGetComponent<T>(Entity entity, out T component)
         {
-            if (ThreadedReads.PureReads) return TryGetComponentPure<T>(entity, out component);
-            if (HasComponent<T>(entity))
-            {
-                component = GetComponentRW<T>(entity);
-                return true;
-            }
-            component = default!;
-            return false;
+            bool found;
+            if (ThreadedReads.PureReads) found = TryGetComponentPure<T>(entity, out component);
+            else if (HasComponent<T>(entity)) { component = GetComponentRW<T>(entity); found = true; }
+            else { component = default!; found = false; }
+            if (ManagedMutationCheck.On && found && !ComponentTypeHelper.IsUnmanaged<T>()) NoteManagedRead(entity, component);   // ⭐ CE-4445 M-2
+            return found;
+        }
+
+        /// <summary>⭐ CE-4445 M-2 — a managed READ handed out <paramref name="obj"/>: the detector fingerprints it (only while it is on).</summary>
+        internal void NoteManagedRead<T>(Entity entity, T obj)
+        {
+            if (obj is null || !ManagedMutationCheck.On) return;
+            if (_componentTables.TryGetValue(typeof(T), out var table)) ManagedMutationCheck.OnRead(table, entity.Index, obj);
         }
 
         /// <summary>POC 2 / P-1 - <see cref="TryGetComponent{T}"/> through the read-only path: a copy, no chunk version stamped.</summary>
@@ -1529,7 +1534,9 @@ namespace Fdp.Core
         internal T GetManagedComponentRO<T>(Entity entity) where T : class
         {
             var table = GetManagedTable<T>(false);
-            return table.GetRO(entity.Index)!;
+            var v = table.GetRO(entity.Index)!;
+            if (ManagedMutationCheck.On) ManagedMutationCheck.OnRead(table, entity.Index, v);   // ⭐ CE-4445 M-2
+            return v;
         }
         
         /// <summary>
