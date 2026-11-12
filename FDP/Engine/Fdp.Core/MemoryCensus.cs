@@ -99,7 +99,9 @@ namespace Fdp.Core
             var gc = GC.GetGCMemoryInfo();
             var sb = new StringBuilder();
             var inv = CultureInfo.InvariantCulture;
-            sb.Append("{\"pid\":").Append(Environment.ProcessId)
+            var args = Environment.GetCommandLineArgs(); int mi = Array.IndexOf(args, "--mode");
+            string mode = mi >= 0 && mi + 1 < args.Length ? args[mi + 1] : "(none)";
+            sb.Append("{\"pid\":").Append(Environment.ProcessId).Append(",\"mode\":\"").Append(mode).Append('"')
               .Append(",\"process\":{\"workingSet\":").Append(p.WorkingSet64).Append(",\"peakWorkingSet\":").Append(p.PeakWorkingSet64)
               .Append(",\"privateBytes\":").Append(p.PrivateMemorySize64).Append(",\"gcHeap\":").Append(gc.HeapSizeBytes)
               .Append(",\"gcCommitted\":").Append(gc.TotalCommittedBytes).Append(",\"gcTotalMemory\":").Append(GC.GetTotalMemory(false)).Append("},\"worlds\":[");
