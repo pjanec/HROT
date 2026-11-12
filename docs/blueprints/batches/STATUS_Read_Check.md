@@ -4,7 +4,7 @@ updated: 2026-11-12
 current-answer: VERDICT (top), then R-1 … R-3
 stale-below: nothing
 related-designs:
-  - ../../DESIGN_Parallel_Simulation.md — §18.2 the last-tick copy declared by construction and the per-read check this measures (§18.2 as measured, on this branch)
+  - ../../DESIGN_Parallel_Simulation.md — §18.2 the last-tick copy declared by construction and the per-read check this measures (§18.3 as measured)
   - HANDOFF_Coordinator_To_Backend_Perf_Verdict_And_Read_Check.md — CE-4454, this measurement (Part 2)
   - STATUS_Entity_Access_Census.md — the census whose per-thread current entity is the hook; its blind spots are R-3's starting list
 -->
