@@ -342,3 +342,20 @@ is it?"* — ✔ the RULE is the same for every per-entity system; the brains di
 state outside components). Systems that are not per-entity (a spatial-hash build, ingress / egress, command playback) need a parallel algorithm
 of their own (a partitioned build, a reduction), not the rule. ⇒ the census covers EVERY system of the phase, not only the brains
 ([CE-4449](blueprints/batches/HANDOFF_Coordinator_To_Backend_Entity_Access_Census.md)).
+
+### 18.1 ⭐ The census verdict and the user's three calls *(R-4212, R-4213, `2026-11-12`)*
+
+The census ([status](blueprints/batches/STATUS_Entity_Access_Census.md) on `exp/entity-census`): **GO — the rule is viable for the whole Simulation
+phase.** CGF systems: 18 READY · 11 CONVERTIBLE (128 ms VM) · 6 GLOBAL · 36 no per-entity access in the run. Genuine cross-entity writes: callouts /
+utterances and the command order journal (everything else was the brain's own child sensors); in-tick child-sensor creation ⇒ deferred; the
+last-tick set = 18 types, a masked copy of them costs **CGF 1.9–2.7 ms, SimHost 0.9 ms** (a full copy 5.2–8.5 ms) ⇒ the last-tick view is that small
+masked copy (settles D-4's half). Prize (Windows serial 256 ms): 2.05× at 4 cores, 2.5× at 8, 2.8× at 16 — the floor beyond 8 is egress, the
+recorder and ingress (per-entity scans too).
+
+🔒 User, `2026-11-12`: *"yes to all three"* — **R-4212:** ① a brain (and any per-entity system) reads other units' in-phase-written state from
+LAST tick (the last-tick copy); ② a callout / an order to another entity is a command and reaches its listeners one tick later; ③ squad-level
+systems run in parallel per SQUAD, not per man.
+
+🔒 User, `2026-11-12`: *"we do not want a timing taking 12% so whatever helps"* — **R-4213** (supersedes R-4209's "sampled 1 in 16, on by
+default"): the census measured the SAMPLED per-query timer still at 11.9 % of BrainTick ⇒ `QueryTimings` is OFF by default in every host; the
+scale rig, the measurement scripts and `/diagnostics/queries?enable=1` turn it on when someone measures.
