@@ -215,6 +215,12 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
     /// ⭐ The raw leave to Idle the door calls once it has decided: leaves the host's dry run, sends the ONE Idle intent (<see cref="ScenarioLoadSequence.Unload"/>), abandons a queued load (the operator just asked
     /// for a fresh exercise — honouring it afterwards would undo the request) and, reaches the other nodes (⛔ not <see cref="ClearWorld"/>, which is local; the unload to Idle clears the world on every node, CE-2101).
     /// </summary>
+    /// <summary>⭐ N-6 — the raw leave, for a threaded node's UI door (its decision made on the UI thread; this runs on the sim thread).</summary>
+    public void LeaveRaw(LeaveReason reason) => RawLeave(reason);
+
+    /// <summary>⭐ N-6 — the autosave reader (a file read), for a threaded node's UI door.</summary>
+    public Fdp.Toolkit.Orchestration.AutosaveFiles.Status AutosaveOf(string scenarioName) => AutosaveOfScenario(scenarioName);
+
     private void RawLeave(LeaveReason reason)
     {
         if (reason is LeaveReason.Exit or LeaveReason.Close && CurrentClusterState == ClusterState.Idle) return;   // ⭐ CE-4101 follow-up / CE-1443 — exiting or closing a cluster at rest: nothing to stop, no Idle intent to send

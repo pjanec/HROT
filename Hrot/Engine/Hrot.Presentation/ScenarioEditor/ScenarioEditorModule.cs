@@ -121,12 +121,24 @@ public class ScenarioEditorModule : IEcsModule
         // ⭐⭐⭐ UXI-11 — register what the PACK built, in the order it hands back.
         // ⛔ Nothing is constructed here any more; a host that supplies no pair registers no selection
         //   systems, which is a fact about that host rather than a silent default.
+        foreach (var system in BuildInteractionSystems(deps))
+            registry.RegisterSystem(system);
+    }
+
+    /// <summary>
+    /// ⭐ The viewport interaction systems, in their load-bearing order (the selection pair, then the tool drain, then centre-on-entity) — the ONE
+    /// builder: <see cref="RegisterSystems"/> schedules them in the kernel; ⭐ R-4211 / N-3 — the threaded editor runs the SAME list on its UI
+    /// thread over the presentation world (and builds this module without interaction deps, so nothing is scheduled twice).
+    /// </summary>
+    public static Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] BuildInteractionSystems(InteractionDeps deps)
+    {
+        var list = new System.Collections.Generic.List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>();
         foreach (var selectionSystem in deps.SelectionSystems?.Invoke()
                                         ?? System.Array.Empty<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>())
-            registry.RegisterSystem(selectionSystem);
-        registry.RegisterSystem(new ToolActivationDrainSystem(
-            deps.Selection, deps.Gizmos, deps.Tools ?? (() => null)));
-        registry.RegisterSystem(new CenterOnEntitySystem(deps.Camera));
+            list.Add(selectionSystem);
+        list.Add(new ToolActivationDrainSystem(deps.Selection, deps.Gizmos, deps.Tools ?? (() => null)));
+        list.Add(new CenterOnEntitySystem(deps.Camera));
+        return list.ToArray();
     }
 
     public void Tick(ISimulationView view, float deltaTime) { }

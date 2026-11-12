@@ -185,7 +185,7 @@ namespace Hrot.Editor
         /// ⛔ The editor builds no <c>ISubsystemDebugProvider</c> in the runner, so this is its one answer.
         /// </summary>
         public Fdp.Presentation.WindowManager.ClusterRest ReadClusterRest()
-            => new(_editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle, MasterGone: false, CanOperate: true);
+            => new(UiClusterState, MasterGone: false, CanOperate: true);   // ⭐ D-9 — read on the UI thread
 
         /// <summary>⭐ <c>CE-3228</c> (Entity Creation §3.4d) — the editor's node id. 🔒 User, <c>2026-10-17</c>: <i>"No valid node ID should be
         /// 0."</i> 0 means "no node" and, on a creation request, "the system picks"; the editor is an offline one-node cluster, so 1.</summary>
@@ -199,7 +199,7 @@ namespace Hrot.Editor
             => _orchestratorCore is null ? null : new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus);
 
         /// <summary>⭐ CE-3354 ⑥ — the cluster state the editor's node sees (null before the editor application exists).</summary>
-        public Fdp.Toolkit.Orchestration.ClusterState? ClusterStateNow => _editorApp?.CurrentClusterState;
+        public Fdp.Toolkit.Orchestration.ClusterState? ClusterStateNow => _editorApp == null ? null : UiClusterState;   // ⭐ D-9 — the quit guard reads it on the UI thread
         /// <summary>⭐ CE-4330 ⑨ — the transfer this host's master runs now (the quit guard asks about it here only).</summary>
         public Fdp.Toolkit.Orchestration.StorageJob? RunningTransfer => _orchestratorCore?.Master.StorageJobs.Running;
 
@@ -546,10 +546,10 @@ namespace Hrot.Editor
             {
                 if (_editorApp is null || _world is null) return null;
                 string name = Fdp.Toolkit.Scenario.ScenarioPreset.DefaultName;
-                string? args = _editorApp.LoadedArgsJson;
+                string? args = UiLoadedArgsJson;
                 foreach (var p in Fdp.Toolkit.Scenario.ScenarioPresets.Of(Fdp.Toolkit.Scenario.ScenarioDescription.HeaderOf(_world)))
                     if (Hrot.UI.Common.RunMode.PresetText.IsLoaded(p, args)) { name = p.Name; break; }
-                string? why = _editorApp.ScenarioSession.SaveDisabledReason;
+                string? why = UiSession?.SaveDisabledReason;
                 return new Hrot.Editor.Scenario.MapHolding(name, why is null, why);
             };
             drawer.UsesVariants = () =>
@@ -1586,8 +1586,14 @@ namespace Hrot.Editor
                 // ⭐ CE-1025 (R-1031) — every load (menu, HTTP edit, the film director) leaves the editor's dry run first, WITHOUT a
                 //   rewind. Late-bound: the preview controller is built below (step 8).
                 leaveRun: () => _previewController?.ForgetPreview());
-            _editorLogic = Staged ? new ThreadedEditorLogic(app, PostToSim) : app;   // ⭐ N-6 — the UI's verbs become sim jobs
-            if (Staged && app.ScenarioSession is Hrot.Editor.AiShared.Scenarios.EditorScenarioSession simSession) simSession.ReadsOnSimThread = true;   // ⭐ N-6 — its world reads are answered from sim-side values
+            if (Staged && app.ScenarioSession is Hrot.Editor.AiShared.Scenarios.EditorScenarioSession simSession)
+            {   // ⭐ N-6 / D-9 — the UI's session: its own door (asks on the UI thread), verbs as sim jobs, reads from the sim's readout
+                simSession.ReadsOnSimThread = true;
+                _uiScenarioSession = new Hrot.Editor.AiShared.Scenarios.ThreadedScenarioSession(simSession, simSession, PostToSim,
+                    () => _uiClusterView!.State, simSession.LeaveRaw, simSession.AutosaveOf);
+                _editorLogic = new ThreadedEditorLogic(app, _uiScenarioSession, _world!.Bus);
+            }
+            else _editorLogic = app;
             _editorApp   = app;
             WireWorldUndo();   // ⭐ B-14 — the session exists now
 
@@ -1627,6 +1633,11 @@ namespace Hrot.Editor
                 View              = _node?.ClusterSlave.View,   // ⭐ CE-1436 — the editor's node and its core's cache share ONE cluster read model (same bus)
             });
             _clusterMaster = _orchestratorCore.Master;
+            if (Staged)
+            {   // ⭐ D-9 — the UI's cluster cache and scenario panel, over its mirror (the core's own stay with the sim side)
+                _uiClusterCache = new Hrot.Orchestrator.Panels.ClusterUiCache(_uiOrchestrationBus!, localTimeController: null, view: _uiClusterView);
+                _uiScenarioPanel = new Hrot.Orchestrator.Panels.ClusterScenarioPanel(_uiOrchestrationBus!, _uiClusterCache);
+            }
             // ⭐ CE-4089 — the content seed (scenarios/, assets/, recipes/ → the NAS) ran at the top of Initialize, before the asset catalogue read it.
 
             // ⭐ L6 (CE-4089) — the scenario SEEDS are NOT staged under the scenarios root any more: a recipe is loaded by its own name,
@@ -1656,26 +1667,39 @@ namespace Hrot.Editor
             // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice: ▶ / ■ from here follow its armed mode (the editor's default is Preview);
             //   it drives the SAME session the File menu uses (IScenarioSession : IRunScenarioControl) — ⛔ no second implementation of the actions.
             //   ⭐ part two (D20): the unsaved check is the in-process master's ONE round (CE-4093), its answer read off the core's ClusterUiCache — the same reads /scenario/load/live's gate uses.
-            _timeTransport = Hrot.UI.Common.RunMode.NodeRunControls.For(_node!, new Hrot.UI.Common.RunMode.NodeRunProfile(
+            _simTimeTransport = Hrot.UI.Common.RunMode.NodeRunControls.For(_node!, new Hrot.UI.Common.RunMode.NodeRunProfile(
                     Hrot.UI.Common.RunMode.RunHostKind.Editor,
                     Control: _editorApp?.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
                     UnsavedReads: new Hrot.UI.Common.RunMode.UnsavedCheckReads(
                         () => _orchestratorCore != null,
                         id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id))),
                 simTime: () => _timeController!.GetCurrentState().TotalTime);   // the editor's readout is on the master's clock (it hosts it)
+            // ⭐⭐ D-9 — mode 3: the UI's OWN transport over its mirror of the orchestration bus (its intents go up with the staging, its readouts
+            //   come from its cluster view and A's clock), its run choice over the UI session; the sim side keeps the node's for its routes and Run to …
+            _timeTransport = Staged
+                ? Hrot.UI.Common.RunMode.NodeRunControls.For(_uiOrchestrationBus!, () => _uiClusterView,
+                    simTime: () => _world is { } a && a.HasSingletonUnmanaged<GlobalTime>() ? a.GetSingletonUnmanaged<GlobalTime>().TotalTime : 0.0,
+                    cancelLoad: reason => PostToSim("cluster: cancel load", () => _node!.ClusterSlave.CancelLoad(reason)),
+                    new Hrot.UI.Common.RunMode.NodeRunProfile(
+                        Hrot.UI.Common.RunMode.RunHostKind.Editor,
+                        Control: _uiScenarioSession,
+                        UnsavedReads: new Hrot.UI.Common.RunMode.UnsavedCheckReads(() => _uiClusterCache != null, id => _uiClusterCache?.UnsavedCheckOutcomeFor(id))))
+                : _simTimeTransport;
             // ⭐⭐ CE-4316 (lifecycle LC-10, option A) — Run to … in Preview: the ACK-gated stepped run on THIS host's transport and master, the frame cap lifted while it runs.
-            _runTo = new Hrot.UI.Common.RunMode.RunToController(_timeTransport,
+            //   ⭐ N-5 — it steps the node frame, so it is SIM side: the sim's transport, and the world it watches is S
+            _runTo = new Hrot.UI.Common.RunMode.RunToController(_simTimeTransport,
                 acksPending: () => _timeController?.IsAwaitingStepAcks ?? false,
                 inPreview:   () => _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview,
-                world:       () => _world,
+                world:       () => Staged ? _nodeWorld : _world,
                 // ⭐⭐ the TURBO strategy (DESIGN_Time_Architecture.md §20) — only on a NETWORKLESS node: no ACK leaves the process, so a step can land in place
                 turbo:       _networkFactory is OfflineNetworkFactory ? TurboStep : null,
                 // ⭐ W-4 — Run to … from Edit: the run choice's dry run, paused at its first frame, then the run (one door into Preview)
-                enterPreview: () => _timeTransport?.RunChoice?.EnterPreviewPaused() ?? false);
+                enterPreview: () => _simTimeTransport?.RunChoice?.EnterPreviewPaused() ?? false);
             // ⭐ CE-1439 (AQ108 §2.12) — the cluster-control panel (the monitor window) asks through THIS host's transport, run choice and session: a caller that HAS them passes them,
             //   so the panel builds none of its own and its Pause / Load / Open AAR / Checkpoint are the toolbar's and the File menu's, not a second surface.
-            if (_orchestratorCore != null && _timeTransport.RunChoice is { } panelChoice && _editorApp?.ScenarioSession is { } panelSession)
-                _orchestratorCore.ScenarioPanel.RunControls = new Hrot.Orchestrator.Panels.ClusterPanelRunControls(_timeTransport, panelChoice, panelSession);
+            if (UiScenarioPanel is { } uiPanel && _timeTransport.RunChoice is { } panelChoice
+                && (Staged ? _uiScenarioSession : _editorApp?.ScenarioSession) is { } panelSession)   // ⭐ D-9 — mode 3: the UI's panel, transport and session
+                uiPanel.RunControls = new Hrot.Orchestrator.Panels.ClusterPanelRunControls(_timeTransport, panelChoice, panelSession);
 
             // ── 8a. ⭐ CE-4038 — the film director (docs/DESIGN_Film_Director.md §1a): built from what this method HOLDS (the load, the
             //    cluster state, the preview controller, ITimeCommands, the world) — ⛔ none of it defaulted (the silent-default rule).
@@ -1722,8 +1746,8 @@ namespace Hrot.Editor
                         hash => _behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out var n) ? n : null),
                     mapBuild: () => _map3DBuild,   // ⭐ R-1046 — a take waits for the shown map's 3-D build
                     // ⭐ CE-4267 — the director's load goes through the ONE scenario door with its own asker, and knows when it went (the silent-default rule: the editor HAS the door)
-                    door: () => _editorApp?.Door,
-                    loadedScenario: () => _editorApp?.LoadedScenarioName);
+                    door: () => Staged ? _uiScenarioSession?.Door : _editorApp?.Door,   // ⭐ D-9 — the director is UI side: the UI's door
+                    loadedScenario: () => UiSession?.LoadedScenarioName);
                 // ⭐ CE-1303 P1 (§11j) — the film director is ONE pack (Hrot.Presentation); the editor contributes its host, the verifier
                 //   (CE-4061: the runner's one extension seam — CE-4042: late-bound to the debug service 8b builds below) and the Verify tab
                 _directorPack = Hrot.UI.Common.Map3D.Director.DirectorPack.Attach(new Hrot.UI.Common.Map3D.Director.DirectorPackHost(
@@ -1779,7 +1803,7 @@ namespace Hrot.Editor
 
                     var debugWorld = Staged ? _nodeWorld! : _world!;   // ⭐ N-8 — mode 3: the sim-side routes run on the sim thread, over S
                     var debugExtraction = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(debugWorld, _entityMap!, scenarioSerializer);
-                    var debugTimeFacade = _timeTransport!;   // ⭐ CE-3329 row 21 — the one facade
+                    var debugTimeFacade = _simTimeTransport!;   // ⭐ CE-3329 row 21 — the one facade (⭐ D-9 — the routes run on the sim thread: the sim side's)
                     // The behavior-trace arming coordinator (Hrot.Editor.DebugApi.*) — distinct from the
                     // time-control tracer of the same short name in Hrot.Editor.Debug. Self-contained.
                     _debugApiTracer = new Hrot.Editor.DebugApi.EditorAiTracerCoordinator(debugWorld);
@@ -2304,21 +2328,23 @@ namespace Hrot.Editor
             //    :1801, `_spawnAdapter` at :1942 and `_selectionState` at :1945, and all three are set
             //    back to null on teardown. ⛔ Capturing instances here would wire the systems to
             //    permanent nulls with no error at all.
-            var scenarioMod      = new ScenarioEditorModule(
-                fileService,
-                new ScenarioEditorModule.InteractionDeps(
+            var interactionDeps = new ScenarioEditorModule.InteractionDeps(
                     Selection:          () => _selectionState,
                     // ⭐⭐⭐ UXI-11 — the pack's ordered pair, not systems this module builds.
                     SelectionSystems:   () => _editorMapInteraction?.SelectionSystemsInOrder,
                     Gizmos:             () => _editorDataDrivenGizmoSystem,
                     Camera:             () => _camera,
-                    Tools:              () => _editorToolController));
+                    Tools:              () => _editorToolController);
+            // ⭐⭐ R-4211 / §4 ② — mode 3: the viewport interaction systems run on the UI thread over A (the SAME builder, RunInteractionBlock);
+            //   the kernel's module schedules none of them
+            if (Staged) _uiInteractionDeps = interactionDeps;
+            var scenarioMod      = new ScenarioEditorModule(fileService, Staged ? null : interactionDeps);
 
             _kernel.RegisterModule(scenarioMod);
 
             // Register the event history service and its capture system.
             _fdpEventBrowser = new FdpEventBrowserPanel(_fdpEventHistory);
-            _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("World", _fdpEventHistory, _world.Bus));
+            _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("World", _fdpEventHistory, (Staged ? _nodeWorld! : _world).Bus));   // ⭐ N-3 — the kernel ticks S: it captures S's bus
             if (_orchestrationBus != null)
                 _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Orchestration", _fdpEventHistory, _orchestrationBus));
 
@@ -2571,7 +2597,7 @@ namespace Hrot.Editor
                     DimTransientEntities = true,   // ⭐ SR-191 — the authoring map shows what a save will NOT write, dimmed
                     Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                     // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
-                    Services = Hrot.ScenarioEditor.Map.MapServices.Of(geoTransform, _behaviorRegistry, (System.Func<object?>)(() => _simMissionService)),   // ⭐ 8d-2 — the mission facade is built after the map: resolved when asked
+                    Services = Hrot.ScenarioEditor.Map.MapServices.Of(geoTransform, _behaviorRegistry, (System.Func<object?>)(() => _missionService)),   // ⭐ R-4211 — read by the gizmo rules, which run on the UI thread over A   // ⭐ 8d-2 — the mission facade is built after the map: resolved when asked
                     GizmoUiPublisher = _gizmoUiHub,
                     Inspector = () => _fdpInspectorState,
                     // ⭐⭐⭐ CE-300 — the AI editors' entity cell follows the ANNOUNCEMENT, not a map
@@ -2731,10 +2757,19 @@ namespace Hrot.Editor
             // ⭐⭐ UXI-23 S3: report anything constructed but not scheduled (§3.2e).
             foreach (string problem in _editorMapInteraction.Unserviceable(_editorMapInteraction.InteractionSystems))
                 Fdp.Core.Logging.FdpLog<EditorSubsystem>.Info("[Map] {0}", problem);
+            if (Staged)
+            {   // ⭐⭐ R-4211 / §4 ④ — mode 3: the interaction bus and its systems belong to the UI thread (RunInteractionBlock, over A, with A's
+                //   entity map); the tick keeps only the world writers (D-2), on a bus of their own that nothing else touches
+                _uiInteractionBus = interactionBus;
+                _uiContextIngress = new ContextActionIngressSystem(_twPresMap!, interactionBus);
+                _kernel.RegisterModule(new GizmoInteractionModule(new FdpEventBus(), contextIngress: null,
+                    interactionSystems: NodeSideInteractionSystems(), gizmoIngress: null, gizmoEgress: null));
+            }
+            else
             _kernel.RegisterModule(new GizmoInteractionModule(
                 interactionBus,
                 contextIngress: contextIngress,
-                interactionSystems: Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds ? NodeSideInteractionSystems() : _editorMapInteraction.InteractionSystems,   // ⭐ POC 3
+                interactionSystems: _editorMapInteraction.InteractionSystems,
                 gizmoIngress: null,
                 gizmoEgress:  null));
             _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, interactionBus));
@@ -2777,6 +2812,27 @@ namespace Hrot.Editor
         private Fdp.Core.Threading.StagingWorlds? _staging;
         private long _stagedTick;
         private Hrot.Editor.DebugApi.MainThreadJobQueue? _debugApiUiJobQueue;   // ⭐ N-8 — the UI-side routes (drained on the UI thread)
+        // ⭐⭐ D-9 — the UI side's OWN read models in mode 3: a mirror of the orchestration bus (carried by the staging), the cluster view, cache and
+        //   scenario panel over it, the UI's time transport and scenario session. The sim side keeps the node's (its HTTP routes, Run to …).
+        private FdpEventBus? _uiOrchestrationBus;
+        private Fdp.Toolkit.Orchestration.ClusterView? _uiClusterView;
+        private Hrot.Orchestrator.Panels.ClusterUiCache? _uiClusterCache;
+        private Hrot.Orchestrator.Panels.ClusterScenarioPanel? _uiScenarioPanel;
+        private Hrot.Editor.AiShared.Scenarios.ThreadedScenarioSession? _uiScenarioSession;
+        private Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter? _simTimeTransport;   // mode 3: the sim side's; otherwise the same object as _timeTransport
+        private Hrot.Editor.AiShared.Scenarios.ThreadedScenarioSession.Readout? _publishedReadout;   // the sim side's last published readout (sim thread)
+        /// <summary>The cluster state as the UI thread may read it: its own view in mode 3, the session's otherwise.</summary>
+        private Fdp.Toolkit.Orchestration.ClusterState UiClusterState
+            => Staged && _uiClusterView != null ? _uiClusterView.State : _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle;
+        /// <summary>The scenario session the UI thread calls (mode 3: the UI's, whose door asks on the UI thread and whose verbs are jobs).</summary>
+        private Hrot.Editor.AiShared.Scenarios.IScenarioSession? UiSession => Staged ? _uiScenarioSession : _editorApp?.ScenarioSession;
+        /// <summary>The loaded scenario's args as the UI thread may read them.</summary>
+        private string? UiLoadedArgsJson => Staged ? ((Hrot.UI.Common.RunMode.IRunScenarioControl?)_uiScenarioSession)?.LoadedArgsJson : _editorApp?.LoadedArgsJson;
+        /// <summary>The cluster cache the UI's surfaces read.</summary>
+        private Hrot.Orchestrator.Panels.ClusterUiCache? UiClusterCache => Staged ? _uiClusterCache : _orchestratorCore?.UiCache;
+        /// <summary>The cluster scenario panel the UI draws.</summary>
+        private Hrot.Orchestrator.Panels.ClusterScenarioPanel? UiScenarioPanel => Staged ? _uiScenarioPanel : _orchestratorCore?.ScenarioPanel;
+
         /// <summary>⭐ The threaded editor without the world lock: mode 3.</summary>
         private static bool Staged => Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds;
         /// <summary>Posts a named action to the sim thread (the decorators' entry).</summary>
@@ -2786,16 +2842,62 @@ namespace Hrot.Editor
         /// tick and run in the presentation step on the main thread, against A. Everything else of the interaction set stays with the node.</summary>
         private readonly List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> _presentationSystems = new();
 
+        /// <summary>⭐⭐ R-4211 (§4 ①, D-2) — mode 3: the map's interaction set splits in two. The WORLD WRITERS stay in the tick (the debug-state
+        /// patch, effect / wreck spawn, lifespan — they create and destroy recorded entities); every other member (action dispatch, the WHOLE gizmo
+        /// group, menu orders / shortcuts, hats) runs on the UI thread over A (<see cref="RunInteractionBlock"/>). ⛔ No split inside the gizmo group.</summary>
         private Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] NodeSideInteractionSystems()
         {
             var mi = _editorMapInteraction!;
             var node = new List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>();
             foreach (var sys in mi.InteractionSystems)
             {
-                if (ReferenceEquals(sys, mi.MenuOrders) || ReferenceEquals(sys, mi.MenuShortcuts) || ReferenceEquals(sys, mi.Hats)) _presentationSystems.Add(sys);
-                else node.Add(sys);
+                bool worldWriter = ReferenceEquals(sys, mi.DebugStatePatch) || ReferenceEquals(sys, mi.EffectSpawn)
+                                   || ReferenceEquals(sys, mi.WreckSpawn) || ReferenceEquals(sys, mi.Lifespan);
+                if (worldWriter) node.Add(sys); else _uiInteractionSystems.Add(sys);
             }
             return node.ToArray();
+        }
+        private readonly List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> _uiInteractionSystems = new();
+        private Fdp.ModuleHost.Abstractions.IEcsModuleSystem[]? _uiScenarioEditorSystems;
+        private ScenarioEditorModule.InteractionDeps? _uiInteractionDeps;
+        private FdpEventBus? _uiInteractionBus;
+        private Fdp.ModuleHost.Abstractions.IEcsModuleSystem? _uiContextIngress;
+        private Entity[] _uiRowsBuffer = new Entity[64];
+
+        /// <summary>
+        /// ⭐⭐ R-4211 (§4 ④⑥) — the WHOLE interaction / gizmo block on the UI thread, over A, once per pulled tick (the user's call, §14.2.0): the
+        /// gizmo feed published and the frame ended, the interaction bus swapped, the context ingress, the interaction systems (the gizmo group
+        /// whole), the scenario editor's selection / tool / centre systems (the module's one builder), then the gizmo frame published for drawing.
+        /// The selection is A's own (out of the table mask); its rows ride to the staging so their every component is copied.
+        /// </summary>
+        private void RunInteractionBlock(float dt)
+        {
+            var a = _world!;
+            using var trace = Fdp.Core.AccessTrace.Scope("ui: interaction block (gizmos, selection, tools)", Fdp.Core.TraceContext.Presentation);
+            if (_gizmoBuffer != null) Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(_gizmoBuffer, GizmoFeedAddress);
+            _gizmoBuffer?.EndFrame(dt);
+            _uiInteractionBus?.SwapBuffers();
+            Run(_uiContextIngress, a, dt);
+            for (int i = 0; i < _uiInteractionSystems.Count; i++) Run(_uiInteractionSystems[i], a, dt);
+            if (_uiInteractionDeps != null) _uiScenarioEditorSystems ??= ScenarioEditorModule.BuildInteractionSystems(_uiInteractionDeps);
+            if (_uiScenarioEditorSystems != null) for (int i = 0; i < _uiScenarioEditorSystems.Length; i++) Run(_uiScenarioEditorSystems[i], a, dt);
+            _gizmoBuffer?.PublishFrame();
+            // the rows the UI shows: the selection (A's own) — every component of these rides with the next publish
+            int n = 0;
+            if (_selectionState != null)
+                foreach (var e in _selectionState.SelectedEntities)   // a List<Entity> behind the interface — the selection is small
+                {
+                    if (n == _uiRowsBuffer.Length) Array.Resize(ref _uiRowsBuffer, n * 2);
+                    _uiRowsBuffer[n++] = e;
+                }
+            _staging!.SetRows(new ReadOnlySpan<Entity>(_uiRowsBuffer, 0, n));
+
+            void Run(Fdp.ModuleHost.Abstractions.IEcsModuleSystem? sys, EntityRepository world, float delta)
+            {
+                if (sys == null) return;
+                try { sys.Execute(world, delta); }
+                catch (Exception ex) { if (System.Threading.Interlocked.Increment(ref _presentationStepFaults) <= 20) Console.WriteLine("[N-3] interaction block fault: " + ex); }
+            }
         }
 
         /// <summary>⭐ POC 3 C-4 — the presentation step: after the sync, on the main thread, against A (the caller holds the world).</summary>
@@ -2848,20 +2950,16 @@ namespace Hrot.Editor
             var loaded = maskPath != null ? Fdp.ModuleHost.PublishProbe.LoadMask(maskPath, maskName) : null;
             _twMaskAll = loaded == null;
             _twTableMask = loaded?.Mask ?? s.GetSnapshotableMask(true);
-            _twTableMask.SetBit(Fdp.Core.ComponentType<Hrot.Map.Common.Components.SelectionState>.ID);
-            _twSelQuery = s.Query().With<Hrot.Map.Common.Components.SelectionState>().Build();
+            _twTableMask.ClearBit(Fdp.Core.ComponentType<Hrot.Map.Common.Components.SelectionState>.ID);   // ⭐ R-4211 §4 ⑧ — the selection is A's own: the UI's systems write it on A
             // ⭐⭐ N-1 / N-3 — the job queue, the staging buffers, and the link on A that turns every UI write into a job
             _simJobs = new Fdp.Core.Threading.SimJobQueue();
             _staging = new Fdp.Core.Threading.StagingWorlds { TableMask = _twTableMask, SingletonExcept = _twSingletonExcept };
             _staging.SingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Fdp.Core.Threading.SimLink>.ID);
             _staging.RegisterStreamsFrom(s.Bus);
-            _staging.SimRows = (sim, rows) =>
-            {   // S's selection while the selection systems still tick on S (§4 ⑧ moves the selection to A)
-                if (_twMaskAll || _twSelQuery == null) return;
-                foreach (var e in _twSelQuery)
-                    if (sim.GetComponentRO<Hrot.Map.Common.Components.SelectionState>(e).IsSelected) rows.Add(e);
-            };
             _simJobs.Outbox = _staging;
+            _uiOrchestrationBus = new FdpEventBus();
+            _staging.AddBusPair(_orchestrationBus!, _uiOrchestrationBus);   // ⭐ D-9 — the orchestration bus, mirrored for the UI
+            _uiClusterView = new Fdp.Toolkit.Orchestration.ClusterView(_uiOrchestrationBus, EditorNodeId);
             Fdp.Core.WorldGuard.Strict = !Fdp.ModuleHost.ThreadedKernelGate.ComposedSingleThread;   // ⭐ N-3 — no lock: every off-thread read of S is a race
             a.SetSingletonManaged(new Fdp.Core.Threading.SimLink(_simJobs, s));
             Fdp.Core.WorldGuard.ArmSyncMask(_twTableMask, _twSingletonExcept);
@@ -3009,16 +3107,20 @@ namespace Hrot.Editor
             using (Fdp.Core.AccessTrace.Scope("sim: editor logic Update (load pump)", Fdp.Core.TraceContext.Tick)) _editorApp?.Update();          // ⭐ N-6 — the real session, on S
             if (!ReferenceEquals(_simMissionService, _missionService)) _simMissionService?.PollAcks();   // ⭐ N-8
             _runTo?.Tick();   // ⭐ N-5 — Run to …: its turbo steps ARE node frames, so it belongs to the sim thread
-            if (_gizmoBuffer != null) Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(_gizmoBuffer, GizmoFeedAddress);
-            _gizmoBuffer?.EndFrame(dt);
-            TickNodeFrame(dt);
-            _gizmoBuffer?.PublishFrame();
+            TickNodeFrame(dt);   // ⭐ R-4211 — the gizmo feed is the UI thread's (RunInteractionBlock)
             DrainStagingRemap();   // ⭐ N-4 — the orchestration bus is read on the sim thread only; its UI half rides the publish queue
             (_editorApp?.ScenarioSession as Hrot.Editor.AiShared.Scenarios.EditorScenarioSession)?.RefreshOnSim();   // ⭐ N-6 — the values the UI reads
+            if (_uiScenarioSession is { } uiSession && _editorApp?.ScenarioSession is { } simSession
+                && Hrot.Editor.AiShared.Scenarios.ThreadedScenarioSession.ReadIfChanged(_publishedReadout, simSession) is { } readout)
+            {   // ⭐ D-9 — what the UI reads of the session, published with this tick (applied on the UI thread, in order)
+                _publishedReadout = readout;
+                _staging.Post(_ => uiSession.Apply(readout));
+            }
             _staging.Publish(s, ++_stagedTick);
         }
 
         /// <summary>⭐ N-3 — the UI frame's start: A takes the latest complete tick (when newer), then the UI-owned state that S reads rides down.</summary>
+        private float _pulledDt;   // the UI time since the last pulled tick (the interaction block's dt)
         private void PullStaging()
         {
             var a = _world!;
@@ -3026,6 +3128,11 @@ namespace Hrot.Editor
             using (Fdp.Core.AccessTrace.Scope("ui: staging pull", Fdp.Core.TraceContext.Presentation)) pulled = _staging!.Pull(a);
             if (!pulled) return;
             _twPresMap!.RebuildFromWorld(a);
+            // ⭐ D-9 — the UI's read models drain their mirror (its events are new only on a pulled frame)
+            _uiClusterCache?.Update();   // updates _uiClusterView too
+            _timeTransport?.Update();
+            RunInteractionBlock(_pulledDt);   // ⭐ R-4211 — once per pulled tick
+            _pulledDt = 0f;
             // ⭐ POC 4 F-2 ② — the per-unit debug requests the UI made ride to S as a job (A's store is the UI's; S's the sim's): copied on the UI
             //   thread into a mirror the job then reads on the sim thread — one job in flight at a time, the delegate cached (0 B per pull)
             if (!_debugMirrorJobPending && Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Peek(a) is { } uiDebug)
@@ -3173,6 +3280,7 @@ namespace Hrot.Editor
                 Fdp.ModuleHost.ThreadedKernelGate.Engaged = true;
                 EnsureKernelWorker();
                 lock (_workerDtLock) _workerPendingDt += deltaTime;
+                _pulledDt += deltaTime;
                 PullStaging();
                 RunPresentationStep(deltaTime);
             }
@@ -3235,7 +3343,7 @@ namespace Hrot.Editor
             using (Fdp.Core.AccessTrace.Scope("editor: film director")) _directorPack?.Tick();   // ⭐ A-1
             // ⭐ CE-4042 — --verify: start the run once the editor is Idle; leave with the verdict when it is done
             if (_directorPack != null)
-                _commandLineVerify?.Tick(_directorPack.Runner, _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.Idle, _requestAppExit);
+                _commandLineVerify?.Tick(_directorPack.Runner, _editorApp != null && UiClusterState == Fdp.Toolkit.Orchestration.ClusterState.Idle, _requestAppExit);
 
             // ⭐ K-1 (CE-4450) — in threaded mode the drain reads the ORCHESTRATION bus, which the worker's node frame publishes to and swaps outside the
             //   world lock: "Collection was modified" 3 of 3 runs once the hand-over was fair (the starved worker had hidden it). It runs in the worker's
@@ -3355,7 +3463,7 @@ namespace Hrot.Editor
             // The cluster orchestrator's own order (Q86): it reads the orchestration bus AFTER the frame swapped it, so intents published by the UI this frame are readable by it.
             using (Fdp.Core.AccessTrace.Scope("node: orchestrator core Tick")) _orchestratorCore?.Tick();                 // ⭐ Q86 — the cluster orchestrator's own order
             using (Fdp.Core.AccessTrace.Scope("node: ClusterUiCache.Update")) _orchestratorCore?.UiCache.Update();
-            using (Fdp.Core.AccessTrace.Scope("node: time transport Update")) _timeTransport?.Update();                  // ⭐ CE-3329 row 21 — the one facade reads what the cache reads
+            using (Fdp.Core.AccessTrace.Scope("node: time transport Update")) _simTimeTransport?.Update();   // ⭐ D-9 — mode 3: the UI's own is updated on the UI thread (PullStaging)                  // ⭐ CE-3329 row 21 — the one facade reads what the cache reads
         }
 
         /// <summary>
@@ -4051,7 +4159,7 @@ namespace Hrot.Editor
             // against bare-ctor scenarios.
             _assetPickRouter = new Hrot.Editor.AiShared.Browser.AssetPickActionRouter(
                 openDocument: a => _aiDocumentManager?.Open(a),
-                loadScenario: name => _editorApp?.ScenarioSession.LoadScenario(name));   // ⭐ CE-1443 (R-1043) — a picked scenario loads into the cluster's armed mode, through the ONE door
+                loadScenario: name => UiSession?.LoadScenario(name));   // ⭐ CE-1443 (R-1043) — a picked scenario loads into the cluster's armed mode, through the ONE door
 
             // AIE-025: Retarget per-perspective selection stores when the active document changes.
             // Each BlackboardAuthoringWindow reads its store's ActiveAsset every frame (pull model),
@@ -4202,13 +4310,13 @@ namespace Hrot.Editor
             _terrainSaveAs.Saved += outcome =>
             {
                 _saveAllStatus = $"[OK] Saved terrain '{System.IO.Path.GetFileName(outcome.TerrainFolder)}'" + (outcome.ScenarioName is { } sn ? $" and scenario '{sn}'." : ".");
-                if (outcome.ScenarioName is { } name) _editorApp?.ScenarioSession.LoadScenario(name);
+                if (outcome.ScenarioName is { } name) UiSession?.LoadScenario(name);
             };
             windowManager.RegisterFrameOverlay(_terrainSaveAs.Draw);
             // ⭐ Terrain authoring U-8 — File ▸ New ▸ Random terrain…: the wizard over backend's RandomTerrainPipeline; the scenario it writes is opened through the scenario door
             var randomTerrainService = new Hrot.Editor.TerrainRandom.EditorRandomTerrainService();
             _randomTerrain = new Hrot.UI.Common.TerrainRandom.RandomTerrainWizardWindow(() => randomTerrainService);
-            _randomTerrain.Opened += scenario => { _saveAllStatus = $"[OK] Generated terrain and scenario '{scenario}'."; _editorApp?.ScenarioSession.LoadScenario(scenario); };
+            _randomTerrain.Opened += scenario => { _saveAllStatus = $"[OK] Generated terrain and scenario '{scenario}'."; UiSession?.LoadScenario(scenario); };
             windowManager.RegisterFrameOverlay(_randomTerrain.Draw);
             // ⭐ Terrain authoring follow-up 2 — the panel beside the map while a wall / fence / hedge, a bridge or an area scatter is DRAWN (kind, height, recipe, density, seed)
             var terrainDrawPanel = new Hrot.UI.Common.AddEntity.TerrainDrawPanel(() => _spawnAdapter);
@@ -4865,7 +4973,7 @@ namespace Hrot.Editor
             //   one. 📌 The silent-default shape: the caller HAD the value and did not pass it.
             var terrainSources = new Hrot.Editor.TerrainSave.EditorTerrainSourceService(
                 catalog: () => NewScenarioTerrains(),
-                open:    name => _editorApp?.ScenarioSession.LoadScenario(name));
+                open:    name => UiSession?.LoadScenario(name));
             var newAssetLauncher = _newAssetServices != null
                 ? new Hrot.Editor.AiShared.Browser.NewAssetLauncher(
                     openPicker:         _shellPickers.OpenPicker,
@@ -4894,10 +5002,10 @@ namespace Hrot.Editor
             var recordingPickerLauncher = _editorApp != null
                 ? new Hrot.Editor.AiShared.Scenarios.RecordingPickerLauncher(
                     openPicker:     _shellPickers.OpenPicker,
-                    listExercises:  () => _orchestratorCore?.UiCache.AvailableExercises
+                    listExercises:  () => UiClusterCache?.AvailableExercises   // ⭐ D-9 — the UI's own read model
                                           ?? Array.Empty<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>(),
                     // ⭐ CE-4101 — the session's own open IS the guarded door (Stop & Load over a run, Save / Discard / Cancel over unsaved edits); no host seam, no unguarded fallback
-                    openRecording:  id => _editorApp.ScenarioSession.OpenRecording(id),
+                    openRecording:  id => UiSession!.OpenRecording(id),
                     hasInventory:   () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true,   // ⭐ CE-1442
                     sourceNotes:    ReviewPickerNotes,   // ⭐ R-5 / V6 — each row says what opening it GIVES
                     // ⭐ CE-4330 ⑤ — where each run is: the master's jobs (fact ①) and this node's own recordings (fact ③)
@@ -4920,7 +5028,7 @@ namespace Hrot.Editor
                 closedReason:         () => _timeTransport?.RunChoice?.ClosedReason,   // ⭐ CE-1442 — the run gate's reason greys every gated item (the host HAS the choice)
                 // ⭐⭐ CE-046 — the registrar now binds to the SHARED session, which is what lets CGF
                 //    register the identical items. 📄 design §3 ④.
-                session:              _editorApp.ScenarioSession,
+                session:              UiSession!,   // ⭐ D-9 — the menu is UI side
                 openPicker:           (kinds, callback) =>
                 {
                     // BATCH-29 (MTB-P8-T3): scenario.load opens via AssetPickerLauncher.
@@ -5623,7 +5731,7 @@ namespace Hrot.Editor
             if (_orchestratorCore != null)
             {
                 windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.ClusterControlWindow(
-                    _orchestratorCore.ScenarioPanel, _orchestratorCore.UiCache));
+                    UiScenarioPanel!, UiClusterCache!));   // ⭐ D-9 — mode 3: the UI's own panel and cache
                 windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.DiagnosticsWindow(_orchestratorCore.DiagnosticsPanel));
             }
 
@@ -5907,7 +6015,7 @@ namespace Hrot.Editor
                 nodes: () => _clusterMaster?.NodeRoster.ActiveNodes.Values.OrderBy(p => p.NodeName, StringComparer.Ordinal).Select(p => new Hrot.Presentation.Windows.FeatureGridNode(p.NodeName, p.Roles.ToString(),
                     p.Capabilities.Where(c => c.StartsWith("hrot.feature.", StringComparison.Ordinal)).Select(c => c.Substring("hrot.feature.".Length)).ToHashSet(), p.FeaturesOn.ToHashSet())).ToList()
                     ?? (IReadOnlyList<Hrot.Presentation.Windows.FeatureGridNode>)Array.Empty<Hrot.Presentation.Windows.FeatureGridNode>(),
-                overrides: () => _orchestratorCore?.UiCache.View.FeatureOverrides ?? (IReadOnlyList<Fdp.Toolkit.Orchestration.FeatureOverrideSpec>)Array.Empty<Fdp.Toolkit.Orchestration.FeatureOverrideSpec>(),
+                overrides: () => UiClusterCache?.View.FeatureOverrides ?? (IReadOnlyList<Fdp.Toolkit.Orchestration.FeatureOverrideSpec>)Array.Empty<Fdp.Toolkit.Orchestration.FeatureOverrideSpec>(),
                 send: list => ClusterMasterControl?.SetRunSettings(new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = Guid.NewGuid(), FeatureOverrides = list })) { IsOpen = false });
 
 
@@ -5955,7 +6063,7 @@ namespace Hrot.Editor
                 var selectionFlow = new Hrot.Editor.Scenario.SaveSelectionAsMacroFlow(
                     world:     () => _world,
                     selection: () => (System.Collections.Generic.IReadOnlyCollection<Fdp.Core.Entity>?)_selectionState?.SelectedEntities ?? System.Array.Empty<Fdp.Core.Entity>(),
-                    save:      (name, guids, header) => _editorApp.ScenarioSession.SaveSelectionAs(name, guids, header),
+                    save:      (name, guids, header) => UiSession!.SaveSelectionAs(name, guids, header),
                     // ⭐ CE-4210 W-M6 — a reference inside a unit's params blob (a task / SOP / mission task) is part of the closure; the editor HOLDS the registry, so it passes the remapper (silent-default rule)
                     behaviorRemapper: _behaviorRegistry is null ? null : Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(_behaviorRegistry));
                 _saveSelectionWindow = new Hrot.Editor.Scenario.SaveSelectionAsMacroWindow(selectionFlow);
