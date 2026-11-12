@@ -21,7 +21,7 @@ cloud VM, 4 cores (correctness and trends); the Windows command is `scripts/para
 | Q-2 off-frame state egress | 🔨 | — | switched on in the rig; CGF egress is dominated by `EqsSensorConfigTopic` (17 ms), which is NOT an off-frame translator (D-4); replication suites OFF vs ON queued |
 | Q-3 recorder capture off the frame | | | |
 | Q-4 brains in parallel (Throughput) | 🔨 | `exp/parallel-sim-2` | D-5: the posture SCORING pre-scored in parallel ahead of the serial walk; serial-vs-prescore rail green at 1/2/4/8 — measuring |
-| Q-5 weapon dispatcher | | | |
+| Q-5 weapon dispatcher | 🔨 partial | `exp/parallel-sim-2` | D-6: the 12 % turret-lookup waste removed (shared parts index); the executor itself NOT parallelised (D-6) |
 | Q-6 verdict | | | |
 
 ## Q-0 — the profile (CGF, 1 000 men, serial, recording; `dotnet-trace` sampled thread time 15 s inside the measured window + the rig's query timings)
@@ -103,3 +103,19 @@ scoring). Q-5's cheapest win is not parallelism: 12 % of the dispatcher looks up
 | its nine inputs only read the world; the part index serialises behind its own lock; the timers are per thread; the TKB dictionary is read-only | `CombatPostureDecision.cs` inputs; `StandardInputs.cs` (no statics); `PartIndex.cs:65` (lock) |
 | the tree walk is tangled with shared state (cadence windows, dedup dictionaries, finish, the frame ECB) | E-5's inventory (`STATUS_Backend_Parallel_Simulation_Experiment.md` §E-5) |
 ⇒ `UtilityPrescore`: the (unit, decision) pairs that scored last frame are scored in parallel at the brain tick's start; `ChooseOption` applies only the hysteresis. ⚠ Semantics: a pre-scored decision sees the world as it was at the START of the brain phase (Throughput only, R-4207 — the class of R-4208). Rail: `Q4_ThePrescoredPosture_IsTheSerialPosture_AtEveryThreadCount` (200 units, all 200 taken, equal at 1/2/4/8).
+
+### D-6 — Q-5: the dispatcher's cheapest win is not parallelism
+| claim | basis |
+|---|---|
+| 12 % of `WeaponDispatcherSystem` is `ReleaseTurrets` → `TurretParts.Find`, which BUILT a query and scanned every turret of the world for each soldier each tick (a soldier has none) | Q-0 trace; `TurretParts.cs:52-61` (before) |
+| the shared parts index answers "this parent's parts" (CE-2412), already used for the same lookup by `StandardInputs.TryFindMountChild` | `PartIndex.PartsOf`; `StandardInputs.cs:659-662` |
+| a turret's instance id is unique per parent ⇒ the same answer | `TurretParts.FirstPartId + index` |
+| ✅ Combat + Turret + dispatcher suites | **538 / 538** |
+| the executor itself (942 lines) interleaves reads and writes per shooter (aim state, weapon state, channel accounting, turret tasks, `WeaponFireIntent`) | `AimAndFireExecutor.cs` — a decide / fire split is a refactor of the whole executor, not done tonight |
+
+## Red-proofs (POC 2)
+| rail | mutation | result |
+|---|---|---|
+| `Q4_ThePrescoredPosture_IsTheSerialPosture_AtEveryThreadCount` | the pre-score job leaves its buffer unscored | ✅ red |
+| `TheBrainTickView_StampsItsBlock_OnlyWhenTheTickChangedIt` | the view stamps at once (the deferral never taken) | ✅ red (⚠ a first attempt with `if (false)` did not compile — unreachable code is an error here — and ran a stale binary; redone with a runtime-false condition) |
+| `BlueprintTickStampOnChangeTests` (blueprint tick) | the knob off | ✅ red (its own knob-off rail) |
