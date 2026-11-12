@@ -7,7 +7,7 @@ Owned by docs/DESIGN_Threaded_Simulation_Presentation.md §14 (the picture is an
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-W, H = 1500, 1090
+W, H = 1500, 1175
 out = []
 def add(s): out.append(s)
 
@@ -59,14 +59,14 @@ def lane(i, j): return px + i * (pw + gap) + 10, lanes_y[j]
 # ① windowed
 x, y = lane(0, 0)
 box(x + 8,  y + 26, 95, 30, C["mainf"], C["main"], "input →\ncommands", 10.5)
-box(x + 108, y + 26, 150, 30, C["mainf"], C["main"], "panels · 2-D · 3-D · tool\ngizmos on WORLD A", 10.5)
+box(x + 108, y + 26, 150, 30, C["mainf"], C["main"], "panels · 2-D · 3-D · ALL\ngizmos on WORLD A", 10.5)
 box(x + 263, y + 26, 60, 30, C["mainf"], C["main"], "draw", 10.5)
 box(x + 328, y + 26, 112, 30, C["lockf"], C["lock"], "waits only for a\nSYNC (≈1–6 ms)", 10.5)
 text(x + 8, y + 76, "every frame at the render rate — never waits for a tick", 11, C["main"])
 text(x + 8, y + 92, "world A = one object for life: selection, menus, effects stay here", 11, C["sub"])
 x, y = lane(0, 1)
 box(x + 8, y + 24, 70, 34, C["simf"], C["sim"], "drain\ncommands", 10.5)
-box(x + 83, y + 24, 140, 34, C["simf"], C["sim"], "TICK on WORLD S\n(serial + parallel fans)", 10.5)
+box(x + 83, y + 24, 140, 34, C["simf"], C["sim"], "TICK on WORLD S\n(per-entity, parallel)", 10.5)
 box(x + 228, y + 24, 70, 34, C["simf"], C["sim"], "hot egress\n(events)", 10.5)
 box(x + 303, y + 24, 70, 34, C["lockf"], C["lock"], "S → A\nsync 🔒", 10.5)
 box(x + 378, y + 24, 62, 34, C["bg2f"], C["bg2"], "S → R\n≈1 ms", 10.5)
@@ -74,7 +74,7 @@ text(x + 8, y + 78, "A sync = map / 3-D / overlay tables ≈ 1.3 ms + panel rows
 text(x + 8, y + 93, "the selected units (µs); the inspector never widens it", 11, C["sub"])
 text(x + 8, y + 108, "pause / Edit: the tick keeps running with the clock held", 11, C["sub"])
 x, y = lane(0, 2)
-box(x + 8, y + 24, 215, 30, C["poolf"], C["pool"], "parallel fans inside the tick", 10.5)
+box(x + 8, y + 24, 215, 30, C["poolf"], C["pool"], "every per-entity system, in parallel", 10.5)
 box(x + 228, y + 24, 212, 30, C["bg2f"], C["bg2"], "off-frame, on REPLICA R:", 10.5)
 box(x + 228, y + 58, 104, 32, C["bg2f"], C["bg2"], "state egress\nscan ✔ (CE-3427)", 10)
 box(x + 336, y + 58, 104, 32, C["bg2f"], C["bg2"], "recorder\ncapture", 10)
@@ -95,12 +95,12 @@ box(x + 358, y + 24, 82, 34, C["bg2f"], C["bg2"], "S → R\n≈1–6 ms", 10.5)
 text(x + 8, y + 78, "the ONE thread that writes S: no locks in the tick", 11, C["sub"])
 text(x + 8, y + 93, "R is taken only when an off-frame consumer is switched on", 11, C["sub"])
 x, y = lane(1, 2)
-box(x + 8, y + 24, 215, 30, C["poolf"], C["pool"], "parallel fans: brains*, stress ✔,\nthreat ✔, weapons, squads", 10)
+box(x + 8, y + 24, 215, 30, C["poolf"], C["pool"], "EVERY per-entity system in parallel:\nbrains, stress ✔, threat ✔, weapons …", 10)
 box(x + 228, y + 24, 104, 66, C["bg2f"], C["bg2"], "state egress\nscan on R ✔\n(positions,\nstate)", 10)
 box(x + 336, y + 24, 104, 66, C["bg2f"], C["bg2"], "recorder\ncapture on R\n(file I/O\nalready async ✔)", 10)
 box(x + 8, y + 58, 215, 32, C["poolf"], C["pool"], "background solvers on SoD ✔", 10)
-text(x + 8, y + 112, "* brains in parallel: Throughput only (R-4208 — a friend's", 11, C["sub"])
-text(x + 8, y + 127, "  cover claim seen one tick late, over-allocation recovers)", 11, C["sub"])
+text(x + 8, y + 112, "own entity written directly; other entities by command,", 11, C["sub"])
+text(x + 8, y + 127, "merged in a fixed order; their data read as LAST tick", 11, C["sub"])
 
 # ③ deterministic
 x, y = lane(2, 0)
@@ -109,12 +109,12 @@ text(x + 8, y + 76, "tests and rails: INLINE — one thread, the live world thro
 text(x + 8, y + 92, "read-only view, no copies (R-4206 F)", 11, C["sub"])
 x, y = lane(2, 1)
 box(x + 8, y + 24, 140, 34, C["simf"], C["sim"], "TICK on WORLD S", 10.5)
-box(x + 153, y + 24, 140, 34, C["simf"], C["sim"], "brains SERIAL\n(order-dependent)", 10.5)
+box(x + 153, y + 24, 140, 34, C["simf"], C["sim"], "per-entity systems\nPARALLEL too", 10.5)
 box(x + 298, y + 24, 142, 34, C["lockf"], C["lock"], "step boundary: JOIN\nbackground jobs", 10.5)
-text(x + 8, y + 78, "same input ⇒ same bytes at 1, 2, 4 or 8 threads (rails ✔)", 11, C["sub"])
+text(x + 8, y + 78, "same bytes at 1, 2, 4 or 8 threads — the rule, not the order", 11, C["sub"])
 text(x + 8, y + 93, "stepped / Run-to wait for background jobs (Time §17)", 11, C["sub"])
 x, y = lane(2, 2)
-box(x + 8, y + 24, 432, 30, C["poolf"], C["pool"], "parallel fans with PER-BATCH buffers merged in batch order ✔ (57 µs)", 10.5)
+box(x + 8, y + 24, 432, 30, C["poolf"], C["pool"], "commands to other entities merged in a FIXED order ✔ (57 µs) — deterministic", 10.5)
 box(x + 8, y + 58, 432, 32, C["bg2f"], C["bg2"], "off-frame egress / recorder: allowed — they read, never write S", 10.5)
 text(x + 8, y + 112, "the price of determinism is the WAIT at a step, not the", 11, C["sub"])
 text(x + 8, y + 127, "buffers (§7.2)", 11, C["sub"])
@@ -127,8 +127,8 @@ rows = [
      "S — the simulation, ONE per node, ONE writer (the sim thread)   ·   A — the presentation's world, windowed only, the same object for life   ·   "
      "R — one GDB replica per tick for off-frame readers   ·   SoD snapshots for background solvers ✔"),
     ("COPIES", C["bg2"],
-     "S→A: a MASK per consumer — tables for the map / 3-D / overlays (≈1.3 ms), panel ROWS for the selected units; the inspector reads rows only "
-     "(the whole-world copy, ≈13 ms, rejected)   ·   S→R: full, ≈1 ms SimHost / 6 ms CGF   ·   a copy is taken only when someone reads it"),
+     "S→A: a MASK per consumer — tables for the map, 3-D and the ACTIVE gizmo layers (0 … ≈1.3 ms), ROWS for the selected / pinned units; the inspector reads rows only "
+     "(whole world ≈13 ms, rejected)   ·   S→R: full, ≈1 ms SimHost / 6 ms CGF   ·   LAST-TICK view for cross-entity reads (how: census N-5, open)"),
     ("LOCKS", C["lock"],
      "ONE short lock on A (the sync vs the UI's world work)   ·   none inside the tick — parallel loops write through per-batch command buffers   ·   "
      "R and the gizmo frame are published / leased, never locked"),
@@ -137,7 +137,11 @@ rows = [
      "rebuild derived maps (NetworkEntityMap 0.76 ms)   ·   lease native memory (roads ✔)   ·   publish immutable views (cluster cache 0.01 ms, clock status)"),
     ("UI STATE", C["main"],
      "selection, menus, order form, effects live in A (outside the mask)   ·   the UI changes S only by COMMANDS (drag = a ghost in A, the drop = a command)   ·   "
-     "UI work leaves the tick FIRST (S-1: 26 tool gizmos, camera, selection, 4 after-kernel objects)"),
+     "UI work leaves the tick FIRST (S-1: the WHOLE gizmo block, camera, selection, the after-kernel objects — R-4211)"),
+    ("INSIDE THE TICK", C["pool"],
+     "a per-entity system writes its OWN entity directly   ·   an effect on ANOTHER entity is a command in a per-batch buffer, merged in a fixed order after the phase   ·   "
+     "a read of another entity's data that the phase writes sees LAST tick   ·   create / destroy deferred   ·   shared state per batch   ·   ParallelGuard enforces it   ·   "
+     "GLOBAL systems (spatial build, ingress / egress, playback) get their own parallel algorithm — which ones: census N-4, open"),
     ("STATICS / READS", C["ink"],
      "3 unsafe statics fixed (RunModeChoice.PresetCache, UtilityInputNames, UtilityDecisionCatalog)   ·   a managed READ must stop stamping chunk versions (A1-2) "
      "— today it also feeds false changes to the recorder and egress"),
@@ -158,11 +162,11 @@ for name, col, body in rows:
 yy += 26
 text(30, yy, "What each mode pays — nothing it does not use", 18, weight="bold")
 yy += 12
-hdr = ["", "world A + S→A sync", "the A lock", "replica R", "worker pool", "per-batch ordered merge", "joins at a step"]
+hdr = ["", "world A + S→A sync", "the A lock", "replica R", "worker pool", "fixed-order merge", "joins at a step"]
 vals = [
-    ("① windowed, playing", ["✔ masked, per tick", "✔ ≈ the sync", "if egress / recorder on", "✔", "—", "—"]),
+    ("① windowed, playing", ["✔ masked, per tick", "✔ ≈ the sync", "if egress / recorder on", "✔", "✔ (57 µs)", "—"]),
     ("① windowed, stepping", ["✔", "✔", "if on", "✔", "✔", "✔"]),
-    ("② headless live", ["—", "—", "if egress / recorder on", "✔", "—", "—"]),
+    ("② headless live", ["—", "—", "if egress / recorder on", "✔", "✔ (57 µs)", "—"]),
     ("③ regression / filming", ["windowed only", "windowed only", "if on", "✔", "✔", "✔"]),
     ("tests (inline)", ["— (read-only view)", "—", "—", "optional", "✔", "—"]),
 ]

@@ -534,3 +534,10 @@ thread over world A, every frame; the S→A mask carries what the ACTIVE gizmos 
 by ghost + command. The gizmo module's NON-gizmo world writers (action dispatch, effect / wreck spawn, lifespan) are simulation and stay in the
 tick. Headless nodes have no main-thread presentation: their gizmo stream is produced in their own tick and sent over the network, as today.
 §14.2's picture is redrawn to this (`scripts/gen-anti-race-svg.py`). ⛔ HISTORY: §13.4–13.5's 47 / 26 / 6 split by kind is superseded.
+
+### 14.7 The pictures redrawn for per-entity parallelism *(`2026-11-12`)*
+
+Both pictures now show §18 of the Parallel Simulation design (the rule inside the tick): every per-entity system runs on the pool in every mode;
+an effect on another entity is a command merged in a FIXED order, so the result is the same at any thread count — the deterministic mode no longer
+keeps the brains serial; a read of another entity's in-phase-written data sees LAST tick. ⚠ Two details stay OPEN until the census (CE-4449):
+how the last-tick view is made (a small per-type copy, the replica R, or a phase reorder — N-5) and which systems are GLOBAL (N-4).

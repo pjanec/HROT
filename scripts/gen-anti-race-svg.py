@@ -7,7 +7,7 @@ Owned by docs/DESIGN_Threaded_Simulation_Presentation.md §14.2 (explainer; the 
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-W, H = 1500, 1115
+W, H = 1500, 1155
 out = []
 add = out.append
 C = dict(ink="#1f2430", sub="#5b6475", line="#c9cfd9", sim="#c2410c", simf="#fff0e6", main="#2f6fde", mainf="#e6efff",
@@ -41,7 +41,7 @@ LX, LW = 30, 330          # S column
 MX, MW = 380, 740         # crossing column
 RX, RW = 1140, 330        # A column
 top = 80
-box(LX, top, LW, 44, C["simf"], C["sim"], "WORLD S — written ONLY by the SIM thread\n(the pool writes inside the tick via per-batch buffers)", 12, "bold")
+box(LX, top, LW, 44, C["simf"], C["sim"], "WORLD S — written ONLY by the SIM thread and its pool\n(own entity directly, other entities by command)", 12, "bold")
 box(MX, top, MW, 44, C["grey"], C["line"], "HOW IT CROSSES", 13, "bold")
 box(RX, top, RW, 44, C["mainf"], C["main"], "WORLD A — written ONLY by the MAIN thread\n(except the sync, which holds A's lock)", 12, "bold")
 
@@ -100,6 +100,9 @@ y += 56
 # reads are reads
 box(30, y, W - 60, 30, C["lockf"], C["lock"],
     "⚠ READS MUST BE READS: a managed-component read and a singleton read stop returning a writable ref / stamping the chunk (A1-2)  ·  the 3 unsafe statics get a lock / Concurrent / Lazy  ·  a Debug guard throws on a write to S off the sim thread", 11.5)
+y += 40
+box(30, y, W - 60, 30, C["cmdf"], C["cmd"],
+    "INSIDE THE TICK (the same rule one level down): a per-entity system writes its OWN entity  ·  other entities by command, merged in a fixed order  ·  their data read as LAST tick  ·  ParallelGuard", 11.5)
 y += 46
 
 # ---------------------------------------------------------------- the gizmo block (R-4211)
@@ -112,7 +115,7 @@ g = [
       "(drag, rotate, editors, pickers, RTS mode, box select)", "and UI gizmos — one module, one place, as today",
       "", "pick boxes, pickers and selection stay together", "(CE-259r: they hit-test THIS frame's boxes)", "", "maintained as one thing — no per-kind homes", ""]),
     ("WHAT IT READS — world A", C["lock"], C["lockf"],
-     ["the overlays read A's copies, so the S→A mask", "carries what every gizmo reads (A-1: map + 3-D +", "gizmos ≈ 57 types, tables ≈ 1.3 ms)",
+     ["the overlays read A's copies; the S→A mask follows", "the ACTIVE gizmo layers: nothing when none is shown,", "≈ 57 types / 1.3 ms with all on, usually just labels",
       "", "content still changes only when S ticks — drawn", "at the frame rate from the latest copy", "", "cost moved off the SIM tick: ≈ 4.4–5.5 ms", "(it now runs on the main thread's ~16 ms frame)", ""]),
     ("WHAT IT WRITES — commands only", C["cmd"], C["cmdf"],
      ["input → the tool's FSM every frame → a GHOST in A", "→ the commit is ONE COMMAND to S", "",

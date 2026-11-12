@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1090" viewBox="0 0 1500 1090" font-family="Segoe UI, Helvetica, Arial, sans-serif">
-<rect width="1500" height="1090" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1175" viewBox="0 0 1500 1175" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+<rect width="1500" height="1175" fill="#ffffff"/>
 <text x="30" y="38" font-size="22" fill="#1f2430" font-weight="bold" text-anchor="start">One kernel, three schedulings — how the threads, worlds and copies change by host mode</text>
 <text x="30" y="62" font-size="13" fill="#5b6475" font-weight="normal" text-anchor="start">Numbers: measured 2026-11-12 at 1 000 men (threaded-analysis A-3, the Windows parallel run, egress §7). Nothing here is built except where marked ✔ (exists) — the rest is the lean.</text>
 <rect x="30" y="80" width="470" height="485" rx="8" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.5"/>
@@ -33,7 +33,7 @@
 <text x="95.5" y="189.0" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">input →</text>
 <text x="95.5" y="201.5" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">commands</text>
 <rect x="148" y="176" width="150" height="30" rx="4" fill="#e6efff" stroke="#2f6fde" stroke-width="1.2"/>
-<text x="223.0" y="189.0" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">panels · 2-D · 3-D · tool</text>
+<text x="223.0" y="189.0" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">panels · 2-D · 3-D · ALL</text>
 <text x="223.0" y="201.5" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">gizmos on WORLD A</text>
 <rect x="303" y="176" width="60" height="30" rx="4" fill="#e6efff" stroke="#2f6fde" stroke-width="1.2"/>
 <text x="333.0" y="195.25" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">draw</text>
@@ -47,7 +47,7 @@
 <text x="83.0" y="321.5" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">commands</text>
 <rect x="123" y="294" width="140" height="34" rx="4" fill="#fff0e6" stroke="#c2410c" stroke-width="1.2"/>
 <text x="193.0" y="309.0" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">TICK on WORLD S</text>
-<text x="193.0" y="321.5" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">(serial + parallel fans)</text>
+<text x="193.0" y="321.5" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">(per-entity, parallel)</text>
 <rect x="268" y="294" width="70" height="34" rx="4" fill="#fff0e6" stroke="#c2410c" stroke-width="1.2"/>
 <text x="303.0" y="309.0" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">hot egress</text>
 <text x="303.0" y="321.5" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">(events)</text>
@@ -61,7 +61,7 @@
 <text x="48" y="363" font-size="11" fill="#5b6475" font-weight="normal" text-anchor="start">the selected units (µs); the inspector never widens it</text>
 <text x="48" y="378" font-size="11" fill="#5b6475" font-weight="normal" text-anchor="start">pause / Edit: the tick keeps running with the clock held</text>
 <rect x="48" y="434" width="215" height="30" rx="4" fill="#e3f6ee" stroke="#0f8a5f" stroke-width="1.2"/>
-<text x="155.5" y="453.25" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">parallel fans inside the tick</text>
+<text x="155.5" y="453.25" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">every per-entity system, in parallel</text>
 <rect x="268" y="434" width="212" height="30" rx="4" fill="#f1eaff" stroke="#7c3aed" stroke-width="1.2"/>
 <text x="374.0" y="453.25" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">off-frame, on REPLICA R:</text>
 <rect x="268" y="468" width="104" height="32" rx="4" fill="#f1eaff" stroke="#7c3aed" stroke-width="1.2"/>
@@ -92,8 +92,8 @@
 <text x="533" y="348" font-size="11" fill="#5b6475" font-weight="normal" text-anchor="start">the ONE thread that writes S: no locks in the tick</text>
 <text x="533" y="363" font-size="11" fill="#5b6475" font-weight="normal" text-anchor="start">R is taken only when an off-frame consumer is switched on</text>
 <rect x="533" y="434" width="215" height="30" rx="4" fill="#e3f6ee" stroke="#0f8a5f" stroke-width="1.2"/>
-<text x="640.5" y="447.0" font-size="10" fill="#1f2430" font-weight="normal" text-anchor="middle">parallel fans: brains*, stress ✔,</text>
-<text x="640.5" y="459.0" font-size="10" fill="#1f2430" font-weight="normal" text-anchor="middle">threat ✔, weapons, squads</text>
+<text x="640.5" y="447.0" font-size="10" fill="#1f2430" font-weight="normal" text-anchor="middle">EVERY per-entity system in parallel:</text>
+<text x="640.5" y="459.0" font-size="10" fill="#1f2430" font-weight="normal" text-anchor="middle">brains, stress ✔, threat ✔, weapons …</text>
 <rect x="753" y="434" width="104" height="66" rx="4" fill="#f1eaff" stroke="#7c3aed" stroke-width="1.2"/>
 <text x="805.0" y="453.0" font-size="10" fill="#1f2430" font-weight="normal" text-anchor="middle">state egress</text>
 <text x="805.0" y="465.0" font-size="10" fill="#1f2430" font-weight="normal" text-anchor="middle">scan on R ✔</text>
@@ -106,8 +106,8 @@
 <text x="913.0" y="489.0" font-size="10" fill="#1f2430" font-weight="normal" text-anchor="middle">already async ✔)</text>
 <rect x="533" y="468" width="215" height="32" rx="4" fill="#e3f6ee" stroke="#0f8a5f" stroke-width="1.2"/>
 <text x="640.5" y="488.0" font-size="10" fill="#1f2430" font-weight="normal" text-anchor="middle">background solvers on SoD ✔</text>
-<text x="533" y="522" font-size="11" fill="#5b6475" font-weight="normal" text-anchor="start">* brains in parallel: Throughput only (R-4208 — a friend's</text>
-<text x="533" y="537" font-size="11" fill="#5b6475" font-weight="normal" text-anchor="start">  cover claim seen one tick late, over-allocation recovers)</text>
+<text x="533" y="522" font-size="11" fill="#5b6475" font-weight="normal" text-anchor="start">own entity written directly; other entities by command,</text>
+<text x="533" y="537" font-size="11" fill="#5b6475" font-weight="normal" text-anchor="start">merged in a fixed order; their data read as LAST tick</text>
 <rect x="1018" y="176" width="432" height="30" rx="4" fill="#e6efff" stroke="#2f6fde" stroke-width="1.2"/>
 <text x="1234.0" y="195.25" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">windowed: as ① — the UI still never waits for a tick</text>
 <text x="1018" y="226" font-size="11" fill="#5b6475" font-weight="normal" text-anchor="start">tests and rails: INLINE — one thread, the live world through a</text>
@@ -115,15 +115,15 @@
 <rect x="1018" y="294" width="140" height="34" rx="4" fill="#fff0e6" stroke="#c2410c" stroke-width="1.2"/>
 <text x="1088.0" y="315.25" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">TICK on WORLD S</text>
 <rect x="1163" y="294" width="140" height="34" rx="4" fill="#fff0e6" stroke="#c2410c" stroke-width="1.2"/>
-<text x="1233.0" y="309.0" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">brains SERIAL</text>
-<text x="1233.0" y="321.5" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">(order-dependent)</text>
+<text x="1233.0" y="309.0" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">per-entity systems</text>
+<text x="1233.0" y="321.5" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">PARALLEL too</text>
 <rect x="1308" y="294" width="142" height="34" rx="4" fill="#fff6d6" stroke="#d4a106" stroke-width="1.2"/>
 <text x="1379.0" y="309.0" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">step boundary: JOIN</text>
 <text x="1379.0" y="321.5" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">background jobs</text>
-<text x="1018" y="348" font-size="11" fill="#5b6475" font-weight="normal" text-anchor="start">same input ⇒ same bytes at 1, 2, 4 or 8 threads (rails ✔)</text>
+<text x="1018" y="348" font-size="11" fill="#5b6475" font-weight="normal" text-anchor="start">same bytes at 1, 2, 4 or 8 threads — the rule, not the order</text>
 <text x="1018" y="363" font-size="11" fill="#5b6475" font-weight="normal" text-anchor="start">stepped / Run-to wait for background jobs (Time §17)</text>
 <rect x="1018" y="434" width="432" height="30" rx="4" fill="#e3f6ee" stroke="#0f8a5f" stroke-width="1.2"/>
-<text x="1234.0" y="453.25" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">parallel fans with PER-BATCH buffers merged in batch order ✔ (57 µs)</text>
+<text x="1234.0" y="453.25" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">commands to other entities merged in a FIXED order ✔ (57 µs) — deterministic</text>
 <rect x="1018" y="468" width="432" height="32" rx="4" fill="#f1eaff" stroke="#7c3aed" stroke-width="1.2"/>
 <text x="1234.0" y="488.25" font-size="10.5" fill="#1f2430" font-weight="normal" text-anchor="middle">off-frame egress / recorder: allowed — they read, never write S</text>
 <text x="1018" y="522" font-size="11" fill="#5b6475" font-weight="normal" text-anchor="start">the price of determinism is the WAIT at a step, not the</text>
@@ -137,8 +137,8 @@
 <rect x="30" y="661" width="1440" height="44" rx="5" fill="#fbfcfe" stroke="#c9cfd9"/>
 <rect x="30" y="661" width="6" height="44" fill="#7c3aed"/>
 <text x="48" y="681" font-size="12.5" fill="#7c3aed" font-weight="bold" text-anchor="start">COPIES</text>
-<text x="185" y="681" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">S→A: a MASK per consumer — tables for the map / 3-D / overlays (≈1.3 ms), panel ROWS for the selected units; the inspector reads rows only (the whole-world copy, ≈13 ms, rejected)   ·   S→R: full, ≈1 ms</text>
-<text x="185" y="697" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">SimHost / 6 ms CGF   ·   a copy is taken only when someone reads it</text>
+<text x="185" y="681" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">S→A: a MASK per consumer — tables for the map, 3-D and the ACTIVE gizmo layers (0 … ≈1.3 ms), ROWS for the selected / pinned units; the inspector reads rows only (whole world ≈13 ms, rejected)   ·   S→R:</text>
+<text x="185" y="697" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">full, ≈1 ms SimHost / 6 ms CGF   ·   LAST-TICK view for cross-entity reads (how: census N-5, open)</text>
 <rect x="30" y="711" width="1440" height="28" rx="5" fill="#fbfcfe" stroke="#c9cfd9"/>
 <rect x="30" y="711" width="6" height="28" fill="#d4a106"/>
 <text x="48" y="731" font-size="12.5" fill="#d4a106" font-weight="bold" text-anchor="start">LOCKS</text>
@@ -151,60 +151,66 @@
 <rect x="30" y="795" width="1440" height="44" rx="5" fill="#fbfcfe" stroke="#c9cfd9"/>
 <rect x="30" y="795" width="6" height="44" fill="#2f6fde"/>
 <text x="48" y="815" font-size="12.5" fill="#2f6fde" font-weight="bold" text-anchor="start">UI STATE</text>
-<text x="185" y="815" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">selection, menus, order form, effects live in A (outside the mask)   ·   the UI changes S only by COMMANDS (drag = a ghost in A, the drop = a command)   ·   UI work leaves the tick FIRST (S-1: 26 tool</text>
-<text x="185" y="831" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">gizmos, camera, selection, 4 after-kernel objects)</text>
-<rect x="30" y="845" width="1440" height="44" rx="5" fill="#fbfcfe" stroke="#c9cfd9"/>
-<rect x="30" y="845" width="6" height="44" fill="#1f2430"/>
-<text x="48" y="865" font-size="12.5" fill="#1f2430" font-weight="bold" text-anchor="start">STATICS / READS</text>
-<text x="185" y="865" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">3 unsafe statics fixed (RunModeChoice.PresetCache, UtilityInputNames, UtilityDecisionCatalog)   ·   a managed READ must stop stamping chunk versions (A1-2) — today it also feeds false changes to the</text>
-<text x="185" y="881" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">recorder and egress</text>
-<text x="30" y="921" font-size="18" fill="#1f2430" font-weight="bold" text-anchor="start">What each mode pays — nothing it does not use</text>
-<rect x="30" y="933" width="1265" height="24" fill="#eef2f8" stroke="#c9cfd9" stroke-width="0.6"/>
-<text x="38" y="949" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">mode</text>
-<text x="248" y="949" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">world A + S→A sync</text>
-<text x="453" y="949" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">the A lock</text>
-<text x="603" y="949" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">replica R</text>
-<text x="803" y="949" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">worker pool</text>
-<text x="933" y="949" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">per-batch ordered merge</text>
-<text x="1153" y="949" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">joins at a step</text>
-<rect x="30" y="957" width="1265" height="24" fill="#ffffff" stroke="#c9cfd9" stroke-width="0.6"/>
-<text x="38" y="973" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">① windowed, playing</text>
-<text x="248" y="973" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔ masked, per tick</text>
-<text x="453" y="973" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔ ≈ the sync</text>
-<text x="603" y="973" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">if egress / recorder on</text>
-<text x="803" y="973" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
-<text x="933" y="973" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">—</text>
-<text x="1153" y="973" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">—</text>
-<rect x="30" y="981" width="1265" height="24" fill="#f7f8fb" stroke="#c9cfd9" stroke-width="0.6"/>
-<text x="38" y="997" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">① windowed, stepping</text>
-<text x="248" y="997" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
-<text x="453" y="997" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
-<text x="603" y="997" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">if on</text>
-<text x="803" y="997" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
-<text x="933" y="997" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
-<text x="1153" y="997" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
-<rect x="30" y="1005" width="1265" height="24" fill="#ffffff" stroke="#c9cfd9" stroke-width="0.6"/>
-<text x="38" y="1021" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">② headless live</text>
-<text x="248" y="1021" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">—</text>
-<text x="453" y="1021" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">—</text>
-<text x="603" y="1021" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">if egress / recorder on</text>
-<text x="803" y="1021" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
-<text x="933" y="1021" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">—</text>
-<text x="1153" y="1021" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">—</text>
-<rect x="30" y="1029" width="1265" height="24" fill="#f7f8fb" stroke="#c9cfd9" stroke-width="0.6"/>
-<text x="38" y="1045" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">③ regression / filming</text>
-<text x="248" y="1045" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">windowed only</text>
-<text x="453" y="1045" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">windowed only</text>
-<text x="603" y="1045" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">if on</text>
-<text x="803" y="1045" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
-<text x="933" y="1045" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
-<text x="1153" y="1045" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
-<rect x="30" y="1053" width="1265" height="24" fill="#ffffff" stroke="#c9cfd9" stroke-width="0.6"/>
-<text x="38" y="1069" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">tests (inline)</text>
-<text x="248" y="1069" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">— (read-only view)</text>
-<text x="453" y="1069" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">—</text>
-<text x="603" y="1069" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">—</text>
-<text x="803" y="1069" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">optional</text>
-<text x="933" y="1069" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
-<text x="1153" y="1069" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">—</text>
+<text x="185" y="815" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">selection, menus, order form, effects live in A (outside the mask)   ·   the UI changes S only by COMMANDS (drag = a ghost in A, the drop = a command)   ·   UI work leaves the tick FIRST (S-1: the WHOLE</text>
+<text x="185" y="831" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">gizmo block, camera, selection, the after-kernel objects — R-4211)</text>
+<rect x="30" y="845" width="1440" height="60" rx="5" fill="#fbfcfe" stroke="#c9cfd9"/>
+<rect x="30" y="845" width="6" height="60" fill="#0f8a5f"/>
+<text x="48" y="865" font-size="12.5" fill="#0f8a5f" font-weight="bold" text-anchor="start">INSIDE THE TICK</text>
+<text x="185" y="865" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">a per-entity system writes its OWN entity directly   ·   an effect on ANOTHER entity is a command in a per-batch buffer, merged in a fixed order after the phase   ·   a read of another entity's data that</text>
+<text x="185" y="881" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">the phase writes sees LAST tick   ·   create / destroy deferred   ·   shared state per batch   ·   ParallelGuard enforces it   ·   GLOBAL systems (spatial build, ingress / egress, playback) get their own</text>
+<text x="185" y="897" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">parallel algorithm — which ones: census N-4, open</text>
+<rect x="30" y="911" width="1440" height="44" rx="5" fill="#fbfcfe" stroke="#c9cfd9"/>
+<rect x="30" y="911" width="6" height="44" fill="#1f2430"/>
+<text x="48" y="931" font-size="12.5" fill="#1f2430" font-weight="bold" text-anchor="start">STATICS / READS</text>
+<text x="185" y="931" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">3 unsafe statics fixed (RunModeChoice.PresetCache, UtilityInputNames, UtilityDecisionCatalog)   ·   a managed READ must stop stamping chunk versions (A1-2) — today it also feeds false changes to the</text>
+<text x="185" y="947" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">recorder and egress</text>
+<text x="30" y="987" font-size="18" fill="#1f2430" font-weight="bold" text-anchor="start">What each mode pays — nothing it does not use</text>
+<rect x="30" y="999" width="1265" height="24" fill="#eef2f8" stroke="#c9cfd9" stroke-width="0.6"/>
+<text x="38" y="1015" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">mode</text>
+<text x="248" y="1015" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">world A + S→A sync</text>
+<text x="453" y="1015" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">the A lock</text>
+<text x="603" y="1015" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">replica R</text>
+<text x="803" y="1015" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">worker pool</text>
+<text x="933" y="1015" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">fixed-order merge</text>
+<text x="1153" y="1015" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">joins at a step</text>
+<rect x="30" y="1023" width="1265" height="24" fill="#ffffff" stroke="#c9cfd9" stroke-width="0.6"/>
+<text x="38" y="1039" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">① windowed, playing</text>
+<text x="248" y="1039" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔ masked, per tick</text>
+<text x="453" y="1039" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔ ≈ the sync</text>
+<text x="603" y="1039" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">if egress / recorder on</text>
+<text x="803" y="1039" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
+<text x="933" y="1039" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔ (57 µs)</text>
+<text x="1153" y="1039" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">—</text>
+<rect x="30" y="1047" width="1265" height="24" fill="#f7f8fb" stroke="#c9cfd9" stroke-width="0.6"/>
+<text x="38" y="1063" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">① windowed, stepping</text>
+<text x="248" y="1063" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
+<text x="453" y="1063" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
+<text x="603" y="1063" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">if on</text>
+<text x="803" y="1063" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
+<text x="933" y="1063" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
+<text x="1153" y="1063" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
+<rect x="30" y="1071" width="1265" height="24" fill="#ffffff" stroke="#c9cfd9" stroke-width="0.6"/>
+<text x="38" y="1087" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">② headless live</text>
+<text x="248" y="1087" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">—</text>
+<text x="453" y="1087" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">—</text>
+<text x="603" y="1087" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">if egress / recorder on</text>
+<text x="803" y="1087" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
+<text x="933" y="1087" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔ (57 µs)</text>
+<text x="1153" y="1087" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">—</text>
+<rect x="30" y="1095" width="1265" height="24" fill="#f7f8fb" stroke="#c9cfd9" stroke-width="0.6"/>
+<text x="38" y="1111" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">③ regression / filming</text>
+<text x="248" y="1111" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">windowed only</text>
+<text x="453" y="1111" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">windowed only</text>
+<text x="603" y="1111" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">if on</text>
+<text x="803" y="1111" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
+<text x="933" y="1111" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
+<text x="1153" y="1111" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
+<rect x="30" y="1119" width="1265" height="24" fill="#ffffff" stroke="#c9cfd9" stroke-width="0.6"/>
+<text x="38" y="1135" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="start">tests (inline)</text>
+<text x="248" y="1135" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">— (read-only view)</text>
+<text x="453" y="1135" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">—</text>
+<text x="603" y="1135" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">—</text>
+<text x="803" y="1135" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">optional</text>
+<text x="933" y="1135" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔</text>
+<text x="1153" y="1135" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">—</text>
 </svg>
