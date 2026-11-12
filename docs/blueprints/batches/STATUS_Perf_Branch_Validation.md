@@ -43,3 +43,35 @@ base vs perf):
 | `EveryFieldThatCanCarryStateBetweenFrames_IsClassified` | 18 fields (batch lists, the stamp-on-change buffer, the raycast job's copies, `StressSystem._prevNow`, the EQS-config gate's state, three experiment switches) | classified in `DESIGN_System_State_Inventory.md`: 15 **A**, 3 **K** — each read in code |
 
 After both: the three census rails' failures equal the base's, entry for entry.
+
+## V-2 — defaults unchanged (every opt-in switch OFF)
+
+The same scenario, the same 600 fixed steps (10.0 s sim), one fresh headless editor per (tree, scenario), the base runner built in a
+worktree at `786e99599`; every networked entity's full component dump compared (`GET /entities/{networkId}`).
+
+| scenario | base vs exp/perf | base vs base (a second run) |
+|---|---|---|
+| `hill-attack-close` | 32 / 33 identical — the one difference: entity 1008's `EntityGuid` | **the same** 32 / 33, the same entity, only its `EntityGuid` |
+| `cc-platoon-bound` | 58 / 59 identical — only entity 1014's `EntityGuid` | (not re-run) |
+| `bc-house-defended` | ⛔ not compared — `GET /entities` answers 500 on BOTH trees (pre-existing) | |
+
+⇒ ⭐ **exp/perf with its switches off produces the base's world**, exactly where the base reproduces itself (a spawned entity's GUID is
+random per process). ⚠ Coverage: the entities carrying a network id (10 of 33, 16 of 59); parts sharing id 0 are not dumped by that route.
+⚠ A cross-branch RECORDING replay was not compared; in-process, a recording replays to the same state hash with stamping and non-stamping
+reads (`ManagedReadsReplayEquivalenceTests`, CE-4445).
+📌 Tool rot found: `scripts/determinism-probe.py` enters preview after a live load (the current editor then holds an empty world and the first
+step 504s), reads `/entities/{id}/state` (now 404), and Python's urllib sends `localhost` through the sandbox proxy. A scratch copy that
+steps the paused live run and reads `/entities/{id}` was used; the repo script is unchanged.
+
+## V-3 — determinism
+
+`dotnet test Hrot/Runner/Hrot.SystemTests --no-build --filter DeterminismRails` (two fresh editor processes per rail):
+
+| switches | result |
+|---|---|
+| none (serial) | ✅ 5 / 5 |
+| `HROT_PARALLEL_SIM=1`, `HROT_SIM_THREADS` = 1 · 2 · 4 · 8 (Deterministic) | ✅ 5 / 5 at each |
+| `HROT_PARALLEL_SIM=1 HROT_SIM_THREADS=4 HROT_SIM_MODE=throughput` | ✅ 5 / 5 |
+
+The serial-vs-parallel rails at 1 / 2 / 4 / 8 threads (`ParallelEntitiesTests` P0, `ThreatEvaluationParallelRailTests`, `StressSystemTests` P1,
+`CalloutsTests` P1) are green in V-1's suites.
