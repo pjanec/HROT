@@ -2813,24 +2813,24 @@ namespace Hrot.Editor
             //    then read.
             // ⚠ The cost, stated: a reader sees a capture one frame old. ⛔ The alternative — reading a
             //    half-built frame — is worse, and reading an EMPTY one is what we had.
-            _debugApiJobQueue?.DrainAll();
+            using (Fdp.Core.AccessTrace.Scope("api-job: debug-API jobs (HTTP routes run on the main thread)", Fdp.Core.TraceContext.Other)) _debugApiJobQueue?.DrainAll();   // ⭐ A-1
 
             // ⭐ CE-4038 (DESIGN_Film_Director §1a) — THE new edge: the director's frame, after the routes drained (a /director/play lands
             //   this frame) and before the map's update (its held shot and its capture are served there). ⭐⭐ At most ONE step per frame
             //   (§0, R-3038) — the runner asserts it.
-            _directorPack?.Tick();
+            using (Fdp.Core.AccessTrace.Scope("editor: film director")) _directorPack?.Tick();   // ⭐ A-1
             // ⭐ CE-4042 — --verify: start the run once the editor is Idle; leave with the verdict when it is done
             if (_directorPack != null)
                 _commandLineVerify?.Tick(_directorPack.Runner, _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.Idle, _requestAppExit);
 
-            DrainStagingRemap();
+            using (Fdp.Core.AccessTrace.Scope("editor: staging remap drain")) DrainStagingRemap();   // ⭐ A-1
 
             Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.ClearCaptured();
 
             // Process input pipeline BEFORE kernel update so authored tools
             // (CreationTool, ObstaclePlacementTool, etc.) receive mouse events this frame.
-            _canvas?.Update(deltaTime);
-            _selectionSystem?.Tick(deltaTime);
+            using (Fdp.Core.AccessTrace.Scope("editor: map canvas Update (camera, input, layers)")) _canvas?.Update(deltaTime);   // ⭐ A-1
+            using (Fdp.Core.AccessTrace.Scope("editor: selection system")) _selectionSystem?.Tick(deltaTime);   // ⭐ A-1
             // Update camera viewport so MapCullingModule knows what area is on-screen.
             if (_camera != null)
             {
@@ -2859,6 +2859,7 @@ namespace Hrot.Editor
             //   ⚠ The comment above explains why EndFrame sits HERE rather than at the end of the
             //      frame; the publish inherits that placement, so it reports the primitives the
             //      PREVIOUS Update produced — which is exactly what is on screen right now.
+            using var traceGizmoFeed = Fdp.Core.AccessTrace.Scope("editor: gizmo feed publish + EndFrame");   // ⭐ A-1
             if (!threaded && _gizmoBuffer != null)   // ⭐ X-4: in threaded mode the worker publishes and ends the gizmo frame
                 Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(
                     _gizmoBuffer,
@@ -2867,6 +2868,7 @@ namespace Hrot.Editor
                     GizmoFeedAddress);   // ⭐ CE-4432 — built once (was a new string per frame)
 
             if (!threaded) _gizmoBuffer?.EndFrame(deltaTime);
+            traceGizmoFeed.Dispose();   // ⭐ A-1 — a using var cannot end early (a second Dispose at the method end is harmless): the node frame is not the gizmo feed
 
             // ⭐⭐⭐ CE-1446 B2 (decision C) — THE SHARED FRAME, `HrotNodeContext.Tick`: the slave's translator and the slave tick, then the kernel, then the node's live timeline step, then
             //   the orchestration-bus swap — the order every other ECS host runs (the slave used to be ticked INSIDE the kernel as OrchestrationLogicPack, and the swap and timeline step
@@ -2876,8 +2878,8 @@ namespace Hrot.Editor
                 TickNodeFrame(deltaTime);   // ⭐ CE-4316 — the node frame, extracted so Run to …'s turbo loop runs the SAME one (EditorSubsystem.TurboStep)
                 Fdp.ModuleHost.PublishProbe.AfterFrame(_world);   // ⭐ EXPERIMENT (threaded kernel X-1) — opt-in HROT_PUBLISH_PROBE=1
             }
-            _editorLogic?.Update();
-            _orchestratorCore?.ScenarioPanel.Update(deltaTime);
+            using (Fdp.Core.AccessTrace.Scope("editor: editor logic Update (loads, SoftClear, scenario)")) _editorLogic?.Update();   // ⭐ A-1
+            using (Fdp.Core.AccessTrace.Scope("editor: orchestrator ScenarioPanel.Update")) _orchestratorCore?.ScenarioPanel.Update(deltaTime);   // ⭐ A-1
 
             // ⭐⭐⭐ CE-051 — the drain MOVED to the shared ToolActivationDrainSystem /
             //    SelectEntitySystem / CenterOnEntitySystem, registered by ScenarioEditorModule (:1273).
@@ -2885,10 +2887,10 @@ namespace Hrot.Editor
             // ⭐ The rename half is the one piece that could not become a system — it needs ImGui — so it
             //   is the shared EntityRenameModal, drained just below and drawn in DrawUI.
             if (!_headless && _world != null)
-                _entityRenameModal?.Drain(_world);
+                using (Fdp.Core.AccessTrace.Scope("editor: entity rename modal drain")) _entityRenameModal?.Drain(_world);   // ⭐ A-1
 
             // Poll mission ACKs so async CommitMissionAsync tasks can resolve.
-            _missionService?.PollAcks();
+            using (Fdp.Core.AccessTrace.Scope("editor: mission service PollAcks")) _missionService?.PollAcks();   // ⭐ A-1
 
             // Feed the FDP event browser each frame.
             if (!_headless && _world != null)
@@ -2904,30 +2906,31 @@ namespace Hrot.Editor
         /// </summary>
         private void TickNodeFrame(float deltaTime)
         {
+            using var traceNode = Fdp.Core.AccessTrace.Scope("node: shared frame (slave, bus swap, timeline)", Fdp.Core.TraceContext.Tick);   // ⭐ A-1 — the whole node frame is the TICK context
             if (_node != null)
             {
                 _node.Tick(
-                    beforeKernel: () => PreKernelUpdateHook?.Invoke(deltaTime),
+                    beforeKernel: () => { using (Fdp.Core.AccessTrace.Scope("node: beforeKernel hook")) PreKernelUpdateHook?.Invoke(deltaTime); },
                     afterKernel: () =>
                     {
-                        PostKernelUpdateHook?.Invoke();
+                        using (Fdp.Core.AccessTrace.Scope("node: afterKernel PostKernelUpdateHook")) PostKernelUpdateHook?.Invoke();
 
                         // Drain AI hot-reload callbacks safely on the main thread: any BTreeInterpreter pointer swaps queued by the background ALC worker are applied here, between kernel
                         // ticks, so no active simulation tick can observe a half-swapped pointer.
-                        _aiCoordinator?.DrainPendingCallbacks();
+                        using (Fdp.Core.AccessTrace.Scope("node: afterKernel hot-reload drain")) _aiCoordinator?.DrainPendingCallbacks();   // ⭐ A-1
                         // ⭐ CE-1317 (BV-48) — disarm the traces of units no Brain tab has drawn for ~1 s
-                        if (_world != null) Hrot.Common.Diagnostics.Gizmos.BrainObservation.Current?.Tick(_world);
+                        using (Fdp.Core.AccessTrace.Scope("node: afterKernel BrainObservation")) if (_world != null) Hrot.Common.Diagnostics.Gizmos.BrainObservation.Current?.Tick(_world);
                         // ⭐ CE-1329 (BV-70) — the per-unit debug settings: loaded with a scenario, saved when they change
-                        if (_world != null) _debugSettingsMemory.Tick(_world, _editorLogic?.LoadedScenarioName);
+                        using (Fdp.Core.AccessTrace.Scope("node: afterKernel UnitDebugSettingsMemory")) if (_world != null) _debugSettingsMemory.Tick(_world, _editorLogic?.LoadedScenarioName);
                         // AIE-026: tick the regeneration scheduler — flushes debounced dirty saves (BTree/HSM emit-on-dirty). Safe in headless mode.
-                        _regenerationScheduler?.Tick();
+                        using (Fdp.Core.AccessTrace.Scope("node: afterKernel RegenerationScheduler")) _regenerationScheduler?.Tick();
                     });
             }
 
             // The cluster orchestrator's own order (Q86): it reads the orchestration bus AFTER the frame swapped it, so intents published by the UI this frame are readable by it.
-            _orchestratorCore?.Tick();                 // ⭐ Q86 — the cluster orchestrator's own order
-            _orchestratorCore?.UiCache.Update();
-            _timeTransport?.Update();                  // ⭐ CE-3329 row 21 — the one facade reads what the cache reads
+            using (Fdp.Core.AccessTrace.Scope("node: orchestrator core Tick")) _orchestratorCore?.Tick();                 // ⭐ Q86 — the cluster orchestrator's own order
+            using (Fdp.Core.AccessTrace.Scope("node: ClusterUiCache.Update")) _orchestratorCore?.UiCache.Update();
+            using (Fdp.Core.AccessTrace.Scope("node: time transport Update")) _timeTransport?.Update();                  // ⭐ CE-3329 row 21 — the one facade reads what the cache reads
         }
 
         /// <summary>

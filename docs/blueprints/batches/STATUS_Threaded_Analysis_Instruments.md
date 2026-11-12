@@ -23,11 +23,77 @@ handoff names). Every instrument is opt-in (an env switch, default OFF) and chan
 
 | # | instrument | state | sha | note |
 |---|---|---|---|---|
-| A-1 | runtime access tracer (`HROT_ACCESS_TRACE=1`) | ⏳ building (worker) | | |
+| A-1 | runtime access tracer (`HROT_ACCESS_TRACE=1`) | ✅ first run (worker built it; Opus reviewed, fixed two placement defects, gated) | this commit | §A-1 below; full tables: [A1_Access_Trace_Tables.md](threaded-analysis/A1_Access_Trace_Tables.md) |
 | A-2 | static reachability (Roslyn) | ✅ first pass | this commit | §A-2 below; per type: [A2_Crossing_Types.md](threaded-analysis/A2_Crossing_Types.md) |
 | A-3 | the treatments' costs (`PublishProbe` extended) | | | needs A-1's masks |
 | A-4 | presentation-out-of-the-tick dependencies | ✅ first pass (read-only sweep + Opus spot-checks) | this commit | §A-4 below |
 | A-5 | verdict + fold into §13 | | | |
+
+## A-1 — runtime access trace: what each side actually touched in the world *(worker + Opus review, `2026-11-12`)*
+
+**Instrument:** `FDP/Engine/Fdp.Core/AccessTrace.cs`. Every world access is one record: component read / write / has / add / remove, a query's
+included and excluded types, singleton get / set / has, entity create / destroy, bus publish / read / swap. Each record is tagged with a
+**context** (Tick · Presentation · Other) and a **reader** (a scope stack: `system:X`, `module: X`, `window:<id>`, `layer.Draw2D/Draw3D/Update: X`,
+`gizmo-rule: X`, `subsystem.DrawWorld/DrawUI: X`, `node: afterKernel …`, `editor: …`). Records are aggregated per run and written as JSON every
+5 s and at exit. The hooks sit in `EntityRepository`, `EntityQuery`, `FdpEventBus`, `UnsafeShim`, the kernel, the scheduler, the window manager,
+`MapCanvas`, `StatelessGizmoSystem`, `SubsystemOrchestrator` and `EditorSubsystem`.
+
+**Switched off it costs nothing:** every hook is `if (AccessTrace.On)` on a `static readonly bool`. The `AccessTraceOffTests` rail runs a steady
+frame through every hooked path and asserts **0 B**; it was red-proved by removing the `On` guard. A second rail, active only with the switch on,
+checks that counts land under the right context and reader, including inside a `Parallel.For` worker.
+
+**Run:** `scripts/access-trace-session.py` (the real editor under Xvfb, Release, driven over the debug HTTP API), then
+`scripts/access-trace-report.py` (makes the tables). The rig is the 1 000-man `scale-rig-scale-1-1000-2s` scenario, 12 566 entities. The script
+ran **125 steps, 121 ok:**
+- load, then idle;
+- select 1 unit, then 10 one at a time;
+- open **every window the editor offers (78/78 were open at some point)**, across the Scenario, BTree, HSM, Blueprint and Review perspectives;
+- play 60 s, pause, step ×5;
+- 3-D view on (following a unit), playing, then off;
+- edits: spawn, move, delete, step;
+- orders: move, hold;
+- hot reload of `Hrot.AI.Behaviors`;
+- edit state: move, then save.
+
+**The 4 steps that did not run are UNKNOWNS, not "reads nothing":** `editor/_gizmo`, `global_menu` and `main_toolbar` are not windows the API can
+open, and `editor.undo` failed. The right-click menu and a drag-rotate were not scripted.
+
+**Headline:**
+
+| | |
+|---|---|
+| accesses recorded | 1.22 × 10⁹ — Tick 1.07 × 10⁹ · Presentation 1.43 × 10⁸ · Other 1.2 × 10⁷ |
+| **types crossing the line** (same world, one side writes, the other touches) | ⭐ **266** — 238 component types · 24 singletons · 4 event types |
+| component types the presentation reads | **290**, of which 206 are read only by the FDP inspector (it reflects over every table); **84** without it. The static X-2 count was 125 |
+| component types the tick writes | 142 |
+| singletons the presentation touches | 14 (X-2: 16) |
+| events | the presentation reads 12 event types and publishes 1 (`EntityCreationRequest`, from a map placement) |
+
+**Diff against §13 — the findings:**
+
+| # | finding | evidence |
+|---|---|---|
+| A1-1 | ⭐ **six singletons cross the line that §13.1 does not list:** `ReplayState`, `SelectionStore`, `StationMode`, `TerrainDefinition`, `UnitDebugSettings`, `WorldEpoch` | table §3 |
+| A1-2 | ⭐⭐ **a managed READ is a WRITE to change tracking.** `GetComponent<T>` / `GetComponentRO<T>` on a managed type goes to `UnsafeShim.GetManagedRO`, which returns `_getRW` and bumps the table's chunk version. The presentation does this **≈ 438 000** times in the run: `TerrainObjectKey` from `EditorSubsystem.DrawWorld` (380 105) and the 3-D entity layer (57 766), `SopStartRecord` from the FDP inspector (519). On a UI thread this is a write race on the version counter, and it also marks the chunk dirty for the recorder | code: `EntityRepository.GetComponent<T>` → `UnsafeShim.ManagedAccessor.GetRO` returns `_getRW` (bound to `GetManagedComponentRW`) → `ManagedComponentTable.GetRW` stamps `_chunkVersions[chunk]` and may allocate the chunk (`ManagedComponentTable.cs:181-196`). The later, partial run counts these under kind `ReadViaRW`; the first full run counted them as `Write` |
+| A1-3 | **direct world writes by the UI, as traced:** 2 `SimTransform` writes from `layer.Update: Map camera` (the edit-state move), 1 `IOrderForm` singleton set from `subsystem.DrawUI: EditorSubsystem`, 1 `EntityCreationRequest` publish. §13 / X-2 name about 15 write sites; the run reached these three | presentation-context writes, `trace-1.json` |
+| A1-4 | **12 §13.1 singletons were not seen from the presentation at all:** `CanvasContextMenuState`, `DetonationTraces`, `ICoverProvider`, `IEqsTemplateRegistry`, `INavmeshProvider`, `LiveTerrainBakeInfo`, `OrdersOffered`, `ScenarioDescriptionResident`, `ShotTraces`, `SortedHierarchyData`, `SpatialGridData`, `ZoneEnvironmentData`. Either the script did not exercise them (right-click menu, fire traces), or the reader gets them through a helper or a cached reference that bypasses the world | table §3 |
+| A1-5 | **`MapSelfCheckSystem` is the heaviest presentation-in-tick reader:** 46 M `SimTransform` reads and 24 M `TerrainObjectKey` reads in the run. Moving it out of the tick means moving a whole-world scan | table §1 |
+| A1-6 | **the event types that cross** (one side publishes, the other reads): `EntityCreationRequest` and `StagingRemapPublishedEvent` | table §3 |
+
+**Gates** (base = `89d538251`, this branch without A-1, built in a clean worktree):
+
+| command | result | vs base |
+|---|---|---|
+| `dotnet test FDP/Engine/Fdp.Core.Tests -c Release --no-build` (test project built first) | 1310 passed · **5 failed** · 22 skipped / 1337 | base: 1306 passed · 6 failed / 1334. ⭐ All 5 fail at the base too: the two `BitMask512 …ParanoidThrows` (Release has no paranoid mode), `NoSystemSchedulesOnTheWallClock` (`DeployProcessorSystem.cs:97`, `DeployFlowSystem.cs:83`), and the two `OneSharedJsonOptions` (`BridgeRoads`, `ExerciseNotes`, `StorageProcessManager`, `ContentMigrate`, `BlockLayout`, `EditorTerrainSaveService`, `TerrainContentHash`). The base's sixth, `EventBusTests.Publish_StressTest`, passes here |
+| `AccessTraceOffTests` (3) | 3/3 | red-proved by the worker (an unguarded `Scope` name concatenation ⇒ the 0 B assertion fails) |
+| A-1's own reds, found in review and fixed | ① the rail's `[ComponentId(506/507)]` collided with `FramePrefetcherTests` (`TestComponentIdUniquenessTests`) ⇒ moved to 503–505 (ids must be < 512: 946–948 threw *"outside the singleton range"*) · ② the A-2 tool's two `JsonSerializerOptions` ⇒ exempted with a reason | — |
+| review fixes in the core | ① `TraceRun` had been inserted between `GetEnumerator`'s `[AggressiveInlining]` and the method itself, moving the attribute onto `TraceRun` ⇒ restored · ② `EntityIndexUntraced` had taken `GetEntityIndex`'s doc comment ⇒ restored | — |
+
+**Limits:**
+- 44 `ConditionalWeakTable<EntityRepository, …>` side tables (§13.2) and the objects outside the world (§13.6) are not world accesses, so the tracer
+  cannot see them. A-2 covers them.
+- A raw table, a span or a pointer obtained once (`GetComponentTable`, `GetComponentPointer`) counts once, not per element.
+- Counts are per run, not per frame, and windows stay open once opened, so later phases re-enter them (table §4 gives each reader's first phase).
 
 ## A-2 — static reachability: the fields one side writes and the other reads *(Opus, `2026-11-12`)*
 

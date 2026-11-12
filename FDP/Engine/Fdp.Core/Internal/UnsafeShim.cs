@@ -292,7 +292,16 @@ namespace Fdp.Core.Internal
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static ref readonly T GetRO(EntityRepository repo, Entity e) 
             {
+                 if (AccessTrace.On) return ref TracedGetRO(repo, e);   // ⭐ A-1 — a separate method: this one stays free of exception handling, so it still inlines
                  // Return RW as RO
+                 return ref _getRW(repo, e);
+            }
+
+            /// <summary>⭐ A-1 — a managed READ takes the RW path (it bumps the table's chunk version): ONE event, kind ReadViaRW, the inner write hidden.</summary>
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            private static ref readonly T TracedGetRO(EntityRepository repo, Entity e)
+            {
+                 using var traceMute = AccessTrace.MuteScope(TraceKind.ReadViaRW, typeof(T), repo.TraceId);
                  return ref _getRW(repo, e);
             }
 
