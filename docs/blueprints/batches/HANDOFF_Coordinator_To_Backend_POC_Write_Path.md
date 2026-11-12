@@ -8,7 +8,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (VM): DAYTIME POC — UI writes executed on the simulation thread, and the editor's memory
 
-**For:** a backend VM session. **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen.
+**For:** a backend VM session. **From:** coordinator. **Dispatched at `a0cc3067e`**, scope frozen.
 🔒 User, `2026-11-12`: *"we need to measure first, and once we are sure, then we will start the overnight batch"*. ⛔⛔ **Autonomous** (R-4156).
 
 ## Where to work

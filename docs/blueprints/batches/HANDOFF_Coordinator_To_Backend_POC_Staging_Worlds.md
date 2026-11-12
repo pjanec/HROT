@@ -9,7 +9,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (VM): DAYTIME POC — the two staging worlds, and `--mode all` on one worker
 
-**For:** a backend VM session. **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen.
+**For:** a backend VM session. **From:** coordinator. **Dispatched at `a0cc3067e`**, scope frozen.
 🔒 User, `2026-11-12`: *"we need to measure first, and once we are sure, then we will start the overnight batch"* · R-4216 *"Two-staging worlds.
 One is used by the UI and the other is being written by the simulation thread."* ⛔⛔ **Autonomous** (R-4156). This POC exists so the overnight
 build meets NO unproven premise — prove or disprove, and say which.
