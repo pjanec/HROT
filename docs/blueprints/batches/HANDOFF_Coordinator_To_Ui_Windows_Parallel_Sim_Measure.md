@@ -9,7 +9,7 @@ related-designs:
 
 # HANDOFF — coordinator → the Windows session: MEASURE the parallel simulation on 8 real cores
 
-**For:** the ui session on the user's Windows machine (8 physical cores). **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen there.
+**For:** the ui session on the user's Windows machine (8 physical cores). **From:** coordinator. **Dispatched at `64099ba1f`**, scope frozen there.
 🔒 User, `2026-11-12`: *"let's write a handoff to the Windows machine performance test, Make sure you tell it the exact name of the branch to use."*
 
 ⛔⛔ **Every process HIDDEN** — `HROT_HIDDEN_WINDOW=1` (the script sets it for every node); ⛔ no window may appear, the user works on this machine.
