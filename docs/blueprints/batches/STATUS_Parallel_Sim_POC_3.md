@@ -95,6 +95,7 @@ the coordinator merge and does not reproduce. The remaining stamps are real per-
 | it built `_nodes.Keys.ToList()` under a lock for EVERY sensor EVERY frame (`SolverFor`) | `SimpleClusterStateCache.cs:79-85` (before) |
 | fix 1 (shared): one snapshot, dropped only when the node SET changes (a heartbeat refreshing a known node keeps it) | rail `SimpleClusterStateCacheSnapshotTests` (same instance, 0 B, add / remove / prune seen) |
 | fix 2 (the caller): the ids read once per scan | `_knownThisScan` |
+| ⭐ confirmed by a trace of the final build (`t2tr2`) | `AllNodeIds` GONE from the translator's profile; `SolverFor` **41 % → 5 %** of it; the rest is the DDS write (15 %) and `HasAuthority` (12 %). ⚠ The translator's ms in the rig table stays inside the VM noise (9.6–14 ms run to run) — the Windows `--poc3` run is the number |
 | the visit gate skipped 0: full scans forced by "authority / ownership changed" every frame | `HROT_EGRESS_GATE_STATS=1`: begins 28 111, full 5 776 (authority 5 746) |
 | ⭐ the cause: `OwnershipEgressSystem` reads every entity's `DescriptorOwnership` with `GetComponent`, and a managed READ stamps the chunk version (`UnsafeShim.ManagedAccessor.GetRO` → `GetRW`) — the coordinator's A1-2 | `OwnershipEgressSystem.cs:40`, `UnsafeShim.cs` ("Managed RO uses RW delegate") |
 | built opt-in: `HROT_MANAGED_READ_NO_STAMP=1` — a read through a non-stamping ref; a write still stamps | rail `ManagedReadNoStampTests` |
