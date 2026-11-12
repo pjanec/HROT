@@ -15,7 +15,24 @@ related-designs:
 
 ## VERDICT
 
-__VERDICT__
+⭐ **AFFORDABLE AS DESIGNED — keep the check in the repository's own read path; no separate view type is needed for cost.**
+
+| question | answer |
+|---|---|
+| serial code with the check compiled in (flag off) | ⭐ **no measurable cost** — micro ±0 … +1 ns (inside the run-to-run spread); the 1 000-man rig's CGF frame inside its own noise (R-2) |
+| during a parallel phase, own entity | +1.5 … +2.7 ns per access (~10–15 % of a 16–27 ns access) — the `[ThreadStatic]` read and compare |
+| during a parallel phase, another entity | **cheaper than today** (11 vs 16 ns): served from a flat last-tick array |
+
+Three things the build must do, found here:
+1. ⛔ **The last-tick copy must be native (or pinned) memory** — callers turn a typed ref into a pointer kept for the tick
+   (`BlueprintTierSpec.cs:130-161`, R-3); a managed array (this prototype) could move under a GC.
+2. ⛔ **Route the one by-type-id cross-entity read through the typed path** — `WeatherField.TryOutline` (`:293`, `GetManagedComponentByTypeId`) is
+   called from a brain's `EngagementArea` (`:136, 239`) on the AREA entity; the check cannot see it.
+3. ⭐ **One per-thread current entity** — this prototype keeps its own `[ThreadStatic]`; the census keeps a per-thread stack (`EntityCensus.cs:47`).
+   The build uses ONE (the per-entity job sets it; the census reads it) — no second owner of the same fact.
+
+⚠ Not measured: the cross-entity WRITE redirect (to the per-batch command buffer) — the prototype throws instead; and a parallel run with the flag on
+(it needs the per-entity jobs of §18, not built).
 
 ## The prototype
 
@@ -55,7 +72,20 @@ harness's Stopwatch).
 (the `[ThreadStatic]` read + compare), ~10–15 % of today's 16–27 ns access. ⚠ The access itself is the expensive part: a typed read goes through a
 cached open delegate (`UnsafeShim`) and a table lookup — 16 ns — while the last-tick copy, a plain array, serves it in 11.
 
-__R2__
+## R-2 — the 1 000-man rig, serial, the check compiled in and the flag off
+
+`scale-rig.py --terrain scale-1 --men 1000 --vehicles 50 --aircraft 10 --seconds 30`, `HROT_QUERY_TIMINGS=0`, the **Release** runner built from this
+branch (the same binary both arms: `HROT_READ_CHECK` unset vs `=1`), two runs per arm, interleaved; the 4-core cloud VM.
+
+| run | CGF work ms/frame | `BrainTickSystem` ms | SimHost work ms/frame | CGF entities |
+|---|---|---|---|---|
+| today 1 | 67.2 | 8.6 | 40.0 | 13 889 |
+| check 1 | 58.8 | 7.1 | 39.3 | 14 158 |
+| today 2 | 57.0 | 6.6 | 38.7 | 13 854 |
+| check 2 | 60.5 | 7.2 | 36.9 | 13 836 |
+
+⇒ today 57.0–67.2 ms, with the check 58.8–60.5 ms: **the difference is inside the run-to-run spread (10 ms between the two "today" runs)** — no
+measurable cost. Consistent with R-1 (±0 … +1 ns per access flag off).
 
 ## R-3 — what bypasses the check (`file:line` on this branch)
 

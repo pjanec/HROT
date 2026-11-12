@@ -538,3 +538,20 @@ beyond 8 cores is bounded by egress, the recorder and ingress, not by the brains
 The instrument: `EntityCensus` (`HROT_ENTITY_CENSUS=1`, `Fdp.Core`) — a per-thread stack of the entities the system is walking, every access
 classified own / own-part / other / other-scan / none. ⛔ Blind spots: raw pointers taken once, `GetComponentTable`, loops that are not
 `EntityQuery` walks (counted as "none"), pool workers (run it with `HROT_SIM_THREADS=1`).
+
+### 18.2 ⭐ As measured — the cost of the per-read cross-entity check *(branch `exp/read-check`, CE-4454; status: [`STATUS_Read_Check.md`](blueprints/batches/STATUS_Read_Check.md); the design itself is §18.2 on `coordinator`)*
+
+⭐ **Affordable as designed: the check lives in the repository's own read path; no separate view type is needed for cost.**
+
+| measured | result |
+|---|---|
+| serial code, the check compiled in, the phase flag off | ±0 … +1 ns per access (micro, Release) · the 1 000-man rig's CGF frame within its own run-to-run spread |
+| a parallel phase, own entity | +1.5 … +2.7 ns per access (a `[ThreadStatic]` read + compare), on a 16–27 ns typed access |
+| a parallel phase, another entity | 11 ns — **cheaper** than today's 16 ns: the last-tick copy is a flat array |
+
+The hook: `ParallelReadCheck` (`HROT_READ_CHECK=1`, a `static readonly` the JIT folds away when unset) — one test in each internal read / write path
+of `EntityRepository`, which every typed read reaches (`GetComponentRO/RW`, `TryGetComponent`, managed reads, `ISimulationView`).
+⛔ **What the build must add:** ① the last-tick copy in NATIVE / pinned memory (callers keep pointers from typed refs for the tick —
+`BlueprintTierSpec`); ② route `WeatherField.TryOutline` (a by-type-id managed read a brain's `EngagementArea` makes on another entity) through the
+typed path; ③ ONE per-thread current entity shared with the census. ⚠ Not measured: the cross-entity write → command redirect, and a parallel run with
+the flag on (needs §18's per-entity jobs).
