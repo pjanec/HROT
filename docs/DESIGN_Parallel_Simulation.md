@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — options analysed, lean stated; NOT ruled
 updated: 2026-11-12
-current-answer: ⭐ §8 interleaving and quantizing (do less per frame) · §7 determinism is a switchable MODE (R-4207) and what per-batch buffers cost · §2 the lean · §1 what exists (measured) · §3 the options · §4 the hazards · §5 the staged plan · §6 open
+current-answer: ⭐ §9 the AS-BUILT of the overnight experiment (exp/parallel-sim) · §8 interleaving and quantizing (do less per frame) · §7 determinism is a switchable MODE (R-4207) and what per-batch buffers cost · §2 the lean · §1 what exists (measured) · §3 the options · §4 the hazards · §5 the staged plan · §6 open
 stale-below: nothing
 related-designs:
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Parallel_Simulation_Experiment.md — the overnight experiment (branch exp/parallel-sim) that tries §5 / §7 / §8
@@ -197,3 +197,79 @@ whose writes are mostly no-ops. Same opt-in, 0 B pattern as ui's `KernelFrameTim
 | M-1 | the write instrument (8.3) — with P-0 |
 | P-5 | interleave the slow-changing systems by the shared helper, the elapsed-dt rule first; a level-of-detail period (near / far / idle) where M-1 and the wakes say it pays |
 | P-6 | check-before-write and quantizing in the tables M-1 names; a rail per table that the observed behaviour stays within its stated error |
+
+## 9. ⭐ As-built on `exp/parallel-sim` — the overnight experiment *(not merged; status: `blueprints/batches/STATUS_Backend_Parallel_Simulation_Experiment.md`)*
+
+```mermaid
+classDiagram
+    class FdpWorkerPool {
+        +Shared$ FdpWorkerPool
+        +Budget()$ int
+        +Resize(threads)$
+        +Run(IBatchWork, batches)
+    }
+    class IBatchWork {
+        <<interface>>
+        +RunBatch(batch)
+    }
+    class ParallelEntities {
+        <<static>>
+        +Enabled$ bool
+        +Mode$ SimulationMode
+        +DeterministicBatchSize$ int = 32
+        +Run~TJob~(repo, entities, count, job)$
+    }
+    class IEntityBatchJob {
+        <<interface>>
+        +Execute(e, index, BatchContext)
+        +ApplyDeferred(repo, Deferred)
+    }
+    class BatchContext {
+        +Commands EntityCommandBuffer
+        +Defer(e, code, value)
+    }
+    class ContentVersioning {
+        <<static>>
+        +On$ bool
+        +EndFrame(world)$
+    }
+    class NativeChunkTable {
+        +GetRefRW(id) stamps the chunk
+        ~CommitByContent(frameVersion) int
+        ~SampleWrites(frameVersion) Sample
+    }
+    ParallelEntities ..> FdpWorkerPool : runs batches on
+    ParallelEntities ..> IEntityBatchJob : Execute per entity
+    ParallelEntities *-- BatchContext : one per batch, pooled
+    FdpWorkerPool ..> IBatchWork
+    ContentVersioning ..> NativeChunkTable : frame end
+    StressSystem ..|> IEntityBatchJob : StressJob
+    CalloutSystem ..|> IEntityBatchJob : DecideJob
+    ThreatEvaluationSystem ..|> IEntityBatchJob : EvaluateJob
+```
+*What the picture shows that prose hid: the parallel path is a NEW runner beside `ForEachParallel`, not a change to it, and determinism lives
+entirely in `ParallelEntities`' serial playback — the pool knows nothing about order.*
+
+```mermaid
+sequenceDiagram
+    participant S as a converted system (main thread)
+    participant P as ParallelEntities
+    participant W as FdpWorkerPool (caller + workers)
+    S->>S: ① serial pre-pass — owned, missing components added, entities collected
+    S->>P: Run(entities, job)
+    P->>W: Run(batches of 32)
+    W->>W: ② each batch runs job.Execute per entity — own writes in place, Commands and Defer into the BATCH context
+    W-->>P: all batches done (a fault rethrows on the caller)
+    P->>P: ③ play back every batch's Commands, batch order
+    P->>P: ④ apply every Deferred (publish, reactions, Say), batch order
+    P-->>S: return
+```
+
+| deviation from §5 / §7 / §8 | why (measured) |
+|---|---|
+| ⭐ P-0 is a new runner (`Fdp.Core.Jobs.ParallelEntities` + `FdpWorkerPool`), not `ForEachParallel` changed | `ForEachParallel` allocates a closure + `ParallelOptions` per call and its per-thread buffers are its contract; struct jobs on a persistent pool give **0 B per steady run** (rail) |
+| ⭐ Deterministic mode uses a FIXED batch size (32), not the adaptive 2-per-core | batch boundaries must not depend on the thread count, or the playback order (and so the result) differs between 4 and 8 cores |
+| ⭐ "side effects deferred" is a second list beside the command buffer (`Defer(entity, code, value)` → `ApplyDeferred`) | publishes and reactions (a break, a callout) are not structural commands; replaying them in batch order is what makes Stress / Callouts equal to the serial loop |
+| ⭐ §8.2 check-before-write grew a general form: **commit by content** (`ContentVersioning`, opt-in `HROT_CONTENT_VERSION=1`) | M-1 after per-site fixes: the 4 KB blackboard tier still stamps ~200 chunks / frame, ~50 % unchanged — the slots DO run and write back the same bytes, which no call site can avoid. ⚠ sound for frame-boundary readers only (a mid-frame A → B → A reader keeps B) |
+| ⭐ P-2's inventory found the commander's `UnitRoster` / `SquadCognitiveState` taken writable by every soldier's READ (`SquadAssignment.cs`) | fixed read-only — both an E-4 and a P-3 hazard |
+| P-3 (brains) not built | two order-dependent behaviours (cover claims read by friends in the same tick; EQS child sensors created and used at once) cannot give the serial answer without a behaviour change — §9 of the status file |
