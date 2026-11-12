@@ -76,6 +76,14 @@ parallelism"* — and *"I can actually run 3 sessions in parallel"*. Four read-o
 | ⛔ no world-STATE hash route; `DeterminismRails` compares id maps + panels, not values | `DeterministicSimulationTests.ComputeStateHash` (`Fdp.Core.Tests:402`) only | add `GET /world/hash` (on S, between ticks) + a `DeterminismRails` case: N steps, threaded vs `HROT_THREADED_SINGLE=1` |
 | hot reload desync: the "build blocks the frame" suspect is REFUTED (out-of-process, `ConfigureAwait(false)`) | `AiBehaviorsRebuild.cs:43-58,125` | likely a round that completed without node 1 or the preview stop acting on A; measure: log every `_inSync` change + grep `ejected (heartbeat timeout)` (`ClusterMaster.cs:783`); ⭐ the reload's UI subscribers (catalog, documents, breakpoints, log — `EditorSubsystem.cs:2248-2258,5345-5351,2533`, `:2265`) run on the worker ⇒ queue them to the presentation step |
 
+### 2.1 ⭐ Measured `2026-11-12` (CE-4450, [`STATUS_Pre_Build_Measurements.md`](blueprints/batches/STATUS_Pre_Build_Measurements.md) on `exp/measure-2`)
+
+| row above | measured | changes the plan |
+|---|---|---|
+| the tick-rate anomaly = lock starvation | ✅ the worker waits **150–175 ms / tick playing, 82–106 paused** to acquire the world (work 270–400 / 40–55, sync hold 13–17 / 3). On the VM that is ≈ ONE drawing frame (the main thread holds the world ~its whole frame) and a fair hand-over changes nothing; on Windows (15.6 ms frames) the same wait is many frames ⇒ unfairness — the Windows run decides | ⭐ shorten the main thread's hold (release before `EndDrawing` / D-4) — works either way; the fair hand-over (`HROT_FAIR_HANDOVER`) only if Windows shows it |
+| ⛔ NEW — the orchestration bus | the worker publishes to and swaps `_node.EventBus` outside the world lock while the main thread READS it (`DrainStagingRemap`: "Collection was modified" 3 / 3 once the hand-over was fair) and the UI PUBLISHES onto it | ⭐ blocking: the UI's control-plane publishes become commands, its readers move to the worker / a published copy — BEFORE any hand-over change |
+| the hot-reload desync | ⭐ the DRAIN blocks the node frame **3.7–4.4 s** (OFF and `=3` alike) against a **5 s** heartbeat timeout; an eject drops the node from the in-sync set and it is not re-admitted while operating — POC 3's symptom; the eject did not reproduce here (margin 0.6–1.3 s; POC 3 ran with the guard) | not a threading item: build the staging off the frame, swap on it |
+
 ## 3. The HTTP debug API — 223 routes *(routes sweep)*
 
 | target | count |
