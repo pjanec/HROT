@@ -16,10 +16,10 @@ namespace Fdp.Tests
     /// </summary>
     public class AccessTraceOffTests
     {
-        [ComponentId(503)] public sealed record TraceManaged(int V);
+        [ComponentId(497)] public sealed record TraceManaged(int V);
         [EventId(9971)] public struct TraceEvent { public int V; }
-        [ComponentId(505)] public struct TraceSingleton { public int V; }
-        [ComponentId(504)] public sealed class TraceManagedSingleton { public int V; }
+        [ComponentId(499)] public struct TraceSingleton { public int V; }
+        [ComponentId(498)] public sealed class TraceManagedSingleton { public int V; }
 
         private static bool SwitchOn => Environment.GetEnvironmentVariable("HROT_ACCESS_TRACE") == "1";
 

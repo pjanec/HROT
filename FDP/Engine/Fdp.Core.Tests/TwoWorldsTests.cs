@@ -15,7 +15,7 @@ namespace Fdp.Tests
         [ComponentId(485)] public struct TwSimOnly { public int V; }
         [ComponentId(492)] public struct TwUiOnly { public int V; }
         [ComponentId(493)] public struct TwClock { public int T; }
-        [ComponentId(494)] public sealed class TwService { public int V; }
+        [ComponentId(496)] public sealed class TwService { public int V; }
         [EventId(9972)] public struct TwEvent { public int V; }
 
         private static EntityRepository NewA()
