@@ -99,7 +99,7 @@ namespace Fdp.Toolkit.Squad.Command
 
         /// <summary>The sim clock now (the world clock, a double — CE-4201), time zero when none.</summary>
         public static SimInstant Now(ISimulationView view)
-            => view is EntityRepository repo && repo.HasSingletonUnmanaged<GlobalTime>() ? (SimInstant)repo.GetSingletonUnmanaged<GlobalTime>().TotalTime : SimInstant.Zero;
+            => view is EntityRepository repo && repo.HasSingletonUnmanaged<GlobalTime>() ? (SimInstant)repo.GetSingletonUnmanagedRO<GlobalTime>().TotalTime : SimInstant.Zero;
     }
 
     /// <summary>Params of <see cref="PictureConditions.ProgressReached"/>.</summary>

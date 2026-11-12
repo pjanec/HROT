@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Perception
         /// a kernel pushes one every frame) has no sim step: its frame counter is the only honest answer.</remarks>
         public static uint Now(ISimulationView view)
             => view is EntityRepository repo && repo.HasSingletonUnmanaged<GlobalTime>()
-                ? unchecked((uint)repo.GetSingletonUnmanaged<GlobalTime>().FrameNumber)
+                ? unchecked((uint)repo.GetSingletonUnmanagedRO<GlobalTime>().FrameNumber)
                 : view.Tick;
     }
 }

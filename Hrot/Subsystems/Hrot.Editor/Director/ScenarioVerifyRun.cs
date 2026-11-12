@@ -437,7 +437,7 @@ namespace Hrot.Editor.Director
         private long SimFrameAt(double t) => _simFrame0 + (long)Math.Round(t * Report.TickHz);
 
         private long SimFrameNow() => H.World is { } w && w.HasSingletonUnmanaged<Fdp.Core.GlobalTime>()
-            ? w.GetSingletonUnmanaged<Fdp.Core.GlobalTime>().FrameNumber : 0;
+            ? w.GetSingletonUnmanagedRO<Fdp.Core.GlobalTime>().FrameNumber : 0;
 
         // ── ⭐ CE-4045 H5 / H1b — the LOOK-BACK: ONE loop for a During Action Review of the live run (docs/DESIGN_Scenario_Regression.md
         //    §10-3) and for the cluster REPLAY of the finished one (§10-2 ②). Enter, then for each live snapshot time wait until the world's

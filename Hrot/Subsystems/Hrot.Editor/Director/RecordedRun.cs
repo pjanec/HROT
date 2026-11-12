@@ -54,7 +54,7 @@ namespace Hrot.Editor.Director
 
         public int TotalFrames => _ctx.Playback?.TotalFrames ?? 0;
 
-        public long SimFrame => _ctx.SandboxRepo.HasSingletonUnmanaged<GlobalTime>() ? _ctx.SandboxRepo.GetSingletonUnmanaged<GlobalTime>().FrameNumber : -1;
+        public long SimFrame => _ctx.SandboxRepo.HasSingletonUnmanaged<GlobalTime>() ? _ctx.SandboxRepo.GetSingletonUnmanagedRO<GlobalTime>().FrameNumber : -1;
 
         public IVerifyWorld World => _world;
 

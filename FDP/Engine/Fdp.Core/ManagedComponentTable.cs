@@ -195,6 +195,22 @@ namespace Fdp.Core
             return ref _chunks[chunkIndex][localIndex];
         }
         
+        // POC 2 / P-1 - the slot a pure read of an unallocated chunk points at. Never written (callers hold a ref readonly).
+        private static T? _nullSlot;
+
+        /// <summary>
+        /// POC 2 / P-1 - a read-only REFERENCE to the slot: stamps NO chunk version and allocates NO chunk
+        /// (an unallocated chunk yields a ref to a shared null slot).
+        /// </summary>
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public ref readonly T? GetRefRO(int entityIndex)
+        {
+            int chunkIndex = entityIndex / _chunkSize;
+            var chunk = _chunks[chunkIndex];
+            if (chunk == null) return ref _nullSlot;
+            return ref chunk[entityIndex % _chunkSize];
+        }
+
         /// <summary>
         /// Gets value for read-only access. Does NOT allocate.
         /// Returns null if chunk not allocated.
@@ -214,6 +230,10 @@ namespace Fdp.Core
         /// <summary>
         /// Sets component value with version tracking.
         /// </summary>
+        /// <inheritdoc/>
+        public void CopyRowFrom(IComponentTable source, int entityIndex, uint version)
+            => Set(entityIndex, ((ManagedComponentTable<T>)source).GetRO(entityIndex), version);
+
         public void Set(int entityIndex, T? value, uint version)
         {
             int chunkIndex = entityIndex / _chunkSize;

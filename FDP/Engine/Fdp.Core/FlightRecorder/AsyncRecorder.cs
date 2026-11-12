@@ -296,7 +296,7 @@ namespace Fdp.Core.FlightRecorder
             var flags = _recorderSystem.LastFrameChanged ? FrameFlags.Changed : FrameFlags.None;
             if (repo.HasSingletonUnmanaged<GlobalTime>())
             {
-                var time = repo.GetSingletonUnmanaged<GlobalTime>();
+                var time = repo.GetSingletonUnmanagedRO<GlobalTime>();
                 _pendingSimTime = time.TotalTime;
                 if (time.IsHalted) flags |= FrameFlags.Halted;
             }

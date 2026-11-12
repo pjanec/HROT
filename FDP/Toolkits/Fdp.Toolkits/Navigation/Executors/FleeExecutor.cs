@@ -41,7 +41,7 @@ namespace Fdp.Toolkit.Navigation.Executors
             channel.Status = Fbt.NodeStatus.Running;
 
             // Compute initial flee destination immediately.
-            var gt = world.GetSingletonUnmanaged<GlobalTime>();
+            var gt = world.GetSingletonUnmanagedRO<GlobalTime>();
             ComputeAndWriteFleeDestination(entity, p, world);
             WriteFleeState(ref channel, new FleeState
             {
@@ -84,7 +84,7 @@ namespace Fdp.Toolkit.Navigation.Executors
             }
 
             // ── Throttled replan ──────────────────────────────────────────────────────────────
-            var gt         = world.GetSingletonUnmanaged<GlobalTime>();
+            var gt         = world.GetSingletonUnmanagedRO<GlobalTime>();
             var fleeState  = ReadFleeState(ref channel);
             uint currentTick = (uint)gt.FrameNumber;
 

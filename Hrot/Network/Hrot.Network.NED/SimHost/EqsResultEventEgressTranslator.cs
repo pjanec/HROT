@@ -73,7 +73,7 @@ namespace Hrot.Network.NED.SimHost
                 if (evt.EntryCount > 0)
                 {
                     if (!repo.HasSingletonUnmanaged<EqsResultPool>()) continue;
-                    ref readonly var pool = ref repo.GetSingletonUnmanaged<EqsResultPool>();
+                    ref readonly var pool = ref repo.GetSingletonUnmanagedRO<EqsResultPool>();
 
                     for (int i = 0; i < evt.EntryCount; i++)
                     {
