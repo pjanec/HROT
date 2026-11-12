@@ -2363,9 +2363,9 @@ namespace Hrot.Editor
             var bpEventScannerCompiler  = new EventScannerCompiler(bpEditSvc);
             _bpSnapshotProvider         = new DebugSnapshotProvider(_bpPreTickSnapshot);
             _bpManager                  = new DataBreakpointManager(
-                _world!, _bpPreTickSnapshot, _bpSnapshotProvider,
+                ctx.World, _bpPreTickSnapshot, _bpSnapshotProvider,   // ⭐ POC 3 C-1 — a breakpoint watches the SIMULATED world (the node's; = _world outside mode 3)
                 bpTimeAdapter, bpPredicateCompiler, bpEventScannerCompiler);
-            _bpSystem                   = new DataBreakpointSystem(_bpManager, _world!.Bus);
+            _bpSystem                   = new DataBreakpointSystem(_bpManager, ctx.World.Bus);
 
             _kernel.RegisterGlobalSystem(_bpSnapshotProvider);
             _kernel.RegisterGlobalSystem(_bpSystem);
@@ -2446,7 +2446,7 @@ namespace Hrot.Editor
             // ── Blueprint debug session bridge (UBP-P10T6) ───────────────────────────────────
             // ⭐ CE-476 — the ONE composition, shared with CGF (Attach makes it the DebugProbe sink).
             var bpBlueprintSession = Hrot.Editor.AiComposition.AiDebugSessionComposer.ComposeBlueprint(
-                _blueprintRegistry, _world!, bpTimeAdapter, _bpManager, _behaviorRegistry);
+                _blueprintRegistry, ctx.World, bpTimeAdapter, _bpManager, _behaviorRegistry);   // ⭐ POC 3 C-1 — the debug probe reads the SIMULATED entities (S)
             _blueprintDebugSession = bpBlueprintSession;
             // ⛔ CE-1329 (BV-72) — the "debugged unit" is gone; the Blueprint highlight is filtered by the graph opened pinned to a unit (below)
             // ⭐ CE-1326 — the Brain tab's blueprint rows open their graph pinned to the unit, and the blueprint overlay shows HIS values
@@ -2726,12 +2726,13 @@ namespace Hrot.Editor
             _kernel.RegisterModule(new GizmoInteractionModule(
                 interactionBus,
                 contextIngress: contextIngress,
-                interactionSystems: _editorMapInteraction.InteractionSystems,
+                interactionSystems: Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds ? NodeSideInteractionSystems() : _editorMapInteraction.InteractionSystems,   // ⭐ POC 3
                 gizmoIngress: null,
                 gizmoEgress:  null));
             _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, interactionBus));
             // Register canvas menu update so CanvasContextMenuGizmo has state to project.
-            _kernel.RegisterGlobalSystem(_editorMapInteraction.CanvasMenu);   // ⭐ CE-1017 — built by the pack
+            if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds) _presentationSystems.Add(_editorMapInteraction.CanvasMenu);   // ⭐ POC 3 C-4 — UI menu state: on the presentation side
+            else _kernel.RegisterGlobalSystem(_editorMapInteraction.CanvasMenu);   // ⭐ CE-1017 — built by the pack
         }
 
         /// <inheritdoc/>
@@ -2760,6 +2761,34 @@ namespace Hrot.Editor
         // ⭐⭐ POC 3 (CE-4442) — the node COMPOSED over S (ctx.World), the presentation over A (_presWorld = _world) from the start.
         private EntityRepository? _presWorld;   // A
         private EntityRepository? _nodeWorld;   // S = the node's ctx.World (every mode; in mode 3 it differs from _world)
+
+        /// <summary>⭐ POC 3 C-1 / C-4 — the systems the walk found the KERNEL holding over A (they read and answer the UI): in mode 3 they leave the
+        /// tick and run in the presentation step on the main thread, against A. Everything else of the interaction set stays with the node.</summary>
+        private readonly List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> _presentationSystems = new();
+
+        private Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] NodeSideInteractionSystems()
+        {
+            var mi = _editorMapInteraction!;
+            var node = new List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>();
+            foreach (var sys in mi.InteractionSystems)
+            {
+                if (ReferenceEquals(sys, mi.MenuOrders) || ReferenceEquals(sys, mi.MenuShortcuts) || ReferenceEquals(sys, mi.Hats)) _presentationSystems.Add(sys);
+                else node.Add(sys);
+            }
+            return node.ToArray();
+        }
+
+        /// <summary>⭐ POC 3 C-4 — the presentation step: after the sync, on the main thread, against A (the caller holds the world).</summary>
+        private void RunPresentationStep(float dt)
+        {
+            var a = _world!;
+            for (int i = 0; i < _presentationSystems.Count; i++)
+            {
+                try { _presentationSystems[i].Execute(a, dt); }
+                catch (Exception ex) { if (System.Threading.Interlocked.Increment(ref _presentationStepFaults) <= 20) Console.WriteLine("[POC3] presentation step fault: " + ex); }
+            }
+        }
+        private long _presentationStepFaults;
 
         private void ComposeInitialPresentationCopy()
         {
@@ -2793,14 +2822,18 @@ namespace Hrot.Editor
             var mode = Environment.GetEnvironmentVariable("HROT_POC3_WALK");
             if (mode is not ("1" or "exit") || _presWorld == null || _nodeWorld == null) return;
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            var nodeHits = Fdp.Core.WorldReferenceWalker.Find(_kernel!, "kernel", _presWorld);
+            var stop = new object[] { this, _bootstrapper! };   // the composition roots: they hold both worlds by design (⛔ not the node context: a presentation object holding it reads S)
+            // ⭐ VERIFIED exceptions (reachable, not accessed): the breakpoint-hit handler DebugApiService registers (DebugApiService.cs:644-651) only
+            //   writes five "last hit" scalars and asks S's NetworkEntityMap — it never touches A; the walk reaches A through the closure's `this`.
+            var nodeStop = new object[] { this, _bootstrapper!, _debugApiService! };
+            var nodeHits = Fdp.Core.WorldReferenceWalker.Find(_kernel!, "kernel", _presWorld, stopAt: nodeStop);
             var presHits = new List<Fdp.Core.WorldReferenceWalker.Hit>();
-            if (_canvas != null) presHits.AddRange(Fdp.Core.WorldReferenceWalker.Find(_canvas, "canvas", _nodeWorld));
+            if (_canvas != null) presHits.AddRange(Fdp.Core.WorldReferenceWalker.Find(_canvas, "canvas", _nodeWorld, stopAt: stop));
             foreach (var f in GetType().GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public))
             {
                 var tn = f.FieldType.Name;
                 if (!(tn.EndsWith("Panel") || tn.EndsWith("Window") || tn.EndsWith("Layer") || tn.EndsWith("View") || tn.EndsWith("Browser") || tn.EndsWith("Inspector"))) continue;
-                if (f.GetValue(this) is { } root) presHits.AddRange(Fdp.Core.WorldReferenceWalker.Find(root, "editor." + f.Name, _nodeWorld));
+                if (f.GetValue(this) is { } root) presHits.AddRange(Fdp.Core.WorldReferenceWalker.Find(root, "editor." + f.Name, _nodeWorld, stopAt: stop));
             }
             var report = Fdp.Core.WorldReferenceWalker.Report("[POC3-WALK] NODE objects reaching A", nodeHits)
                        + Fdp.Core.WorldReferenceWalker.Report("[POC3-WALK] PRESENTATION objects reaching S", presHits);
@@ -3093,7 +3126,7 @@ namespace Hrot.Editor
             if (!threaded)
             {
                 TickNodeFrame(deltaTime);   // ⭐ CE-4316 — the node frame, extracted so Run to …'s turbo loop runs the SAME one (EditorSubsystem.TurboStep)
-                if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds && _simWorld != null) SyncPresentationWorld();   // ⭐ POC 3 — A takes S (single-threaded)
+                if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds && _simWorld != null) { SyncPresentationWorld(); RunPresentationStep(deltaTime); }   // ⭐ POC 3 — A takes S, then the UI's own systems run on A (single-threaded)
                 if (Fdp.ModuleHost.PublishProbe.Enabled && !_publishProbeExtras) RegisterPublishProbeExtras();   // ⭐ A-3
                 Fdp.ModuleHost.PublishProbe.AfterFrame(_world);   // ⭐ EXPERIMENT (threaded kernel X-1) — opt-in HROT_PUBLISH_PROBE=1
             }

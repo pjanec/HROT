@@ -20,10 +20,11 @@ namespace Fdp.Core
     {
         public sealed record Hit(string Path, string HolderType, string Field);
 
-        public static List<Hit> Find(object root, string rootName, object target, int maxDepth = 10, int maxNodes = 2_000_000)
+        public static List<Hit> Find(object root, string rootName, object target, int maxDepth = 10, int maxNodes = 2_000_000, object[]? stopAt = null)
         {
             var hits = new List<Hit>();
             var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            if (stopAt != null) foreach (var o in stopAt) if (o != null) seen.Add(o);   // the composition root holds both worlds by design: a leaf
             var stack = new Stack<(object Obj, string Path, int Depth)>();
             stack.Push((root, rootName, 0));
             int nodes = 0;
