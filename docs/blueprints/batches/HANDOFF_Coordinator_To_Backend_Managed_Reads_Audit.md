@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: managed component READS stop stamping — the AUDIT, then the default flipped ON
 
-**For:** the free backend session (the one that ran the threaded POCs). **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen there.
+**For:** the free backend session (the one that ran the threaded POCs). **From:** coordinator. **Dispatched at `91d32e914`**, scope frozen there.
 🔒 User, `2026-11-12`: *"yes, queue the audit; the other backend lane is free, if it can be done in parallel with POC4"* — on the lean: make
 "a managed read does not stamp" the DEFAULT after an audit of every in-place mutation of a managed component (R-4210).
 ⛔⛔ **Autonomous — never stop for a question** (R-4156). Decide, record with a claim table, continue; a failed premise stops THAT item (R-106).
