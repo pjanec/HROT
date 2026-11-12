@@ -23,6 +23,7 @@ import urllib.error
 import urllib.request
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+NO_TRACE = False   # --no-trace
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # localhost must bypass the sandbox proxy
 
 
@@ -96,7 +97,7 @@ class Session:
         self.dll = dll
         trace = os.path.join(self.out, f"trace-{self.gen}.json")
         self.ctl = trace + ".ctl"
-        env = dict(os.environ, HROT_ACCESS_TRACE="1", HROT_ACCESS_TRACE_OUT=trace,
+        env = dict(os.environ, HROT_ACCESS_TRACE="0" if NO_TRACE else "1", HROT_ACCESS_TRACE_OUT=trace,
                    HROT_HIDDEN_WINDOW="1", HROT_DEBUG_API_PORT=str(self.port))
         log = open(os.path.join(self.out, f"editor-{self.gen}.log"), "w")
         self.proc = subprocess.Popen(
@@ -303,8 +304,11 @@ def main():
     ap.add_argument("--tag", default="", help="suffix of session<tag>.json")
     ap.add_argument("--attach", action="store_true", help="the editor is already running (started by an earlier run of this script with --keep)")
     ap.add_argument("--keep", action="store_true", help="leave the editor running at the end")
+    ap.add_argument("--no-trace", action="store_true", help="the tracer OFF (A-3: drive the same session for timings, e.g. with HROT_PUBLISH_PROBE=1 set by the caller)")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
+    global NO_TRACE
+    NO_TRACE = a.no_trace
     s = Session(a.out, a.port, a.gen_start, a.tag)
     if not a.attach and not s.start(a.dll):
         print("editor did not come up — see editor.log")

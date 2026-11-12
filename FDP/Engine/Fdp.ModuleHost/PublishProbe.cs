@@ -26,6 +26,41 @@ namespace Fdp.ModuleHost
 
         public static bool Enabled => On;
 
+        /// <summary>⭐ A-3 (threaded-analysis instruments) — named masks to copy as well, read from <c>HROT_PUBLISH_PROBE_MASKS</c>: a JSON object
+        /// <c>{"name": ["Full.Type.Name", …]}</c> (made from the A-1 access trace: what the presentation actually reads). Each mask is copied WARM and COLD
+        /// like the built-in two; a type the process does not know or has not registered is counted, not fatal.</summary>
+        private static readonly string? MasksPath = Environment.GetEnvironmentVariable("HROT_PUBLISH_PROBE_MASKS") is { Length: > 0 } m ? m : null;
+        private static List<(string Name, BitMask512 Mask, int Types, int Missing, EntityRepository Warm, EntityRepository Cold)>? _masks;
+
+        /// <summary>⭐ A-3 — other treatments a host wants costed at the probe frame: each gets the LIVE world and the warm ALL-types copy and returns an item
+        /// count; the probe times it and counts its allocation. Registered by the host (the editor) — this assembly cannot see the toolkits.</summary>
+        public static readonly List<(string Name, Func<EntityRepository, EntityRepository, int> Run)> Extras = new();
+
+        private static List<(string Name, BitMask512 Mask, int Types, int Missing, EntityRepository Warm, EntityRepository Cold)> Masks()
+        {
+            if (_masks != null) return _masks;
+            _masks = new();
+            if (MasksPath == null || !File.Exists(MasksPath)) return _masks;
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(MasksPath));
+            var asms = AppDomain.CurrentDomain.GetAssemblies();
+            foreach (var p in doc.RootElement.EnumerateObject())
+            {
+                var mask = new BitMask512();
+                int types = 0, missing = 0;
+                foreach (var t in p.Value.EnumerateArray())
+                {
+                    string name = t.GetString() ?? "";
+                    Type? type = null;
+                    foreach (var a in asms) { type = a.GetType(name, false); if (type != null) break; }
+                    int id = ComponentTypeRegistry.GetId(type);
+                    if (id < 0) { missing++; continue; }
+                    mask.SetBit(id); types++;
+                }
+                _masks.Add((p.Name, mask, types, missing, new EntityRepository(), new EntityRepository()));
+            }
+            return _masks;
+        }
+
         /// <summary>Called by a host once per frame after its node frame, on the thread that owns <paramref name="live"/>.</summary>
         public static void AfterFrame(EntityRepository? live)
         {
@@ -37,6 +72,7 @@ namespace Fdp.ModuleHost
                 // ⭐ the frame BEFORE a probe: bring the warm copies up to date, so the probe's warm copy carries ONE tick's changes (a publish every tick)
                 _bgWarm.SyncFrom(live, live.GetSnapshotableMask(false), includeTransient: true);
                 _allWarm.SyncFrom(live, live.GetSnapshotableMask(true), includeTransient: true);
+                foreach (var mk in Masks()) mk.Warm.SyncFrom(live, mk.Mask, includeTransient: true);   // ⭐ A-3
                 return;
             }
             if (_frame % Every != 0) return;
@@ -57,11 +93,30 @@ namespace Fdp.ModuleHost
             var c = _allWarm.ProbeSyncFrom(live, all, rows);
             _allCold.SoftClear();
             var d = _allCold.ProbeSyncFrom(live, all, null);
+            // ⭐ A-3 — the A-1 masks, warm and cold, and the host's extra treatments (timed against the warm ALL-types copy)
+            var maskJson = new System.Text.StringBuilder();
+            foreach (var mk in Masks())
+            {
+                var mw = mk.Warm.ProbeSyncFrom(live, mk.Mask, null);
+                mk.Cold.SoftClear();
+                var mc = mk.Cold.ProbeSyncFrom(live, mk.Mask, null);
+                maskJson.Append(string.Create(CultureInfo.InvariantCulture, $",\"mask:{mk.Name}\":{{\"types\":{mk.Types},\"missing\":{mk.Missing},\"warm\":{Json(mw)},\"cold\":{Json(mc)}}}"));
+            }
+            foreach (var (name, run) in Extras)
+            {
+                long xa0 = GC.GetAllocatedBytesForCurrentThread();
+                var xsw = System.Diagnostics.Stopwatch.StartNew();
+                int items;
+                try { items = run(live, _allWarm); } catch { items = -1; }   // an instrument never takes the frame down; -1 marks the failure in the JSON
+                double xms = xsw.Elapsed.TotalMilliseconds;
+                long xal = GC.GetAllocatedBytesForCurrentThread() - xa0;
+                maskJson.Append(string.Create(CultureInfo.InvariantCulture, $",\"extra:{name}\":{{\"ms\":{xms:F3},\"allocBytes\":{xal},\"items\":{items}}}"));
+            }
             _samples++;
             var (filled, _, names) = live.SingletonCensus();
             using var w = new StreamWriter(Out, append: true);
             w.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                $"{{\"frame\":{_frame},\"tick\":{live.SimulationTick},\"entities\":{a.Entities},\"singletons\":{filled},\"prodMs\":{prodMs:F3},\"prodAlloc\":{prodAlloc},\"bgWarm\":{Json(a)},\"bgCold\":{Json(b)},\"allWarm\":{Json(c)},\"allCold\":{Json(d)}}}"));
+                $"{{\"frame\":{_frame},\"tick\":{live.SimulationTick},\"entities\":{a.Entities},\"singletons\":{filled},\"prodMs\":{prodMs:F3},\"prodAlloc\":{prodAlloc},\"bgWarm\":{Json(a)},\"bgCold\":{Json(b)},\"allWarm\":{Json(c)},\"allCold\":{Json(d)}{maskJson}}}"));
             if (rows != null)
             {
                 foreach (var r in rows.OrderByDescending(r => r.Ms))

@@ -881,6 +881,41 @@ namespace Hrot.Editor
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
         private NetworkEntityMap?     _entityMap;
+
+        // ⭐ A-3 (threaded-analysis instruments, exp/threaded-analysis) — what the §13 treatments other than the masked copy would cost, timed by
+        // PublishProbe at its probe frame (opt-in HROT_PUBLISH_PROBE=1; nothing here runs otherwise). Each returns the item count it handled.
+        private bool _publishProbeExtras;
+        private NetworkEntityMap? _probeMapKept;
+        private void RegisterPublishProbeExtras()
+        {
+            _publishProbeExtras = true;
+            // §13 "rebuild": a presentation-side NetworkEntityMap rebuilt from the published copy — from empty, and kept (only the changes)
+            Fdp.ModuleHost.PublishProbe.Extras.Add(("NetworkEntityMap.RebuildFromWorld full", (_, copy) => { var m = new NetworkEntityMap(); m.RebuildFromWorld(copy); return m.Entries.Count; }));
+            Fdp.ModuleHost.PublishProbe.Extras.Add(("NetworkEntityMap.RebuildFromWorld kept", (_, copy) => { _probeMapKept ??= new NetworkEntityMap(); _probeMapKept.RebuildFromWorld(copy); return _probeMapKept.Entries.Count; }));
+            // §13 "publish an immutable view": ClusterUiCache's mutable collections copied once (shallow — the transactions inside stay shared objects)
+            Fdp.ModuleHost.PublishProbe.Extras.Add(("ClusterUiCache immutable view (shallow)", (_, _) =>
+            {
+                if (_orchestratorCore?.UiCache is not { } c) return 0;
+                var nodes = System.Linq.Enumerable.ToArray(c.ActiveNodes);   // an instrument, at the probe frame only
+                var tx = new Hrot.Orchestrator.DistributedTransaction[c.TxHistory.Count];
+                for (int i = 0; i < tx.Length; i++) tx[i] = c.TxHistory[i];
+                var eps = new HashSet<Guid>(c.ActiveEpisodes);
+                GC.KeepAlive(nodes); GC.KeepAlive(eps);
+                return nodes.Length + tx.Length + eps.Count;
+            }));
+            // §13 "copy": the traffic lists the 3-D view draws (cars, pedestrians, light states) copied out of the TrafficFrame singleton
+            Fdp.ModuleHost.PublishProbe.Extras.Add(("TrafficFrame lists copy", (live, _) =>
+            {
+                if (Hrot.Traffic.TrafficFrame.Of(live) is not { } f) return 0;
+                var cars = new Hrot.Traffic.TrafficCarPose[f.Cars.Count];
+                for (int i = 0; i < cars.Length; i++) cars[i] = f.Cars[i];
+                var peds = new Hrot.Traffic.TrafficPedPose[f.Pedestrians.Count];
+                for (int i = 0; i < peds.Length; i++) peds[i] = f.Pedestrians[i];
+                var lights = new Dictionary<int, byte>(f.Lights.Count);
+                foreach (var kv in f.Lights) lights[kv.Key] = kv.Value;
+                return cars.Length + peds.Length + lights.Count;
+            }));
+        }
         // ?? Production visualizer dependencies ???????????????????????????????????
 
         private readonly MapUserConfig     _userConfig     = new();
@@ -2876,6 +2911,7 @@ namespace Hrot.Editor
             if (!threaded)
             {
                 TickNodeFrame(deltaTime);   // ⭐ CE-4316 — the node frame, extracted so Run to …'s turbo loop runs the SAME one (EditorSubsystem.TurboStep)
+                if (Fdp.ModuleHost.PublishProbe.Enabled && !_publishProbeExtras) RegisterPublishProbeExtras();   // ⭐ A-3
                 Fdp.ModuleHost.PublishProbe.AfterFrame(_world);   // ⭐ EXPERIMENT (threaded kernel X-1) — opt-in HROT_PUBLISH_PROBE=1
             }
             using (Fdp.Core.AccessTrace.Scope("editor: editor logic Update (loads, SoftClear, scenario)")) _editorLogic?.Update();   // ⭐ A-1
