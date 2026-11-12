@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (VM): the LAST measurements before the overnight threaded + parallel build
 
-**For:** a free backend VM session. **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen there.
+**For:** a free backend VM session. **From:** coordinator. **Dispatched at `89883010a`**, scope frozen there.
 🔒 User, `2026-11-12`: *"write the measurement handoff … one VM lane and one windows lane is free"* · *"we do not want a timing taking 12% so
 whatever helps"* (R-4213). ⛔⛔ **Autonomous** (R-4156); decide, record with a claim table, continue; a failed premise stops THAT item (R-106).
 

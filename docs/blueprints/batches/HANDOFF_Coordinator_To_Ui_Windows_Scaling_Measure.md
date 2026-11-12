@@ -9,7 +9,7 @@ related-designs:
 
 # HANDOFF — coordinator → the Windows session: does a parallel system keep scaling past 4 threads?
 
-**For:** the ui session on the user's Windows machine (Ryzen 7 6800H, 8 cores / 16 logical). **From:** coordinator. **Dispatched at `<stamp>`**.
+**For:** the ui session on the user's Windows machine (Ryzen 7 6800H, 8 cores / 16 logical). **From:** coordinator. **Dispatched at `89883010a`**.
 🔒 User, `2026-11-12`: *"one windows lane is free"* · *"expect at least 8 core machine and the parallelization in use"*.
 ⛔⛔ **Every process HIDDEN** (`HROT_HIDDEN_WINDOW=1` — the scripts set it). ⛔ **Autonomous** (R-4156). ⛔ **Measure only — change no code**
 except the measurement script's options (below).
