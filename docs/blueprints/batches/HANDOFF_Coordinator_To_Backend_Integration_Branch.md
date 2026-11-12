@@ -9,7 +9,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (VM): build the ONE integration branch, then measure memory and same-tick contact
 
-**For:** the free backend VM session (it finished CE-4454). **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen.
+**For:** the free backend VM session (it finished CE-4454). **From:** coordinator. **Dispatched at `d6f7d0fb2`**, scope frozen.
 🔒 User, `2026-11-12`: *"yes, approved, queue them"* — the integration branch (critical review P-1) and the measurements §7.4 names as never
 planned. ⛔⛔ **Autonomous** (R-4156); ⛔ NO broad suites or scenario regressions (user: test the changed features).
 

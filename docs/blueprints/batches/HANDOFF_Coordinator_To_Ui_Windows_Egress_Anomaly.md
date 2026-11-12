@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → the Windows session: why does off-frame egress ALONE make the CGF slower?
 
-**For:** the ui session on the user's Windows machine. **From:** coordinator. **Dispatched at `<stamp>`**. ⭐ AFTER the throttling measurement,
+**For:** the ui session on the user's Windows machine. **From:** coordinator. **Dispatched at `d6f7d0fb2`**. ⭐ AFTER the throttling measurement,
 same session, never at the same time. 🔒 User, `2026-11-12`: *"yes, approved, queue them"*. ⛔ Every process HIDDEN. ⛔ **Measure only.**
 
 ## The anomaly (Parallel Simulation §11.1, reproduced twice)
