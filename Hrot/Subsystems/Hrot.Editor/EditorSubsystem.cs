@@ -2695,9 +2695,77 @@ namespace Hrot.Editor
         }
 
         /// <inheritdoc/>
+        // ⭐ EXPERIMENT (threaded kernel X-4, exp/threaded-kernel) — the node frame on a worker thread.
+        private System.Threading.Thread? _kernelWorker;
+        private readonly object _workerDtLock = new();
+        private double _workerPendingDt;
+        private volatile bool _kernelWorkerStop;
+        private long _kernelWorkerFaults;
+
+        private void EnsureKernelWorker()
+        {
+            if (_kernelWorker != null) return;
+            if (_gizmoBuffer != null) _gizmoBuffer.ReaderUsesPublished = true;
+            _kernelWorker = new System.Threading.Thread(KernelWorkerLoop) { IsBackground = true, Name = "HROT kernel (X-4)" };
+            _kernelWorker.Start();
+            Console.WriteLine("[X-4] the node frame runs on a worker thread (HROT_THREADED_KERNEL=1)");
+        }
+
+        private void KernelWorkerLoop()
+        {
+            var tickWatch = new System.Diagnostics.Stopwatch();
+            double tickSum = 0; long tickN = 0, lastReport = Environment.TickCount64;
+            while (!_kernelWorkerStop)
+            {
+                Fdp.ModuleHost.ThreadedKernelGate.WorkerYield();
+                float dt;
+                lock (_workerDtLock)
+                {
+                    dt = (float)System.Math.Min(_workerPendingDt, 0.25);
+                    _workerPendingDt = _workerPendingDt - dt > 0.25 ? 0 : _workerPendingDt - dt;   // never more than one quarter second behind
+                }
+                if (dt <= 0f) { System.Threading.Thread.Sleep(1); continue; }
+                lock (Fdp.ModuleHost.ThreadedKernelGate.WorldLock)
+                {
+                    tickWatch.Restart();
+                    try
+                    {
+                        if (_gizmoBuffer != null)
+                            Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(_gizmoBuffer, GizmoFeedAddress);
+                        _gizmoBuffer?.EndFrame(dt);
+                        TickNodeFrame(dt);
+                        Fdp.ModuleHost.PublishProbe.AfterFrame(_world);
+                        _gizmoBuffer?.PublishFrame();
+                    }
+                    catch (Exception ex)
+                    {
+                        if (System.Threading.Interlocked.Increment(ref _kernelWorkerFaults) <= 20) Console.WriteLine("[X-4] worker fault: " + ex);
+                    }
+                    tickSum += tickWatch.Elapsed.TotalMilliseconds; tickN++;
+                    Fdp.ModuleHost.ThreadedKernelGate.Ticks++;
+                }
+                if (Environment.TickCount64 - lastReport > 5000 && tickN > 0)
+                {
+                    var g = Fdp.ModuleHost.ThreadedKernelGate.WorldFrames; var m = Fdp.ModuleHost.ThreadedKernelGate.MapOnlyFrames;
+                    Console.WriteLine($"[X-4] {tickN} ticks, node frame mean {tickSum / tickN:F1} ms · drawing frames: {g} with the world, {m} map-only · yields {Fdp.ModuleHost.ThreadedKernelGate.YieldWaits} · faults {_kernelWorkerFaults}");
+                    tickSum = 0; tickN = 0; lastReport = Environment.TickCount64;
+                }
+            }
+        }
+
         public void Update(float deltaTime)
         {
-            _runTo?.Tick();   // ⭐ CE-4316 — Run to …: one ACK-gated step per frame until reached
+            // ⭐ EXPERIMENT (threaded kernel X-4) — HROT_THREADED_KERNEL=1: the node frame runs on a worker (KernelWorkerLoop); this frame does the
+            //   world work only when the drawing thread holds the world (ThreadedKernelGate); otherwise it moves the camera and returns.
+            bool threaded = Fdp.ModuleHost.ThreadedKernelGate.Enabled && _node != null && !_headless;
+            if (threaded)
+            {
+                EnsureKernelWorker();
+                lock (_workerDtLock) _workerPendingDt += deltaTime;
+                if (!Fdp.ModuleHost.ThreadedKernelGate.MainHasWorld) { _canvas?.Camera.Update(deltaTime); return; }
+            }
+            else
+            _runTo?.Tick();   // ⭐ CE-4316 — Run to …: one ACK-gated step per frame until reached   (⚠ X-4 shortcut: not in threaded mode — its turbo step ticks the node frame here)
             // ⭐⭐⭐ MX-006 — THE FRAME BOUNDARY for the panel snapshot. FIRST LINE OF THE FRAME.
             //   📄 DESIGN_UI_Observability_Snapshot.md §"Perf & correctness".
             //   🔴 Why: the snapshot is latest-wins, so a panel whose window the user CLOSED kept
@@ -2785,20 +2853,23 @@ namespace Hrot.Editor
             //   ⚠ The comment above explains why EndFrame sits HERE rather than at the end of the
             //      frame; the publish inherits that placement, so it reports the primitives the
             //      PREVIOUS Update produced — which is exactly what is on screen right now.
-            if (_gizmoBuffer != null)
+            if (!threaded && _gizmoBuffer != null)   // ⭐ X-4: in threaded mode the worker publishes and ends the gizmo frame
                 Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(
                     _gizmoBuffer,
                     // ⭐ BP-485 — the ADDRESS names the host; the KIND stays shared, so a
                     //   cross-host conformance diff can still group every host's map feed.
                     GizmoFeedAddress);   // ⭐ CE-4432 — built once (was a new string per frame)
 
-            _gizmoBuffer?.EndFrame(deltaTime);
+            if (!threaded) _gizmoBuffer?.EndFrame(deltaTime);
 
             // ⭐⭐⭐ CE-1446 B2 (decision C) — THE SHARED FRAME, `HrotNodeContext.Tick`: the slave's translator and the slave tick, then the kernel, then the node's live timeline step, then
             //   the orchestration-bus swap — the order every other ECS host runs (the slave used to be ticked INSIDE the kernel as OrchestrationLogicPack, and the swap and timeline step
             //   were spelled out here). The editor's own per-frame work rides the two seams the frame offers. ⚠ The kernel's world-bus swap is its own (Kernel.Update).
-            TickNodeFrame(deltaTime);   // ⭐ CE-4316 — the node frame, extracted so Run to …'s turbo loop runs the SAME one (EditorSubsystem.TurboStep)
-            Fdp.ModuleHost.PublishProbe.AfterFrame(_world);   // ⭐ EXPERIMENT (threaded kernel X-1) — opt-in HROT_PUBLISH_PROBE=1
+            if (!threaded)
+            {
+                TickNodeFrame(deltaTime);   // ⭐ CE-4316 — the node frame, extracted so Run to …'s turbo loop runs the SAME one (EditorSubsystem.TurboStep)
+                Fdp.ModuleHost.PublishProbe.AfterFrame(_world);   // ⭐ EXPERIMENT (threaded kernel X-1) — opt-in HROT_PUBLISH_PROBE=1
+            }
             _editorLogic?.Update();
             _orchestratorCore?.ScenarioPanel.Update(deltaTime);
 
@@ -2875,6 +2946,7 @@ namespace Hrot.Editor
         public void DrawWorld()
         {
             if (_headless) return;
+            if (_kernelWorker != null) _gizmoBuffer?.LeasePublished();   // ⭐ X-4 — this frame draws the worker's latest finished gizmo frame
             _canvas?.Draw();
         }
 
@@ -5543,6 +5615,7 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void Shutdown()
         {
+            _kernelWorkerStop = true; _kernelWorker?.Join(2000);   // ⭐ X-4
             _bootstrapper?.DisposeResources();   // ⭐ CE-1446 B2 — the node's one-per-world resources (the trajectory pool) are the node's to dispose
             // ⭐ CE-1329 — the scenario's per-unit debug settings, once more on exit (they are saved on change already)
             if (_world != null) _debugSettingsMemory.Save(Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(_world));
