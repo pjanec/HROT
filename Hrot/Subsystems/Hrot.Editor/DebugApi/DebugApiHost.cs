@@ -188,6 +188,9 @@ namespace Hrot.Editor.DebugApi
                    && Enum.TryParse<Fdp.Toolkit.Orchestration.ClusterState>(body?["target"]?.ToString(), ignoreCase: true, out var target)
                    && target == Fdp.Toolkit.Orchestration.ClusterState.Idle);
 
+        /// <summary>⭐ N-8 — every registered route's (method, template), for the side rail.</summary>
+        internal IEnumerable<(string Method, string Template)> RouteTemplates() { foreach (var r in _routes) yield return (r.Method, r.Template); }
+
         private sealed record RouteEntry(
             string Method,
             string Template,
@@ -2801,6 +2804,8 @@ namespace Hrot.Editor.DebugApi
                     await WriteResponseAsync(ctx, 404, new ApiResponse(false, Error: "Not found")).ConfigureAwait(false);
                     return;
                 }
+
+                MainThreadJobQueue.CurrentRequestIsUiSide = DebugApiRouteSides.IsUiSide(entry.Template);   // ⭐ N-8 (CE-4470)
 
                 if (_service is null && entry.NeedsService)
                 {

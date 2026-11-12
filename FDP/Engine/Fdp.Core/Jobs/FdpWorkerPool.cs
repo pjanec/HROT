@@ -208,6 +208,7 @@ namespace Fdp.Core.Jobs
 
         private void WorkerLoop()
         {
+            Threading.WindowsScheduling.OptOutCurrentThread();   // ⭐ N-14 — a pool thread is simulation work (a no-op off Windows)
             while (true)
             {
                 _wake.Wait();

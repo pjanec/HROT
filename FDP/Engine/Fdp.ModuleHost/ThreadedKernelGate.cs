@@ -69,6 +69,9 @@ namespace Fdp.ModuleHost
 
         public static bool MainTryEnter()
         {
+            // ⭐⭐ N-3 (CE-4465; R-4216 / R-4217) — mode 3 has NO lock between the threads: the UI owns world A outright and pulls the sim's ticks
+            //   from the staging buffers; the sim never waits for it. The lock below is the earlier experiments' (modes 1 / 2) only.
+            if (ComposedWorlds) { MainHasWorld = true; _locked = false; WorldFrames++; return true; }
             if (!Enabled || !Engaged) { MainHasWorld = true; _locked = false; return true; }
             double now = FrameClock.Elapsed.TotalMilliseconds;
             if (_lastFrameAt >= 0) lock (StatLock) (_lastWasWorld ? WorldMs : MapMs).Add(now - _lastFrameAt);
@@ -85,7 +88,7 @@ namespace Fdp.ModuleHost
         /// unlocked because no worker existed); <see cref="MainExit"/> releases it as usual.</summary>
         public static void MainAdoptLock()
         {
-            if (_locked) return;
+            if (_locked || ComposedWorlds) return;
             Monitor.Enter(WorldLock);
             _locked = true; MainHasWorld = true;
         }

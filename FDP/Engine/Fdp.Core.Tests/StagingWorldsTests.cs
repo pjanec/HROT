@@ -149,6 +149,49 @@ namespace Fdp.Tests
             Assert.False(st.Pull(a));                                          // nothing newer
         }
 
+        public sealed class ClusterNote { public long Seq; }
+        public sealed class UiIntent { public int V; }
+
+        /// <summary>⭐ D-9 — a second BUS PAIR (the orchestration bus and the UI's mirror): every managed event of the sim's bus reaches the mirror
+        /// exactly once, in order — including a type first registered AFTER the pair was added (never dropped silently); what the UI publishes on
+        /// the mirror reaches the sim's bus at <c>TakeUplinks</c>, not before.
+        /// 🔴 Red-proof (run): the pull without <c>addMissingManagedStreams</c> ⇒ the late type never reaches the mirror.</summary>
+        [Fact]
+        public void ASecondBusPair_CarriesManagedEventsDownOnce_AndTheUisPublishesUp()
+        {
+            var (s, es) = NewSim(4);
+            using var _s = s;
+            using var st = NewStaging(s);
+            using var a = new EntityRepository();
+            var simOrch = new FdpEventBus();
+            var uiOrch = new FdpEventBus();
+            st.AddBusPair(simOrch, uiOrch);
+            var seen = new List<long>();
+            for (long t = 1; t <= 50; t++)
+            {
+                simOrch.PublishManaged(new ClusterNote { Seq = t });   // first published (registered) after AddBusPair
+                simOrch.SwapBuffers();
+                st.Publish(s, t);
+                if (t % 7 == 0 && st.Pull(a)) foreach (var n in uiOrch.ReadManaged<ClusterNote>()) seen.Add(n.Seq);
+            }
+            simOrch.SwapBuffers();
+            st.Publish(s, 51);
+            Assert.True(st.Pull(a));
+            foreach (var n in uiOrch.ReadManaged<ClusterNote>()) seen.Add(n.Seq);
+            Assert.Equal(50, seen.Count);
+            for (int i = 0; i < seen.Count; i++) Assert.Equal(i + 1, seen[i]);
+
+            uiOrch.PublishManaged(new UiIntent { V = 7 });                // the UI publishes on its mirror …
+            simOrch.PublishManaged(new ClusterNote { Seq = 52 }); simOrch.SwapBuffers(); st.Publish(s, 52);
+            Assert.True(st.Pull(a));                                       // … the pull sends it up …
+            simOrch.SwapBuffers();
+            Assert.Empty(simOrch.ReadManaged<UiIntent>());                 // … but nothing reaches the sim's bus before the sim takes it
+            st.TakeUplinks(s);
+            simOrch.SwapBuffers();
+            Assert.Single(simOrch.ReadManaged<UiIntent>());
+            Assert.Equal(7, simOrch.ReadManaged<UiIntent>()[0].V);
+        }
+
         [Fact]
         public void SteadyPublishAndPull_AllocateNothing()
         {

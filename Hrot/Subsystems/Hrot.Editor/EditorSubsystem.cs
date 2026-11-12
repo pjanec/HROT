@@ -485,6 +485,7 @@ namespace Hrot.Editor
 
         private ScenarioSpawnAdapter?             _spawnAdapter;
         private ScenarioMissionService?           _missionService;
+        private ScenarioMissionService?           _simMissionService;   // ⭐ N-8 — mode 3: the sim side's own (over S); otherwise the same object
         private ScenarioOrbatAdapter?             _orbatAdapter;
         private ScenarioMapConfigAdapter?         _mapConfigAdapter;
         private CanvasMapPickAdapter?           _mapPickAdapter;
@@ -1577,14 +1578,16 @@ namespace Hrot.Editor
             var interactionBus = _editorMapInteraction!.InteractionBus;
 
             // ?? 6. Editor application (IEditorLogic facade) ??????????????????
+            var appWorld = Staged ? _nodeWorld! : _world!;   // ⭐ N-6 — mode 3: the editor logic is SIM side (it clears, saves and loads S)
             var app = new EditorApplication(
-                fileService, _world!.Bus, _orchestrationBus!, () => _node?.ClusterSlave.View, _world,
+                fileService, appWorld.Bus, _orchestrationBus!, () => _node?.ClusterSlave.View, appWorld,
                 hotReloadSource: _hotReloadSource,
                 aiProjectPathSegments: AiBehaviorsProjectPath,
                 // ⭐ CE-1025 (R-1031) — every load (menu, HTTP edit, the film director) leaves the editor's dry run first, WITHOUT a
                 //   rewind. Late-bound: the preview controller is built below (step 8).
                 leaveRun: () => _previewController?.ForgetPreview());
-            _editorLogic = app;
+            _editorLogic = Staged ? new ThreadedEditorLogic(app, PostToSim) : app;   // ⭐ N-6 — the UI's verbs become sim jobs
+            if (Staged && app.ScenarioSession is Hrot.Editor.AiShared.Scenarios.EditorScenarioSession simSession) simSession.ReadsOnSimThread = true;   // ⭐ N-6 — its world reads are answered from sim-side values
             _editorApp   = app;
             WireWorldUndo();   // ⭐ B-14 — the session exists now
 
@@ -1764,6 +1767,7 @@ namespace Hrot.Editor
                     Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = System.Environment.GetEnvironmentVariable("HROT_PANEL_CAPTURE") != "0";
 
                     _debugApiJobQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
+                    if (Staged) _debugApiJobQueue.UiQueue = _debugApiUiJobQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();   // ⭐ N-8
                     // POST /shutdown asks the HOST RUNNER to leave its frame loop, so the process
                     // exits through the same ordered teardown as the window's [X] — subsystems get
                     // Shutdown(), recordings flush. ⛔ Deliberately not Environment.Exit: that skips
@@ -1773,22 +1777,23 @@ namespace Hrot.Editor
                     _debugApiHost     = new Hrot.Editor.DebugApi.DebugApiHost(
                         debugApiPort, _debugApiJobQueue, () => _requestAppExit());
 
-                    var debugExtraction = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap!, scenarioSerializer);
+                    var debugWorld = Staged ? _nodeWorld! : _world!;   // ⭐ N-8 — mode 3: the sim-side routes run on the sim thread, over S
+                    var debugExtraction = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(debugWorld, _entityMap!, scenarioSerializer);
                     var debugTimeFacade = _timeTransport!;   // ⭐ CE-3329 row 21 — the one facade
                     // The behavior-trace arming coordinator (Hrot.Editor.DebugApi.*) — distinct from the
                     // time-control tracer of the same short name in Hrot.Editor.Debug. Self-contained.
-                    _debugApiTracer = new Hrot.Editor.DebugApi.EditorAiTracerCoordinator(_world);
+                    _debugApiTracer = new Hrot.Editor.DebugApi.EditorAiTracerCoordinator(debugWorld);
                     // ⭐ D15 — the API's /recording/* and /replay/* endpoints drive the editor's ONE recorder (the shared host
                     //   composition's), ⛔ not a second instance on the same world.
                     _debugApiRrController = _clusterHandlers!.RecordReplayController;
 
                     var debugService = new Hrot.Editor.DebugApi.DebugApiService(
-                        _world,
+                        debugWorld,
                         _entityMap!,
                         debugExtraction,
                         debugTimeFacade,
                         _previewController!,
-                        _editorLogic!,
+                        Staged ? _editorApp! : _editorLogic!,   // ⭐ N-8 — the routes run on the sim thread: the real logic
                         _fdpEventHistory,
                         _timeController!,
                         clusterState: () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle,
@@ -1893,12 +1898,15 @@ namespace Hrot.Editor
             }
 
             // ?? 9. Mission service (no canvas dependency) ?????????????????????
-            _missionService = new ScenarioMissionService(_world.Bus, _world, behaviorRegistry);
+            _missionService = new ScenarioMissionService(_world!.Bus, _world, behaviorRegistry);
+            // ⭐ N-8 — mode 3: the UI's mission facade stays over A (the Orders tab reads it on the UI thread); the sim side (the HTTP mission routes, the
+            //   node's map services) gets its OWN over S, polled on the sim thread — ⛔ never one object read from both threads
+            _simMissionService = Staged ? new ScenarioMissionService(_nodeWorld!.Bus, _nodeWorld, behaviorRegistry) : _missionService;
             // MX4a: GET /behaviors?entityId= answers with the SAME list the mission-task combo shows
             // only if it goes through this service. Built after the API host, so it is handed over
             // here rather than passed to the constructor.
             if (_debugApiService is not null)
-                _debugApiService.MissionService = _missionService;
+                _debugApiService.MissionService = _simMissionService;
 
             // ?? 10. Canvas-dependent adapters, layers, and interaction tool ???
             if (!_headless)
@@ -1926,7 +1934,7 @@ namespace Hrot.Editor
                 // 🔒 UXI-07 step 4a — the arbiter is PASSED, so obstacle placement displaces the
                 //    active tool instead of quietly taking focus beside it (§4.8's inventory).
                 _zoneAdapter      = new EditorZoneAdapter(
-                    _canvas!, _world.Bus, _globalGizmoManager!, _editorToolController);
+                    _canvas!, _world!.Bus, _globalGizmoManager!, _editorToolController);
                 _mapConfigAdapter = new ScenarioMapConfigAdapter(_mapViewConfig, _canvas!);
                 // ⭐⭐⭐ UXI-11 S-1 -- read through to the ECS SelectionState component, the one truth.
                 //   ⚠ Same lifecycle as _fdpRepoAdapter below: nulled on teardown and rebuilt here,
@@ -2272,7 +2280,7 @@ namespace Hrot.Editor
 
             // Inject the bus so file ops trigger WorldResetEvent.
             // ⛔ No zone service (F1): a zone is an authored entity and rides the ordinary save gate.
-            var fileService = new ScenarioFileService(scenarioSerializer, _world.Bus);
+            var fileService = new ScenarioFileService(scenarioSerializer, (Staged ? _nodeWorld! : _world).Bus);   // ⭐ N-6 — mode 3: the file service clears / saves S (sim side), so its reset event goes on S's bus (A hears it through the staging carry)
 
             // ⭐⭐⭐ HN-037 — the world boundary must forget the network id → entity index too.
             // 📄 docs/DESIGN_Deterministic_Network_Ids.md §11 (the as-built §11g).
@@ -2563,7 +2571,7 @@ namespace Hrot.Editor
                     DimTransientEntities = true,   // ⭐ SR-191 — the authoring map shows what a save will NOT write, dimmed
                     Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                     // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
-                    Services = Hrot.ScenarioEditor.Map.MapServices.Of(geoTransform, _behaviorRegistry, (System.Func<object?>)(() => _missionService)),   // ⭐ 8d-2 — the mission facade is built after the map: resolved when asked
+                    Services = Hrot.ScenarioEditor.Map.MapServices.Of(geoTransform, _behaviorRegistry, (System.Func<object?>)(() => _simMissionService)),   // ⭐ 8d-2 — the mission facade is built after the map: resolved when asked
                     GizmoUiPublisher = _gizmoUiHub,
                     Inspector = () => _fdpInspectorState,
                     // ⭐⭐⭐ CE-300 — the AI editors' entity cell follows the ANNOUNCEMENT, not a map
@@ -2762,6 +2770,18 @@ namespace Hrot.Editor
         private EntityRepository? _presWorld;   // A
         private EntityRepository? _nodeWorld;   // S = the node's ctx.World (every mode; in mode 3 it differs from _world)
 
+        // ⭐⭐⭐ N-1 / N-3 (CE-4463 / CE-4465; R-4216, R-4217) — the threaded editor, mode 3: NO lock between the threads. The UI → S direction is the
+        //   ONE sim job queue (drained on the sim thread between ticks); the S → A direction is the two staging buffers (published by the sim after
+        //   each tick, pulled by the UI at its frame start). 📄 docs/DESIGN_Threaded_Work_Inventory.md §8.2a.
+        private Fdp.Core.Threading.SimJobQueue? _simJobs;
+        private Fdp.Core.Threading.StagingWorlds? _staging;
+        private long _stagedTick;
+        private Hrot.Editor.DebugApi.MainThreadJobQueue? _debugApiUiJobQueue;   // ⭐ N-8 — the UI-side routes (drained on the UI thread)
+        /// <summary>⭐ The threaded editor without the world lock: mode 3.</summary>
+        private static bool Staged => Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds;
+        /// <summary>Posts a named action to the sim thread (the decorators' entry).</summary>
+        private void PostToSim(string label, Action a) => _simJobs!.Post(_ => a(), label);
+
         /// <summary>⭐ POC 3 C-1 / C-4 — the systems the walk found the KERNEL holding over A (they read and answer the UI): in mode 3 they leave the
         /// tick and run in the presentation step on the main thread, against A. Everything else of the interaction set stays with the node.</summary>
         private readonly List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> _presentationSystems = new();
@@ -2830,6 +2850,20 @@ namespace Hrot.Editor
             _twTableMask = loaded?.Mask ?? s.GetSnapshotableMask(true);
             _twTableMask.SetBit(Fdp.Core.ComponentType<Hrot.Map.Common.Components.SelectionState>.ID);
             _twSelQuery = s.Query().With<Hrot.Map.Common.Components.SelectionState>().Build();
+            // ⭐⭐ N-1 / N-3 — the job queue, the staging buffers, and the link on A that turns every UI write into a job
+            _simJobs = new Fdp.Core.Threading.SimJobQueue();
+            _staging = new Fdp.Core.Threading.StagingWorlds { TableMask = _twTableMask, SingletonExcept = _twSingletonExcept };
+            _staging.SingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Fdp.Core.Threading.SimLink>.ID);
+            _staging.RegisterStreamsFrom(s.Bus);
+            _staging.SimRows = (sim, rows) =>
+            {   // S's selection while the selection systems still tick on S (§4 ⑧ moves the selection to A)
+                if (_twMaskAll || _twSelQuery == null) return;
+                foreach (var e in _twSelQuery)
+                    if (sim.GetComponentRO<Hrot.Map.Common.Components.SelectionState>(e).IsSelected) rows.Add(e);
+            };
+            _simJobs.Outbox = _staging;
+            Fdp.Core.WorldGuard.Strict = !Fdp.ModuleHost.ThreadedKernelGate.ComposedSingleThread;   // ⭐ N-3 — no lock: every off-thread read of S is a race
+            a.SetSingletonManaged(new Fdp.Core.Threading.SimLink(_simJobs, s));
             Fdp.Core.WorldGuard.ArmSyncMask(_twTableMask, _twSingletonExcept);
             // single-threaded: no sim THREAD — the guard decides by the tracer's context (the node frame's scope is Tick); the worker re-arms with its id
             Fdp.Core.WorldGuard.Arm(s, a, -1);
@@ -2961,6 +2995,54 @@ namespace Hrot.Editor
             _twSyncSum += tables; _twRowSum += sw.Elapsed.TotalMilliseconds - tables; _twSyncN++;
         }
 
+        /// <summary>
+        /// ⭐⭐ N-1 / N-3 — ONE step of the sim thread (mode 3): the UI's jobs and events (applied to S between ticks, in order), the sim-side half
+        /// of what the UI frame used to run (the HTTP routes, the scenario session's load pump, Run to …), the node frame, then the publish into
+        /// the staging buffer the UI is not pulling — never a wait on the UI.
+        /// </summary>
+        private void SimStep(float dt)
+        {
+            var s = _simWorld!;
+            using (Fdp.Core.AccessTrace.Scope("sim: jobs (UI writes, run controls)", Fdp.Core.TraceContext.Tick)) _simJobs!.Drain(s);
+            _staging!.TakeUplinks(s);   // ⭐ D-9 — what the UI published on its mirrors (A's bus, the orchestration mirror) reaches the sim's buses
+            using (Fdp.Core.AccessTrace.Scope("sim: debug-API jobs (sim-side routes)", Fdp.Core.TraceContext.Tick)) _debugApiJobQueue?.DrainAll();   // ⭐ N-8
+            using (Fdp.Core.AccessTrace.Scope("sim: editor logic Update (load pump)", Fdp.Core.TraceContext.Tick)) _editorApp?.Update();          // ⭐ N-6 — the real session, on S
+            if (!ReferenceEquals(_simMissionService, _missionService)) _simMissionService?.PollAcks();   // ⭐ N-8
+            _runTo?.Tick();   // ⭐ N-5 — Run to …: its turbo steps ARE node frames, so it belongs to the sim thread
+            if (_gizmoBuffer != null) Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(_gizmoBuffer, GizmoFeedAddress);
+            _gizmoBuffer?.EndFrame(dt);
+            TickNodeFrame(dt);
+            _gizmoBuffer?.PublishFrame();
+            DrainStagingRemap();   // ⭐ N-4 — the orchestration bus is read on the sim thread only; its UI half rides the publish queue
+            (_editorApp?.ScenarioSession as Hrot.Editor.AiShared.Scenarios.EditorScenarioSession)?.RefreshOnSim();   // ⭐ N-6 — the values the UI reads
+            _staging.Publish(s, ++_stagedTick);
+        }
+
+        /// <summary>⭐ N-3 — the UI frame's start: A takes the latest complete tick (when newer), then the UI-owned state that S reads rides down.</summary>
+        private void PullStaging()
+        {
+            var a = _world!;
+            bool pulled;
+            using (Fdp.Core.AccessTrace.Scope("ui: staging pull", Fdp.Core.TraceContext.Presentation)) pulled = _staging!.Pull(a);
+            if (!pulled) return;
+            _twPresMap!.RebuildFromWorld(a);
+            // ⭐ POC 4 F-2 ② — the per-unit debug requests the UI made ride to S as a job (A's store is the UI's; S's the sim's): copied on the UI
+            //   thread into a mirror the job then reads on the sim thread — one job in flight at a time, the delegate cached (0 B per pull)
+            if (!_debugMirrorJobPending && Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Peek(a) is { } uiDebug)
+            {
+                _debugMirror.TakeRequestsFrom(uiDebug);
+                _debugMirrorJobPending = true;
+                _simJobs!.Post(_debugMirrorJob ??= sim =>
+                {
+                    Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(sim).TakeRequestsFrom(_debugMirror);
+                    _debugMirrorJobPending = false;
+                }, "debug settings → S");
+            }
+        }
+        private readonly Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings _debugMirror = new();
+        private volatile bool _debugMirrorJobPending;
+        private Action<EntityRepository>? _debugMirrorJob;
+
         private void EnsureKernelWorker()
         {
             if (_kernelWorker != null) return;
@@ -2973,6 +3055,7 @@ namespace Hrot.Editor
 
         private void KernelWorkerLoop()
         {
+            Fdp.Core.Threading.WindowsScheduling.OptOutCurrentThread();   // ⭐ N-14 — the sim thread (a no-op off Windows)
             if (_simWorld != null) Fdp.Core.WorldGuard.Arm(_simWorld, _world!, Environment.CurrentManagedThreadId);   // ⭐ POC 2
             var tickWatch = new System.Diagnostics.Stopwatch();
             double tickSum = 0; long tickN = 0, lastReport = Environment.TickCount64;
@@ -2991,6 +3074,20 @@ namespace Hrot.Editor
                     _workerPendingDt = _workerPendingDt - dt > 0.25 ? 0 : _workerPendingDt - dt;   // never more than one quarter second behind
                 }
                 if (dt <= 0f) { System.Threading.Thread.Sleep(1); continue; }
+                if (_staging != null)
+                {   // ⭐⭐ N-1 / N-3 — no lock: jobs, the tick, the publish (the sim never waits for the UI)
+                    tickWatch.Restart();
+                    k1.Restart();
+                    try { SimStep(dt); }
+                    catch (Exception ex)
+                    {
+                        if (System.Threading.Interlocked.Increment(ref _kernelWorkerFaults) <= 20) Console.WriteLine("[X-4] worker fault: " + ex);
+                    }
+                    k1Work[k1S] += k1.Elapsed.TotalMilliseconds; k1Yield[k1S] += k1Y; k1N[k1S]++;
+                    tickSum += tickWatch.Elapsed.TotalMilliseconds; tickN++;
+                    Fdp.ModuleHost.ThreadedKernelGate.Ticks++;
+                    goto report;
+                }
                 if (_simWorld != null && !Fdp.ModuleHost.ThreadedKernelGate.LockWholeTick)
                 {   // ⭐ POC 2 — the tick runs on S beside the drawing thread; the lock is taken for the S→A sync only
                     tickWatch.Restart();
@@ -3042,6 +3139,8 @@ namespace Hrot.Editor
                 report:
                 if (Environment.TickCount64 - lastReport > 5000 && tickN > 0)
                 {
+                    if (_staging != null)
+                        Console.WriteLine($"[STAGING] published {_staging.Published} · skipped {_staging.Skipped} · pulled {_staging.Pulled} · last publish {_staging.LastPublishMs:F2} ms (max {_staging.MaxPublishMs:F2}) · last pull {_staging.LastPullMs:F2} ms · jobs run {_simJobs!.Executed} (faults {_simJobs.Faults}) · guard hits {Fdp.Core.WorldGuard.DistinctHits}");
                     if (_simWorld != null && _twSyncN > 0)
                         Console.WriteLine($"[POC2] syncs {_twSyncN}: tables mean {_twSyncSum / _twSyncN:F2} ms, rows+map mean {_twRowSum / _twSyncN:F3} ms · guard hits {Fdp.Core.WorldGuard.DistinctHits}");
                     var g = Fdp.ModuleHost.ThreadedKernelGate.WorldFrames; var m = Fdp.ModuleHost.ThreadedKernelGate.MapOnlyFrames;
@@ -3068,19 +3167,22 @@ namespace Hrot.Editor
             bool threaded = Fdp.ModuleHost.ThreadedKernelGate.Enabled && _node != null && !_headless;
             if (threaded && Fdp.ModuleHost.ThreadedKernelGate.TwoWorlds) threaded = TwoWorldsStep();   // ⭐ POC 2 — only while a preview runs
             if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds && (Fdp.ModuleHost.ThreadedKernelGate.ComposedSingleThread || _simWorld == null)) threaded = false;   // ⭐ POC 3 single-threaded
-            if (threaded)
+            if (threaded && Staged)
+            {   // ⭐⭐ N-3 (R-4216 / R-4217) — NO world lock: the sim runs on its worker; this frame pulls the latest complete tick into A (when newer),
+                //   then runs the UI's own systems on A. Every UI → S effect is a job (N-1).
+                Fdp.ModuleHost.ThreadedKernelGate.Engaged = true;
+                EnsureKernelWorker();
+                lock (_workerDtLock) _workerPendingDt += deltaTime;
+                PullStaging();
+                RunPresentationStep(deltaTime);
+            }
+            else if (threaded)
             {
-                if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds && !Fdp.ModuleHost.ThreadedKernelGate.Engaged)
-                {   // ⭐ POC 3 — the node frame moves to the worker for good: from now on the drawing thread takes the world lock each frame
-                    Fdp.ModuleHost.ThreadedKernelGate.MainAdoptLock();
-                    Fdp.ModuleHost.ThreadedKernelGate.Engaged = true;
-                }
                 EnsureKernelWorker();
                 lock (_workerDtLock) _workerPendingDt += deltaTime;
                 if (!Fdp.ModuleHost.ThreadedKernelGate.MainHasWorld) { _canvas?.Camera.Update(deltaTime); return; }
-                if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds) RunPresentationStep(deltaTime);   // ⭐ POC 3 — the UI's own systems, on A, holding the world
             }
-            else
+            else if (!Staged)
             _runTo?.Tick();   // ⭐ CE-4316 — Run to …: one ACK-gated step per frame until reached   (⚠ X-4 shortcut: not in threaded mode — its turbo step ticks the node frame here)
             // ⭐⭐⭐ MX-006 — THE FRAME BOUNDARY for the panel snapshot. FIRST LINE OF THE FRAME.
             //   📄 DESIGN_UI_Observability_Snapshot.md §"Perf & correctness".
@@ -3123,7 +3225,9 @@ namespace Hrot.Editor
             //    then read.
             // ⚠ The cost, stated: a reader sees a capture one frame old. ⛔ The alternative — reading a
             //    half-built frame — is worse, and reading an EMPTY one is what we had.
-            using (Fdp.Core.AccessTrace.Scope("api-job: debug-API jobs (HTTP routes run on the main thread)", Fdp.Core.TraceContext.Other)) _debugApiJobQueue?.DrainAll();   // ⭐ A-1
+            using (Fdp.Core.AccessTrace.Scope("api-job: debug-API jobs (HTTP routes run on the main thread)", Fdp.Core.TraceContext.Other))
+                if (Staged) _debugApiUiJobQueue?.DrainAll();   // ⭐ N-8 — mode 3: only the UI-side routes here; the sim drains the rest between ticks
+                else _debugApiJobQueue?.DrainAll();   // ⭐ A-1
 
             // ⭐ CE-4038 (DESIGN_Film_Director §1a) — THE new edge: the director's frame, after the routes drained (a /director/play lands
             //   this frame) and before the map's update (its held shot and its capture are served there). ⭐⭐ At most ONE step per frame
@@ -3136,7 +3240,7 @@ namespace Hrot.Editor
             // ⭐ K-1 (CE-4450) — in threaded mode the drain reads the ORCHESTRATION bus, which the worker's node frame publishes to and swaps outside the
             //   world lock: "Collection was modified" 3 of 3 runs once the hand-over was fair (the starved worker had hidden it). It runs in the worker's
             //   locked sync instead (SyncPresentationWorld below). ⚠ An experiment's patch: the UI's PUBLISHES onto that bus still race — commands (§14.1).
-            if (!(Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds && Fdp.ModuleHost.ThreadedKernelGate.Engaged))
+            if (!Staged)   // ⭐ N-4 — mode 3: the sim thread reads the orchestration bus (SimStep)
                 using (Fdp.Core.AccessTrace.Scope("editor: staging remap drain")) DrainStagingRemap();   // ⭐ A-1
 
             Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.ClearCaptured();
@@ -3189,13 +3293,13 @@ namespace Hrot.Editor
             //   were spelled out here). The editor's own per-frame work rides the two seams the frame offers. ⚠ The kernel's world-bus swap is its own (Kernel.Update).
             if (!threaded)
             {
-                TickNodeFrame(deltaTime);   // ⭐ CE-4316 — the node frame, extracted so Run to …'s turbo loop runs the SAME one (EditorSubsystem.TurboStep)
-                if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds && _simWorld != null) { SyncPresentationWorld(); RunPresentationStep(deltaTime); }   // ⭐ POC 3 — A takes S, then the UI's own systems run on A (single-threaded)
+                if (Staged && _staging != null) { SimStep(deltaTime); PullStaging(); RunPresentationStep(deltaTime); }   // ⭐ N-3 — HROT_THREADED_SINGLE=1: the same step, on one thread
+                else TickNodeFrame(deltaTime);   // ⭐ CE-4316 — the node frame, extracted so Run to …'s turbo loop runs the SAME one (EditorSubsystem.TurboStep)
                 if (Fdp.ModuleHost.PublishProbe.Enabled && !_publishProbeExtras) RegisterPublishProbeExtras();   // ⭐ A-3
                 Fdp.ModuleHost.PublishProbe.AfterFrame(_world);   // ⭐ EXPERIMENT (threaded kernel X-1) — opt-in HROT_PUBLISH_PROBE=1
             }
             using (Fdp.Core.AccessTrace.Scope("editor: editor logic Update (loads, SoftClear, scenario)")) _editorLogic?.Update();   // ⭐ A-1
-            using (Fdp.Core.AccessTrace.Scope("editor: orchestrator ScenarioPanel.Update")) _orchestratorCore?.ScenarioPanel.Update(deltaTime);   // ⭐ A-1
+            if (!Staged) using (Fdp.Core.AccessTrace.Scope("editor: orchestrator ScenarioPanel.Update")) _orchestratorCore?.ScenarioPanel.Update(deltaTime);   // ⭐ A-1
 
             // ⭐⭐⭐ CE-051 — the drain MOVED to the shared ToolActivationDrainSystem /
             //    SelectEntitySystem / CenterOnEntitySystem, registered by ScenarioEditorModule (:1273).
@@ -6090,11 +6194,18 @@ namespace Hrot.Editor
             bool published = false;
             foreach (var ev in _orchestrationBus.ReadManaged<Fdp.Toolkit.Orchestration.StagingRemapPublishedEvent>())
             {
-                _stagingRemap.Publish(ev.GuidToRuntime);
+                if (_staging != null) { var map = ev.GuidToRuntime; _staging.Post(_ => _stagingRemap.Publish(map)); }   // ⭐ N-4 — the remap is read by UI objects: published on the UI thread, in order
+                else _stagingRemap.Publish(ev.GuidToRuntime);
                 published = true;
             }
             if (!published) return;
 
+            if (_staging != null) { _staging.Post(_ => RebindWatchPins()); return; }   // ⭐ N-4 — the watch pins are UI objects: the UI thread re-binds them
+            RebindWatchPins();
+        }
+
+        private void RebindWatchPins()
+        {
             int rebound = 0;
             foreach (var registrar in PerspectiveRegistrars)
                 rebound += registrar?.Watch?.RebindConcretePins() ?? 0;

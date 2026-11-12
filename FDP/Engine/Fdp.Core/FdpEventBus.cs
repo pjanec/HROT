@@ -355,7 +355,9 @@ namespace Fdp.Core
         /// <param name="addMissingStreams">⭐ CE-4062 — when true, a native type this bus has no stream for gets one shaped like the
         /// source's (typed when the source's is typed), so nothing is skipped: the Replay Browser hands a stepped frame's recorded
         /// events to the world it draws, whose bus registered only the presentation's own events.</param>
-        public unsafe void PublishCurrentOf(FdpEventBus source, bool addMissingStreams = false)
+        /// <param name="addMissingManagedStreams">⭐ N-3 / D-9 — the same for a MANAGED type: a stream of the source's shape is added (the staging's mirror
+        /// buses must carry a managed event type the sim side registered after the mirror was built — never drop it silently).</param>
+        public unsafe void PublishCurrentOf(FdpEventBus source, bool addMissingStreams = false, bool addMissingManagedStreams = false)
         {
             if (source is null) throw new ArgumentNullException(nameof(source));
             var natives = Volatile.Read(ref source._nativeList);
@@ -381,7 +383,20 @@ namespace Fdp.Core
             for (int i = 0; i < managedCount; i++)
             {
                 if (manageds[i] is not IManagedEventStreamInfo info || info.CurrentEvents.Count == 0) continue;
-                if (!_managedStreams.TryGetValue(info.TypeId, out var target) || target is not IManagedEventStream to) continue;
+                if (!_managedStreams.TryGetValue(info.TypeId, out var target) && addMissingManagedStreams)
+                {
+                    var created = Activator.CreateInstance(manageds[i].GetType())!;
+                    lock (_streamListLock)
+                    {
+                        if (!_managedStreams.TryGetValue(info.TypeId, out target))
+                        {
+                            _managedStreams[info.TypeId] = created;
+                            AppendManaged((IManagedEventStream)created);
+                            target = created;
+                        }
+                    }
+                }
+                if (target is not IManagedEventStream to) continue;
                 foreach (var evt in info.CurrentEvents) if (evt != null) to.WriteRaw(evt);
             }
         }

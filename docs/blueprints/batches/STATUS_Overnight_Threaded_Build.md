@@ -40,6 +40,11 @@ Started marker `1cd3c2dbc`.
 | D-3 | events / replies of a publish the UI never pulls (it pulls only the LATEST buffer) | keep them in the buffer (lost when skipped over — the first cut did, found while writing the rail) · ⭐ tick-tagged packets in their own FIFO | ⭐ packets: the UI drains every packet up to the tick it pulls | "every event once, in order, skipped ticks included" (handoff N-3) | `StagingWorlds.Pull` |
 | D-4 | a row copy stamps the destination chunk with ITS OWN version — with two alternating sources an equal version from the other source would make the table sync skip a stale chunk | force-copy chunks · a sentinel version · ⭐ rows copy only types OUTSIDE the table mask | masked types arrive whole with the table sync; out-of-mask types are never table-synced, so their versions decide nothing | `EntityRepository.SyncRowsFrom(…, skipTypes)` |
 | D-6 | the read check's "parallel phase" flag was process-wide | keep global · ⭐ per thread | the UI thread reading A while the sim runs a phase would have every A read treated as cross-entity; ParallelEntities sets it per batch | `ParallelReadCheck.Active` |
+| D-7 | the editor's non-UI half in mode 3 | keep it on the UI thread (races with the sim) · ⭐ SIM side | ⭐ the editor logic / scenario session, the debug-API service, the mission routes, the file service run OVER S on the sim thread (`SimStep`); the UI gets decorators whose verbs are jobs (`ThreadedEditorLogic`, `ThreadedScenarioSession`) | one writer of S; the UI never touches a sim object | `EditorSubsystem.SimStep` |
+| D-8 | the HTTP routes (N-8) | one queue on the UI thread · ⭐ two queues by side | ⭐ the host marks each request's side from its template (`DebugApiRouteSides`, a prefix list); `RunOnMainThread` routes UI-side requests to the UI queue; the rest drain on the sim thread between ticks | §3's split, with one classification function instead of 237 edits | `MainThreadJobQueue.UiQueue` |
+| D-9 | ⭐ UI READS of sim-side state (the save gate, the cluster view, the time readouts) — the first run CRASHED on one (`ScenarioSaveGate.CanSave(S)` from the toolbar: a query rebuilt under the reader) | pass reads through ("benign" — a shortcut, rejected) · ⭐ published views | ⭐ (a) every BUS is a sim / UI PAIR carried by the staging (events down per tick exactly once, the UI's publishes up between ticks) ⇒ the UI keeps its OWN read models (`ClusterView`, the time transport, the door) over its mirror of the orchestration bus; (b) values only the sim can compute (the save gate, args) are computed after each tick on the sim and published (a readout) | the read models are already event-driven, so a mirror bus makes them thread-owned by construction | `StagingWorlds` bus pairs |
+| D-10 | a mission facade read by the UI (Orders tab) AND used by the sim-side routes | one object, two threads · ⭐ one per world | the UI's over A, the sim's over S (each polls its own acks) | a facade is bound to the world it serves | `EditorSubsystem` `_simMissionService` |
+| D-11 | the strict guard | the guard flagged an S read only in the presentation's trace context · ⭐ with no lock, ANY off-thread read of S | `WorldGuard.Strict` in mode 3 | it lists every remaining crossing with its stack | `WorldGuard.cs` |
 | D-5 | `SimLink` needs a component id | — | `GlobalComponentIds.SimLink = 475` (free in every lane and in every test) | — | `GlobalComponentIds.cs` |
 
 ## 4. BUGS FIXED
@@ -54,6 +59,13 @@ Started marker `1cd3c2dbc`.
 ## 6. NUMBERS
 (N-16, later)
 
+## RULES FROM THE USER DURING THE NIGHT
+🔒 *"when you are making a Decision, Take the one that follows the best practices and fits the engine architecture. Do not do any shortcuts, no hacks please."* · *"run only focused test suites … only those that are really necessary for the trouble you are testing."*
+
 ## NEXT (the resume point)
+⭐ IN PROGRESS: the editor wired (jobs + staging, no lock; builds; session run 2: load / select / focus / play OK, 0 job faults) — then a Debug
+assert (`StandardInputs.DistanceToContext` NaN) killed it; a switch-OFF Debug control run decides whether it predates the work. Next: D-9 (bus pairs
+in `StagingWorlds`, the UI's own ClusterView / transport / door over the mirror, the session readout) → §4 the gizmo block on the UI thread
+(R-4211; removes the SelectionRequestSystem / camera guard hits) → N-14 commit (written: `WindowsScheduling.cs` + rail, not built yet) →
 wire N-1 + N-3 into the editor's mode-3 worker loop (drain jobs between ticks, publish after
 each tick, pull at the UI frame start, remove `ThreadedKernelGate`'s world lock from that path) → N-4 orchestration bus → N-5 run controls → N-6 …

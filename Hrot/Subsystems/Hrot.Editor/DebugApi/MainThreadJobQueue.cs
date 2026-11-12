@@ -10,6 +10,16 @@ namespace Hrot.Editor.DebugApi
     /// </summary>
     public sealed class MainThreadJobQueue
     {
+        /// <summary>⭐ N-8 (CE-4470) — the threaded editor's SECOND queue, drained on the UI thread, for the routes that drive the UI (panels, the film
+        /// director, the map layers, editor commands, perspectives …). This queue is then drained on the SIM thread between ticks (every other
+        /// route sees all of S at a tick boundary). Null ⇒ one queue (every host that is not threaded — unchanged).</summary>
+        public MainThreadJobQueue? UiQueue { get; set; }
+
+        private static readonly System.Threading.AsyncLocal<bool> s_uiSide = new();
+
+        /// <summary>⭐ N-8 — the request being served is a UI-side route (set by the host per request; it flows into the route's awaits).</summary>
+        public static bool CurrentRequestIsUiSide { get => s_uiSide.Value; set => s_uiSide.Value = value; }
+
         private readonly ConcurrentQueue<(Func<object?> Job, TaskCompletionSource<object?> Tcs)> _queue
             = new ConcurrentQueue<(Func<object?>, TaskCompletionSource<object?>)>();
 
@@ -19,6 +29,7 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public Task<T> RunOnMainThread<T>(Func<T> job)
         {
+            if (UiQueue != null && s_uiSide.Value) return UiQueue.RunOnMainThread(job);   // ⭐ N-8 — a UI route, in the threaded editor
             var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
             _queue.Enqueue((() => job(), tcs));
             return tcs.Task.ContinueWith(

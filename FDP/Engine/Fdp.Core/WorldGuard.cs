@@ -43,6 +43,10 @@ namespace Fdp.Core
             AppDomain.CurrentDomain.ProcessExit += OnExit;
         }
 
+        /// <summary>⭐ N-3 (CE-4465) — the threaded node with NO lock between the threads (mode 3, the staging buffers): ANY read of S off the sim
+        /// thread (and its pool workers in the tick context) is a race, not only a read in the presentation's context.</summary>
+        public static bool Strict { get; set; }
+
         /// <summary>Stops checking (the threaded mode ended).</summary>
         public static void Disarm() { s_simRepo = 0; s_presRepo = 0; s_simThread = 0; s_simBus = 0; s_presBus = 0; }
 
@@ -62,7 +66,7 @@ namespace Fdp.Core
                 bool tick = Environment.CurrentManagedThreadId == s_simThread || AccessTrace.CurrentContextIsTick;
                 string? rv = null;
                 if (repo == s_presRepo && tick) rv = "A READ by the sim side";
-                else if (repo == sim && !tick && AccessTrace.CurrentContextIsPresentation) rv = "S READ by the presentation";
+                else if (repo == sim && !tick && (Strict || AccessTrace.CurrentContextIsPresentation)) rv = Strict ? "S READ off the sim thread" : "S READ by the presentation";
                 if (rv == null) return;
                 Note(rv, kind, key);
                 return;
