@@ -25,8 +25,10 @@ POC2 = [
     ("rec-qtoff",    {"HROT_QUERY_TIMINGS": "0"}),                        # Q-0: the per-query timer's own cost
     ("rec-q1",       {"HROT_BP_STAMP_ON_CHANGE": "1"}),                   # Q-1: blueprint chunks stamped only on a real change
     ("rec-q2",       {"FDP_EGRESS_OFFFRAME": "1"}),                       # Q-2: the state egress off the frame
+    ("rec-thr",      {"HROT_PARALLEL_SIM": "1", "HROT_SIM_MODE": "throughput"}),                               # POC 1's systems, Throughput
+    ("rec-q4",       {"HROT_PARALLEL_SIM": "1", "HROT_SIM_MODE": "throughput", "HROT_BRAIN_PRESCORE": "1"}),   # Q-4: + the brains' pre-score
     ("rec-all",      {"HROT_QUERY_TIMINGS": "0", "HROT_BP_STAMP_ON_CHANGE": "1", "FDP_EGRESS_OFFFRAME": "1",
-                      "HROT_PARALLEL_SIM": "1", "HROT_SIM_MODE": "throughput"}),   # everything together (+ the POC 1 systems)
+                      "HROT_PARALLEL_SIM": "1", "HROT_SIM_MODE": "throughput", "HROT_BRAIN_PRESCORE": "1"}),   # everything together
 ]
 
 
@@ -57,7 +59,7 @@ def main():
     ap.add_argument("--content", action="store_true",
                     help="also run the largest thread count with HROT_CONTENT_VERSION=1 (D-5 commit by content), and a RECORDED pair with/without it")
     ap.add_argument("--poc2", action="store_true",
-                    help="POC 2: RECORDED serial vs each item (timer off, Q-1 stamp on change, Q-2 off-frame egress) and all together")
+                    help="POC 2: RECORDED serial vs each item (timer off, Q-1 stamp on change, Q-2 off-frame egress, Q-4 brain pre-score) and all together")
     a = ap.parse_args()
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     rig_args = ["--pin"] if a.pin else []
