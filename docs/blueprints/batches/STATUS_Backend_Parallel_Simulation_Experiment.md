@@ -39,7 +39,7 @@ the 8-core Windows numbers need the script left for that run).
 | brains P-3: shared ECB → batch ECB, defer `Finish` + publishes, `DecisionCadence` per unit, the two system dictionaries | 3–4 |
 | brains: the two ORDER-DEPENDENT behaviours — a **user decision** (double-buffered cover claims = a friend sees a claim one tick later) | decision + 1 |
 | D-5 as a per-table policy + its mid-frame-reader rule (§D-5) + a recorded Windows measurement | 2 |
-| interleave (P-5): the helper is built; adopt per system with an error rail each (Stress done, opt-in) | ½ each |
+| interleave (P-5): the helper is built; ⚠ Stress interleaved gained only 0.3 ms (D-7) — adopt only where a profile shows the per-entity step dominates | ½ each, after a profile |
 
 **The three changes to the plan (§5)**
 1. ⭐ **D-5 commit by content replaces most of P-6** (per-table check-before-write) — one policy, true by construction, measured to remove every
@@ -267,3 +267,17 @@ copies — the consumers D-5 helps — are not in the measured path. ⇒ the Win
 | of the 23: 11 pass, 12 fail | `regr-0` log (scratchpad) |
 | `bc-room-clear` fails the SAME way at `coordinator@72b4ed0e6` | 📐 clean-worktree run: `ArgumentException` — a ±infinity `SimInstant` (`SquadUnitSense.AskedAt`) written by `SimInstantJsonConverter` into the golden snapshot ⇒ **pre-existing, filed `CE-3441`** (not fixed here — not this experiment's) |
 ⇒ the other 11 failures are NOT individually checked; several are combat / squad scenarios that likely hit `CE-3441` first. ⭐ The converted systems are covered by their byte-equal serial-vs-parallel rails; the regression in parallel mode belongs to the Windows run.
+
+### Last measurements (chain 8, HEAD `d424929b0`)
+| | result |
+|---|---|
+| `DeterminismRails` (Hrot.SystemTests, the real editor headless) with `HROT_PARALLEL_SIM=1` | ✅ **5 / 5** |
+| P-5 Stress interleaved at 0.2 s (`HROT_STRESS_PERIOD=0.2`, parallel on) vs every frame | Stress **9.6 vs 9.9 ms** — ⛔ **no real gain**; frame 177.8 vs 182.0 (noise) |
+
+### D-7 — interleaving Stress does not pay; its cost is elsewhere
+| claim | basis |
+|---|---|
+| the interleave works: each man's step + judge runs once per 0.2 s | ✅ `P5_DueOnGrid` (5 per second each, spread) + the error rail |
+| ⇒ the step + judge cannot be most of Stress's ~10 ms | ✅ skipping 11 of 12 frames moved 0.3 ms |
+| the cost is in the stimuli (each near miss / hit → `NearMissIn` → a cover lookup), which still run per event | ⛔ **assumed, not profiled** — the next measurement is a `--trace` rig run |
+⇒ ⭐ the P-5 helper stays (it is correct and shared), but the verdict's "interleave per system" line is weaker than §8.1 hoped: **interleave only after a profile shows the per-entity step is the cost.** The same lesson as §8.1's measured brain cadence (~4 ms).
