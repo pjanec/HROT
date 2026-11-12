@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — ✅ the concept APPROVED (R-4205, `2026-11-11`); next S-0 (the architect question for the details + a FDP-DES-012 section) before any build; a proof of concept exists (§7)
 updated: 2026-11-12 (§12 the experiment, exp/threaded-kernel · §13 the shared-state analysis, coordinator · §13.8 the instruments' answer, CE-4436)
-current-answer: ⭐ §14 THE TARGET SHAPE (14.3 POC 2 as built: the sync, pure reads and the published frame proven; S must be COMPOSED as its own node — a retargeted kernel keeps ~26–28 cached queries on A) · ⭐ §13 SHARED STATE (13.8 the instruments' answer: no blocker but ONE precondition — managed reads stamp chunk versions — and publish per consumer · 13.7 the verdict: no blocker; S-1 = take the presentation out of the node frame first) · ⭐ §12 the overnight experiment's answer (invert the worlds — measured, prototyped; the user to rule) · §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
+current-answer: ⭐ §14 THE TARGET SHAPE (14.4 POC 3: the node COMPOSED over S works — threaded editor green twice, 0 faults; the cost to finish listed · 14.3 POC 2 as built: the sync, pure reads and the published frame proven; S must be COMPOSED as its own node — a retargeted kernel keeps ~26–28 cached queries on A) · ⭐ §13 SHARED STATE (13.8 the instruments' answer: no blocker but ONE precondition — managed reads stamp chunk versions — and publish per consumer · 13.7 the verdict: no blocker; S-1 = take the presentation out of the node frame first) · ⭐ §12 the overnight experiment's answer (invert the worlds — measured, prototyped; the user to rule) · §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
 stale-below: nothing
 known-rot: none
 known-conflict: FDP/Engine/Fdp.ModuleHost/docs/UserGuide/06_SimulationViewsAndExecutionModes.md shows a two-replica swap in DoubleBufferProvider — the code syncs ONE replica in place (DoubleBufferProvider.cs:63-66); this design does not rely on it
@@ -648,3 +648,17 @@ follows the same line: what a gizmo DRAWS from S stays on the sim thread; what a
 
 ⇒ ⭐ **§12.4's "build the node on S and the presentation on A" is not optional** — it is the first item of the next build. The sync, the reads,
 the published frame and the guard are ready for it.
+
+### 14.4 ⭐ POC 3 — the simulation COMPOSED as its own node *(CE-4442, backend, `2026-11-12`, branch `exp/threaded-poc-3`; [status](blueprints/batches/STATUS_Threaded_POC_3.md))*
+
+| §14.3 said | as built | measured |
+|---|---|---|
+| "S must be COMPOSED as its own node" | ✅ `HROT_THREADED_KERNEL=3`: A created before the bootstrap; the bootstrapper builds the node over its own `ctx.World` (S); `RegisterHostSystems` hands `_world` = A to the presentation, S to what the node needs (breakpoints, the blueprint debug probe, the hot-reload drain) | the constructed-graph walk (`WorldReferenceWalker`) **0 node paths to A, 0 presentation paths to S** after 9 hand-outs fixed |
+| the threaded editor | ✅ the worker ticks S for good; the drawing thread takes the world lock each frame; the S→A sync after each tick; a PRESENTATION STEP runs the UI's own systems on A on the main thread (`CanvasMenuUpdateSystem`, `MenuOrders`, `MenuShortcuts`, `HatArbiter`) | 1 000 men, VM: the scripted session **green twice, 0 faults, pause settles, save works**; drawing frames 118–121 ms beside a 100–135 ms node frame; sync of ALL types **6.2 ms + 0.7 ms** |
+| one writer per world | ✅ `WorldGuard` checks READS too | the stable list = the cost to finish: `StationMode`'s shared closure, the after-kernel debug-settings objects, the selection / tool / gizmo move (ONE move, not piecemeal), commands for HTTP / camera writes, one RW-read path |
+
+⇒ ⭐ **GO.** §14's shape needs no change. ⚠ Two corrections to it, both measured:
+- **The gizmo split is ONE move.** The tool activation mutates the gizmo managers, and S's gizmos read the selection, so the pickers, the tools,
+  the pick-box producers and the selection move together, with the selection riding to S as UI state.
+- **A world can be reached four ways a construction walk cannot see:** a `Func<EntityRepository>`, a shared singleton's closure (`StationMode`), an
+  object built after start-up, and a callback into the presentation. ⇒ the walk AND the run-time guard, never one alone.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""threaded-poc2-measure.py — POC 2 of the threaded editor (CE-4439): ONE command that runs the same editor session twice on the 1 000-man rig —
-the switch OFF (today's single-threaded editor) and HROT_THREADED_KERNEL=2 (two worlds) — and prints the drawing thread's frame times and the
+"""threaded-poc2-measure.py — POC 2 / POC 3 of the threaded editor (CE-4439, CE-4442): ONE command that runs the same editor session twice on the 1 000-man rig —
+the switch OFF (today's single-threaded editor) and HROT_THREADED_KERNEL=3 (POC 3: the node composed over S; --mode 2 for POC 2) — and prints the drawing thread's frame times and the
 two-world sync cost side by side. Windows (8 cores): the window is hidden (HROT_HIDDEN_WINDOW=1, set by the driver); Linux: under Xvfb.
 
     dotnet build Hrot/Runner/Hrot.ClusterRunner -c Release
@@ -65,16 +65,17 @@ def main():
     ap.add_argument("--mask", default="ui-no-inspector")
     ap.add_argument("--lock-tick", action="store_true", help="the worker holds the world lock for its whole tick (HROT_TWO_WORLDS_LOCK_TICK=1)")
     ap.add_argument("--no-guard", action="store_true")
+    ap.add_argument("--mode", default="3", choices=["2", "3"], help="2 = POC 2 (clone + retarget, preview only); 3 = POC 3 (the node COMPOSED over S — default)")
     a = ap.parse_args()
     masks = os.path.join(REPO, "docs", "blueprints", "batches", "threaded-poc-2", "presentation-masks.json")
     off, on = os.path.join(a.out, "off"), os.path.join(a.out, "two-worlds")
     run(off, {}, a.play_seconds, guard=False)
-    two = {"HROT_THREADED_KERNEL": "2", "HROT_TWO_WORLDS_MASKS": masks, "HROT_TWO_WORLDS_MASK": a.mask}
+    two = {"HROT_THREADED_KERNEL": a.mode, "HROT_TWO_WORLDS_MASKS": masks, "HROT_TWO_WORLDS_MASK": a.mask}
     if a.lock_tick:
         two["HROT_TWO_WORLDS_LOCK_TICK"] = "1"
     run(on, two, a.play_seconds, guard=not a.no_guard)
     summarise("switch OFF (single-threaded)", off)
-    summarise("HROT_THREADED_KERNEL=2 (two worlds" + (", lock whole tick" if a.lock_tick else "") + ")", on)
+    summarise(f"HROT_THREADED_KERNEL={a.mode} (two worlds" + (", lock whole tick" if a.lock_tick else "") + ")", on)
 
 
 if __name__ == "__main__":

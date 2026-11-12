@@ -2166,7 +2166,7 @@ namespace Hrot.Editor
             string aiAssemblyDir = AppDomain.CurrentDomain.BaseDirectory;
             _aiCoordinator = new AiHotReloadCoordinator(
                 aiAssemblyDir, "Hrot.AI.Behaviors.dll",
-                _world!, _behaviorRegistry!,
+                ctx.World, _behaviorRegistry!,   // ⭐ POC 3 C-2 — the drain rewrites the SIMULATED behaviour instances (the guard: it read A from the tick)
                 _blueprintRegistry,
                 new AiHotReloadCoordinatorOptions(LoadPdbOnDeveloperMode: true),
                 _geoTransform, _entityMap);
