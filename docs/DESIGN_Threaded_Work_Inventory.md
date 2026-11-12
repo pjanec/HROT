@@ -207,7 +207,7 @@ all. Either everything is deterministic or not."*
 | the per-read check's cost on the real rig | R-2 (running, exp/read-check) |
 | no hidden cross-entity writes beyond the census — 36 systems were silent; rules, embarkation, custody, fire-and-movement were NOT exercised; BrainTick's "read-after-create 162 681 / run" is unexplained | K-2 (running) + a census on a rules scenario and a fire-and-movement scenario |
 | MEMORY per node: S, A, R, the last-tick copy, SoD snapshots, the undo ring, recorder keyframes, pooled snapshots — vs the ≤ 4 GB budget (1 000 men already peak at 1.88 GB); × the nodes in `--mode all` | ⛔ not measured anywhere — a new item |
-| the "off-frame egress alone makes the CGF slower" anomaly (252 → 337 ms) | ⛔ unexplained — likely F-15's oversubscription; a new item |
+| the "off-frame egress alone makes the CGF slower" anomaly (252 → 337 ms) | ✅ CE-4457 (Windows, `STATUS_Ui_Windows_Egress_Anomaly.md` on exp/perf): **did NOT reproduce** over 14 columns on the same production code — serial 248–281 ms, both switches on 266–284 ms (noise ~30 ms); contention, scan workers, pool budget, recording and the timer each ruled out; the egress scan thread uses 2–4.5 % of one core. ⇒ a machine-state effect of that session (it also hit low system memory), INFERENCE. The SimHost benefit holds: 99–107 → 38–54 ms |
 | how often units commit to cover / see a new contact on the SAME tick | ⛔ a contact-onset scenario count — a new item |
 
 ### 7.5 Sound — the reviews found no flaw in
