@@ -53,7 +53,37 @@ namespace Fdp.Core.Jobs
         }
 
         internal ref readonly Deferred DeferredAt(int i) => ref _deferred[i];
-        internal void Reset() { DeferredCount = 0; Commands.Clear(); }
+        internal void Reset() { DeferredCount = 0; _laterCount = 0; Commands.Clear(); }
+
+        // ⭐ N-11 / N-12 (CE-4473 / CE-4474; R-4212 ②) — FOLLOW-UPS a helper inside the job needs done serially (a callout to the squad, an order
+        //   to a member): played after the phase in batch order, after the command buffers and before the job's own deferred step. The handler
+        //   is a long-lived singleton; the record is three values — no closure, 0 B once warm.
+        private (IPhaseFollowUp Handler, Entity Entity, int Code, long Arg)[] _later = new (IPhaseFollowUp, Entity, int, long)[8];
+        private int _laterCount;
+
+        /// <summary>Queues <paramref name="handler"/>.Apply(repo, e, code, arg) for the serial step after the phase, in this batch's order.</summary>
+        public void Later(IPhaseFollowUp handler, Entity e, int code, long arg)
+        {
+            if (_laterCount == _later.Length) Array.Resize(ref _later, _later.Length * 2);
+            _later[_laterCount++] = (handler, e, code, arg);
+        }
+
+        internal void PlayLater(EntityRepository repo)
+        {
+            for (int i = 0; i < _laterCount; i++)
+            {
+                var l = _later[i];
+                _later[i] = default;   // no handler held past the tick
+                l.Handler.Apply(repo, l.Entity, l.Code, l.Arg);
+            }
+            _laterCount = 0;
+        }
+    }
+
+    /// <summary>⭐ N-11 — an effect a per-entity job's helper defers to the serial step after the phase (<see cref="BatchContext.Later"/>).</summary>
+    public interface IPhaseFollowUp
+    {
+        void Apply(EntityRepository repo, Entity e, int code, long arg);
     }
 
     /// <summary>
@@ -139,6 +169,7 @@ namespace Fdp.Core.Jobs
 
                 long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
                 for (int b = 0; b < batches; b++) _contexts[b].Commands.Playback(repo);
+                for (int b = 0; b < batches; b++) _contexts[b].PlayLater(repo);
                 for (int b = 0; b < batches; b++)
                 {
                     var ctx = _contexts[b];

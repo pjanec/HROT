@@ -36,6 +36,13 @@ public static class SquadStateProvisioning
             repo.AddComponent(commander, default(Command.CommandReportHistory));
         if (repo.IsComponentTypeRegistered<Command.CommandOrderHistory>() && !repo.HasComponent<Command.CommandOrderHistory>(commander))
             repo.AddComponent(commander, default(Command.CommandOrderHistory));
+        // ⭐ N-11 (CE-4473) — the drill trace and its recorded headline ride the same fact: provisioned here, so the commander's brain only
+        //   ever REPLACES them (an in-place value) — a first add mid-tick is a structural change, deferred in the brains' parallel phase, and a
+        //   second write in the same tick would have built from the empty trace
+        if (repo.TryGetTable(typeof(SquadDrillTrace), out _) && !repo.HasManagedComponent<SquadDrillTrace>(commander))
+            repo.SetManagedComponent(commander, SquadDrillTrace.Empty);
+        if (repo.IsComponentTypeRegistered<SquadDrillState>() && !repo.HasComponent<SquadDrillState>(commander))
+            repo.AddComponent(commander, default(SquadDrillState));
         if (repo.HasComponent<SquadCognitiveState>(commander)) return;
         repo.AddComponent(commander, default(SquadCognitiveState));
     }

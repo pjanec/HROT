@@ -82,6 +82,8 @@ namespace Fdp.Toolkit.Behavior
             Fdp.Toolkit.Behavior.Components.SubordinateOrders.RegisterTypes(repo);
             Fdp.Toolkit.Behavior.Components.DesignatedTarget.RegisterTypes(repo);
             Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.Register(repo);
+            if (!repo.TryGetTable(typeof(Fdp.Toolkit.Squad.SquadDrillTrace), out _)) repo.RegisterManagedComponent<Fdp.Toolkit.Squad.SquadDrillTrace>();   // SquadManeuverRunner
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Squad.SquadDrillState>()) repo.RegisterComponent<Fdp.Toolkit.Squad.SquadDrillState>();
             if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.ManualDrive>()) repo.RegisterComponent<Fdp.Toolkit.Navigation.ManualDrive>();              // OperatorControlBehavior
             if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>()) repo.RegisterComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();   // OperatorControlBehavior
         }

@@ -18,6 +18,12 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.Health>();
             ParallelReadCheck.DeclareUnmanaged<EntityInfo>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            // measured on the scale rig (CGF, 300 men, squads marching — the survey, HROT_READ_CHECK=2): a squad play reads its members
+            ParallelReadCheck.DeclareUnmanaged<SimTransform>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.BehaviorState>();   // ⭐ every unit writes its own in the phase
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.Roe>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
         }
     }
 }

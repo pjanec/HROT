@@ -31,6 +31,14 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary><paramref name="man"/> calls <paramref name="kind"/> (about <paramref name="target"/>) when the policy lets him. True when said.</summary>
         public static bool Say(EntityRepository world, Entity man, UtteranceKind kind, Entity target = default)
         {
+            // ⭐ N-11 / N-12 (CE-4473 / CE-4474; R-4212 ②, F-10) — inside the brains' per-entity phase a callout is a REQUEST: queued with the batch
+            //   and said after the phase, in batch order, through this same method — so the policy (cooldown, hush, AQ105 E "the same call within
+            //   10 m / 2 s is not repeated") is applied serially and a burst of contacts calls once. True = asked (it may still be refused then).
+            if (Fdp.Core.ParallelReadCheck.Defers(world))
+            {
+                Fdp.Core.ParallelReadCheck.CurrentBatch!.Later(SayAfterPhase.Instance, man, (int)kind, (long)target.PackedValue);
+                return true;
+            }
             if (!world.IsComponentTypeRegistered<Utterance>() || !world.IsComponentTypeRegistered<CalloutState>()) return false;
             if (!world.IsAlive(man) || !world.HasComponent<SimTransform>(man) || !Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(world, man)) return false;
             double now = OneManCommand.Now(world);
@@ -82,6 +90,13 @@ namespace Hrot.AI.Behaviors.Brains
                 if (d < ackD) { ackD = d; ack = m; }
             }
             if (commanded && !bound && !ack.IsNull) Say(world, ack, UtteranceKind.CallAck);
+        }
+
+        private sealed class SayAfterPhase : Fdp.Core.Jobs.IPhaseFollowUp
+        {
+            public static readonly SayAfterPhase Instance = new();
+            public void Apply(EntityRepository repo, Entity e, int code, long arg)
+                => Say(repo, e, (UtteranceKind)code, new Entity((ulong)arg));
         }
 
         /// <summary>AQ105 C — must he keep quiet: his task is a hidden one (ambush, trigger man, bomber, window duel), or he holds his fire and
