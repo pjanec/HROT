@@ -59,6 +59,7 @@ namespace Hrot.Network.NED.SimHost
         internal static bool GateOn { get; set; } = Environment.GetEnvironmentVariable("HROT_EQS_CONFIG_GATE") == "1";
         private readonly EgressVisitGate _gate = new(typeof(EqsSensor), typeof(SensorConfigPayload), typeof(EqsContextPoints), typeof(PartMetadata));
         private readonly HashSet<Entity> _held = new();
+        private IReadOnlyList<int>? _knownThisScan;
         /// <summary>The sensors the gate skipped since creation (a rail reads it).</summary>
         internal long GateSkipped { get; private set; }
         // The wire keys a LIVE local sensor holds this scan — every local sensor, with authority or not. CE-486: an ended
@@ -116,6 +117,7 @@ namespace Hrot.Network.NED.SimHost
 
             _seen.Clear();
             _liveKeys.Clear();
+            _knownThisScan = null;   // ⭐ POC 3 — re-read once, lazily, this scan
             bool gated = GateOn;
             if (gated) _gate.Begin(view);
             foreach (var entity in query)
@@ -336,7 +338,9 @@ namespace Hrot.Network.NED.SimHost
         private int SolverFor((int ParentNetworkId, int LocalChildIndex) key, uint blueprintId)
         {
             if (_clusterCache == null) return 0;
-            var known = _clusterCache.AllNodeIds();
+            // ⭐ POC 3 (traces of the CGF): the cluster's node ids are taken ONCE per scan (_knownThisScan), not under the cache's lock for
+            //   every sensor — that lock was ~40 % of this translator at 1 000 men.
+            var known = _knownThisScan ??= _clusterCache.AllNodeIds();
             if (_solverOf.TryGetValue(key, out int solver) && Contains(known, solver)) return solver;
             var role = RoleFor(blueprintId);
             solver = _onWire.TryGetValue(key, out var wire) && wire.SolverNodeId != 0 && Contains(known, wire.SolverNodeId)

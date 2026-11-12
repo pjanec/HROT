@@ -114,11 +114,13 @@ public sealed class ParallelEntitiesTests
             using var w = World(3000, out var target, out var list);
             var log = new List<int>(4096);
             var job = new TheJob { Repo = w, Target = target, Log = log };
-            for (int i = 0; i < 5; i++) { log.Clear(); ParallelEntities.Run(w, list, list.Length, job); }   // warm
+            for (int i = 0; i < 30; i++) { log.Clear(); ParallelEntities.Run(w, list, list.Length, job); }   // warm (long enough that the caller has BLOCKED in the pool's wait once — its one-time wait bookkeeping is not steady-state garbage)
             log.Clear();
-            long before = GC.GetTotalAllocatedBytes(precise: true);
+            // ⭐ POC 3 — the CALLING thread's allocations (it runs batches and the whole merge). ⚠ It was the process-wide
+            //   GC.GetTotalAllocatedBytes: 24–192 B from other test-host threads in 4 of 6 runs, on POC 1's own commit too — a flaky rail.
+            long before = GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < 20; i++) { log.Clear(); ParallelEntities.Run(w, list, list.Length, job); }
-            long after = GC.GetTotalAllocatedBytes(precise: true);
+            long after = GC.GetAllocatedBytesForCurrentThread();
             double mergeUs = ParallelEntities.LastMergeTicks * 1e6 / System.Diagnostics.Stopwatch.Frequency;
             _out.WriteLine($"20 runs over 3000 entities: {after - before} B allocated; last merge {mergeUs:F1} µs ({log.Count} deferred, {3000 / 11 + 1} commands)");
             Assert.Equal(0, after - before);
