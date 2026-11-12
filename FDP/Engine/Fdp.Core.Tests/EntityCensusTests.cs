@@ -60,7 +60,7 @@ namespace Fdp.Tests
                 w.GetComponentRW<A>(e2).X++;                            // no walk open: none
             }
             EntityCensus.Dump();
-            var path = Environment.GetEnvironmentVariable("HROT_ENTITY_CENSUS_OUT") is { Length: > 0 } o ? o : Path.Combine(Path.GetTempPath(), "hrot-entity-census.json");
+            var path = EntityCensus.OutputPath;
             using var doc = JsonDocument.Parse(File.ReadAllText(path));
             long N(string kind, string type, string rel) => doc.RootElement.GetProperty("rows").EnumerateArray()
                 .Where(r => r.GetProperty("reader").GetString() == reader && r.GetProperty("kind").GetString() == kind
