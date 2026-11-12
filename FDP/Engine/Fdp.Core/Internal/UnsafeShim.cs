@@ -88,6 +88,13 @@ namespace Fdp.Core.Internal
             return ref ManagedAccessor<T>.GetRO(repo, e);  
         }
 
+        /// <summary>POC 2 / P-1 - the managed read that stamps nothing and allocates nothing (what GetManagedRO becomes when ThreadedReads.PureReads).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]  
+        public static ref readonly T GetManagedROPure<T>(EntityRepository repo, Entity e)  
+        {  
+            return ref ManagedAccessor<T>.GetROPure(repo, e);  
+        }
+
         // ------------------------------------------------------------------  
         // HAS / REMOVE  
         // ------------------------------------------------------------------  
@@ -155,7 +162,8 @@ namespace Fdp.Core.Internal
         private delegate void AddManagedDelegate<T>(EntityRepository repo, Entity e, T value);
         private delegate ref T GetRWDelegate<T>(EntityRepository repo, Entity e);
         private delegate ref readonly T GetROUnmanagedDelegate<T>(EntityRepository repo, Entity e);
-        // Note: Managed RO Shim uses RW delegate
+        private delegate ref readonly T GetROManagedDelegate<T>(EntityRepository repo, Entity e);
+        // Note: Managed RO Shim uses RW delegate unless ThreadedReads.PureReads
         private delegate bool HasDelegate(EntityRepository repo, Entity e);
         private delegate void RemoveDelegate(EntityRepository repo, Entity e);
         
@@ -245,7 +253,8 @@ namespace Fdp.Core.Internal
             private static readonly RegisterDelegate _register;
             private static readonly AddManagedDelegate<T> _add;
             private static readonly GetRWDelegate<T> _getRW;
-            // Managed RO uses RW delegate in this shim approach
+            // Managed RO uses RW delegate in this shim approach (POC 2: _getRefRO when ThreadedReads.PureReads)
+            private static readonly GetROManagedDelegate<T> _getRefRO;
             private static readonly HasDelegate _has;
             private static readonly RemoveDelegate _remove;
             
@@ -266,6 +275,9 @@ namespace Fdp.Core.Internal
 
                 _getRW = (GetRWDelegate<T>)Delegate.CreateDelegate(typeof(GetRWDelegate<T>), null, 
                     repoType.GetMethod(nameof(EntityRepository.GetManagedComponentRW), flags)!.MakeGenericMethod(typeT));
+
+                _getRefRO = (GetROManagedDelegate<T>)Delegate.CreateDelegate(typeof(GetROManagedDelegate<T>), null, 
+                    repoType.GetMethod(nameof(EntityRepository.GetManagedComponentRefRO), flags)!.MakeGenericMethod(typeT));
 
                 _has = (HasDelegate)Delegate.CreateDelegate(typeof(HasDelegate), null, 
                     repoType.GetMethod(nameof(EntityRepository.HasManagedComponent), flags)!.MakeGenericMethod(typeT));
@@ -292,9 +304,14 @@ namespace Fdp.Core.Internal
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static ref readonly T GetRO(EntityRepository repo, Entity e) 
             {
+                 if (ThreadedReads.PureReads) return ref _getRefRO(repo, e);   // POC 2 / P-1 - a read is a read: no stamp, no allocation
                  // Return RW as RO
                  return ref _getRW(repo, e);
             }
+
+            /// <summary>POC 2 / P-1 - the pure read, callable regardless of the switch (rails).</summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static ref readonly T GetROPure(EntityRepository repo, Entity e) => ref _getRefRO(repo, e);
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static bool Has(EntityRepository repo, Entity e) => _has(repo, e);

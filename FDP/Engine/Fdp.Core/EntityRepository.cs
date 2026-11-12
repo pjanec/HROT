@@ -1088,9 +1088,24 @@ namespace Fdp.Core
         /// </summary>
         public bool TryGetComponent<T>(Entity entity, out T component)
         {
+            if (ThreadedReads.PureReads) return TryGetComponentPure<T>(entity, out component);
             if (HasComponent<T>(entity))
             {
                 component = GetComponentRW<T>(entity);
+                return true;
+            }
+            component = default!;
+            return false;
+        }
+
+        /// <summary>POC 2 / P-1 - <see cref="TryGetComponent{T}"/> through the read-only path: a copy, no chunk version stamped.</summary>
+        internal bool TryGetComponentPure<T>(Entity entity, out T component)
+        {
+            if (HasComponent<T>(entity))
+            {
+                component = ComponentTypeHelper.IsUnmanaged<T>()
+                    ? UnsafeShim.GetUnmanagedRO<T>(this, entity)
+                    : UnsafeShim.GetManagedROPure<T>(this, entity);
                 return true;
             }
             component = default!;
@@ -1494,6 +1509,18 @@ namespace Fdp.Core
             return ref Unsafe.As<T?, T>(ref val);
         }
         
+        /// <summary>POC 2 / P-1 - a managed component read as a REFERENCE that stamps no chunk version and allocates nothing.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref readonly T GetManagedComponentRefRO<T>(Entity entity) where T : class
+        {
+            #if FDP_PARANOID_MODE
+            if (!IsAlive(entity))
+                throw new InvalidOperationException($"Entity {entity} is not alive");
+            #endif
+            var table = GetManagedTable<T>(false);
+                        return ref Unsafe.As<T?, T>(ref Unsafe.AsRef(in table.GetRefRO(entity.Index)));
+        }
+
         /// <summary>
         /// Gets managed component for read-only access.
         /// Does not update version or allocate.
@@ -2216,6 +2243,25 @@ namespace Fdp.Core
             return ref storage.GetRW(0, 0);
         }
         
+        /// <summary>
+        /// POC 2 / P-1 - a READ-ONLY reference to the unmanaged singleton: stamps nothing and cannot be written through.
+        /// Use it wherever the caller only reads; <see cref="GetSingletonUnmanaged{T}"/> hands out a writable ref, a write through which is never recorded.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref readonly T GetSingletonUnmanagedRO<T>() where T : unmanaged
+        {
+            int typeId = ComponentType<T>.ID;
+
+            #if FDP_PARANOID_MODE
+            if (typeId >= _singletons.Length || _singletons[typeId] == null)
+                throw new InvalidOperationException(
+                    $"Singleton {typeof(T).Name} not set. Call SetSingletonUnmanaged<{typeof(T).Name}>() first.");
+            #endif
+
+            var storage = (ComponentTable<T>)_singletons[typeId];
+            return ref storage.GetRW(0, 0);
+        }
+
         /// <summary>
         /// Gets the global singleton component (managed classes).
         /// Throws if not set.
