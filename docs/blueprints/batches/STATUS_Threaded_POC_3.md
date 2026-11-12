@@ -60,6 +60,8 @@ it works:
   `python scripts/threaded-poc2-measure.py --out <dir> --mode 3 --no-guard` (it runs the same session OFF and with `=3`, every window hidden).
 - Typed commands (C-5) are not built.
 - The masked sync was not run in mode 3 (these runs copied ALL types: correct first, cheap second).
+- The node falls out of the master's in-sync set after a hot reload in mode 3 (run 3), with no single-world baseline yet: measure it with the
+  switch OFF.
 
 ## The items
 
@@ -122,3 +124,15 @@ in A-1's single-world run, `STATUS_Threaded_Analysis_Instruments.md` §A-1). ⭐
 
 Between the runs: the whole sync muted for the guard (the map rebuild and event forward counted as "A read by the sim side", 4.6 M); the canvas
 menu's state and the order form kept in A (UI-only singletons the sync had copied S's stale value over, 1 524 hits).
+
+**Run 3** (threaded, guard ON, with the hot reload stage, after `AiHotReloadCoordinator` was handed S): 15 / 18.
+- ✅ **The hot reload works threaded** (build ok, `reloaded: true`), and the guard's hot-reload-drain hits are **0**: the hand-out fix is verified.
+- 0 worker faults. Sync (all types) 5.7 ms + 1.0 ms.
+- ⚠ **After the hot reload the node fell out of the master's in-sync set.** The Edit-state move was refused (*"this node (1) is not in the
+  master's in-sync set"*), and save was refused (*"a preview runs a copy"*) although the preview stop answered ok.
+- ⛔ **Not decided whether mode 3 causes it:** A-1's single-world run did its edit and save in a SEPARATE session after a restart, so there is no
+  single-world baseline for "edit after a hot reload". The suspect: the reload's build runs where the node frame runs (now the worker), so the node
+  sends no heartbeat while it builds. ⇒ the first thing to measure next: the same stages with the switch OFF.
+
+**Gates** (switch OFF): `dotnet test FDP/Engine/Fdp.Core.Tests -c Release --no-build` gives 1 323 passed, 5 failed, 22 skipped — the 5 base reds
+named in POC 2. ✅ `TwoWorldsTests`, `PureReadsTests`, `AccessTraceOffTests` (0 B with the switches off) are green.
