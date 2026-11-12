@@ -545,6 +545,7 @@ namespace Fdp.ModuleHost
         {
             long whole = KernelFrameTimings.Start();   // ⭐ CE-4433
             using var traceFrame = Fdp.Core.AccessTrace.Scope("kernel:frame (outside systems)", Fdp.Core.TraceContext.Tick);   // ⭐ A-1 — the node frame's own steps (swap, time push, dispatch); each system pushes its own scope
+            if (Fdp.Core.EntityCensus.On) { Fdp.Core.EntityCensus.NextFrame(); Fdp.Core.EntityCensus.ResetThread(); }   // ⭐ N-1
             try { UpdateInternalCore(deltaTime, globalTime); }
             finally
             {

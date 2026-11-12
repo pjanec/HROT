@@ -48,7 +48,7 @@ namespace Fdp.Core
     public static class AccessTrace
     {
         /// <summary>The switch: <c>HROT_ACCESS_TRACE=1</c>. Read once.</summary>
-        public static readonly bool On = Environment.GetEnvironmentVariable("HROT_ACCESS_TRACE") == "1";
+        public static readonly bool On = Environment.GetEnvironmentVariable("HROT_ACCESS_TRACE") == "1" || EntityCensus.On;   // ⭐ N-1 — the census needs the readers
 
         private static readonly string OutPath = Environment.GetEnvironmentVariable("HROT_ACCESS_TRACE_OUT") is { Length: > 0 } o
             ? o : Path.Combine(Path.GetTempPath(), "hrot-access-trace.json");
@@ -222,6 +222,33 @@ namespace Fdp.Core
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void RecordName(TraceKind kind, string name, int repo) => RecordObj(kind, name, repo);
+
+        // ⭐ N-1 (the entity census) — the same records with the ENTITY the access is about: the census classifies it against the entity the
+        //   thread is processing (EntityCensus). A muted access (inside a TryGet / traced RO) is the outer one's, as for the tracer.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void RecordE<T>(TraceKind kind, int repo, int entity)
+        {
+            RecordObj(kind, typeof(T), repo);
+            if (EntityCensus.On && t_muted == 0) EntityCensus.Note(kind, typeof(T), repo, entity, CurrentReader());
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void RecordNameE(TraceKind kind, string name, int repo, int entity)
+        {
+            RecordObj(kind, name, repo);
+            if (EntityCensus.On && t_muted == 0) EntityCensus.Note(kind, name, repo, entity, CurrentReader());
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void RecordIdE(TraceKind kind, int typeId, int repo, int entity)
+        {
+            object key = (object?)ComponentTypeRegistry.GetType(typeId) ?? "(component id " + typeId + ")";
+            RecordObj(kind, key, repo);
+            if (EntityCensus.On && t_muted == 0) EntityCensus.Note(kind, key, repo, entity, CurrentReader());
+        }
+
+        /// <summary>⭐ N-1 — a reader's name (the census's dump).</summary>
+        public static string ReaderName(int id) { lock (s_nameLock) return id >= 0 && id < s_readerNames.Count ? s_readerNames[id] : "(?)"; }
 
         /// <summary>By component id (the raw / reflection paths).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]

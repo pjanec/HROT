@@ -73,6 +73,7 @@ namespace Fdp.Core
             
             var entityIndex = _repository.EntityIndexUntraced;
             int maxIndex = entityIndex.MaxIssuedIndex;
+            int slot = EntityCensus.On ? EntityCensus.Push() : -1;   // ⭐ N-1
             
             for (int i = 0; i <= maxIndex; i++)
             {
@@ -86,9 +87,11 @@ namespace Fdp.Core
                 if (!meta.IsActive) continue;
                 if (Matches(in compMask, in meta))
                 {
+                    if (slot >= 0) EntityCensus.Set(slot, i);   // ⭐ N-1
                     action(new Entity(i, meta.Generation));
                 }
             }
+            if (slot >= 0) EntityCensus.Pop(slot);
         }
 
         /// <summary>⭐ A-1 — one trace record per component type the query includes / excludes (a walk reads those columns of the mask).</summary>
@@ -136,6 +139,7 @@ namespace Fdp.Core
             
             private int _currentIndex;
             private readonly int _maxIndex;
+            private readonly int _censusSlot;   // ⭐ N-1 — this walk's slot on the thread's entity stack (EntityCensus), −1 when the census is off
             // ⭐ CE-2418 — inside an EntityRepository.QueryIndexScope: walk these candidates (the rarest included type's entities) instead of 0..max
             private readonly int[]? _candidates;
             private readonly int _candidateEnd;
@@ -158,6 +162,7 @@ namespace Fdp.Core
                 _maxIndex = _entityIndex.MaxIssuedIndex;
                 _currentIndex = -1; 
                 _candidates = null; _candidateEnd = 0; _candidateAt = 0;
+                _censusSlot = EntityCensus.On ? EntityCensus.Push() : -1;
                 if (query._repository.TryQueryCandidates(in query._includeMask, out var cands, out int from, out int count))
                 {
                     _candidates = cands; _candidateAt = from; _candidateEnd = from + count;
@@ -212,11 +217,16 @@ namespace Fdp.Core
                             continue;
                     }
 
+                    if (_censusSlot >= 0) EntityCensus.Set(_censusSlot, _currentIndex);   // ⭐ N-1 — the entity this walk now yields
                     return true;
                 }
 
                 return false;
             }
+
+            /// <summary>⭐ N-1 — the walk ended (a <c>foreach</c> calls a ref struct's <c>Dispose</c> by pattern): its census slot is popped.
+            /// A no-op with the census off.</summary>
+            public void Dispose() { if (_censusSlot >= 0) EntityCensus.Pop(_censusSlot); }
         }
         
         /// <summary>

@@ -259,6 +259,7 @@ namespace Fdp.ModuleHost.Scheduling
             long allocated = GC.GetAllocatedBytesForCurrentThread();   // ⭐ CE-4364 — the garbage per system (a counter read, no allocation)
 
             using var traceScope = Fdp.Core.AccessTrace.On ? Fdp.Core.AccessTrace.Scope("system:" + GetSystemProfileName(system), Fdp.Core.TraceContext.Tick) : default;   // ⭐ A-1 — the access tracer's reader for this system
+            if (Fdp.Core.EntityCensus.On) Fdp.Core.EntityCensus.ResetThread();   // ⭐ N-1 — a system starts with no entity walk open
             Fdp.Core.EntityRepository? live = null;
             EventReader? reader = null;
             int previousWindow = -1;
