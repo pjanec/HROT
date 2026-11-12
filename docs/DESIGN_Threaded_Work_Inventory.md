@@ -204,11 +204,11 @@ all. Either everything is deterministic or not."*
 |---|---|
 | the threaded 4.8 Hz tick is lock starvation | K-1 (running, exp/measure-2) |
 | per-entity work scales past 4 threads | CE-4451 (running, Windows) |
-| the per-read check's cost on the real rig | R-2 (running, exp/read-check) |
+| the per-read check's cost on the real rig | ✅ **measured (CE-4454 R-2)**: flag off — no measurable cost; own +1.5–2.7 ns; another entity cheaper (`STATUS_Read_Check.md`, Parallel Simulation §18.3) |
 | no hidden cross-entity writes beyond the census — 36 systems were silent; rules, embarkation, custody, fire-and-movement were NOT exercised; BrainTick's "read-after-create 162 681 / run" is unexplained | K-2 (running) + a census on a rules scenario and a fire-and-movement scenario |
-| MEMORY per node: S, A, R, the last-tick copy, SoD snapshots, the undo ring, recorder keyframes, pooled snapshots — vs the ≤ 4 GB budget (1 000 men already peak at 1.88 GB); × the nodes in `--mode all` | ⛔ not measured anywhere — a new item |
+| MEMORY per node: S, A, R, the last-tick copy, SoD snapshots, the undo ring, recorder keyframes, pooled snapshots — vs the ≤ 4 GB budget (1 000 men already peak at 1.88 GB); × the nodes in `--mode all` | ✅ **measured (CE-4456 N-1, `STATUS_Memory_And_Contact.md`)**: a node fits (cgf 2.10 GB at 1 000 men everything on, 2.94 GB at 3 000; ~3.8 GB at 5 000); ⛔ the editor (4.29 GB) and `--mode all` (5.65 GB) are OVER at 1 000; the GC heap dominates — two fixes: chunk-version arrays sized for `MAX_ENTITIES` in every world (84–217 MB / node), the recording's ~0.5 GB of buffers |
 | the "off-frame egress alone makes the CGF slower" anomaly (252 → 337 ms) | ⛔ unexplained — likely F-15's oversubscription; a new item |
-| how often units commit to cover / see a new contact on the SAME tick | ⛔ a contact-onset scenario count — a new item |
+| how often units commit to cover / see a new contact on the SAME tick | ✅ **measured (CE-4456 N-2)**: same-point commits on one tick — **0** in ~88 000 ticks (F-9 is a rare-case fix-up); new contacts arrive in BURSTS — up to 96 units on one tick (F-10 must expect tens); found CE-3444 (a unit thrashing between cover points) |
 
 ### 7.5 Sound — the reviews found no flaw in
 the census method and its short conversion list · the one pool's two lanes (no deadlock; the caller drains unclaimed batches) · the read check is free with its flag off (±1 ns) · the UI-write inventory and the HTTP split · the UI frame gain (97 → 15.6 ms) · the D-3 and D-5 withdrawals · the no-dependency-scheduler verdict · cluster time with the sim on a worker (the slave clock is wall-clock derived, barriers snap) · Run-to's fix · no target deconfliction to race (grep only) · room clearing, embarkation and possession go through single serial arbiters · orders already travel one frame late on the bus.
