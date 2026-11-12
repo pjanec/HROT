@@ -9,7 +9,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (VM): finish the exp/perf verdict NARROWLY, and measure the per-read check
 
-**For:** the free backend VM session (the one that validated `exp/perf`). **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen.
+**For:** the free backend VM session (the one that validated `exp/perf`). **From:** coordinator. **Dispatched at `497f620ff`**, scope frozen.
 🔒 User, `2026-11-12`: *"it was blindly testing all scenarios like if that can prove that the system features are ok"* — ⇒ ⛔ NO broad suites,
 NO scenario regression, NO "all test projects". A branch is proven through the CHANGED features' own rails (CLAUDE.md T-1); V-1, V-2, V-3, V-5,
 V-6 already did that. ⛔⛔ **Autonomous** (R-4156).
