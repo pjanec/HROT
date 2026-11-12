@@ -562,6 +562,7 @@ namespace Fdp.Core
             {
                 var q = _query!; var index = _index!; var action = _action!;
                 var range = _ranges![batch];
+                int slot = EntityCensus.On ? EntityCensus.Push() : -1;   // ⭐ N-1 — run the census with HROT_SIM_THREADS=1 (every batch on the system's thread)
                 for (int i = range.Start; i < range.End; i++)
                 {
                     ref var compMask = ref index.GetComponentMaskUnsafe(i);
@@ -569,8 +570,9 @@ namespace Fdp.Core
                     if (BitMask512.HasAny(compMask, q._excludeMask))  continue;
                     ref readonly var meta = ref index.GetMetadataUnsafe(i);
                     if (!meta.IsActive) continue;
-                    if (q.Matches(in compMask, in meta)) action(new Entity(i, meta.Generation));
+                    if (q.Matches(in compMask, in meta)) { if (slot >= 0) EntityCensus.Set(slot, i); action(new Entity(i, meta.Generation)); }
                 }
+                if (slot >= 0) EntityCensus.Pop(slot);
             }
         }
 
