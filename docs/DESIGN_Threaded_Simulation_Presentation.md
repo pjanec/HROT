@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — ✅ the concept APPROVED (R-4205, `2026-11-11`); next S-0 (the architect question for the details + a FDP-DES-012 section) before any build; a proof of concept exists (§7)
-updated: 2026-11-11
-current-answer: ⭐ §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
+updated: 2026-11-12 (§12 — the experiment, behaviors lane, exp/threaded-kernel)
+current-answer: ⭐ §12 the overnight experiment's answer (invert the worlds — measured, prototyped; the user to rule) · §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
 stale-below: nothing
 known-rot: none
 known-conflict: FDP/Engine/Fdp.ModuleHost/docs/UserGuide/06_SimulationViewsAndExecutionModes.md shows a two-replica swap in DoubleBufferProvider — the code syncs ONE replica in place (DoubleBufferProvider.cs:63-66); this design does not rely on it
@@ -14,6 +14,7 @@ related-designs:
   - blueprints/DESIGN_Paused_And_Stepped_Execution.md — tick modes, the event window; what runs on a paused frame
   - UX/DESIGN_Edit_Mode_Undo.md — edit steps and undo capture, which move to the command apply
   - DESIGN_Scenario_Regression.md — the nightly scenario regression this design's verification runs in both schedulings
+  - blueprints/batches/STATUS_Threaded_Kernel_Experiment.md — §12's measurements (X-1 publish, X-2 inventory, X-4 prototype, X-5 verdict)
 -->
 
 # DESIGN — the simulation on a worker thread, the presentation on the main thread from a published snapshot
@@ -395,7 +396,7 @@ classDiagram
 | # | decision | claim — code (how it is) | claim — design (how it was meant) |
 |---|---|---|---|
 | D-1 | ⭐ **the presentation keeps World A; the simulation gets World S** — overturns §3.2's leased-snapshot reader | ✔ 44 side tables keyed by the world object, ~650 bindings, 33 casts (X-2); ✔ the prototype ran the existing editor UI against A unchanged | FDP-DES-012 names the UI a replica consumer — a replica that is always the SAME object is still a replica; ⛔ searched, no design requires the replica to be a pooled object |
-| D-2 | ⭐ **a PRESENTATION mask**, declared once: the 125 component types the presentation reads (X-2 §3), never the brains' memory | ✔ the top eight tables of a publish are brain memory (`BlueprintBlackboard4096` alone 3.6 of 13.8 ms, 21 of 107 MB — X-1) | §11 F-5's remedy "a narrow published view" — this is it, by mask, not by a new view type |
+| D-2 | ⭐ **a PRESENTATION mask in two parts**, declared once: the **map-wide** types (drawn for every unit — 86 tables) copied whole; the **panel-only** types (a unit's journal, decision log, squad cognition, blackboards … — 38 tables) copied for the SELECTED / watched units' rows only | ✔ X-1b (1 000 men, playing, warm, 2 samples): ALL types **12.1 ms · 108 MB**; everything the presentation reads 5.9 ms · 65 MB; ⭐ **map-wide 1.6 ms · 16 MB · 7 MB dirty per tick**; panel-only 4.5 ms · 50 MB as whole tables, ~0 for a handful of rows; the brains' memory nobody draws 6.1 ms · 43 MB | §11 F-5's remedy "a narrow published view" — by mask, not by a new view type |
 | D-3 | **UI-only state stays in A, outside the mask** — selection, map display, canvas menu, the effects' entities | ✔ `SelectionStateComponent`, `MapDisplayComponent`, `CanvasContextMenuState`, `SortedHierarchyData` (X-2 writes) | §5 ① ② wanted a separate store; ⭐ outside the mask A IS that store, with no re-keying. ⚠ entities A creates (effects) need an id range the sync never overwrites — a cost (12.4) |
 | D-4 | **singletons by policy:** immutable services shared (TKB, templates, geo), per-tick values copied (`GlobalTime`, traces, `WorldEpoch`), maps rebuilt from A's own components (`NetworkEntityMap`) | ✔ 16 singleton types read, 10 not in `SyncFrom`'s list (X-2) | §11 F-1 / F-2 |
 | D-5 | **`NoPreview` records are in the mask** (shallow references) | ✔ all 11 managed types read are `record`s; CLAUDE.md: a managed component is immutable and replaced whole | `NoPreview` exists for the preview's RESTORE, not for reads (`ComponentType.cs:196-201`) |
@@ -426,4 +427,4 @@ classDiagram
 | commands for the ~15 direct writes, the 20 `Edits.Submit`, the drag / rotate previews (a ghost in A) | S-3 of §9 as before — the WRITE half of the migration remains |
 | A's own entities (effects) vs the entity-index sync | ⚠ open: an id range, or effects in a store |
 | events and edit outcomes forwarded S → A per tick | ⚠ open: the per-reader queue of R-4 becomes "copy into A's bus at the sync" |
-| ⏭ measure the presentation mask's copy (X-1b) | expected well under the 13.8 ms full copy |
+| ✅ the presentation mask's copy measured (X-1b) | map-wide **1.6 ms / 16 MB** per tick on the VM (~0.8 ms est. on the user's machine) — the sync is cheap enough to hold the lock for |

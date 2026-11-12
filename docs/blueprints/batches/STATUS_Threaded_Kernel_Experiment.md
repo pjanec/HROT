@@ -13,9 +13,20 @@ related-designs:
 [`exp/threaded-kernel`](https://github.com/pjanec/HROT/tree/exp/threaded-kernel) (from `coordinator` at `c3380f3b4`). ⛔ Nothing merged into a lane.
 This file lives on the experiment branch and is copied to `behaviors` (not `backend` — that lane's tree stays untouched).
 
-## X-5 — the verdict *(filled at the end)*
+## X-5 — the verdict
 
-⏳
+⭐ **GO — but change the shape.** Keep R-4205's concept (the kernel on a worker, the drawing never waits for a tick, the UI writes commands); replace
+its mechanism with **§12: the presentation keeps World A, the simulation moves to World S, synced S → A through a narrow presentation mask under one
+short lock.**
+
+| | measured tonight (cloud VM, Release, 4 cores, software GL) |
+|---|---|
+| ⭐ **what works** | the editor's WHOLE node frame runs on a worker in the real editor — load, preview, 120 s of play, pause — **0 faults** at 1 000 and 5 000 men · the map and camera stop depending on the simulation: **1 000 men 272 → ~95 ms per frame while playing** (paused ~80), **5 000 men 2 380 → ~115 ms** (paused ~95) · the clock keeps real time · ⭐ the presentation's map-wide data costs **1.6 ms / 16 MB per tick** to copy (vs 12.1 ms / 108 MB for the whole world) |
+| ⛔ **what does not** | with ONE world and a lock (tonight's prototype), the panels and input still wait for the world, i.e. for a tick: **2.5 Hz at 1 000 men, ~0.2 Hz at 5 000** · map layers that read the world in `Draw` crash when they race the tick (X4-1) — they had to be skipped on map-only frames · a full-world snapshot is 107 MB (1 000 men) / 515 MB (5 000) and 65 % of it dirty every tick — the leased-pool design (§3) would cost 2–3 such copies |
+| ⭐ **why §12 fixes the second row** | the panels / input would wait for a SYNC (~2 ms at 1 000 men) instead of a tick (170 ms – 1.1 s); every layer and panel keeps reading A (one object ⇒ the 44 side tables and ~650 bindings unchanged), A is written only by the sync, under the lock |
+| **the real cost to finish** (my estimate, in this lane's batches) | **S-1** the composition split — the editor and the player build the node on S and the presentation on A (the biggest and riskiest: every `_world` handed out decided once; a rail that no presentation object holds S) — ~2 batches · **S-2** the sync: the presentation mask (map-wide whole tables + selected rows), the singleton policy, events and edit outcomes forwarded S → A, A's own entities (effects) kept out of the index sync — ~1 batch · **S-3** writes → commands: ~15 direct writes, 20 `Edits.Submit`, the drag / rotate previews as ghosts in A, undo captured on S, three buses — ~2 batches (unchanged from §11: the WRITE half is the same work in either shape) · **S-4** threaded ON + the §8 verification (equivalence, the scenario regression threaded, a slow-tick inline mode) — ~1–2 batches. ⇒ ~6–7 batches, against §11's estimate which ALSO needed the read half (~650 bindings, 44 side tables) — ⭐ §12 removes that half |
+| what would change the recommendation | the composition split turning out to entangle S and A beyond a composition change (a sim module that must call a presentation service synchronously) — S-1's first step is to measure exactly that |
+| ⚠ not proven tonight | stepped / deterministic mode with the kernel on the worker (R-12) · the 3-D view (its bodies read the world) · the user's machine (the VM's software GL hides the draw: there, ~20–30 ms frames are expected while playing) |
 
 ## X-1 — the real publish, measured
 
@@ -48,6 +59,18 @@ eight are the brains' own memory** — state the map and the panels never draw. 
 **The frame on this VM (no threading), for scale:** playing **272 ms** (update 167 · draw 79 · ui 11) vs paused **116 ms** (update 19 · draw 74 ·
 ui 10). ⚠ The VM is ~2.5× slower than the user's Windows machine and draws with software GL (draw 75 ms vs 14.5 there); ui's Windows numbers
 (Evaluation Cost §11h): 98.8 vs 32.4 ms, and ~6.5 ms per `SyncFrom` of the background mask — the same copy measures 13–17 ms here.
+
+**X-1b — the presentation mask** (the same rig, every table's row logged; 2 playing samples — few, but the split is large and stable):
+
+| copied through | ms per tick (warm) | committed | dirty per tick | tables |
+|---|---|---|---|---|
+| ALL types | 12.1 | 108 MB | 64 MB | 246 |
+| everything the presentation reads (X-2, 125 types) | 5.9 | 65 MB | 31 MB | 123 |
+| ⭐ **map-wide** (read for every unit: transforms, info, identity, health, weapons, vehicles, stance …) | **1.6** | **16 MB** | **7 MB** | 86 |
+| panel-only as whole tables (journal, decision log, squad cognition, blackboards, histories …) | 4.5 | 50 MB | 24 MB | 38 |
+| the brains' memory nobody draws | 6.1 | 43 MB | 34 MB | 123 |
+
+⇒ the panels read the panel-only types for the SELECTED unit(s) — copying those rows is ~free ⇒ a presentation sync ≈ **1.6 ms + a few rows**.
 
 ⇒ ⭐ **Decision basis for X-3:** one extra full copy per tick costs ~1/5 of the simulation's own time on the worker (VM: 14 of ~150 ms; Windows est.
 6.5 of ~63). Affordable on the WORKER; ⛔ never on the drawing thread. Memory: 107 MB per copy ⇒ a pool of three is ~320 MB — the narrow mask
@@ -126,6 +149,10 @@ for a tick — that is the prototype's built-in limit, and exactly what §12's i
 | X4-2 | the gizmo frame is written by the kernel's gizmo systems and read by the map ⇒ needed its own published copy | design reading before the build | triple-buffered publish in `DebugPrimitiveBuffer` (~4 000 primitives per frame, a memcpy) |
 | X4-3 | Run-to's turbo step ticks the node frame from the drawing thread | inventory (§6 row 2865) | ⛔ shortcut: Run-to disabled in threaded mode |
 | X4-4 | nothing on the node frame needed the GL thread | 0 faults over load + preview + play | ⭐ D-7 confirmed in the REAL editor, not only the PoC |
+
+**At 5 000 men** (≈ 55 000 entities; snapshot **515 MB**, a warm full copy **61 ms**, cold 164–273 ms while playing; ticks ~1.1 s): inline the editor
+draws **one frame every 2.4 s** while playing (update 2.2 s, paused 246 ms); threaded, map-only frames **~110–120 ms** while playing (paused ~95), 0 faults —
+⛔ the panels got the world ~once per 5 s.
 
 **Shortcuts named:** one world + a lock instead of §12's two worlds · map-only frames skip the world-reading layers and the panels (they would flicker on a
 visible window) · Run-to off · input is processed on world frames only (the camera on every frame) · no commands — the UI writes World A directly on
