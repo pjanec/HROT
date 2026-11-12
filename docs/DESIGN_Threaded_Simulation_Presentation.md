@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: FDP/Engine/Fdp.ModuleHost/docs/UserGuide/06_SimulationViewsAndExecutionModes.md shows a two-replica swap in DoubleBufferProvider — the code syncs ONE replica in place (DoubleBufferProvider.cs:63-66); this design does not rely on it
 related-designs:
+  - DESIGN_Parallel_Simulation.md — parallelism INSIDE the worker's tick (data-parallel loops in the hot systems); the two share one core budget
   - blueprints/Architect_Question_111_Threaded_Kernel_Details.md — S-0: the nine details to settle before building (snapshot content, publish cadence, stale commands, run controls, HTTP default, inline view, where the pieces live, the store, who builds)
   - DESIGN_Evaluation_Cost_And_Cadence.md — §11h ui's Windows measurement of the editor's preview frame (CE-4433) — the numbers this design answers; its §13 now points here
   - ../FDP/Engine/docs/FDP-GDB-SoD-unified.md — FDP-DES-012, the kernel's snapshot model (World A / replicas / commands) this design extends with a self-paced reader
