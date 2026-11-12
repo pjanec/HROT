@@ -41,7 +41,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
         /// <summary>The buffer's frame as this pass draws it: all of it on screen, its film primitives in a film's pass.</summary>
         private ReadOnlySpan<DebugPrimitive> FrameFor(in RenderContext ctx)
         {
-            var all = _buffer!.GetFrame();
+            var all = _buffer!.ReaderFrame();   // ⭐ EXPERIMENT (X-4) — the published copy when the kernel ticks on another thread
             if (!ctx.Film) return all;
             if (_filmFrame.Length < all.Length) _filmFrame = new DebugPrimitive[all.Length];
             var film = FilmLayers;
@@ -231,7 +231,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
             else if (live != null)
             {
                 long tc = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4388 — the cards alone
-                Cards.Draw(_renderer.CardPrimitives, CardAnchor2DReused(live, _buffer.GetFrame()));   // ⭐ CE-4432 — 0 B per frame
+                Cards.Draw(_renderer.CardPrimitives, CardAnchor2DReused(live, _buffer.ReaderFrame()));   // ⭐ CE-4432 — 0 B per frame
                 Fdp.Presentation.WindowManager.WindowTimings.Record("cards", tc);
                 LastCardsDrawn = Cards.CardsDrawn;
             }

@@ -103,11 +103,13 @@ namespace Fdp.Toolkit.Vis2D
             Camera.Update(dt);
 
             // Handle Input Routing
-            ProcessInputPipeline();
+            using (Fdp.Core.AccessTrace.Scope("map-input: pipeline (hover, drag, press, release, keys across the layers)", Fdp.Core.TraceContext.Presentation))   // ⭐ A-1
+                ProcessInputPipeline();
 
             // Update Layers
             foreach (var layer in _layers)
             {
+                using var traceUpdate = Fdp.Core.AccessTrace.On ? Fdp.Core.AccessTrace.Scope("layer.Update: " + layer.Name, Fdp.Core.TraceContext.Presentation) : default;   // ⭐ A-1
                 layer.Update(dt);
             }
         }
@@ -146,6 +148,7 @@ namespace Fdp.Toolkit.Vis2D
             {
                 if (!IsLayerVisible(layer) || (sceneOnly && layer is not ISceneLayer)) continue;
                 if (Camera.Is3D && !layer.Has3D) continue;
+                using var traceOverlay = Fdp.Core.AccessTrace.On ? Fdp.Core.AccessTrace.Scope("layer.Overlay: " + layer.Name, Fdp.Core.TraceContext.Presentation) : default;   // ⭐ A-1
                 long t = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4387 — HROT_FRAME_STATS: each map layer's time + garbage (no-op when off)
                 layer.DrawOverlay(ctx);
                 Fdp.Presentation.WindowManager.WindowTimings.Record(layer.Name, t);
@@ -172,6 +175,7 @@ namespace Fdp.Toolkit.Vis2D
             foreach (var layer in _layers)
                 if (IsLayerVisible(layer) && (!sceneOnly || layer is ISceneLayer))
                 {
+                    using var traceDraw = Fdp.Core.AccessTrace.On ? Fdp.Core.AccessTrace.Scope("layer.Draw2D: " + layer.Name, Fdp.Core.TraceContext.Presentation) : default;   // ⭐ A-1
                     long t = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4387 — per map layer, under HROT_FRAME_STATS
                     layer.Draw(ctx);
                     Fdp.Presentation.WindowManager.WindowTimings.Record(layer.Name, t);
@@ -192,6 +196,7 @@ namespace Fdp.Toolkit.Vis2D
                 if (sceneOnly && layer is not ISceneLayer) continue;
                 if (layer.Has3D)
                 {
+                    using var traceDraw3 = Fdp.Core.AccessTrace.On ? Fdp.Core.AccessTrace.Scope("layer.Draw3D: " + layer.Name, Fdp.Core.TraceContext.Presentation) : default;   // ⭐ A-1
                     long t = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4387 — per map layer, under HROT_FRAME_STATS
                     layer.Draw3D(ctx);
                     Fdp.Presentation.WindowManager.WindowTimings.Record(layer.Name, t);
@@ -203,8 +208,13 @@ namespace Fdp.Toolkit.Vis2D
             return ctx;
         }
 
+        /// <summary>⭐ EXPERIMENT (threaded kernel X-4) — when set, a layer it refuses is not drawn this frame (a frame without the world lock
+        /// draws only the layers that read no world).</summary>
+        public Func<IMapLayer, bool>? DrawFilter { get; set; }
+
         private bool IsLayerVisible(IMapLayer layer)
         {
+            if (DrawFilter != null && !DrawFilter(layer)) return false;
             if (layer.LayerBitIndex < 0) return true; // Always visible
             if (layer.LayerBitIndex >= 32) return false; // Out of range
 

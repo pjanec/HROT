@@ -236,7 +236,10 @@ namespace Fdp.Toolkit.Runner
         public void Update(float dt)
         {
             for (int i = 0; i < _subsystems.Count; i++)
+            {
+                using var traceSub = Fdp.Core.AccessTrace.Scope(_subsystems[i], "subsystem.Update: ", Fdp.Core.TraceContext.Presentation);   // ⭐ A-1 — the presentation half of the frame, one reader per subsystem
                 _subsystems[i].Update(dt);
+            }
         }
 
         public void DrawWorldAll()
@@ -245,14 +248,20 @@ namespace Fdp.Toolkit.Runner
             for (int i = 0; i < _subsystems.Count; i++)
             {
                 if (IsMapOwner(_subsystems[i]))
+                {
+                    using var traceSub = Fdp.Core.AccessTrace.Scope(_subsystems[i], "subsystem.DrawWorld: ", Fdp.Core.TraceContext.Presentation);   // ⭐ A-1
                     _subsystems[i].DrawWorld();
+                }
             }
         }
 
         public void DrawUIAll()
         {
             for (int i = 0; i < _subsystems.Count; i++)
+            {
+                using var traceSub = Fdp.Core.AccessTrace.Scope(_subsystems[i], "subsystem.DrawUI: ", Fdp.Core.TraceContext.Presentation);   // ⭐ A-1
                 _subsystems[i].DrawUI();
+            }
         }
 
         /// <summary>

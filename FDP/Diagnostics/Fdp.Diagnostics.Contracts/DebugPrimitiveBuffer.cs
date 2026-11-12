@@ -123,6 +123,39 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             _internMap     = internMap ?? new StringInternMap();
         }
 
+        // ⭐ EXPERIMENT (threaded kernel X-4, exp/threaded-kernel) — a PUBLISHED copy of the last finished frame for a reader on another thread.
+        //   Triple buffer: the writer (the kernel's thread) copies its finished frame into a slot that is neither the latest nor the leased one;
+        //   the reader (the drawing thread) leases the latest once per drawn frame. Off unless ReaderUsesPublished is set.
+        private readonly DebugPrimitive[][] _pub = new DebugPrimitive[3][];
+        private readonly int[] _pubCount = new int[3];
+        private int _pubLatest = -1, _pubLeased = -1;
+        private readonly object _pubLock = new();
+
+        /// <summary>⭐ EXPERIMENT (X-4) — the drawing thread reads <see cref="ReaderFrame"/> (the published copy) instead of the live buffer.</summary>
+        public bool ReaderUsesPublished { get; set; }
+
+        /// <summary>⭐ EXPERIMENT (X-4) — the writer's thread: copy this finished frame into a free slot and make it the latest.</summary>
+        public void PublishFrame()
+        {
+            int slot;
+            lock (_pubLock) { slot = 0; while (slot == _pubLatest || slot == _pubLeased) slot++; }
+            int n = Math.Min(_count, _primitives.Length);
+            if (_pub[slot] is not { } arr || arr.Length < n) _pub[slot] = arr = new DebugPrimitive[Math.Max(n, _primitives.Length)];
+            Array.Copy(_primitives, arr, n);
+            lock (_pubLock) { _pubCount[slot] = n; _pubLatest = slot; }
+        }
+
+        /// <summary>⭐ EXPERIMENT (X-4) — the reader's thread, once per drawn frame: lease the latest published frame.</summary>
+        public void LeasePublished() { lock (_pubLock) _pubLeased = _pubLatest; }
+
+        /// <summary>The frame a DRAWING reader uses: the leased published copy when <see cref="ReaderUsesPublished"/>, else <see cref="GetFrame"/>.</summary>
+        public ReadOnlySpan<DebugPrimitive> ReaderFrame()
+        {
+            if (!ReaderUsesPublished) return GetFrame();
+            int l = _pubLeased;
+            return l < 0 || _pub[l] is not { } a ? ReadOnlySpan<DebugPrimitive>.Empty : a.AsSpan(0, _pubCount[l]);
+        }
+
         // Returns a zero-copy span of all primitives written this frame.
         public ReadOnlySpan<DebugPrimitive> GetFrame()
         {

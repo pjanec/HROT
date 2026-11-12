@@ -163,11 +163,15 @@ namespace Fdp.Core
             return origins.ToArray();
         }
 
+        /// <summary>⭐ A-1 — this repository's id in the access trace (0 when the switch is off).</summary>
+        internal readonly int TraceId = AccessTrace.On ? AccessTrace.NextRepoId() : 0;
+
         public EntityRepository()
         {
             Interlocked.Increment(ref _liveInstanceCount);
             if (_trackLeaks) _liveOrigins[this] = Environment.StackTrace;
             Bus = new FdpEventBus();
+            if (AccessTrace.On) { AccessTrace.LabelBus(Bus.TraceId, TraceId); AccessTrace.RegisterRepo(TraceId, this); }
             _selfHandle = GCHandle.Alloc(this, GCHandleType.Weak);   // ⭐ CE-3183 — never roots the world
             _entityIndex = new EntityIndex();
             _componentTables = new Dictionary<Type, IComponentTable>();
@@ -434,6 +438,7 @@ namespace Fdp.Core
         /// </summary>
         public Entity HydrateEntity(int id, int generation)
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.EntityCreate, "(entity: hydrate)", TraceId);
              // 1. Delegate to Index to handle allocation/state
              _entityIndex.ForceRestoreEntity(id, true, generation, default);
              
@@ -463,6 +468,7 @@ namespace Fdp.Core
         /// </summary>
         public Entity CreateEntity()
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.EntityCreate, "(entity)", TraceId);
             var entity = _entityIndex.CreateEntity();
             ref var meta = ref _entityIndex.GetMetadata(entity.Index);
             meta.LastChangeTick = _globalVersion; _structuralChanges++;
@@ -487,6 +493,7 @@ namespace Fdp.Core
         /// </summary>
         public void SetLifecycleState(Entity entity, EntityLifecycle state)
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.Write, "(entity lifecycle state)", TraceId);
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
             
             ref var meta = ref _entityIndex.GetMetadata(entity.Index);
@@ -499,6 +506,7 @@ namespace Fdp.Core
         /// </summary>
         public EntityLifecycle GetLifecycleState(Entity entity)
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.Read, "(entity lifecycle state)", TraceId);
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
             return _entityIndex.GetMetadata(entity.Index).LifecycleState;
         }
@@ -675,6 +683,7 @@ namespace Fdp.Core
         /// </summary>
         public void DestroyEntity(Entity entity)
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.EntityDestroy, "(entity)", TraceId);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -764,6 +773,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool HasComponentByTypeId(Entity entity, int typeId)
         {
+            if (AccessTrace.On) AccessTrace.RecordId(TraceKind.Has, typeId, TraceId);
              if (!IsAlive(entity)) return false;
              return _entityIndex.GetComponentMask(entity.Index).IsSet(typeId);
         }
@@ -775,6 +785,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe void* GetComponentPointer(Entity entity, int typeId)
         {
+            if (AccessTrace.On) AccessTrace.RecordId(TraceKind.RawRead, typeId, TraceId);
             // Verify component exists? Or assume caller checked?
             // "Internal access" usually implies speed, but let's be safe-ish
             // The table lookup is safe. The pointer is unsafe.
@@ -792,6 +803,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public object GetManagedComponentByTypeId(Entity entity, int typeId)
         {
+            if (AccessTrace.On) AccessTrace.RecordId(TraceKind.RawRead, typeId, TraceId);
             var table = _tableCache[typeId];
             if (table == null) throw new InvalidOperationException($"Component type {typeId} is not registered");
             
@@ -1098,7 +1110,18 @@ namespace Fdp.Core
         {
             bool found;
             if (ThreadedReads.PureReads) found = TryGetComponentPure<T>(entity, out component);
-            else if (HasComponent<T>(entity)) { component = GetComponentRW<T>(entity); found = true; }
+            else if (HasComponent<T>(entity))
+            {
+                if (AccessTrace.On)
+                {
+                    // ⭐ A-1 — TryGet takes the RW path (it bumps the chunk version): ONE event, kind TryGetRW, the inner write hidden
+                    AccessTrace.Record<T>(TraceKind.TryGetRW, TraceId);
+                    AccessTrace.Mute();
+                    try { component = GetComponentRW<T>(entity); } finally { AccessTrace.Unmute(); }
+                }
+                else component = GetComponentRW<T>(entity);
+                found = true;
+            }
             else { component = default!; found = false; }
             if (ManagedMutationCheck.On && found && !ComponentTypeHelper.IsUnmanaged<T>()) NoteManagedRead(entity, component);   // ⭐ CE-4445 M-2
             return found;
@@ -1184,6 +1207,7 @@ namespace Fdp.Core
         /// </summary>
         internal void AddUnmanagedComponent<T>(Entity entity, in T component) where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(_entityIndex.GetComponentMask(entity.Index).IsSet(ComponentType<T>.ID) ? TraceKind.Write : TraceKind.StructAdd, TraceId);
             ValidateWriteAccess<T>(entity);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
@@ -1210,6 +1234,7 @@ namespace Fdp.Core
         /// </summary>
         internal void RemoveUnmanagedComponent<T>(Entity entity) where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.StructRemove, TraceId);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1232,6 +1257,13 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal bool HasUnmanagedComponent<T>(Entity entity) where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.Has, TraceId);
+            return HasUnmanagedCore<T>(entity);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private bool HasUnmanagedCore<T>(Entity entity) where T : unmanaged
+        {
             if (!IsAlive(entity))
                 return false;
             
@@ -1246,6 +1278,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ref T GetUnmanagedComponent<T>(Entity entity) where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.Write, TraceId);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1289,6 +1322,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ref T GetUnmanagedComponentRW<T>(Entity entity) where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.Write, TraceId);
             ValidateWriteAccess<T>(entity);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1303,6 +1337,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ref readonly T GetUnmanagedComponentRO<T>(Entity entity) where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.Read, TraceId);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
             if (!HasUnmanagedComponent<T>(entity)) throw new InvalidOperationException($"Entity {entity} missing {typeof(T).Name}");
@@ -1318,12 +1353,13 @@ namespace Fdp.Core
         {
             ValidateWriteAccess<T>(entity);
             
-            if (!HasUnmanagedComponent<T>(entity))
+            if (!HasUnmanagedCore<T>(entity))   // ⭐ A-1 — the untraced check: a Set is ONE write event, not a Has + a write
             {
                 AddUnmanagedComponent(entity, component);
             }
             else
             {
+                if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.Write, TraceId);
                 var table = GetTable<T>(false);
                 table.Set(entity.Index, component, _globalVersion);
             }
@@ -1480,6 +1516,13 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool HasManagedComponent<T>(Entity entity) where T : class
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.Has, TraceId);
+            return HasManagedCore<T>(entity);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private bool HasManagedCore<T>(Entity entity) where T : class
+        {
             if (!IsAlive(entity))
                 return false;
             
@@ -1496,6 +1539,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal T GetManagedComponent<T>(Entity entity) where T : class
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.Read, TraceId);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1513,6 +1557,7 @@ namespace Fdp.Core
 
         internal ref T GetManagedComponentRW<T>(Entity entity) where T : class
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.Write, TraceId);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1542,6 +1587,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal T GetManagedComponentRO<T>(Entity entity) where T : class
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.Read, TraceId);
             var table = GetManagedTable<T>(false);
             var v = table.GetRO(entity.Index)!;
             if (ManagedMutationCheck.On) ManagedMutationCheck.OnRead(table, entity.Index, v);   // ⭐ CE-4445 M-2
@@ -1553,6 +1599,7 @@ namespace Fdp.Core
         /// </summary>
         public void SetManagedComponent<T>(Entity entity, T value) where T : class
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(value == null ? TraceKind.StructRemove : _entityIndex.GetComponentMask(entity.Index).IsSet(ManagedComponentType<T>.ID) ? TraceKind.Write : TraceKind.StructAdd, TraceId);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1605,9 +1652,10 @@ namespace Fdp.Core
         /// </summary>
         internal void RemoveManagedComponent<T>(Entity entity) where T : class
         {
-            if (!IsAlive(entity) || !HasManagedComponent<T>(entity))
+            if (!IsAlive(entity) || !HasManagedCore<T>(entity))
                 return;
             
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.StructRemove, TraceId);
             var table = GetManagedTable<T>(false);
             // CRITICAL FIX: Use Set(null) with version tracking instead of Clear/indexer
             // This ensures the removal is captured by Flight Recorder deltas.
@@ -1719,6 +1767,7 @@ namespace Fdp.Core
         /// </summary>
         public ComponentTable<T> GetComponentTable<T>() where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.TableAccess, TraceId);
             return GetTable<T>(false);
         }
 
@@ -1729,6 +1778,7 @@ namespace Fdp.Core
         /// </summary>
         public bool TryGetTable(Type type, out IComponentTable table)
         {
+            if (AccessTrace.On) AccessTrace.RecordType(TraceKind.TableAccess, type, TraceId);
             return _componentTables.TryGetValue(type, out table!);
         }
         /// WARNING: Direct access bypasses safety checks!
@@ -1736,6 +1786,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref BitMask512 GetComponentMask(int entityIndex)
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.EntityIndexRead, "(component mask)", TraceId);
             return ref _entityIndex.GetComponentMask(entityIndex);
         }
 
@@ -1746,14 +1797,19 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref EntityMetadataCold GetMetadata(int entityIndex)
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.EntityIndexRead, "(entity metadata)", TraceId);
             return ref _entityIndex.GetMetadata(entityIndex);
         }
         
+        /// <summary>⭐ A-1 — the entity index without a trace record (the query walk records its own).</summary>
+        internal EntityIndex EntityIndexUntraced => _entityIndex;
+
         /// <summary>
         /// Gets the EntityIndex for advanced scenarios (iteration, chunk access).
         /// </summary>
         public EntityIndex GetEntityIndex()
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.EntityIndexRead, "(entity index)", TraceId);
             return _entityIndex;
         }
         
@@ -1817,6 +1873,7 @@ namespace Fdp.Core
         /// </summary>
         public void QueryDelta(EntityQuery query, uint sinceVersion, Action<Entity> action)
         {
+            if (AccessTrace.On) AccessTrace.RecordMask(TraceKind.QueryInclude, query.IncludeMask, TraceId);
             // Iterate component tables inline (no List allocation) so this method is
             // zero-allocation when no entities match (SR-T34 invariant).
             int maxIndex = _entityIndex.MaxIssuedIndex;
@@ -1877,6 +1934,7 @@ namespace Fdp.Core
         /// </summary>
         public void QueryTimeSliced(EntityQuery query, IteratorState state, double budget, TimeSliceMetric metric, Action<Entity> action)
         {
+            if (AccessTrace.On) AccessTrace.RecordMask(TraceKind.QueryInclude, query.IncludeMask, TraceId);
             if (state == null) throw new ArgumentNullException(nameof(state));
             
             // Allow restarting automatically if previously complete
@@ -1984,6 +2042,7 @@ namespace Fdp.Core
         /// </summary>
         internal unsafe void AddComponentRaw(Entity entity, int typeId, IntPtr dataPtr, int size)
         {
+            if (AccessTrace.On) AccessTrace.RecordId(TraceKind.RawWrite, typeId, TraceId);
             if (!IsAlive(entity)) return;
             
             Type? componentType = ComponentTypeRegistry.GetType(typeId);
@@ -2011,6 +2070,7 @@ namespace Fdp.Core
         /// </summary>
         internal unsafe void SetComponentRawFast(Entity entity, int typeId, IntPtr dataPtr, int size)
         {
+            if (AccessTrace.On) AccessTrace.RecordId(TraceKind.RawWrite, typeId, TraceId);
             // O(1) array access - NO LOCKS, NO HASHING
             if (typeId >= _tableCache.Length || _tableCache[typeId] == null)
             {
@@ -2040,6 +2100,7 @@ namespace Fdp.Core
         /// </summary>
         internal unsafe void SetComponentRaw(Entity entity, int typeId, IntPtr dataPtr, int size)
         {
+            if (AccessTrace.On) AccessTrace.RecordId(TraceKind.RawWrite, typeId, TraceId);
             // Use fast path if cache available
             if (typeId < _tableCache.Length && _tableCache[typeId] != null)
             {
@@ -2076,6 +2137,7 @@ namespace Fdp.Core
         /// </summary>
         internal unsafe void SetComponentFieldRaw(Entity entity, int typeId, int byteOffset, IntPtr src, int size)
         {
+            if (AccessTrace.On) AccessTrace.RecordId(TraceKind.RawWrite, typeId, TraceId);
             if (!IsAlive(entity)) return;
 
             IComponentTable? table = null;
@@ -2106,6 +2168,7 @@ namespace Fdp.Core
         /// </summary>
         internal void RemoveComponentRaw(Entity entity, int typeId)
         {
+            if (AccessTrace.On) AccessTrace.RecordId(TraceKind.RawWrite, typeId, TraceId);
             if (!IsAlive(entity)) return;
             
             // Clear component mask bit
@@ -2119,6 +2182,7 @@ namespace Fdp.Core
         /// </summary>
         internal void AddManagedComponentRaw(Entity entity, int typeId, object componentObj)
         {
+            if (AccessTrace.On) AccessTrace.RecordId(TraceKind.RawWrite, typeId, TraceId);
             if (!IsAlive(entity)) return;
             
             Type? componentType = ComponentTypeRegistry.GetType(typeId);
@@ -2144,6 +2208,7 @@ namespace Fdp.Core
         /// </summary>
         internal void SetManagedComponentRaw(Entity entity, int typeId, object componentObj)
         {
+            if (AccessTrace.On) AccessTrace.RecordId(TraceKind.RawWrite, typeId, TraceId);
             if (!IsAlive(entity)) return;
             
             Type? componentType = ComponentTypeRegistry.GetType(typeId);
@@ -2169,6 +2234,7 @@ namespace Fdp.Core
         /// </summary>
         internal void RemoveManagedComponentRaw(Entity entity, int typeId)
         {
+            if (AccessTrace.On) AccessTrace.RecordId(TraceKind.RawWrite, typeId, TraceId);
             if (!IsAlive(entity)) return;
             
             Type? componentType = ComponentTypeRegistry.GetType(typeId);
@@ -2198,6 +2264,7 @@ namespace Fdp.Core
         /// </summary>
         public void SetSingletonUnmanaged<T>(in T value) where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.SingletonSet, TraceId);
             int typeId = ComponentType<T>.ID;  // Will auto-register via ComponentType<T>
             EnsureSingletonCapacity(typeId);
             
@@ -2221,6 +2288,7 @@ namespace Fdp.Core
         /// </summary>
         public void SetSingletonManaged<T>(T value) where T : class
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.SingletonSet, TraceId);
             int typeId = ManagedComponentType<T>.ID;  // Will auto-register via ManagedComponentType<T>
             EnsureSingletonCapacity(typeId);
             
@@ -2244,6 +2312,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref T GetSingletonUnmanaged<T>() where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.SingletonGet, TraceId);
             int typeId = ComponentType<T>.ID;
             
             #if FDP_PARANOID_MODE
@@ -2285,6 +2354,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T? GetSingletonManaged<T>() where T : class
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.SingletonGet, TraceId);
             int typeId = ManagedComponentType<T>.ID;
             
             #if FDP_PARANOID_MODE
@@ -2302,6 +2372,7 @@ namespace Fdp.Core
         /// </summary>
         public bool HasSingletonUnmanaged<T>() where T : unmanaged
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.SingletonHas, TraceId);
             int typeId = ComponentType<T>.ID;
             if (typeId >= _singletons.Length) return false;
             return _singletons[typeId] != null;
@@ -2312,6 +2383,7 @@ namespace Fdp.Core
         /// </summary>
         public bool HasSingletonManaged<T>() where T : class
         {
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.SingletonHas, TraceId);
             int typeId = ManagedComponentType<T>.ID;
             if (typeId >= _singletons.Length) return false;
             return _singletons[typeId] != null;
@@ -2329,6 +2401,7 @@ namespace Fdp.Core
 
         public IEnumerable<IComponentTable> GetSingletonTables()
         {
+            if (AccessTrace.On) AccessTrace.RecordName(TraceKind.SingletonEnumerate, "(all singletons)", TraceId);
             for (int i = 0; i < _singletons.Length; i++)
             {
                 if (_singletons[i] != null)
@@ -2344,6 +2417,7 @@ namespace Fdp.Core
         /// </summary>
         internal IComponentTable? GetSingletonTable(int typeId)
         {
+            if (AccessTrace.On) AccessTrace.RecordId(TraceKind.SingletonGet, typeId, TraceId);
             if (typeId < 0 || typeId >= _singletons.Length) return null;
             return (IComponentTable?)_singletons[typeId];
         }

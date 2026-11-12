@@ -282,6 +282,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             for (int g = 0; g < globalRuleCount; g++)
             {
                 if (!_globalRulesVisibilityCache[g]) continue;
+                using var traceRuleG = Fdp.Core.AccessTrace.Scope(globalRules[g].Projector, "gizmo-rule(global): ");   // ⭐ A-1 — one reader per gizmo rule (inside the gizmo system's own Tick scope)
                 bool timedG = GizmoRuleTimings.Enabled;   // ⭐ CE-4388 — HROT_FRAME_STATS: a GLOBAL gizmo's time and garbage too (the A/B showed the entity rules are not the system's whole cost)
                 long gStart = timedG ? System.Diagnostics.Stopwatch.GetTimestamp() : 0, gBytes = timedG ? System.GC.GetAllocatedBytesForCurrentThread() : 0;
                 int gPrims = timedG && _buffer != null ? _buffer.Count : 0;
@@ -400,6 +401,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 }
                 bool prevValid = hold != null && hold.WrittenFrame == frame - 1;
                 int slot = frame % period;
+                using var traceRule = Fdp.Core.AccessTrace.Scope(rule.Projector, "gizmo-rule: ");   // ⭐ A-1 — one reader per gizmo rule
                 bool timed = GizmoRuleTimings.Enabled;   // ⭐ CE-4385 — HROT_FRAME_STATS: this rule's time and garbage
                 long ruleStart = timed ? System.Diagnostics.Stopwatch.GetTimestamp() : 0, ruleBytes = timed ? System.GC.GetAllocatedBytesForCurrentThread() : 0;
                 int rulePrims = timed && _buffer != null ? _buffer.Count : 0;   // ⭐ CE-4388 — and the primitives it emits

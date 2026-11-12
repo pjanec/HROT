@@ -67,10 +67,11 @@ namespace Fdp.Core
         [Obsolete("Use foreach loop for zero allocation. query.ForEach allocates closures.")]
         public void ForEach(Action<Entity> action)
         {
+            if (AccessTrace.On) TraceRun();
             if (action == null)
                 throw new ArgumentNullException(nameof(action));
             
-            var entityIndex = _repository.GetEntityIndex();
+            var entityIndex = _repository.EntityIndexUntraced;
             int maxIndex = entityIndex.MaxIssuedIndex;
             
             for (int i = 0; i <= maxIndex; i++)
@@ -88,6 +89,13 @@ namespace Fdp.Core
                     action(new Entity(i, meta.Generation));
                 }
             }
+        }
+
+        /// <summary>⭐ A-1 — one trace record per component type the query includes / excludes (a walk reads those columns of the mask).</summary>
+        internal void TraceRun()
+        {
+            AccessTrace.RecordMask(TraceKind.QueryInclude, _includeMask, _repository.TraceId);
+            AccessTrace.RecordMask(TraceKind.QueryExclude, _excludeMask, _repository.TraceId);
         }
 
         /// <summary>
@@ -135,6 +143,7 @@ namespace Fdp.Core
 
             internal EntityEnumerator(EntityQuery query)
             {
+                if (AccessTrace.On) query.TraceRun();
                 _includeMask = query._includeMask;
                 _excludeMask = query._excludeMask;
                 _authorityIncludeMask = query._authorityIncludeMask;
@@ -145,7 +154,7 @@ namespace Fdp.Core
                 _lifecycleFilter = query._lifecycleFilter;
                 
                 // Direct access to index for maximum speed
-                _entityIndex = query._repository.GetEntityIndex();
+                _entityIndex = query._repository.EntityIndexUntraced;
                 _maxIndex = _entityIndex.MaxIssuedIndex;
                 _currentIndex = -1; 
                 _candidates = null; _candidateEnd = 0; _candidateAt = 0;
@@ -216,7 +225,8 @@ namespace Fdp.Core
         /// </summary>
         public int Count()
         {
-            var entityIndex = _repository.GetEntityIndex();
+            if (AccessTrace.On) TraceRun();
+            var entityIndex = _repository.EntityIndexUntraced;
             int maxIndex = entityIndex.MaxIssuedIndex;
             int count = 0;
             
@@ -242,7 +252,8 @@ namespace Fdp.Core
         /// </summary>
         public bool Any()
         {
-            var entityIndex = _repository.GetEntityIndex();
+            if (AccessTrace.On) TraceRun();
+            var entityIndex = _repository.EntityIndexUntraced;
             int maxIndex = entityIndex.MaxIssuedIndex;
             
             for (int i = 0; i <= maxIndex; i++)
@@ -267,7 +278,8 @@ namespace Fdp.Core
         /// </summary>
         public Entity FirstOrNull()
         {
-            var entityIndex = _repository.GetEntityIndex();
+            if (AccessTrace.On) TraceRun();
+            var entityIndex = _repository.EntityIndexUntraced;
             int maxIndex = entityIndex.MaxIssuedIndex;
             
             for (int i = 0; i <= maxIndex; i++)
@@ -330,10 +342,11 @@ namespace Fdp.Core
         /// </summary>
         public void ForEachChunked(Action<Entity> action)
         {
+            if (AccessTrace.On) TraceRun();
             if (action == null)
                 throw new ArgumentNullException(nameof(action));
             
-            var entityIndex = _repository.GetEntityIndex();
+            var entityIndex = _repository.EntityIndexUntraced;
             int totalChunks = entityIndex.GetTotalChunks();
             int chunkCapacity = entityIndex.GetChunkCapacity();
             
@@ -376,10 +389,11 @@ namespace Fdp.Core
         /// <param name="hint">Workload hint for batch size optimization</param>
         public void ForEachParallel(Action<Entity> action, ParallelHint hint = ParallelHint.Light)
         {
+            if (AccessTrace.On) TraceRun();
             if (action == null)
                 throw new ArgumentNullException(nameof(action));
             
-            var entityIndex = _repository.GetEntityIndex();
+            var entityIndex = _repository.EntityIndexUntraced;
             int maxIndex = entityIndex.MaxIssuedIndex;
             int activeCount = entityIndex.ActiveCount;
             
