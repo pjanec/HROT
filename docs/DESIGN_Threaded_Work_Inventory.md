@@ -215,10 +215,73 @@ all. Either everything is deterministic or not."*
 | the per-read check's cost on the real rig | ✅ **measured (CE-4454 R-2)**: flag off — no measurable cost; own +1.5–2.7 ns; another entity cheaper (`STATUS_Read_Check.md`, Parallel Simulation §18.3) |
 | no hidden cross-entity writes beyond the census — 36 systems were silent; rules, embarkation, custody, fire-and-movement were NOT exercised; BrainTick's "read-after-create 162 681 / run" is unexplained | K-2 (running) + a census on a rules scenario and a fire-and-movement scenario |
 | MEMORY per node: S, A, R, the last-tick copy, SoD snapshots, the undo ring, recorder keyframes, pooled snapshots — vs the ≤ 4 GB budget (1 000 men already peak at 1.88 GB); × the nodes in `--mode all` | ✅ **measured (CE-4456 N-1, `STATUS_Memory_And_Contact.md`)**: a node fits (cgf 2.10 GB at 1 000 men everything on, 2.94 GB at 3 000; ~3.8 GB at 5 000); ⛔ the editor (4.29 GB) and `--mode all` (5.65 GB) are OVER at 1 000; the GC heap dominates — two fixes: chunk-version arrays sized for `MAX_ENTITIES` in every world (84–217 MB / node), the recording's ~0.5 GB of buffers |
-| the "off-frame egress alone makes the CGF slower" anomaly (252 → 337 ms) | ⛔ unexplained — likely F-15's oversubscription; a new item |
+| the "off-frame egress alone makes the CGF slower" anomaly (252 → 337 ms) | ✅ CE-4457 (Windows, `STATUS_Ui_Windows_Egress_Anomaly.md` on exp/perf): **did NOT reproduce** over 14 columns on the same production code — serial 248–281 ms, both switches on 266–284 ms (noise ~30 ms); contention, scan workers, pool budget, recording and the timer each ruled out; the egress scan thread uses 2–4.5 % of one core. ⇒ a machine-state effect of that session (it also hit low system memory), INFERENCE. The SimHost benefit holds: 99–107 → 38–54 ms |
 | how often units commit to cover / see a new contact on the SAME tick | ✅ **measured (CE-4456 N-2)**: same-point commits on one tick — **0** in ~88 000 ticks (F-9 is a rare-case fix-up); new contacts arrive in BURSTS — up to 96 units on one tick (F-10 must expect tens); found CE-3444 (a unit thrashing between cover points) |
 
 ### 7.5 Sound — the reviews found no flaw in
 the census method and its short conversion list · the one pool's two lanes (no deadlock; the caller drains unclaimed batches) · the read check is free with its flag off (±1 ns) · the UI-write inventory and the HTTP split · the UI frame gain (97 → 15.6 ms) · the D-3 and D-5 withdrawals · the no-dependency-scheduler verdict · cluster time with the sim on a worker (the slave clock is wall-clock derived, barriers snap) · Run-to's fix · no target deconfliction to race (grep only) · room clearing, embarkation and possession go through single serial arbiters · orders already travel one frame late on the bus.
 
 ⚠ Doc rot found (concurrency m4): Parallel Simulation on `coordinator` cites "§16 J-3" and the one-pool section, which exist only on exp branches; its section order runs 14 → 11.1 → 18 → 19 → 18.2 — to be tidied when the branches merge.
+
+### 7.6 ⭐ The last measurements are in *(`2026-11-12`; status files on exp/measure-2, exp/integration, exp/perf)*
+
+| question (§7.4) | answer |
+|---|---|
+| the threaded 4.8 Hz tick | ⭐ CE-4450 K-1: the worker waits **150–175 ms / tick to acquire the world lock playing, 82–106 paused** — ≈ ONE drawing frame: the main thread holds the world for its WHOLE frame; a fair hand-over changed nothing. ⇒ the fix is SHAPE, not fairness: the main thread must not hold the world across its whole frame (copy from a published snapshot / a short lock only around the world-reading part) |
+| ⛔ new race | ⭐ K-1: the ORCHESTRATION bus (`_node.EventBus`) is published to and swapped by the worker OUTSIDE the world lock and read / published by the main thread ("Collection was modified", 3 of 3 runs once the hand-over was fair) ⇒ it becomes a command queue — a blocking item before any lock change |
+| hot-reload desync | ⭐ K-3: the reload DRAIN blocks the node frame **3.7–4.4 s** (threaded or not) against a 5 s heartbeat eject, and a node returning while the cluster operates is not re-admitted ⇒ NOT threading: build the staging off the frame, keep only the swap on it |
+| the query timer | ✅ K-4: off by default — BrainTick −8 % |
+| census on heavier combat | ✅ K-2: no change to the verdict; 21 last-tick types on the CGF, the masked copy **2.6–2.7 ms** (full 10.8–11.3 ms) |
+| ⭐⭐ Windows throttling | ⭐ CE-4453: **a node with no visible window runs at about HALF speed** — Windows puts windowless nodes in EcoQoS by default (clock ~2.6 vs ~3.8–4.1 GHz); hidden CGF 228 → **121 ms** opted out, SimHost 101 → **44 ms**; minimised = hidden; a visible console is not throttled. ⇒ ⚠ every earlier Windows number was throttled; ⭐ the opt-out (inventory §5a, CE-4452) is a ~1.9× win for every headless node TODAY, independent of threading |
+| the off-frame egress anomaly | ✅ CE-4457: did not reproduce (machine state, INFERENCE) |
+| memory per node | ✅ CE-4456 N-1: CGF 1.77–2.10 GB at 1 000 men, 2.94 GB at 3 000, ~3.8 GB at 5 000 (fits only with two fixes: chunk-version arrays sized for `MAX_ENTITIES`, 84–217 MB per world even when empty — `NativeChunkTable.cs:56,65`; the recording's ~0.5 GB of buffers). ⛔ the EDITOR is over 4 GB at 1 000 men (4.24–4.29 GB, threaded or not — A adds only ~106 MB; ~1.2 GB unattributed); `--mode all` 5.65 GB |
+| same-tick cover / contact | ✅ CE-4456 N-2: two units committing to the same point on one tick NEVER happened (0 in ~88 000 ticks) ⇒ cover recovery (F-9) is a rare tie-break; new contacts arrive in BURSTS (up to 96 units on one tick) ⇒ callout de-dup (F-10) must expect tens; a cover-thrashing unit found — CE-3444 (behaviors) |
+| the integration base | ✅ CE-4456: `exp/integration` built, 0 errors; one read path, one pool; a merge defect (test component ids colliding across branches) fixed |
+
+## 8. ⭐ THE DECISION LIST — every decision the overnight build rests on, with what it rests on *(`2026-11-12`; the page the user asked for: "you need to check rows marked ⛔ only")*
+
+✅ = measured (evidence linked) · ⛔ = assumed / not measured. ⭐ A decision with a load-bearing ⛔ row is NOT final.
+
+### 8.1 Decided by the user
+
+| decision | ruling | rests on |
+|---|---|---|
+| the simulation on a worker thread, the UI on the main thread over its own world A, commands from the UI | R-4205, R-4214 | ✅ POC 3: 0 faults; Windows UI frame 97 → 15.6 ms (§14.5) |
+| no host handled differently — the threading lives in the SHARED node frame / presentation shell | R-4215 | ✅ every host shares `HrotNodeContext` / `SharedApplicationBootstrapper` (`PlayerApplication.cs:235,849`); the prototype lives in `EditorSubsystem.cs` only |
+| the whole gizmo block on the main thread, once per tick | R-4211 + the user's word in POC 4 (§14.2.0 on exp/threaded-poc-4) | ✅ the ordered edits measured (§4); ✅ interaction 1.3 ms + overlays ~10 ms per tick (VM) |
+| per-entity parallelism: own entity direct, others by command (heard a tick later), squad systems per squad, cross reads of in-phase-written types from last tick | R-4212, R-4214 | ✅ census: 18 READY / 11 CONVERTIBLE / 6 GLOBAL, a short conversion list; ✅ K-2 heavier combat: no change |
+| ONE behaviour rule in both time modes; one process-wide determinism setting owned by the time mode; no separate parallel switch | R-4214, R-4215 | ✅ the rule is thread-count invariant (rails at 1/2/4/8); ✅ a continuous run is non-deterministic by its dt anyway (user) |
+| `--mode all`: every kernel of the process on the one worker, in sequence | R-4214 | ⛔ not prototyped — the first task proves it |
+| the last-tick view = a separate masked copy taken serially from S at the START of the Simulation phase; only types written by the same / a concurrent system | R-4214 | ✅ 21 types, 2.6–2.7 ms on the CGF (K-2); ✅ the generator knows each asset's typed reads (§18.2) |
+| the per-query timer off by default | R-4213 | ✅ BrainTick −8 % (K-4) |
+| UI writes EXECUTED on the sim thread through one job queue — not rewritten as `EditOp`s | D-5 | ✅ undo is a world snapshot, path-independent (`WorldUndoRecorder.cs:9-17`); ⛔ every caller copes with a result arriving a tick later — the write-path POC (CE-4455) proves it |
+| a dynamic step (no fixed step) | D-3 withdrawn | ✅ the user: a fixed step spirals or falls behind under overload |
+
+### 8.2 Open — needs the user (each with a lean)
+
+| # | decision | ⭐ lean | rests on |
+|---|---|---|---|
+| O-1 | ⭐ **the lock shape** — REVISED (user, `2026-11-12`: "why the UI is always busy? Because it is always looping, so the simulation thread will hardly ever find a time when the UI is not reading"): ✅ K-1 measured exactly that — A is free only for microseconds between main-thread frames ⇒ ⛔ "try the lock, skip the sync" would almost never sync — WITHDRAWN. Releasing A before drawing is impossible (layers read A while drawing, X4-1); double-buffering A itself breaks "A is one object for life" (44 world-keyed side tables) | ⭐ **a STAGING copy, pulled by the UI**: the sim, after a tick, copies the masked state into a staging world B (double-buffered B1 / B2, an atomic "latest complete" index) — it never waits for the UI; at the START of each UI frame, the main thread — the only reader of A — copies the latest complete B into A, only when B holds a newer tick (the UI loops faster than the sim ticks) | ✅ the UI loops continuously (K-1) · ✅ the masked copy ~4.5 ms tables + 0.65 rows on Windows (§14.5) ⇒ ~5 ms on the main thread per NEW tick, not per frame · ⛔ memory: two staging worlds (each ≈ the masked A, ~106 MB at 1 000 men — N-1) on top of the editor's 4.24 GB · ⛔ events / logs / edit outcomes queued per tick into B and drained into A in order — to build and rail |
+
+#### 8.2a ✅ O-1 DECIDED — R-4216
+
+🔒 User, `2026-11-12`: *"yes, approved, Two-staging worlds. One is used by the UI and the other is being written by the simulation thread."* ⇒ the
+lock between the threads is gone: the sim writes one staging world after each tick, the UI pulls the other (the latest complete) into A at its
+frame start; events / logs / edit outcomes travel queued with each staging world.
+
+### 8.3 Fixes — no decision needed (the reviews and measurements require them)
+
+| fix | evidence |
+|---|---|
+| the ORCHESTRATION bus becomes a command queue — a blocking item before any lock change | ✅ K-1: "Collection was modified", 3 of 3 runs once the hand-over was fair |
+| the hot-reload DRAIN prepared off the frame, only the swap on it (not threading) | ✅ K-3: the drain blocks 3.7–4.4 s against a 5 s heartbeat eject |
+| the pool carries the tick context and the current entity (F-1) — before anything parallel is trusted | ✅ census / POC 4: `AsyncLocal` does not reach the pool |
+| §7.2's F-2…F-16 (bus in parallel phases, debug probes serial, native-handle singletons, field-level commands, deferred structure, managed chunk lock, child-sensor handles, cover tie-break, callout de-dup at playback (bursts of tens — N-2), per-squad ownership, seek / restore full resync, hot reload between ticks, never wait holding A's lock, egress scan priority, the guard extended) | §7.2 |
+| memory: chunk-version arrays grown with the committed chunks; the recording's buffers bounded — and attribute the editor's ~1.2 GB unexplained (a `dotnet-gcdump`) | ✅ CE-4456 N-1: editor 4.24 GB at 1 000 men; nodes fit to 3 000 |
+| Windows scheduling opt-outs (CE-4452 / CE-4458) — independent, dispatched now | ✅ CE-4453: windowless nodes at HALF speed |
+
+### 8.4 Still unmeasured, and where it gets measured
+- O-1's two ⛔ rows → track A's first task.
+- `--mode all` on one worker → track A.
+- every caller copes with a delayed write result → the write-path POC (CE-4455), track B's first task.
+- 8-core scaling with the per-entity rule (today's measured ceiling is the brain's ~36 ms serial walk — §11.2) → Windows after track C lands.
