@@ -189,3 +189,11 @@ scoring). Q-5's cheapest win is not parallelism: 12 % of the dispatcher looks up
 | ⚠ the recorder needs EVERY recorded table and the managed tables (18 %), the replica may carry only what egress needs; keyframes; ordering vs the async file writer | not measured |
 ⇒ ⭐ Q-3 = "one replica sync per frame, two consumers off the frame (egress scan + recorder delta)". Cost: ~2 days (the replica's table set, the recorder reading a view, a recorded-replay identity rail). It turns Q-2's wash into a win on a recording node.
 
+
+## Final gates (HEAD of `exp/parallel-sim-2`, every opt-in OFF — the default path, which the `TurretParts` fix and the `SelectPosture` split touch)
+| gate | result |
+|---|---|
+| `DeterminismRails` (Hrot.SystemTests, the real editor headless) | ✅ **5 / 5** |
+| scenario regression subset (combat scenarios that passed in POC 1's run): `bc-house-defended`, `ld-sentry-surprise`, `cc-platoon-bound` | ✅ **3 / 3 PASS** |
+| Fdp.Toolkits: Utility + Behavior + blueprint stamp (801) · Combat + Turret + dispatcher (538) · StarterPack incl. the pre-score rail (38) · OccurrenceStoreAccess + stamp rails (73) | ✅ all green |
+| replication classes, egress OFF vs ON (D-10) | no ON-only red in 44 shared tests; host crashes pre-existing |
