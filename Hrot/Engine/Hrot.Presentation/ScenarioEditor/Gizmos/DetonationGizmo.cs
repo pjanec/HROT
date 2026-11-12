@@ -29,7 +29,7 @@ public sealed class DetonationGizmo : IGlobalStatelessGizmo
     {
         if (view is not EntityRepository repo || !repo.HasSingletonUnmanaged<DetonationTraces>()) return;
         double now = DebugTraceClock.Now(repo);
-        var traces = repo.GetSingletonUnmanaged<DetonationTraces>();
+        var traces = repo.GetSingletonUnmanagedRO<DetonationTraces>();
         var slots = traces.SlotsRO();
         for (int i = 0; i < traces.Count; i++)
         {

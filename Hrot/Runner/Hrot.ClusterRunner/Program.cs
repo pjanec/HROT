@@ -700,7 +700,10 @@ class Program
                     if (windowCtrl.ExitDue(Raylib_cs.Raylib.WindowShouldClose() | windowCtrl.TakeExitRequest()))
                         break; // nothing (left) to ask → exit (skip this frame's render)
 
-                    startupLoad?.Tick();   // ⭐ CE-3354 ⑥
+                    // ⭐ EXPERIMENT (threaded kernel X-4) — HROT_THREADED_KERNEL=1: take the world if the kernel's worker is between ticks (OFF: always true)
+                    bool haveWorld = Fdp.ModuleHost.ThreadedKernelGate.MainTryEnter();
+                    try {
+                    if (haveWorld) startupLoad?.Tick();   // ⭐ CE-3354 ⑥
                     frameStats?.Begin();
                     orchestrator.Update(dt);
                     frameStats?.EndUpdate();
@@ -721,6 +724,7 @@ class Program
                     frameStats?.EndDraw();
 
                     frameStats?.Begin();
+                    if (haveWorld) {   // ⭐ X-4 — the panels read the world: only on a frame that holds it (map-only frames draw no ImGui)
                     rlImGui_cs.rlImGui.Begin();
 
                     // --- DOCKSPACE SETUP (§4.1.2: inset bottom by status bar) ---
@@ -767,6 +771,7 @@ class Program
                     windowCtrl.WindowManager!.Render();
                     orchestrator.DrawUIAll();
                     rlImGui_cs.rlImGui.End();
+                    }   // ⭐ X-4
                     frameStats?.EndUi();
                     frameStats?.NoteDrawLists();
 
@@ -774,6 +779,7 @@ class Program
                     Raylib_cs.Raylib.EndDrawing();
                     Fdp.Presentation.Raylib.HiddenWindow.AfterFrame();
                     frameStats?.EndFrame();
+                    } finally { Fdp.ModuleHost.ThreadedKernelGate.MainExit(); }   // ⭐ X-4
 
                 }
 

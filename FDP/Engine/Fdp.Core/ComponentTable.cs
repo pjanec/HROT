@@ -103,6 +103,10 @@ namespace Fdp.Core
         /// Sets component value for entity at given index.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <inheritdoc/>
+        public void CopyRowFrom(IComponentTable source, int entityIndex, uint version)
+            => _data.GetRefRW(entityIndex, version) = ((ComponentTable<T>)source)._data.GetRefRO(entityIndex);
+
         public void Set(int entityIndex, in T component, uint version)
         {
             _data.GetRefRW(entityIndex, version) = component;
@@ -213,6 +217,10 @@ namespace Fdp.Core
         {
             _data?.Dispose();
         }
+
+        /// <summary>⭐ EXPERIMENT (threaded kernel X-1) — the chunks a sync from <paramref name="source"/> would copy now, and this table's committed bytes.</summary>
+        internal (int DirtyChunks, long CommittedBytes) ProbeStats(IComponentTable source)
+            => (source is ComponentTable<T> s ? _data.CountDirtyChunks(s._data) : 0, _data.GetMemoryStats().CommittedBytes);
 
         public void SyncFrom(IComponentTable source)
         {

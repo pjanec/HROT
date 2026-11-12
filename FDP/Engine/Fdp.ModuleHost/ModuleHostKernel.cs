@@ -45,7 +45,7 @@ namespace Fdp.ModuleHost
     /// </summary>
     public sealed class ModuleHostKernel : IDisposable
     {
-        private readonly EntityRepository _liveWorld;
+        private EntityRepository _liveWorld;   // ⭐ POC 2 (CE-4439): not readonly — RetargetLiveWorld moves the kernel onto World S
         private readonly EventAccumulator _eventAccumulator;
         private readonly List<ModuleEntry> _modules = new();
         private SnapshotPool? _snapshotPool;
@@ -293,6 +293,24 @@ namespace Fdp.ModuleHost
         /// Initialize kernel: build execution orders, validate dependencies.
         /// Must be called after all modules/systems registered, before Update().
         /// </summary>
+        /// <summary>
+        /// ⭐ EXPERIMENT — POC 2 of the threaded editor (CE-4439, <c>HROT_THREADED_KERNEL=2</c>; 📄 DESIGN_Threaded_Simulation_Presentation.md §12 / §14):
+        /// the kernel ticks <paramref name="world"/> from now on (World S; the presentation keeps the world it was built on). Every module's automatic
+        /// provider is re-made over the new world (the old ones read the old world). ⚠ Systems that CAPTURED the old world at construction still use it —
+        /// <see cref="Fdp.Core.WorldGuard"/> lists them. Call it between frames, on the thread that runs <see cref="Update"/>.
+        /// </summary>
+        public void RetargetLiveWorld(EntityRepository world)
+        {
+            if (ReferenceEquals(world, _liveWorld)) return;
+            _liveWorld = world ?? throw new ArgumentNullException(nameof(world));
+            _liveWorld.AttachEventHistory(_eventAccumulator);
+            foreach (var entry in _modules) if (!entry.HasManualProvider) entry.Provider = null!;
+            foreach (var entry in _modules) if (entry.Provider == null) AssignProviderForDynamicInstall(_modules, entry);
+        }
+
+        /// <summary>The world the kernel ticks (POC 2: S while threaded).</summary>
+        public EntityRepository LiveWorld => _liveWorld;
+
         public void Initialize()
         {
             if (_initialized)
@@ -544,6 +562,7 @@ namespace Fdp.ModuleHost
         private void UpdateInternal(float deltaTime, GlobalTime globalTime)
         {
             long whole = KernelFrameTimings.Start();   // ⭐ CE-4433
+            using var traceFrame = Fdp.Core.AccessTrace.Scope("kernel:frame (outside systems)", Fdp.Core.TraceContext.Tick);   // ⭐ A-1 — the node frame's own steps (swap, time push, dispatch); each system pushes its own scope
             try { UpdateInternalCore(deltaTime, globalTime); }
             finally
             {
@@ -861,6 +880,7 @@ namespace Fdp.ModuleHost
                                 foreach (var sys in entry.SimulationSystems)
                                     topology.Scheduler.ExecuteSystem(sys, view, moduleDelta, _advancingFrame, moduleGoverns: !directModule);
                             }
+                            using (Fdp.Core.AccessTrace.Scope(entry.Module, "module: ", Fdp.Core.TraceContext.Tick))   // ⭐ A-1
                             if (!moduleHeld) entry.Module.Tick(view, moduleDelta);
                             System.Threading.Interlocked.Increment(ref entry.ExecutionCount);
                             
@@ -1015,7 +1035,8 @@ namespace Fdp.ModuleHost
                                 // ⭐ CE-3293 (§10 F5) — on a snapshot the module's mode, applied at its dispatch, is the only one
                                 moduleGoverns: entry.Module.Policy.Strategy != DataStrategy.Direct);
                     }
-                    entry.Module.Tick(view, dt);
+                    using (Fdp.Core.AccessTrace.Scope(entry.Module, "module(background): ", Fdp.Core.TraceContext.Tick))   // ⭐ A-1
+                        entry.Module.Tick(view, dt);
                     System.Threading.Interlocked.Increment(ref entry.ExecutionCount);
                     return null; // Success
                 }

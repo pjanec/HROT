@@ -54,7 +54,7 @@ namespace Fdp.Toolkit.Perception.Systems
 
                 ref var mem = ref repo.GetComponentRW<TargetMemory>(cmd.Perceiver);
                 ref readonly var xfm = ref repo.GetComponentRO<SimTransform>(cmd.Target);
-                uint tick = repo.HasSingleton<GlobalTime>() ? (uint)repo.GetSingletonUnmanaged<GlobalTime>().FrameNumber : 0u;
+                uint tick = repo.HasSingleton<GlobalTime>() ? (uint)repo.GetSingletonUnmanagedRO<GlobalTime>().FrameNumber : 0u;
 
                 TargetMemory.AddOrUpdateTarget(ref mem, (long)cmd.Target.PackedValue, xfm.Position.X, xfm.Position.Y, cmd.ScoreBoost, tick);
                 InteractionOutcomes.Applied(repo, cmd.RequestId, cmd.Perceiver);

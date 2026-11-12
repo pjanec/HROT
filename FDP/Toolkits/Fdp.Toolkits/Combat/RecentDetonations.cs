@@ -51,7 +51,7 @@ namespace Fdp.Toolkit.Combat
         /// <summary>Records one burst into the world's memory (made on first use).</summary>
         public static void Add(EntityRepository world, Vector3 at, double time, Entity shooter, long ammo)
         {
-            var m = world.HasSingletonUnmanaged<RecentDetonations>() ? world.GetSingletonUnmanaged<RecentDetonations>() : default;
+            var m = world.HasSingletonUnmanaged<RecentDetonations>() ? world.GetSingletonUnmanagedRO<RecentDetonations>() : default;
             m.Count++;
             m.Slots[(int)((m.Count - 1) % Capacity)] = new RecentBurst { At = at, Time = (SimInstant)time, Shooter = shooter, Ammo = ammo, Serial = m.Count };
             world.SetSingletonUnmanaged(in m);
@@ -61,7 +61,7 @@ namespace Fdp.Toolkit.Combat
         public static int Since(EntityRepository world, double since, Span<RecentBurst> into)
         {
             if (!world.HasSingletonUnmanaged<RecentDetonations>()) return 0;
-            var m = world.GetSingletonUnmanaged<RecentDetonations>();
+            var m = world.GetSingletonUnmanagedRO<RecentDetonations>();
             int n = 0;
             for (long s = Math.Max(1, m.Count - Capacity + 1); s <= m.Count && n < into.Length; s++)
             {
@@ -73,7 +73,7 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>How many bursts the world has recorded (0 when none).</summary>
         public static long CountOf(EntityRepository world)
-            => world.HasSingletonUnmanaged<RecentDetonations>() ? world.GetSingletonUnmanaged<RecentDetonations>().Count : 0;
+            => world.HasSingletonUnmanaged<RecentDetonations>() ? world.GetSingletonUnmanagedRO<RecentDetonations>().Count : 0;
     }
 
     /// <summary>⭐ <c>CE-2176</c> IF-3 — records each <see cref="DetonationNotification"/> into <see cref="RecentDetonations"/> (on a brain node).</summary>

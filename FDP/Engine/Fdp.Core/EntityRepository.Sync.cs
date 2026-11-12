@@ -48,6 +48,15 @@ namespace Fdp.Core
 
         public void SyncFrom(EntityRepository source, BitMask512? mask = null, bool? includeTransient = null, Type[]? excludeTypes = null)
         {
+            if (!AccessTrace.On) { SyncFromCore(source, mask, includeTransient, excludeTypes); return; }
+            // ⭐ A-1 — ONE world-copy event on the SOURCE (it reads every shared table); the copy's own accesses are hidden
+            AccessTrace.RecordName(TraceKind.WorldCopy, "(SyncFrom: whole-world copy, reads the source)", source.TraceId);
+            AccessTrace.Mute();
+            try { SyncFromCore(source, mask, includeTransient, excludeTypes); } finally { AccessTrace.Unmute(); }
+        }
+
+        private void SyncFromCore(EntityRepository source, BitMask512? mask, bool? includeTransient, Type[]? excludeTypes)
+        {
             // 0. Determine Effective Mask
             BitMask512 effectiveMask;
             

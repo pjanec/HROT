@@ -306,6 +306,7 @@ namespace Fdp.Core.Internal
             {
                  if (ManagedMutationCheck.On) return ref CheckedGetRO(repo, e);   // ⭐ CE-4445 M-2 — the detector (a separate method: this one stays small)
                  if (ThreadedReads.PureReads) return ref _getRefRO(repo, e);   // POC 2 / P-1 - a read is a read: no stamp, no allocation
+                 if (AccessTrace.On) return ref TracedGetRO(repo, e);   // ⭐ A-1 — a separate method: this one stays free of exception handling, so it still inlines
                  // Return RW as RO
                  return ref _getRW(repo, e);
             }
@@ -321,6 +322,14 @@ namespace Fdp.Core.Internal
             /// <summary>POC 2 / P-1 - the pure read, callable regardless of the switch (rails).</summary>
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static ref readonly T GetROPure(EntityRepository repo, Entity e) => ref _getRefRO(repo, e);
+
+            /// <summary>⭐ A-1 — a managed READ takes the RW path (it bumps the table's chunk version): ONE event, kind ReadViaRW, the inner write hidden.</summary>
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            private static ref readonly T TracedGetRO(EntityRepository repo, Entity e)
+            {
+                 using var traceMute = AccessTrace.MuteScope(TraceKind.ReadViaRW, typeof(T), repo.TraceId);
+                 return ref _getRW(repo, e);
+            }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static bool Has(EntityRepository repo, Entity e) => _has(repo, e);

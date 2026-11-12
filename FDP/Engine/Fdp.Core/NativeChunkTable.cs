@@ -572,6 +572,15 @@ namespace Fdp.Core
         /// chunk version (the entity index's component masks and metadata), version equality is not proof the
         /// contents match, and a skipped chunk silently keeps the destination's bytes.
         /// </param>
+        /// <summary>⭐ EXPERIMENT (threaded kernel X-1) — how many chunks <see cref="SyncDirtyChunks"/> would copy from <paramref name="source"/> now.</summary>
+        internal int CountDirtyChunks(NativeChunkTable<T> source)
+        {
+            int n = 0, end = Math.Max(source.UsedChunkBound, UsedChunkBound);
+            for (int i = 0; i < end; i++)
+                if (_chunkVersions[i].Value != source.GetChunkVersion(i)) n++;
+            return n;
+        }
+
         public void SyncDirtyChunks(NativeChunkTable<T> source, bool force = false)
         {
             #if FDP_PARANOID_MODE

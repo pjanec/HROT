@@ -49,7 +49,7 @@ namespace Hrot.SimHost.Diagnostics
         {
             // Singleton check: skip entirely when the flag is off or absent.
             if (!repo.HasSingletonUnmanaged<GlobalDebugSettings>()) return;
-            if (!repo.GetSingletonUnmanaged<GlobalDebugSettings>().AutoEnableAiTracing) return;
+            if (!repo.GetSingletonUnmanagedRO<GlobalDebugSettings>().AutoEnableAiTracing) return;
 
             var profile = template.GetDescriptor<BehaviorProfileDto>();
             if (profile == null) return;

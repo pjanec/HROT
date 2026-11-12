@@ -881,6 +881,41 @@ namespace Hrot.Editor
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
         private NetworkEntityMap?     _entityMap;
+
+        // ⭐ A-3 (threaded-analysis instruments, exp/threaded-analysis) — what the §13 treatments other than the masked copy would cost, timed by
+        // PublishProbe at its probe frame (opt-in HROT_PUBLISH_PROBE=1; nothing here runs otherwise). Each returns the item count it handled.
+        private bool _publishProbeExtras;
+        private NetworkEntityMap? _probeMapKept;
+        private void RegisterPublishProbeExtras()
+        {
+            _publishProbeExtras = true;
+            // §13 "rebuild": a presentation-side NetworkEntityMap rebuilt from the published copy — from empty, and kept (only the changes)
+            Fdp.ModuleHost.PublishProbe.Extras.Add(("NetworkEntityMap.RebuildFromWorld full", (_, copy) => { var m = new NetworkEntityMap(); m.RebuildFromWorld(copy); return m.Entries.Count; }));
+            Fdp.ModuleHost.PublishProbe.Extras.Add(("NetworkEntityMap.RebuildFromWorld kept", (_, copy) => { _probeMapKept ??= new NetworkEntityMap(); _probeMapKept.RebuildFromWorld(copy); return _probeMapKept.Entries.Count; }));
+            // §13 "publish an immutable view": ClusterUiCache's mutable collections copied once (shallow — the transactions inside stay shared objects)
+            Fdp.ModuleHost.PublishProbe.Extras.Add(("ClusterUiCache immutable view (shallow)", (_, _) =>
+            {
+                if (_orchestratorCore?.UiCache is not { } c) return 0;
+                var nodes = System.Linq.Enumerable.ToArray(c.ActiveNodes);   // an instrument, at the probe frame only
+                var tx = new Hrot.Orchestrator.DistributedTransaction[c.TxHistory.Count];
+                for (int i = 0; i < tx.Length; i++) tx[i] = c.TxHistory[i];
+                var eps = new HashSet<Guid>(c.ActiveEpisodes);
+                GC.KeepAlive(nodes); GC.KeepAlive(eps);
+                return nodes.Length + tx.Length + eps.Count;
+            }));
+            // §13 "copy": the traffic lists the 3-D view draws (cars, pedestrians, light states) copied out of the TrafficFrame singleton
+            Fdp.ModuleHost.PublishProbe.Extras.Add(("TrafficFrame lists copy", (live, _) =>
+            {
+                if (Hrot.Traffic.TrafficFrame.Of(live) is not { } f) return 0;
+                var cars = new Hrot.Traffic.TrafficCarPose[f.Cars.Count];
+                for (int i = 0; i < cars.Length; i++) cars[i] = f.Cars[i];
+                var peds = new Hrot.Traffic.TrafficPedPose[f.Pedestrians.Count];
+                for (int i = 0; i < peds.Length; i++) peds[i] = f.Pedestrians[i];
+                var lights = new Dictionary<int, byte>(f.Lights.Count);
+                foreach (var kv in f.Lights) lights[kv.Key] = kv.Value;
+                return cars.Length + peds.Length + lights.Count;
+            }));
+        }
         // ?? Production visualizer dependencies ???????????????????????????????????
 
         private readonly MapUserConfig     _userConfig     = new();
@@ -1523,10 +1558,13 @@ namespace Hrot.Editor
             _bootstrapper = new EditorNodeBootstrapper(EditorNodeId, isolatedTempRoot, _fdpEventHistory, _navmesh, _blueprintRegistry, MuscleCapabilitiesFactory, TranslatorPlacements);
             _bootstrapper.ApplicationSystemsRegistrar = RegisterHostSystems;
             _bootstrapper.MapBuildStatus = () => _map3DBuild;   // ⭐ CE-3354 ③ — lazy: the map layers are attached after the bootstrap
+            if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds) _presWorld = new EntityRepository();   // ⭐ POC 3 — World A, the presentation's, before anything binds a world
             _node = _bootstrapper.BootstrapNode(
                 new HrotNodeConfig { NodeId = (Fdp.Core.NodeId)(EditorNodeId), SubsystemName = "Editor", Headless = true, NodeName = _nodeName },
                 EditorCapabilities.DefaultRole,
                 _networkFactory);
+
+            if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds) ComposeInitialPresentationCopy();   // ⭐ POC 3
 
             // The registrar ran inside the bootstrap; the values the rest of this method reads:
             var scenarioSerializer = _bootstrapper.ScenarioSerializer;
@@ -2057,6 +2095,7 @@ namespace Hrot.Editor
                 _previewPanel     = new PreviewPanel();
                 _zoneEditorPanel  = new ZoneEditorPanel();
             }
+            WalkComposition();   // ⭐ POC 3 C-1 — HROT_POC3_WALK (opt-in): what the composed objects hold
         }
 
         /// <summary>
@@ -2067,7 +2106,8 @@ namespace Hrot.Editor
         private void RegisterHostSystems(HrotNodeContext ctx)
         {
             _node = ctx;
-            _world = ctx.World;
+            _nodeWorld = ctx.World;
+            _world = Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds ? _presWorld! : ctx.World;   // ⭐ POC 3 — the presentation's world is A; the node's is ctx.World (S)
             _orchestrationBus = ctx.EventBus; // Control Plane bus (cluster management)
             _kernel = ctx.Kernel;
             var bootstrapper = _bootstrapper!;
@@ -2126,7 +2166,7 @@ namespace Hrot.Editor
             string aiAssemblyDir = AppDomain.CurrentDomain.BaseDirectory;
             _aiCoordinator = new AiHotReloadCoordinator(
                 aiAssemblyDir, "Hrot.AI.Behaviors.dll",
-                _world!, _behaviorRegistry!,
+                ctx.World, _behaviorRegistry!,   // ⭐ POC 3 C-2 — the drain rewrites the SIMULATED behaviour instances (the guard: it read A from the tick)
                 _blueprintRegistry,
                 new AiHotReloadCoordinatorOptions(LoadPdbOnDeveloperMode: true),
                 _geoTransform, _entityMap);
@@ -2323,9 +2363,9 @@ namespace Hrot.Editor
             var bpEventScannerCompiler  = new EventScannerCompiler(bpEditSvc);
             _bpSnapshotProvider         = new DebugSnapshotProvider(_bpPreTickSnapshot);
             _bpManager                  = new DataBreakpointManager(
-                _world!, _bpPreTickSnapshot, _bpSnapshotProvider,
+                ctx.World, _bpPreTickSnapshot, _bpSnapshotProvider,   // ⭐ POC 3 C-1 — a breakpoint watches the SIMULATED world (the node's; = _world outside mode 3)
                 bpTimeAdapter, bpPredicateCompiler, bpEventScannerCompiler);
-            _bpSystem                   = new DataBreakpointSystem(_bpManager, _world!.Bus);
+            _bpSystem                   = new DataBreakpointSystem(_bpManager, ctx.World.Bus);
 
             _kernel.RegisterGlobalSystem(_bpSnapshotProvider);
             _kernel.RegisterGlobalSystem(_bpSystem);
@@ -2406,7 +2446,7 @@ namespace Hrot.Editor
             // ── Blueprint debug session bridge (UBP-P10T6) ───────────────────────────────────
             // ⭐ CE-476 — the ONE composition, shared with CGF (Attach makes it the DebugProbe sink).
             var bpBlueprintSession = Hrot.Editor.AiComposition.AiDebugSessionComposer.ComposeBlueprint(
-                _blueprintRegistry, _world!, bpTimeAdapter, _bpManager, _behaviorRegistry);
+                _blueprintRegistry, ctx.World, bpTimeAdapter, _bpManager, _behaviorRegistry);   // ⭐ POC 3 C-1 — the debug probe reads the SIMULATED entities (S)
             _blueprintDebugSession = bpBlueprintSession;
             // ⛔ CE-1329 (BV-72) — the "debugged unit" is gone; the Blueprint highlight is filtered by the graph opened pinned to a unit (below)
             // ⭐ CE-1326 — the Brain tab's blueprint rows open their graph pinned to the unit, and the blueprint overlay shows HIS values
@@ -2686,18 +2726,340 @@ namespace Hrot.Editor
             _kernel.RegisterModule(new GizmoInteractionModule(
                 interactionBus,
                 contextIngress: contextIngress,
-                interactionSystems: _editorMapInteraction.InteractionSystems,
+                interactionSystems: Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds ? NodeSideInteractionSystems() : _editorMapInteraction.InteractionSystems,   // ⭐ POC 3
                 gizmoIngress: null,
                 gizmoEgress:  null));
             _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, interactionBus));
             // Register canvas menu update so CanvasContextMenuGizmo has state to project.
-            _kernel.RegisterGlobalSystem(_editorMapInteraction.CanvasMenu);   // ⭐ CE-1017 — built by the pack
+            if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds) _presentationSystems.Add(_editorMapInteraction.CanvasMenu);   // ⭐ POC 3 C-4 — UI menu state: on the presentation side
+            else _kernel.RegisterGlobalSystem(_editorMapInteraction.CanvasMenu);   // ⭐ CE-1017 — built by the pack
         }
 
         /// <inheritdoc/>
+        // ⭐ EXPERIMENT (threaded kernel X-4, exp/threaded-kernel) — the node frame on a worker thread.
+        private System.Threading.Thread? _kernelWorker;
+        private readonly object _workerDtLock = new();
+        private double _workerPendingDt;
+        private volatile bool _kernelWorkerStop;
+        private long _kernelWorkerFaults;
+
+        private static bool MapOnlyLayer(Fdp.Toolkit.Vis2D.Abstractions.IMapLayer l)
+            => l is Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer || l.GetType().Name is "GridMapLayer" or "TerrainLayer2D";
+
+        // ⭐⭐ EXPERIMENT — POC 2 (CE-4439, exp/threaded-poc-2, HROT_THREADED_KERNEL=2; 📄 DESIGN_Threaded_Simulation_Presentation.md §14): TWO worlds.
+        //   While a preview runs (playing or paused), the kernel ticks World S on the worker and the presentation keeps World A (= _world, the object
+        //   every binding is keyed by); after each tick A takes S's entity index + the presentation's TABLE mask + the ROWS of the selected entities, and
+        //   a NetworkEntityMap of its own rebuilt from them. Outside a preview the editor is single-world as today (loads, edits and saves write A).
+        private EntityRepository? _simWorld;                       // S
+        private Fdp.Core.BitMask512 _twTableMask, _twSingletonExcept;
+        private bool _twMaskAll;
+        private Fdp.Toolkit.Replication.Services.NetworkEntityMap? _twPresMap, _twSimMap;
+        private Fdp.Core.EntityQuery? _twSelQuery;
+        private readonly Entity[] _twRows = new Entity[64];
+        private double _twSyncSum, _twRowSum; private long _twSyncN;
+
+        // ⭐⭐ POC 3 (CE-4442) — the node COMPOSED over S (ctx.World), the presentation over A (_presWorld = _world) from the start.
+        private EntityRepository? _presWorld;   // A
+        private EntityRepository? _nodeWorld;   // S = the node's ctx.World (every mode; in mode 3 it differs from _world)
+
+        /// <summary>⭐ POC 3 C-1 / C-4 — the systems the walk found the KERNEL holding over A (they read and answer the UI): in mode 3 they leave the
+        /// tick and run in the presentation step on the main thread, against A. Everything else of the interaction set stays with the node.</summary>
+        private readonly List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> _presentationSystems = new();
+
+        private Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] NodeSideInteractionSystems()
+        {
+            var mi = _editorMapInteraction!;
+            var node = new List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>();
+            foreach (var sys in mi.InteractionSystems)
+            {
+                if (ReferenceEquals(sys, mi.MenuOrders) || ReferenceEquals(sys, mi.MenuShortcuts) || ReferenceEquals(sys, mi.Hats)) _presentationSystems.Add(sys);
+                else node.Add(sys);
+            }
+            return node.ToArray();
+        }
+
+        /// <summary>⭐ POC 3 C-4 — the presentation step: after the sync, on the main thread, against A (the caller holds the world).</summary>
+        /// <summary>The Brain tabs' observation and the per-unit debug settings' load / save — UI state, on the presentation's world (A). ⭐ POC 4 F-2 ②:
+        /// in mode 3 the presentation step runs it on the main thread (it used to run in the node frame's afterKernel hook — the worker — writing A).</summary>
+        private void TickDebugSettingsUi()
+        {
+            // ⭐ CE-1317 (BV-48) — disarm the traces of units no Brain tab has drawn for ~1 s
+            using (Fdp.Core.AccessTrace.Scope("node: afterKernel BrainObservation")) if (_world != null) Hrot.Common.Diagnostics.Gizmos.BrainObservation.Current?.Tick(_world);
+            // ⭐ CE-1329 (BV-70) — the per-unit debug settings: loaded with a scenario, saved when they change
+            using (Fdp.Core.AccessTrace.Scope("node: afterKernel UnitDebugSettingsMemory")) if (_world != null) _debugSettingsMemory.Tick(_world, _editorLogic?.LoadedScenarioName);
+        }
+
+        private void RunPresentationStep(float dt)
+        {
+            var a = _world!;
+            try { TickDebugSettingsUi(); }
+            catch (Exception ex) { if (System.Threading.Interlocked.Increment(ref _presentationStepFaults) <= 20) Console.WriteLine("[POC3] presentation step fault: " + ex); }
+            for (int i = 0; i < _presentationSystems.Count; i++)
+            {
+                try { _presentationSystems[i].Execute(a, dt); }
+                catch (Exception ex) { if (System.Threading.Interlocked.Increment(ref _presentationStepFaults) <= 20) Console.WriteLine("[POC3] presentation step fault: " + ex); }
+            }
+        }
+        private long _presentationStepFaults;
+
+        private void ComposeInitialPresentationCopy()
+        {
+            var a = _presWorld!; var s = _nodeWorld!;
+            _simWorld = s;
+            a.SyncFrom(s, s.GetSnapshotableMask(true), includeTransient: true);
+            a.CopySingletonsFrom(s, default);
+            a.Bus.CopyRegistrationsFrom(s.Bus);
+            _twSimMap = s.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>() ? s.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>() : null;
+            _twSingletonExcept = default;
+            _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Fdp.Toolkit.Replication.Services.NetworkEntityMap>.ID);
+            // ⭐ UI-only singletons A owns (the guard's run: the canvas menu's state written by the presentation step, the order form the UI registers)
+            _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Hrot.Map.Common.Components.CanvasContextMenuState>.ID);
+            _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Hrot.Common.Orders.IOrderForm>.ID);
+            // ⭐ POC 4 F-2 ① — A's OWN station mode + edit gate (reading A's replay flag), never S's object through the singleton copy
+            Hrot.Common.Infrastructure.SharedApplicationBootstrapper.InstallStation(a, _node!);
+            _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Hrot.Common.Editing.StationMode>.ID);
+            // ⭐ POC 4 F-2 ② — the per-unit debug switches: A owns its store (the Brain tab, the menus write it on the main thread); it rides to S at the sync
+            _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings>.ID);
+            _twPresMap = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            _twPresMap.RebuildFromWorld(a);
+            a.SetSingletonManaged(_twPresMap);
+            string? maskPath = Environment.GetEnvironmentVariable("HROT_TWO_WORLDS_MASKS");
+            string maskName = Environment.GetEnvironmentVariable("HROT_TWO_WORLDS_MASK") is { Length: > 0 } mn ? mn : "ui-no-inspector";
+            var loaded = maskPath != null ? Fdp.ModuleHost.PublishProbe.LoadMask(maskPath, maskName) : null;
+            _twMaskAll = loaded == null;
+            _twTableMask = loaded?.Mask ?? s.GetSnapshotableMask(true);
+            _twTableMask.SetBit(Fdp.Core.ComponentType<Hrot.Map.Common.Components.SelectionState>.ID);
+            _twSelQuery = s.Query().With<Hrot.Map.Common.Components.SelectionState>().Build();
+            Fdp.Core.WorldGuard.ArmSyncMask(_twTableMask, _twSingletonExcept);
+            // single-threaded: no sim THREAD — the guard decides by the tracer's context (the node frame's scope is Tick); the worker re-arms with its id
+            Fdp.Core.WorldGuard.Arm(s, a, -1);
+            Console.WriteLine($"[POC3] COMPOSED: node over S (ctx.World), presentation over A; table mask " + (_twMaskAll ? "ALL types" : $"'{maskName}'")
+                + $"; single-threaded: {Fdp.ModuleHost.ThreadedKernelGate.ComposedSingleThread}");
+        }
+
+        /// <summary>⭐ POC 3 C-1 — the rail: walk what was BUILT. No node object (the kernel: modules, systems) may reach A; no presentation object (the
+        /// canvas, the panels / windows / layers / views held by the editor) may reach S. <c>HROT_POC3_WALK=1</c> logs, <c>=exit</c> logs and exits.</summary>
+        private void WalkComposition()
+        {
+            var mode = Environment.GetEnvironmentVariable("HROT_POC3_WALK");
+            if (mode is not ("1" or "exit") || _presWorld == null || _nodeWorld == null) return;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var stop = new object[] { this, _bootstrapper! };   // the composition roots: they hold both worlds by design (⛔ not the node context: a presentation object holding it reads S)
+            // ⭐ VERIFIED exceptions (reachable, not accessed): the breakpoint-hit handler DebugApiService registers (DebugApiService.cs:644-651) only
+            //   writes five "last hit" scalars and asks S's NetworkEntityMap — it never touches A; the walk reaches A through the closure's `this`.
+            var nodeStop = new object[] { this, _bootstrapper!, _debugApiService! };
+            var nodeHits = Fdp.Core.WorldReferenceWalker.Find(_kernel!, "kernel", _presWorld, stopAt: nodeStop);
+            var presHits = new List<Fdp.Core.WorldReferenceWalker.Hit>();
+            if (_canvas != null) presHits.AddRange(Fdp.Core.WorldReferenceWalker.Find(_canvas, "canvas", _nodeWorld, stopAt: stop));
+            foreach (var f in GetType().GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public))
+            {
+                var tn = f.FieldType.Name;
+                if (!(tn.EndsWith("Panel") || tn.EndsWith("Window") || tn.EndsWith("Layer") || tn.EndsWith("View") || tn.EndsWith("Browser") || tn.EndsWith("Inspector"))) continue;
+                if (f.GetValue(this) is { } root) presHits.AddRange(Fdp.Core.WorldReferenceWalker.Find(root, "editor." + f.Name, _nodeWorld, stopAt: stop));
+            }
+            var report = Fdp.Core.WorldReferenceWalker.Report("[POC3-WALK] NODE objects reaching A", nodeHits)
+                       + Fdp.Core.WorldReferenceWalker.Report("[POC3-WALK] PRESENTATION objects reaching S", presHits);
+            Console.WriteLine(report + $"[POC3-WALK] walked in {sw.Elapsed.TotalSeconds:F1} s");
+            var outPath = Environment.GetEnvironmentVariable("HROT_POC3_WALK_OUT");
+            if (!string.IsNullOrEmpty(outPath)) System.IO.File.WriteAllText(outPath, report);
+            if (mode == "exit") Environment.Exit(0);
+        }
+
+        private bool TwoWorldsStep()
+        {
+            bool want = _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview;
+            if (want && _simWorld == null) EngageTwoWorlds();
+            else if (!want && _simWorld != null) DisengageTwoWorlds();
+            return _simWorld != null;
+        }
+
+        private void EngageTwoWorlds()
+        {
+            var a = _world!;
+            Fdp.ModuleHost.ThreadedKernelGate.MainAdoptLock();   // this frame did its world work unlocked (the gate was idle at its start)
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            _twSimMap = a.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>() ? a.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>() : null;
+            var s = a.CloneForSimulation();
+            // the map the simulation keeps mutating stays S's (systems captured it); A reads its own, rebuilt from A's NetworkIdentity rows
+            _twSingletonExcept = default;
+            _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Fdp.Toolkit.Replication.Services.NetworkEntityMap>.ID);
+            _twPresMap = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            _twPresMap.RebuildFromWorld(a);
+            a.SetSingletonManaged(_twPresMap);
+            // the TABLE mask: a named mask of the A-1 masks file, or every type
+            string? maskPath = Environment.GetEnvironmentVariable("HROT_TWO_WORLDS_MASKS");
+            string maskName = Environment.GetEnvironmentVariable("HROT_TWO_WORLDS_MASK") is { Length: > 0 } mn ? mn : "ui-no-inspector";
+            var loaded = maskPath != null ? Fdp.ModuleHost.PublishProbe.LoadMask(maskPath, maskName) : null;
+            _twMaskAll = loaded == null;
+            _twTableMask = loaded?.Mask ?? a.GetSnapshotableMask(true);
+            // ⚠ SelectionState comes from S for now: the selection systems still run INSIDE the tick (on S) until P-3 moves them to the main thread;
+            //   then it leaves the mask and A keeps it by the "outside the mask" rule
+            _twTableMask.SetBit(Fdp.Core.ComponentType<Hrot.Map.Common.Components.SelectionState>.ID);
+            _twSelQuery = s.Query().With<Hrot.Map.Common.Components.SelectionState>().Build();
+            _simWorld = s;
+            Fdp.Core.WorldGuard.ArmSyncMask(_twTableMask, _twSingletonExcept);
+            _kernel!.RetargetLiveWorld(s);
+            Console.WriteLine($"[POC2] two worlds ENGAGED in {sw.Elapsed.TotalMilliseconds:F0} ms — S cloned from A ({_twPresMap.Entries.Count} networked entities); table mask "
+                + (_twMaskAll ? "ALL types" : $"'{maskName}' ({loaded!.Value.Types} types, {loaded.Value.Missing} not registered)")
+                + $"; lock whole tick: {Fdp.ModuleHost.ThreadedKernelGate.LockWholeTick}; guard: {Fdp.Core.WorldGuard.On}");
+            Fdp.ModuleHost.ThreadedKernelGate.Engaged = true;
+        }
+
+        private void DisengageTwoWorlds()
+        {
+            _kernelWorkerStop = true;
+            Fdp.ModuleHost.ThreadedKernelGate.MainReleaseForStop();   // the worker may be waiting for the lock this frame holds
+            _kernelWorker?.Join(5000);
+            Fdp.ModuleHost.ThreadedKernelGate.MainAdoptLock();
+            _kernelWorker = null; _kernelWorkerStop = false;
+            Fdp.ModuleHost.ThreadedKernelGate.Engaged = false;
+            Fdp.Core.WorldGuard.Disarm();
+            if (_gizmoBuffer != null) _gizmoBuffer.ReaderUsesPublished = false;
+            var a = _world!; var s = _simWorld!;
+            // A takes ALL of S once (the editor is single-world again), and the simulation's own NetworkEntityMap back
+            a.SyncPresentationFrom(s, a.GetSnapshotableMask(true), default);
+            if (_twSimMap != null) a.SetSingletonManaged(_twSimMap);
+            _kernel!.RetargetLiveWorld(a);
+            _simWorld = null;
+            Console.WriteLine($"[POC2] two worlds DISENGAGED — A took all of S; syncs {_twSyncN}, mean {(_twSyncN > 0 ? _twSyncSum / _twSyncN : 0):F2} ms, rows mean {(_twSyncN > 0 ? _twRowSum / _twSyncN : 0):F3} ms; guard hits {Fdp.Core.WorldGuard.DistinctHits}");
+            _twSyncSum = _twRowSum = 0; _twSyncN = 0;
+        }
+
+        /// <summary>POC 2 — the S→A sync of one tick (the caller holds the world lock).</summary>
+        private void SyncPresentationWorld()
+        {
+            if (Fdp.Core.AccessTrace.On) Fdp.Core.AccessTrace.Mute();   // ⭐ POC 3 — the WHOLE sync is the one legitimate crossing (the map rebuild and the event forward included)
+            try { SyncPresentationWorldCore(); } finally { if (Fdp.Core.AccessTrace.On) Fdp.Core.AccessTrace.Unmute(); }
+        }
+
+        private void SyncPresentationWorldCore()
+        {
+            var a = _world!; var s = _simWorld!;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            a.SyncPresentationFrom(s, _twTableMask, _twSingletonExcept);
+            double tables = sw.Elapsed.TotalMilliseconds;
+            int n = 0;
+            if (!_twMaskAll && _twSelQuery != null)
+                foreach (var e in _twSelQuery)
+                {
+                    if (!s.GetComponentRO<Hrot.Map.Common.Components.SelectionState>(e).IsSelected) continue;
+                    _twRows[n++] = e;
+                    if (n == _twRows.Length) break;
+                }
+            a.SyncRowsFrom(s, new ReadOnlySpan<Entity>(_twRows, 0, n));
+            _twPresMap!.RebuildFromWorld(a);
+            // events, both ways (§14.1 "logs and events forwarded"): what the UI published on A's bus since the last sync reaches S's systems after S's
+            // next swap (the baseline COMMAND path: a forwarded request, one tick late); what S made readable this tick becomes readable on A
+            var ab = a.Bus; var sbus = s.Bus;
+            ab.SwapBuffers();                                   // A: the UI's publishes → current
+            sbus.PublishCurrentOf(ab, addMissingStreams: true); // → S pending
+            ab.PublishCurrentOf(sbus, addMissingStreams: true); // S's readable events → A pending
+            ab.SwapBuffers();                                   // → A current, for the UI's readers
+            // ⭐ POC 4 F-2 ② — UI state the simulation reads rides A → S here, while no tick runs (§14.1 row 6)
+            if (Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Peek(a) is { } uiDebug)
+                Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(s).TakeRequestsFrom(uiDebug);
+            _twSyncSum += tables; _twRowSum += sw.Elapsed.TotalMilliseconds - tables; _twSyncN++;
+        }
+
+        private void EnsureKernelWorker()
+        {
+            if (_kernelWorker != null) return;
+            if (_canvas != null) Console.WriteLine("[X-4] map layers: " + string.Join(", ", _canvas.Layers.Select(x => x.GetType().Name)));
+            if (_gizmoBuffer != null) _gizmoBuffer.ReaderUsesPublished = true;
+            _kernelWorker = new System.Threading.Thread(KernelWorkerLoop) { IsBackground = true, Name = "HROT kernel (X-4)" };
+            _kernelWorker.Start();
+            Console.WriteLine("[X-4] the node frame runs on a worker thread (HROT_THREADED_KERNEL=1)");
+        }
+
+        private void KernelWorkerLoop()
+        {
+            if (_simWorld != null) Fdp.Core.WorldGuard.Arm(_simWorld, _world!, Environment.CurrentManagedThreadId);   // ⭐ POC 2
+            var tickWatch = new System.Diagnostics.Stopwatch();
+            double tickSum = 0; long tickN = 0, lastReport = Environment.TickCount64;
+            while (!_kernelWorkerStop)
+            {
+                Fdp.ModuleHost.ThreadedKernelGate.WorkerYield();
+                float dt;
+                lock (_workerDtLock)
+                {
+                    dt = (float)System.Math.Min(_workerPendingDt, 0.25);
+                    _workerPendingDt = _workerPendingDt - dt > 0.25 ? 0 : _workerPendingDt - dt;   // never more than one quarter second behind
+                }
+                if (dt <= 0f) { System.Threading.Thread.Sleep(1); continue; }
+                if (_simWorld != null && !Fdp.ModuleHost.ThreadedKernelGate.LockWholeTick)
+                {   // ⭐ POC 2 — the tick runs on S beside the drawing thread; the lock is taken for the S→A sync only
+                    tickWatch.Restart();
+                    try
+                    {
+                        if (_gizmoBuffer != null) Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(_gizmoBuffer, GizmoFeedAddress);
+                        _gizmoBuffer?.EndFrame(dt);
+                        TickNodeFrame(dt);
+                        _gizmoBuffer?.PublishFrame();
+                        lock (Fdp.ModuleHost.ThreadedKernelGate.WorldLock) SyncPresentationWorld();
+                    }
+                    catch (Exception ex)
+                    {
+                        if (System.Threading.Interlocked.Increment(ref _kernelWorkerFaults) <= 20) Console.WriteLine("[X-4] worker fault: " + ex);
+                    }
+                    tickSum += tickWatch.Elapsed.TotalMilliseconds; tickN++;
+                    Fdp.ModuleHost.ThreadedKernelGate.Ticks++;
+                    goto report;
+                }
+                lock (Fdp.ModuleHost.ThreadedKernelGate.WorldLock)
+                {
+                    tickWatch.Restart();
+                    try
+                    {
+                        if (_gizmoBuffer != null)
+                            Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(_gizmoBuffer, GizmoFeedAddress);
+                        _gizmoBuffer?.EndFrame(dt);
+                        TickNodeFrame(dt);
+                        if (_simWorld != null) SyncPresentationWorld();   // ⭐ POC 2, the whole tick under the lock (HROT_TWO_WORLDS_LOCK_TICK=1)
+                        else Fdp.ModuleHost.PublishProbe.AfterFrame(_world);
+                        _gizmoBuffer?.PublishFrame();
+                    }
+                    catch (Exception ex)
+                    {
+                        if (System.Threading.Interlocked.Increment(ref _kernelWorkerFaults) <= 20) Console.WriteLine("[X-4] worker fault: " + ex);
+                    }
+                    tickSum += tickWatch.Elapsed.TotalMilliseconds; tickN++;
+                    Fdp.ModuleHost.ThreadedKernelGate.Ticks++;
+                }
+                report:
+                if (Environment.TickCount64 - lastReport > 5000 && tickN > 0)
+                {
+                    if (_simWorld != null && _twSyncN > 0)
+                        Console.WriteLine($"[POC2] syncs {_twSyncN}: tables mean {_twSyncSum / _twSyncN:F2} ms, rows+map mean {_twRowSum / _twSyncN:F3} ms · guard hits {Fdp.Core.WorldGuard.DistinctHits}");
+                    var g = Fdp.ModuleHost.ThreadedKernelGate.WorldFrames; var m = Fdp.ModuleHost.ThreadedKernelGate.MapOnlyFrames;
+                    var f = Fdp.ModuleHost.ThreadedKernelGate.TakeFrameStats();
+                    Console.WriteLine($"[X-4] {tickN} ticks, node frame mean {tickSum / tickN:F1} ms · drawing frames: {g} with the world, {m} map-only (cumulative) · yields {Fdp.ModuleHost.ThreadedKernelGate.YieldWaits} · faults {_kernelWorkerFaults}");
+                    Console.WriteLine($"[X-4F] world frames {f.WN} mean {f.WMean:F1} p95 {f.WP95:F1} ms · map-only frames {f.MN} mean {f.MMean:F1} p95 {f.MP95:F1} ms");
+                    tickSum = 0; tickN = 0; lastReport = Environment.TickCount64;
+                }
+            }
+        }
+
         public void Update(float deltaTime)
         {
-            _runTo?.Tick();   // ⭐ CE-4316 — Run to …: one ACK-gated step per frame until reached
+            // ⭐ EXPERIMENT (threaded kernel X-4) — HROT_THREADED_KERNEL=1: the node frame runs on a worker (KernelWorkerLoop); this frame does the
+            //   world work only when the drawing thread holds the world (ThreadedKernelGate); otherwise it moves the camera and returns.
+            bool threaded = Fdp.ModuleHost.ThreadedKernelGate.Enabled && _node != null && !_headless;
+            if (threaded && Fdp.ModuleHost.ThreadedKernelGate.TwoWorlds) threaded = TwoWorldsStep();   // ⭐ POC 2 — only while a preview runs
+            if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds && (Fdp.ModuleHost.ThreadedKernelGate.ComposedSingleThread || _simWorld == null)) threaded = false;   // ⭐ POC 3 single-threaded
+            if (threaded)
+            {
+                if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds && !Fdp.ModuleHost.ThreadedKernelGate.Engaged)
+                {   // ⭐ POC 3 — the node frame moves to the worker for good: from now on the drawing thread takes the world lock each frame
+                    Fdp.ModuleHost.ThreadedKernelGate.MainAdoptLock();
+                    Fdp.ModuleHost.ThreadedKernelGate.Engaged = true;
+                }
+                EnsureKernelWorker();
+                lock (_workerDtLock) _workerPendingDt += deltaTime;
+                if (!Fdp.ModuleHost.ThreadedKernelGate.MainHasWorld) { _canvas?.Camera.Update(deltaTime); return; }
+                if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds) RunPresentationStep(deltaTime);   // ⭐ POC 3 — the UI's own systems, on A, holding the world
+            }
+            else
+            _runTo?.Tick();   // ⭐ CE-4316 — Run to …: one ACK-gated step per frame until reached   (⚠ X-4 shortcut: not in threaded mode — its turbo step ticks the node frame here)
             // ⭐⭐⭐ MX-006 — THE FRAME BOUNDARY for the panel snapshot. FIRST LINE OF THE FRAME.
             //   📄 DESIGN_UI_Observability_Snapshot.md §"Perf & correctness".
             //   🔴 Why: the snapshot is latest-wins, so a panel whose window the user CLOSED kept
@@ -2739,24 +3101,24 @@ namespace Hrot.Editor
             //    then read.
             // ⚠ The cost, stated: a reader sees a capture one frame old. ⛔ The alternative — reading a
             //    half-built frame — is worse, and reading an EMPTY one is what we had.
-            _debugApiJobQueue?.DrainAll();
+            using (Fdp.Core.AccessTrace.Scope("api-job: debug-API jobs (HTTP routes run on the main thread)", Fdp.Core.TraceContext.Other)) _debugApiJobQueue?.DrainAll();   // ⭐ A-1
 
             // ⭐ CE-4038 (DESIGN_Film_Director §1a) — THE new edge: the director's frame, after the routes drained (a /director/play lands
             //   this frame) and before the map's update (its held shot and its capture are served there). ⭐⭐ At most ONE step per frame
             //   (§0, R-3038) — the runner asserts it.
-            _directorPack?.Tick();
+            using (Fdp.Core.AccessTrace.Scope("editor: film director")) _directorPack?.Tick();   // ⭐ A-1
             // ⭐ CE-4042 — --verify: start the run once the editor is Idle; leave with the verdict when it is done
             if (_directorPack != null)
                 _commandLineVerify?.Tick(_directorPack.Runner, _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.Idle, _requestAppExit);
 
-            DrainStagingRemap();
+            using (Fdp.Core.AccessTrace.Scope("editor: staging remap drain")) DrainStagingRemap();   // ⭐ A-1
 
             Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.ClearCaptured();
 
             // Process input pipeline BEFORE kernel update so authored tools
             // (CreationTool, ObstaclePlacementTool, etc.) receive mouse events this frame.
-            _canvas?.Update(deltaTime);
-            _selectionSystem?.Tick(deltaTime);
+            using (Fdp.Core.AccessTrace.Scope("editor: map canvas Update (camera, input, layers)")) _canvas?.Update(deltaTime);   // ⭐ A-1
+            using (Fdp.Core.AccessTrace.Scope("editor: selection system")) _selectionSystem?.Tick(deltaTime);   // ⭐ A-1
             // Update camera viewport so MapCullingModule knows what area is on-screen.
             if (_camera != null)
             {
@@ -2785,21 +3147,29 @@ namespace Hrot.Editor
             //   ⚠ The comment above explains why EndFrame sits HERE rather than at the end of the
             //      frame; the publish inherits that placement, so it reports the primitives the
             //      PREVIOUS Update produced — which is exactly what is on screen right now.
-            if (_gizmoBuffer != null)
+            using var traceGizmoFeed = Fdp.Core.AccessTrace.Scope("editor: gizmo feed publish + EndFrame");   // ⭐ A-1
+            if (!threaded && _gizmoBuffer != null)   // ⭐ X-4: in threaded mode the worker publishes and ends the gizmo frame
                 Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(
                     _gizmoBuffer,
                     // ⭐ BP-485 — the ADDRESS names the host; the KIND stays shared, so a
                     //   cross-host conformance diff can still group every host's map feed.
                     GizmoFeedAddress);   // ⭐ CE-4432 — built once (was a new string per frame)
 
-            _gizmoBuffer?.EndFrame(deltaTime);
+            if (!threaded) _gizmoBuffer?.EndFrame(deltaTime);
+            traceGizmoFeed.Dispose();   // ⭐ A-1 — a using var cannot end early (a second Dispose at the method end is harmless): the node frame is not the gizmo feed
 
             // ⭐⭐⭐ CE-1446 B2 (decision C) — THE SHARED FRAME, `HrotNodeContext.Tick`: the slave's translator and the slave tick, then the kernel, then the node's live timeline step, then
             //   the orchestration-bus swap — the order every other ECS host runs (the slave used to be ticked INSIDE the kernel as OrchestrationLogicPack, and the swap and timeline step
             //   were spelled out here). The editor's own per-frame work rides the two seams the frame offers. ⚠ The kernel's world-bus swap is its own (Kernel.Update).
-            TickNodeFrame(deltaTime);   // ⭐ CE-4316 — the node frame, extracted so Run to …'s turbo loop runs the SAME one (EditorSubsystem.TurboStep)
-            _editorLogic?.Update();
-            _orchestratorCore?.ScenarioPanel.Update(deltaTime);
+            if (!threaded)
+            {
+                TickNodeFrame(deltaTime);   // ⭐ CE-4316 — the node frame, extracted so Run to …'s turbo loop runs the SAME one (EditorSubsystem.TurboStep)
+                if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds && _simWorld != null) { SyncPresentationWorld(); RunPresentationStep(deltaTime); }   // ⭐ POC 3 — A takes S, then the UI's own systems run on A (single-threaded)
+                if (Fdp.ModuleHost.PublishProbe.Enabled && !_publishProbeExtras) RegisterPublishProbeExtras();   // ⭐ A-3
+                Fdp.ModuleHost.PublishProbe.AfterFrame(_world);   // ⭐ EXPERIMENT (threaded kernel X-1) — opt-in HROT_PUBLISH_PROBE=1
+            }
+            using (Fdp.Core.AccessTrace.Scope("editor: editor logic Update (loads, SoftClear, scenario)")) _editorLogic?.Update();   // ⭐ A-1
+            using (Fdp.Core.AccessTrace.Scope("editor: orchestrator ScenarioPanel.Update")) _orchestratorCore?.ScenarioPanel.Update(deltaTime);   // ⭐ A-1
 
             // ⭐⭐⭐ CE-051 — the drain MOVED to the shared ToolActivationDrainSystem /
             //    SelectEntitySystem / CenterOnEntitySystem, registered by ScenarioEditorModule (:1273).
@@ -2807,10 +3177,10 @@ namespace Hrot.Editor
             // ⭐ The rename half is the one piece that could not become a system — it needs ImGui — so it
             //   is the shared EntityRenameModal, drained just below and drawn in DrawUI.
             if (!_headless && _world != null)
-                _entityRenameModal?.Drain(_world);
+                using (Fdp.Core.AccessTrace.Scope("editor: entity rename modal drain")) _entityRenameModal?.Drain(_world);   // ⭐ A-1
 
             // Poll mission ACKs so async CommitMissionAsync tasks can resolve.
-            _missionService?.PollAcks();
+            using (Fdp.Core.AccessTrace.Scope("editor: mission service PollAcks")) _missionService?.PollAcks();   // ⭐ A-1
 
             // Feed the FDP event browser each frame.
             if (!_headless && _world != null)
@@ -2826,30 +3196,29 @@ namespace Hrot.Editor
         /// </summary>
         private void TickNodeFrame(float deltaTime)
         {
+            using var traceNode = Fdp.Core.AccessTrace.Scope("node: shared frame (slave, bus swap, timeline)", Fdp.Core.TraceContext.Tick);   // ⭐ A-1 — the whole node frame is the TICK context
             if (_node != null)
             {
                 _node.Tick(
-                    beforeKernel: () => PreKernelUpdateHook?.Invoke(deltaTime),
+                    beforeKernel: () => { using (Fdp.Core.AccessTrace.Scope("node: beforeKernel hook")) PreKernelUpdateHook?.Invoke(deltaTime); },
                     afterKernel: () =>
                     {
-                        PostKernelUpdateHook?.Invoke();
+                        using (Fdp.Core.AccessTrace.Scope("node: afterKernel PostKernelUpdateHook")) PostKernelUpdateHook?.Invoke();
 
                         // Drain AI hot-reload callbacks safely on the main thread: any BTreeInterpreter pointer swaps queued by the background ALC worker are applied here, between kernel
                         // ticks, so no active simulation tick can observe a half-swapped pointer.
-                        _aiCoordinator?.DrainPendingCallbacks();
+                        using (Fdp.Core.AccessTrace.Scope("node: afterKernel hot-reload drain")) _aiCoordinator?.DrainPendingCallbacks();   // ⭐ A-1
                         // ⭐ CE-1317 (BV-48) — disarm the traces of units no Brain tab has drawn for ~1 s
-                        if (_world != null) Hrot.Common.Diagnostics.Gizmos.BrainObservation.Current?.Tick(_world);
-                        // ⭐ CE-1329 (BV-70) — the per-unit debug settings: loaded with a scenario, saved when they change
-                        if (_world != null) _debugSettingsMemory.Tick(_world, _editorLogic?.LoadedScenarioName);
+                        if (!Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds) TickDebugSettingsUi();   // ⭐ POC 4 F-2 ② — mode 3: the presentation step runs it (main thread, A)
                         // AIE-026: tick the regeneration scheduler — flushes debounced dirty saves (BTree/HSM emit-on-dirty). Safe in headless mode.
-                        _regenerationScheduler?.Tick();
+                        using (Fdp.Core.AccessTrace.Scope("node: afterKernel RegenerationScheduler")) _regenerationScheduler?.Tick();
                     });
             }
 
             // The cluster orchestrator's own order (Q86): it reads the orchestration bus AFTER the frame swapped it, so intents published by the UI this frame are readable by it.
-            _orchestratorCore?.Tick();                 // ⭐ Q86 — the cluster orchestrator's own order
-            _orchestratorCore?.UiCache.Update();
-            _timeTransport?.Update();                  // ⭐ CE-3329 row 21 — the one facade reads what the cache reads
+            using (Fdp.Core.AccessTrace.Scope("node: orchestrator core Tick")) _orchestratorCore?.Tick();                 // ⭐ Q86 — the cluster orchestrator's own order
+            using (Fdp.Core.AccessTrace.Scope("node: ClusterUiCache.Update")) _orchestratorCore?.UiCache.Update();
+            using (Fdp.Core.AccessTrace.Scope("node: time transport Update")) _timeTransport?.Update();                  // ⭐ CE-3329 row 21 — the one facade reads what the cache reads
         }
 
         /// <summary>
@@ -2874,6 +3243,10 @@ namespace Hrot.Editor
         public void DrawWorld()
         {
             if (_headless) return;
+            if (_kernelWorker != null) _gizmoBuffer?.LeasePublished();   // ⭐ X-4 — this frame draws the worker's latest finished gizmo frame
+            // ⭐ X-4 (finding X4-1) — a frame WITHOUT the world draws only the layers that read no world: the gizmo primitives, the grid, the 2-D
+            //   terrain (its retained geometry). Effects, projectiles, the cursor and the 3-D bodies query World A in Draw ⇒ drawn on world frames only.
+            if (_canvas != null) _canvas.DrawFilter = _kernelWorker != null && !Fdp.ModuleHost.ThreadedKernelGate.MainHasWorld ? MapOnlyLayer : null;
             _canvas?.Draw();
         }
 
@@ -5542,6 +5915,7 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void Shutdown()
         {
+            _kernelWorkerStop = true; _kernelWorker?.Join(2000);   // ⭐ X-4
             _bootstrapper?.DisposeResources();   // ⭐ CE-1446 B2 — the node's one-per-world resources (the trajectory pool) are the node's to dispose
             // ⭐ CE-1329 — the scenario's per-unit debug settings, once more on exit (they are saved on change already)
             if (_world != null) _debugSettingsMemory.Save(Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(_world));

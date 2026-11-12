@@ -385,7 +385,7 @@ namespace Hrot.UI.Common.Audio
         private void Voices(EntityRepository w, Entity own, in Ear ear, double now)
         {
             if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Civilians.Utterance>()) { _said.Clear(); _saidKnown = false; return; }
-            double sim = w.HasSingletonUnmanaged<GlobalTime>() ? w.GetSingletonUnmanaged<GlobalTime>().TotalTime : 0.0;
+            double sim = w.HasSingletonUnmanaged<GlobalTime>() ? w.GetSingletonUnmanagedRO<GlobalTime>().TotalTime : 0.0;
             var tkb = _tkb();
             var seen = new HashSet<Entity>();
             foreach (var e in w.Query().With<Fdp.Toolkit.Civilians.Utterance>().Build())

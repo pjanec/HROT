@@ -101,7 +101,8 @@ class Session:
                    HROT_HIDDEN_WINDOW="1", HROT_DEBUG_API_PORT=str(self.port))
         log = open(os.path.join(self.out, f"editor-{self.gen}.log"), "w")
         self.proc = subprocess.Popen(
-            ["xvfb-run", "-a", "--server-args=-screen 0 1280x800x24", "dotnet", dll, "--mode", "editor", "--no-wait", "--target-fps", "0"],
+            (["dotnet"] if os.name == "nt" else ["xvfb-run", "-a", "--server-args=-screen 0 1280x800x24", "dotnet"])   # Windows: a hidden real window, no Xvfb
+            + [dll, "--mode", "editor", "--no-wait", "--target-fps", "0"],
             stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env, start_new_session=True)
         for _ in range(180):
             r = self.get("/status", timeout=5)
@@ -119,8 +120,9 @@ class Session:
         if self.proc and self.proc.poll() is None:
             try:
                 os.killpg(os.getpgid(self.proc.pid), signal.SIGKILL)
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception:  # noqa: BLE001 — Windows has no process groups: kill the process itself
+                try: self.proc.kill()
+                except Exception: pass  # noqa: BLE001
 
     def save_steps(self):
         json.dump(self.steps, open(os.path.join(self.out, f"session{self.tag}.json"), "w"), indent=1)
@@ -187,8 +189,9 @@ def recover(s, a, why, ids):
     print(f"!! editor died during {s.last_phase()} ({why}) — restarting (trace-{s.gen + 1}.json)", flush=True)
     try:
         os.killpg(os.getpgid(s.proc.pid), signal.SIGKILL)
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception:  # noqa: BLE001 — Windows
+        try: s.proc.kill()
+        except Exception: pass  # noqa: BLE001
     time.sleep(3)
     if not s.start(s.dll):
         raise SystemExit("editor would not restart")

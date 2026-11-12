@@ -144,7 +144,7 @@ public sealed class ReplayTimelinePanel : IReplayTransport
         wallClockTicks = meta.WallClockTicks;
         relativeWallSeconds = (meta.WallClockTicks - firstFrameWallTicks) / (double)TimeSpan.TicksPerSecond;
         if (ActiveContext?.SandboxRepo?.HasSingletonUnmanaged<GlobalTime>() ?? false)
-            simSeconds = ActiveContext.SandboxRepo.GetSingletonUnmanaged<GlobalTime>().TotalTime;
+            simSeconds = ActiveContext.SandboxRepo.GetSingletonUnmanagedRO<GlobalTime>().TotalTime;
     }
 
     /// <summary>A recording is loaded on the selected node.</summary>

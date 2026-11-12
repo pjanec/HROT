@@ -32,7 +32,7 @@ namespace Fdp.Toolkit.Combat.Systems
         {
             bool has = repo.HasSingletonUnmanaged<ShotTraces>();
             if (!has && log.Count == 0) return;
-            var t = has ? repo.GetSingletonUnmanaged<ShotTraces>() : default;   // a COPY — written back with Set below
+            var t = has ? repo.GetSingletonUnmanagedRO<ShotTraces>() : default;   // a COPY — written back with Set below
             bool changed = false;
             var slots = t.SlotsRW();
 
@@ -78,7 +78,7 @@ namespace Fdp.Toolkit.Combat.Systems
         {
             bool has = repo.HasSingletonUnmanaged<DetonationTraces>();
             if (!has && log.Count == 0) return;
-            var t = has ? repo.GetSingletonUnmanaged<DetonationTraces>() : default;
+            var t = has ? repo.GetSingletonUnmanagedRO<DetonationTraces>() : default;
             if (t.NextSeq == log.Count) return;
             var slots = t.SlotsRW();
 

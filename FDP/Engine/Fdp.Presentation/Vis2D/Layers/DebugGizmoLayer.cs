@@ -41,7 +41,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
         /// <summary>The buffer's frame as this pass draws it: all of it on screen, its film primitives in a film's pass.</summary>
         private ReadOnlySpan<DebugPrimitive> FrameFor(in RenderContext ctx)
         {
-            var all = _buffer!.GetFrame();
+            var all = _buffer!.ReaderFrame();   // ⭐ EXPERIMENT (X-4) — the published copy when the kernel ticks on another thread
             if (!ctx.Film) return all;
             if (_filmFrame.Length < all.Length) _filmFrame = new DebugPrimitive[all.Length];
             var film = FilmLayers;
@@ -231,7 +231,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
             else if (live != null)
             {
                 long tc = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4388 — the cards alone
-                Cards.Draw(_renderer.CardPrimitives, CardAnchor2DReused(live, _buffer.GetFrame()));   // ⭐ CE-4432 — 0 B per frame
+                Cards.Draw(_renderer.CardPrimitives, CardAnchor2DReused(live, _buffer.ReaderFrame()));   // ⭐ CE-4432 — 0 B per frame
                 Fdp.Presentation.WindowManager.WindowTimings.Record("cards", tc);
                 LastCardsDrawn = Cards.CardsDrawn;
             }
@@ -332,7 +332,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
             bool keyboardCaptured = ImGuiNET.ImGui.GetIO().WantCaptureKeyboard || !Fdp.Presentation.Input.KeyboardFocus.MapHasKeyboard;
             if (live != null)
                 _innerTerminal.HandleInput(
-                    _buffer.GetFrame(), _buffer.InternMap, _camera, OnInteraction,
+                    _buffer.ReaderFrame(), _buffer.InternMap, _camera, OnInteraction,   // ⭐ POC 2 P-6 (A-4 ⑥) — the published frame on the drawing thread, never the worker's live buffer
                     screenToWorld: (screen, forDrag) => live.ScreenToWorld3D(screen, forDrag),
                     zoomAt: live.ZoomAt,
                     nextTypedKey: _nextTypedKey,
@@ -341,7 +341,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
                     rayOnlyAnchor: live is Fdp.Toolkit.Vis3D.MapCamera3D cam3D ? RayOnlyOf(cam3D) : null);
             else
                 _innerTerminal.HandleInput(
-                    _buffer.GetFrame(),
+                    _buffer.ReaderFrame(),   // ⭐ POC 2 P-6 (A-4 ⑥) — the published frame on the drawing thread, never the worker's live buffer
                     _buffer.InternMap,
                     _camera,
                     OnInteraction,
@@ -476,7 +476,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
             //     construct this with their repository (and each one ALREADY passed a live world to the
             //     ctor overload deleted in DESIGN_Gizmo_Renderer_Seam.md §6 R3, which stored it nowhere).
             var anchorId = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
-                _buffer.GetFrame(), worldPos, zoom);
+                _buffer.ReaderFrame(), worldPos, zoom);   // ⭐ POC 2 P-6 (A-4 ⑥) — the published frame on the drawing thread, never the worker's live buffer
             if (anchorId is not { } id) return null;
 
             var entity = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveAnchorId(   // ⭐ CE-4200: the one 64-bit-anchor rule
@@ -562,7 +562,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
         {
             if (_buffer == null) return;
 
-            var frame   = _buffer.GetFrame();
+            var frame   = _buffer.ReaderFrame();   // ⭐ POC 2 P-6 (A-4 ⑥) — the published frame on the drawing thread, never the worker's live buffer
             int boxes   = 0;
             float best  = float.MaxValue;
             long  bestId = 0;

@@ -135,7 +135,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         // ⭐ CE-1033 S4 — the moving parts run on SIMULATION time (R-143); a host with no sim clock falls back to the frame time.
         _wallFallback += ctx.DeltaTime > 0f && float.IsFinite(ctx.DeltaTime) ? ctx.DeltaTime : 0f;
         _frameClock += ctx.DeltaTime > 0f && float.IsFinite(ctx.DeltaTime) ? ctx.DeltaTime : 0.0;   // ⭐ CE-1353 — the rotors' smooth clock
-        double simTime = world.HasSingletonUnmanaged<GlobalTime>() ? world.GetSingletonUnmanaged<GlobalTime>().TotalTime : _wallFallback;
+        double simTime = world.HasSingletonUnmanaged<GlobalTime>() ? world.GetSingletonUnmanagedRO<GlobalTime>().TotalTime : _wallFallback;
         _drawn.Clear();
         bool hasSelection = world.IsComponentTypeRegistered<Hrot.Map.Common.Components.SelectionState>();
         bool hasNet = world.IsComponentTypeRegistered<NetworkIdentity>();

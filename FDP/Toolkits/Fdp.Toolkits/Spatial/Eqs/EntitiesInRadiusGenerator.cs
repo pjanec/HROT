@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             ref readonly var tf = ref repo.GetComponentRO<SimTransform>(self);
             var obsPos = new Vector2(tf.Position.X, tf.Position.Y);
 
-            ref readonly var gridData = ref repo.GetSingletonUnmanaged<SpatialGridData>();
+            ref readonly var gridData = ref repo.GetSingletonUnmanagedRO<SpatialGridData>();
 
             // Intermediate stackalloc buffer: (Entity, Vector2) pairs from the grid.
             Span<(Entity entity, Vector2 pos)> neighbors =

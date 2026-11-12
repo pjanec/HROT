@@ -744,6 +744,7 @@ public class WindowManager
 
     public void Render()
     {
+        using var traceChrome = Fdp.Core.AccessTrace.Scope("windowmanager:chrome (menus, toolbar, status bar, dialogs, overlays)", Fdp.Core.TraceContext.Presentation);   // ⭐ A-1 — whatever is not a window below
         if (Cinema)
         {
             foreach (var overlay in _frameOverlays.ToList())
@@ -854,6 +855,8 @@ public class WindowManager
             //    ⭐ A VOLATILE window is a dialog spawned on demand (a file picker, a confirm) and still draws.
             if (IsStartShowing && !win.IsVolatile && win.OwningPerspective != StartPerspectiveName) continue;
 
+            if (Fdp.Core.AccessTrace.On) Fdp.Core.AccessTrace.Declare("window:" + win.Id);   // ⭐ A-1 — every window the editor offers, entered or not
+            using var traceWindow = Fdp.Core.AccessTrace.On && win.IsOpen ? Fdp.Core.AccessTrace.Scope("window:" + win.Id, Fdp.Core.TraceContext.Presentation) : default;   // ⭐ A-1 — one reader per OPEN window
             long t0 = WindowTimings.Start();   // ⭐ W-P1 — HROT_FRAME_STATS: the time of THIS window's whole ImGui build
             win.Render(CurrentPerspective, _atlas);
             WindowTimings.Record(win.Id, t0);

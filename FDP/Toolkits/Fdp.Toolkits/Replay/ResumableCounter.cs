@@ -48,7 +48,7 @@ namespace Fdp.Toolkit.Replay
             {
                 if (deltaTime <= 0f) return false;   // ⛔ and the mirror waits too: it would overwrite the carried copy
                 _resumePending = false;
-                if (repo.HasSingletonUnmanaged<TMark>() && _read(repo.GetSingletonUnmanaged<TMark>()) is var mark && mark.At <= SimTime(repo) + 1e-6)
+                if (repo.HasSingletonUnmanaged<TMark>() && _read(repo.GetSingletonUnmanagedRO<TMark>()) is var mark && mark.At <= SimTime(repo) + 1e-6)
                 {
                     _resumeAt(Math.Max(mark.Last, floor));
                     Resumes++;
@@ -56,11 +56,11 @@ namespace Fdp.Toolkit.Replay
             }
             // the world's copy of the counter, so a checkpoint / a recording carries it
             int last = _last();
-            if (!repo.HasSingletonUnmanaged<TMark>() || _read(repo.GetSingletonUnmanaged<TMark>()).Last != last)
+            if (!repo.HasSingletonUnmanaged<TMark>() || _read(repo.GetSingletonUnmanagedRO<TMark>()).Last != last)
                 repo.SetSingletonUnmanaged(_make(last, SimTime(repo)));
             return true;
         }
 
-        private static double SimTime(EntityRepository repo) => repo.HasSingletonUnmanaged<GlobalTime>() ? repo.GetSingletonUnmanaged<GlobalTime>().TotalTime : 0d;
+        private static double SimTime(EntityRepository repo) => repo.HasSingletonUnmanaged<GlobalTime>() ? repo.GetSingletonUnmanagedRO<GlobalTime>().TotalTime : 0d;
     }
 }

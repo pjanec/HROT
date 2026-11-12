@@ -595,7 +595,7 @@ public sealed class DataBreakpointManager
         // ⭐⭐ MX-009 — record the HOLDER. The only write to this field.
         _pausedBy = updated.Id;
         _pausedTick = _liveRepo.HasSingletonUnmanaged<GlobalTime>()
-            ? _liveRepo.GetSingletonUnmanaged<GlobalTime>().TotalWallTicks
+            ? _liveRepo.GetSingletonUnmanagedRO<GlobalTime>().TotalWallTicks
             : (long)_preTickSnapshot.SimulationTick; // fallback: frame clock (not memory clock)
 
         // Notify subscribers.
@@ -820,7 +820,7 @@ public sealed class DataBreakpointManager
     /// </remarks>
     public bool IsClockHalted()
         => !_liveRepo.HasSingletonUnmanaged<GlobalTime>()
-           || _liveRepo.GetSingletonUnmanaged<GlobalTime>().DeltaTime <= 0f;
+           || _liveRepo.GetSingletonUnmanagedRO<GlobalTime>().DeltaTime <= 0f;
 
     // ⛔⛔⛔ W3 — `WriteFieldNow` IS GONE. 📄 DESIGN_Staged_Live_Write.md §1's run-state table and §6's
     //    W3 row; 📌 R-130, verbatim: "yellow is an indication of staged change. makes no sense if value

@@ -311,7 +311,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 //   TargetMemory.LastSeenTick after a branch was on a shifted count (H3: the units' memory differed from the straight run's).
                 //   Only a node that restored this frame from its own recording knows it (a listener's world clock is stale).
                 bool fromRecording = _controller.IsRestoringReplay && _world is { } w && w.HasSingletonUnmanaged<GlobalTime>();
-                if (fromRecording) historicalTime.FrameNumber = _world!.GetSingletonUnmanaged<GlobalTime>().FrameNumber;
+                if (fromRecording) historicalTime.FrameNumber = _world!.GetSingletonUnmanagedRO<GlobalTime>().FrameNumber;
                 // ⭐ D18 (R-3047) — the branch keeps its history: this node's recording up to the frame on screen is copied into
                 //   the new exercise first (null on a listener — its branch starts empty). Read BEFORE the teardown closes it.
                 var history = _controller.CurrentReplayBranch;

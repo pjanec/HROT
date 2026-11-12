@@ -26,6 +26,7 @@ namespace Fdp.Tests.Serialization
         private static readonly Dictionary<string, (int Count, string Why)> Exempt = new()
         {
             ["FDP/Engine/Fdp.Core/Serialization/FdpJsonOptionsRegistry.cs"] = (3, "the registry itself: DefaultRelaxed, Indented and Derive"),
+            ["Hrot/Tools/Hrot.Tools.ReachAnalysis/Program.cs"] = (2, "A-2 analysis instrument outside the solution, references Roslyn only (no Fdp.Core): reads roots.json, writes reach.json"),
             // External libraries under FDP/ExtDeps carry no Fdp.Core reference by design.
             ["FDP/ExtDeps/FastBTree/src/Fbt.Compiler/BTreeSchemaExporter.cs"] = (1, "FastBTree is an external library with no Fdp.Core reference"),
             ["FDP/ExtDeps/FastBTree/src/Fbt.Kernel/Serialization/TreeCompiler.cs"] = (1, "FastBTree is an external library with no Fdp.Core reference"),

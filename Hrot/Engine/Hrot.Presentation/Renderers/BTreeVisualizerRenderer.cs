@@ -82,7 +82,7 @@ public sealed class BTreeVisualizerRenderer
 
         // Resolve global simulation time for elapsed-time labels on Wait/Cooldown nodes.
         float globalTime = session is RepositoryAdapter ra
-            ? (float)ra.Repo.GetSingletonUnmanaged<GlobalTime>().TotalTime
+            ? (float)ra.Repo.GetSingletonUnmanagedRO<GlobalTime>().TotalTime
             : 0f;
 
         DrawNode(blob, btState, 0, globalTime);

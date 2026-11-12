@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Threading;
 
 namespace Fdp.Toolkit.Utility
 {
@@ -75,7 +76,8 @@ namespace Fdp.Toolkit.Utility
         /// The last registry built by <see cref="RegisterAll"/>.
         /// Initialized to an empty registry so callers never receive <c>null</c>.
         /// </summary>
-        public static UtilityRegistry Shared => _shared ??= new UtilityRegistry();
+        // ⭐ POC 2 / P-2 (A-2 finding) — first-use creation is an atomic publish: two threads can no longer each create (and hand out) their own registry.
+        public static UtilityRegistry Shared => _shared ?? Interlocked.CompareExchange(ref _shared, new UtilityRegistry(), null) ?? _shared!;
 
         /// <summary>
         /// The caller's cached scorer over <see cref="Shared"/>, rebuilt when <see cref="Shared"/> has been REPLACED since it was
