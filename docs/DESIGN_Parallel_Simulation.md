@@ -359,3 +359,18 @@ systems run in parallel per SQUAD, not per man.
 🔒 User, `2026-11-12`: *"we do not want a timing taking 12% so whatever helps"* — **R-4213** (supersedes R-4209's "sampled 1 in 16, on by
 default"): the census measured the SAMPLED per-query timer still at 11.9 % of BrainTick ⇒ `QueryTimings` is OFF by default in every host; the
 scale rig, the measurement scripts and `/diagnostics/queries?enable=1` turn it on when someone measures.
+
+## 19. Windows scheduling: power throttling, hybrid cores, console pauses *(user, `2026-11-12`: "what about windows frontend / backend throttling and intel performance cores vs e-cores … i do not want headless mode running in console to be any slower")*
+
+Measured: graph + grep for `PowerThrottling|SetProcessInformation|timeBeginPeriod|ThreadPriority|PriorityClass|EcoQoS|CpuSet|EfficiencyClass|ProcessorAffinity`
+over `FDP` and `Hrot` ⇒ ONE hit (`OverlayCompileTracker.cs:36`, a BelowNormal compile thread). ⇒ ⛔ nothing today opts out of Windows' power
+throttling, sets the simulation's thread priorities, or knows performance vs efficiency cores. ⚠ Every Windows measurement so far ran with
+HIDDEN windows — a process Windows treats as background may already have been throttled (EcoQoS), so those numbers may be pessimistic.
+
+| risk | what Windows does | ⭐ lean |
+|---|---|---|
+| background / hidden / console processes slowed | Windows 11 applies EcoQoS (power throttling: lower clocks, efficiency cores) to processes it deems background, and may ignore their timer-resolution requests | every HROT process opts OUT at start-up: `SetProcessInformation(ProcessPowerThrottling)` with `EXECUTION_SPEED` and `IGNORE_TIMER_RESOLUTION` off; per thread for the sim thread and the pool (`SetThreadInformation(ThreadPowerThrottling)`) |
+| `Sleep(1)` / waits pace the loop at 15.6 ms | the default timer resolution | `timeBeginPeriod(1)` while a simulation runs (honoured once the opt-out above is in place) |
+| background work delays frame work | equal thread priorities | the sim thread AboveNormal; the pool's FRAME lane Normal; its BACKGROUND lane (EQS, egress scan, recorder) BelowNormal |
+| ⭐ Intel hybrid (P- + E-cores) | `Environment.ProcessorCount` counts both; a batch on an E-core finishes later and the whole parallel step waits for it | size the frame lane to the PERFORMANCE cores (`GetSystemCpuSetInformation`, `EfficiencyClass`), let the background lane use the efficiency cores; keep adaptive batches (stragglers absorbed). ⚠ The user's machine is AMD (no E-cores) ⇒ this can be designed and unit-tested, measured only on an Intel hybrid machine |
+| ⭐ a console node FREEZES when someone clicks in its window | QuickEdit mode: a text selection blocks every write to the console ⇒ a thread that logs (a console line per step) stops, and the simulation with it | console hosts turn QuickEdit OFF at start-up (`SetConsoleMode`, clear `ENABLE_QUICK_EDIT_MODE`) |
