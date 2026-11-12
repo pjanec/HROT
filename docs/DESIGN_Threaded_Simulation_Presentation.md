@@ -353,7 +353,7 @@ simulation writes on the worker.
 ```mermaid
 flowchart TD
   Q[a singleton or side table the UI reads] --> R{who reads it on the MAIN thread?}
-  R -->|only gizmos - kernel systems, so the worker| W[no cross-thread read: nothing to do]
+  R -->|only gizmo PRODUCERS - kernel systems, so the worker - see 13.4| W[no cross-thread read today]
   R -->|panels, map layers, 3-D, menus| M{how does the simulation change it?}
   M -->|never after load, or swapped as a whole object| S[SHARE the reference]
   M -->|small value, every tick| C[COPY by value at the sync]
@@ -401,3 +401,19 @@ case found has a treatment, ⭐ four of which (share, lease, swap the inside, pe
 | ⚠ **not measured** | the cost of rebuilding `NetworkEntityMap` and copying the traffic lists per tick at 1 000 men |
 | ⚠ **not swept** | shared state held OUTSIDE the world — DI services and statics the UI and the simulation both hold (e.g. a service captured in a constructor); the TKB is one such, found through its singleton. ⛔ The next sweep |
 | ⚠ coverage | method: typed singleton reads in `Hrot.Presentation`, `Fdp.Presentation`, `Hrot/Editor`, `Hrot.Editor` + every type set as a singleton anywhere, matched by name in those folders + the world-keyed tables; ⛔ `check_index_coverage` is not in the CLI, so the list may miss a reader reached through a helper in another assembly |
+
+### 13.4 ⚠ Gizmos — presentation by intent, produced inside the tick today *(user, `2026-11-12`: "Aren't the gizmos part of the presentation layer? So the fact that they are handled by simulation is not exactly what we want.")*
+
+✔ The gizmo producers are kernel systems (`DataDrivenGizmoSystem`, `StatelessGizmoSystem` — `IEcsModuleSystem`), so 13.1's "share" for the navmesh,
+cover, EQS and spatial grid holds ONLY while they stay there. The split is designed: [gizmos-1](designs/gizmos-1/gizmo-input-focus-design.md) §1–§3 —
+every node's backend emits primitives, one "dumb terminal" draws any node's stream (perspective by `NodeId`), and the interactive tools' FSMs live on
+the backend in an ECS-agnostic core. ⛔ But in a threaded editor that puts every gizmo — and every interactive tool's response — at the TICK rate.
+
+| gizmo kind | ⭐ lean | why |
+|---|---|---|
+| **overlays of simulation state** — navmesh, cover, EQS, brain debug, traces, roads | stay producers on the worker; the map draws the latest published primitive frame at the frame rate (the experiment's triple buffer, X4-2) | their content changes only when the simulation ticks; a remote node's overlays arrive the same way |
+| **interactive tools and UI-state gizmos** — drag / rotate handles, vertex editors, placement ghost, selection / hover, measuring | move to the presentation side, run every frame against the UI's copy, write commands | they must answer the mouse at the frame rate; gizmos-1's interaction core is ECS-agnostic, so it can run there |
+
+⚠ If ALL gizmos moved to the main thread instead, their reads join 13.1: ⛔ the spatial grid is the same `_grid` rebuilt in place every tick
+(`SpatialHashSystem.cs:98,120`) ⇒ a torn read; the navmesh's tiles change (`INavmeshTileVersions`) — in place or by a new mesh is ⛔ not measured.
+⚠ Not done yet: the inventory of gizmos into the two kinds, and what producing them costs inside the tick.
