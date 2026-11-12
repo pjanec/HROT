@@ -20,6 +20,32 @@ namespace Fdp.Core
         /// <param name="mask">Optional mask to filter specific component types. If filtered, ignores includeTransient/excludeTypes options.</param>
         /// <param name="includeTransient">If true, includes transient components even if they are normally excluded. Ignored if mask is provided.</param>
         /// <param name="excludeTypes">Optional types to exclude. Ignored if mask is provided.</param>
+        /// <summary>
+        /// ⭐ POC 3 T-5 (the parallel-simulation experiment; POC 2 D-7: the off-frame egress's replica sync, 11.8 ms on the CGF's main thread) —
+        /// the per-table copies of <see cref="SyncFrom"/> run on the worker pool, one table per batch, while the caller waits (and helps):
+        /// the tables are independent, the registration of a missing table stays serial. The same bytes, sooner. Opt-in:
+        /// <c>HROT_PARALLEL_SYNC=1</c> (settable for tests). ⭐ 0 B per steady sync.
+        /// </summary>
+        public static bool ParallelSync { get; set; } = Environment.GetEnvironmentVariable("HROT_PARALLEL_SYNC") == "1";
+        private readonly SyncPairs _syncPairs = new();
+
+        private sealed class SyncPairs : Jobs.FdpWorkerPool.IBatchWork
+        {
+            private IComponentTable[] _dst = new IComponentTable[64], _src = new IComponentTable[64];
+            public int Count;
+            public void Add(IComponentTable dst, IComponentTable src)
+            {
+                if (Count == _dst.Length) { Array.Resize(ref _dst, Count * 2); Array.Resize(ref _src, Count * 2); }
+                _dst[Count] = dst; _src[Count] = src; Count++;
+            }
+            public void Run()
+            {
+                try { Jobs.FdpWorkerPool.Shared.Run(this, Count); }
+                finally { Array.Clear(_dst, 0, Count); Array.Clear(_src, 0, Count); Count = 0; }
+            }
+            public void RunBatch(int batch) => _dst[batch].SyncFrom(_src[batch]);
+        }
+
         public void SyncFrom(EntityRepository source, BitMask512? mask = null, bool? includeTransient = null, Type[]? excludeTypes = null)
         {
             // 0. Determine Effective Mask
@@ -97,8 +123,10 @@ namespace Fdp.Core
                 }
                 
                 // Sync data
+                if (ParallelSync) { _syncPairs.Add(myTable, srcTable); continue; }   // ⭐ POC 3 T-5 — copied in parallel below
                 myTable.SyncFrom(srcTable);
             }
+            if (ParallelSync && _syncPairs.Count > 0) _syncPairs.Run();
             
             // 3. Sync specific singleton tables required by SoD background solvers.
             // Only the EQS solver (EqsSolverSystem) reads singletons from a SoD snapshot:
