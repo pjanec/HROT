@@ -2800,6 +2800,9 @@ namespace Hrot.Editor
             _twSimMap = s.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>() ? s.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>() : null;
             _twSingletonExcept = default;
             _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Fdp.Toolkit.Replication.Services.NetworkEntityMap>.ID);
+            // ⭐ UI-only singletons A owns (the guard's run: the canvas menu's state written by the presentation step, the order form the UI registers)
+            _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Hrot.Map.Common.Components.CanvasContextMenuState>.ID);
+            _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Hrot.Common.Orders.IOrderForm>.ID);
             _twPresMap = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
             _twPresMap.RebuildFromWorld(a);
             a.SetSingletonManaged(_twPresMap);
@@ -2907,6 +2910,12 @@ namespace Hrot.Editor
 
         /// <summary>POC 2 — the S→A sync of one tick (the caller holds the world lock).</summary>
         private void SyncPresentationWorld()
+        {
+            if (Fdp.Core.AccessTrace.On) Fdp.Core.AccessTrace.Mute();   // ⭐ POC 3 — the WHOLE sync is the one legitimate crossing (the map rebuild and the event forward included)
+            try { SyncPresentationWorldCore(); } finally { if (Fdp.Core.AccessTrace.On) Fdp.Core.AccessTrace.Unmute(); }
+        }
+
+        private void SyncPresentationWorldCore()
         {
             var a = _world!; var s = _simWorld!;
             var sw = System.Diagnostics.Stopwatch.StartNew();
