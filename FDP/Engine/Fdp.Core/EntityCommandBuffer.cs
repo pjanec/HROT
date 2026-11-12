@@ -308,6 +308,18 @@ namespace Fdp.Core
             WriteInt(objectIndex);
         }
         
+        /// <summary>⭐ N-10 / F-2 — a managed event whose bus id the caller already has (a publish deferred from <see cref="FdpEventBus.PublishManaged{T}"/>).</summary>
+        internal void PublishManagedEventRaw(int typeId, object evt)
+        {
+            if (evt == null) throw new ArgumentNullException(nameof(evt));
+            int objectIndex = _managedObjects.Count;
+            _managedObjects.Add(evt);
+            EnsureCapacity(1 + 4 + 4);
+            _buffer[_position++] = (byte)OpCode.PublishManagedEvent;
+            WriteInt(typeId);
+            WriteInt(objectIndex);
+        }
+
         /// <summary>
         /// Records a SetLifecycleState command.
         /// </summary>

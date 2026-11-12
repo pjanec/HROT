@@ -469,6 +469,9 @@ namespace Fdp.Core
         /// </summary>
         public Entity CreateEntity()
         {
+            // ⭐ N-10 / F-8 — in a phase the creation is DEFERRED: the batch's placeholder (remapped at playback); its components added in the same
+            //   batch ride the same buffer, and it is usable from the next tick
+            if (ParallelReadCheck.Defers(this)) return ParallelReadCheck.CurrentBatch!.Commands.CreateEntity();
             if (AccessTrace.On) AccessTrace.RecordName(TraceKind.EntityCreate, "(entity)", TraceId);
             var entity = _entityIndex.CreateEntity();
             ref var meta = ref _entityIndex.GetMetadata(entity.Index);
@@ -685,6 +688,7 @@ namespace Fdp.Core
         /// </summary>
         public void DestroyEntity(Entity entity)
         {
+            if (ParallelReadCheck.Defers(this)) { ParallelReadCheck.CurrentBatch!.Commands.DestroyEntity(entity); return; }   // ⭐ N-10 / F-6 — deferred, merged in batch order
             if (AccessTrace.On) AccessTrace.RecordNameE(TraceKind.EntityDestroy, "(entity)", TraceId, entity.Index);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
@@ -1209,6 +1213,7 @@ namespace Fdp.Core
         /// </summary>
         internal void AddUnmanagedComponent<T>(Entity entity, in T component) where T : unmanaged
         {
+            if (ParallelReadCheck.Defers(this) && DeferUnmanaged(entity, in component)) return;   // ⭐ N-10 / F-6
             if (AccessTrace.On) AccessTrace.RecordE<T>(_entityIndex.GetComponentMask(entity.Index).IsSet(ComponentType<T>.ID) ? TraceKind.Write : TraceKind.StructAdd, TraceId, entity.Index);
             ValidateWriteAccess<T>(entity);
             #if FDP_PARANOID_MODE
@@ -1236,6 +1241,7 @@ namespace Fdp.Core
         /// </summary>
         internal void RemoveUnmanagedComponent<T>(Entity entity) where T : unmanaged
         {
+            if (ParallelReadCheck.Defers(this)) { ParallelReadCheck.CurrentBatch!.Commands.RemoveComponent<T>(entity); return; }   // ⭐ N-10 / F-6 — deferred
             if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.StructRemove, TraceId, entity.Index);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
@@ -1325,7 +1331,7 @@ namespace Fdp.Core
         internal ref T GetUnmanagedComponentRW<T>(Entity entity) where T : unmanaged
         {
             if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Write, TraceId, entity.Index);
-            if (ParallelReadCheck.Compiled && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) throw ParallelReadCheck.OtherWrite(typeof(T), entity);   // ⭐ CE-4454 — §18.2 prototype
+            if (ParallelReadCheck.Compiled && ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) throw ParallelReadCheck.OtherWrite(typeof(T), entity);   // ⭐ N-10 / F-5 — another entity's value only by a command
             ValidateWriteAccess<T>(entity);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1341,7 +1347,7 @@ namespace Fdp.Core
         internal ref readonly T GetUnmanagedComponentRO<T>(Entity entity) where T : unmanaged
         {
             if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Read, TraceId, entity.Index);
-            if (ParallelReadCheck.Compiled && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ref ParallelReadCheck.OtherUnmanagedRO<T>(entity);   // ⭐ CE-4454 — §18.2 prototype
+            if (ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ref ParallelReadCheck.OtherUnmanagedRO<T>(this, entity);   // ⭐ N-10 — another entity, in a phase: the last tick
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
             if (!HasUnmanagedComponent<T>(entity)) throw new InvalidOperationException($"Entity {entity} missing {typeof(T).Name}");
@@ -1544,7 +1550,7 @@ namespace Fdp.Core
         internal T GetManagedComponent<T>(Entity entity) where T : class
         {
             if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Read, TraceId, entity.Index);
-            if (ParallelReadCheck.Compiled && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ParallelReadCheck.OtherManagedRO<T>(entity);   // ⭐ CE-4454 — §18.2 prototype
+            if (ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ParallelReadCheck.OtherManagedRO<T>(this, entity);   // ⭐ N-10 — another entity, in a phase: the last tick
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1563,7 +1569,7 @@ namespace Fdp.Core
         internal ref T GetManagedComponentRW<T>(Entity entity) where T : class
         {
             if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Write, TraceId, entity.Index);
-            if (ParallelReadCheck.Compiled && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) throw ParallelReadCheck.OtherWrite(typeof(T), entity);   // ⭐ CE-4454 — §18.2 prototype
+            if (ParallelReadCheck.Compiled && ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) throw ParallelReadCheck.OtherWrite(typeof(T), entity);   // ⭐ N-10 / F-5 — another entity's value only by a command
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1579,7 +1585,7 @@ namespace Fdp.Core
         internal ref readonly T GetManagedComponentRefRO<T>(Entity entity) where T : class
         {
             if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Read, TraceId, entity.Index);   // ⭐ N-1 — the pure managed read (the default since CE-4445) must be seen too
-            if (ParallelReadCheck.Compiled && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ref ParallelReadCheck.OtherManagedRO<T>(entity);   // ⭐ CE-4454 — §18.2 prototype
+            if (ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ref ParallelReadCheck.OtherManagedRO<T>(this, entity);   // ⭐ N-10 — another entity, in a phase: the last tick
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1596,7 +1602,7 @@ namespace Fdp.Core
         internal T GetManagedComponentRO<T>(Entity entity) where T : class
         {
             if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Read, TraceId, entity.Index);
-            if (ParallelReadCheck.Compiled && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ParallelReadCheck.OtherManagedRO<T>(entity);   // ⭐ CE-4454 — §18.2 prototype
+            if (ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ParallelReadCheck.OtherManagedRO<T>(this, entity);   // ⭐ N-10 — another entity, in a phase: the last tick
             var table = GetManagedTable<T>(false);
             var v = table.GetRO(entity.Index)!;
             if (ManagedMutationCheck.On) ManagedMutationCheck.OnRead(table, entity.Index, v);   // ⭐ CE-4445 M-2
@@ -1608,6 +1614,7 @@ namespace Fdp.Core
         /// </summary>
         public void SetManagedComponent<T>(Entity entity, T value) where T : class
         {
+            if (ParallelReadCheck.Defers(this) && DeferManaged(entity, value)) return;   // ⭐ N-10 / F-6
             if (AccessTrace.On) AccessTrace.RecordE<T>(value == null ? TraceKind.StructRemove : _entityIndex.GetComponentMask(entity.Index).IsSet(ManagedComponentType<T>.ID) ? TraceKind.Write : TraceKind.StructAdd, TraceId, entity.Index);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
@@ -1661,6 +1668,7 @@ namespace Fdp.Core
         /// </summary>
         internal void RemoveManagedComponent<T>(Entity entity) where T : class
         {
+            if (ParallelReadCheck.Defers(this)) { ParallelReadCheck.CurrentBatch!.Commands.RemoveManagedComponent<T>(entity); return; }   // ⭐ N-10 / F-6 — deferred
             if (!IsAlive(entity) || !HasManagedCore<T>(entity))
                 return;
             
@@ -1824,8 +1832,57 @@ namespace Fdp.Core
             return (_entityIndex.ActiveCount, native, managed, tables);
         }
 
-        /// <summary>CE-4454 — the managed row for the last-tick copy (<see cref="ParallelReadCheck.CopyManaged{T}"/>).</summary>
-        internal T? LastTickManagedRow<T>(int index) where T : class => GetManagedTable<T>(false).GetRO(index);
+        // ════ ⭐⭐ N-10 (CE-4472) — the per-entity rule's repository half ════
+
+        private EntityRepository? _lastTick;
+
+        /// <summary>The last-tick view (null until <see cref="CaptureLastTick"/>).</summary>
+        internal EntityRepository? LastTickWorld => _lastTick;
+
+        /// <summary>
+        /// ⭐ N-10 (R-4214 ④) — takes the LAST-TICK view: a shadow world holding this world's rows of every DECLARED type
+        /// (<see cref="ParallelReadCheck.DeclaredMask"/> — the types some per-entity system writes in the phase and another reads), copied by changed
+        /// chunk (§18.1: 21 types ≈ 2.6 ms on the 1 000-man CGF). Taken SERIALLY at the start of the Simulation phase, so it holds this tick's ingress,
+        /// ghosts, UI jobs and deferred creations; during a per-entity phase a read of ANOTHER entity's declared type is served from it.
+        /// </summary>
+        public void CaptureLastTick()
+        {
+            _lastTick ??= new EntityRepository();
+            _lastTick.SyncFrom(this, ParallelReadCheck.DeclaredMask, includeTransient: true);
+        }
+
+        /// <summary>A live unmanaged row, with no hook (the read check's own fallback).</summary>
+        internal ref readonly T LiveUnmanagedRO<T>(Entity entity) where T : unmanaged => ref GetTable<T>(false).GetRO(entity.Index);
+
+        /// <summary>A live managed reference, with no hook.</summary>
+        internal ref readonly T LiveManagedRefRO<T>(Entity entity) where T : class
+            => ref Unsafe.As<T?, T>(ref Unsafe.AsRef(in GetManagedTable<T>(false).GetRefRO(entity.Index)));
+
+        /// <summary>Has <paramref name="entity"/> an unmanaged <typeparamref name="T"/> (no hook)?</summary>
+        internal bool HasUnmanagedComponentUntraced<T>(Entity entity) where T : unmanaged
+            => entity.Index >= 0 && entity.Index <= _entityIndex.MaxIssuedIndex && _entityIndex.GetComponentMask(entity.Index).IsSet(ComponentType<T>.ID);
+
+        // F-5 / F-6 — in a phase: a value write on the processed entity's EXISTING component stays direct; a structural change (an add, or anything
+        // on a placeholder) and, with the checks off, a write to another entity are deferred into the batch's buffer (merged in batch order).
+        private bool DeferUnmanaged<T>(Entity entity, in T component) where T : unmanaged
+        {
+            bool other = ParallelReadCheck.IsOther(entity.Index);
+            bool has = HasUnmanagedComponentUntraced<T>(entity);
+            if (!other && has) return false;
+            if (other && has && ParallelReadCheck.Compiled) throw ParallelReadCheck.OtherWrite(typeof(T), entity);
+            ParallelReadCheck.CurrentBatch!.Commands.AddComponent(entity, in component);
+            return true;
+        }
+
+        private bool DeferManaged<T>(Entity entity, T value) where T : class
+        {
+            bool other = ParallelReadCheck.IsOther(entity.Index);
+            bool has = entity.Index >= 0 && entity.Index <= _entityIndex.MaxIssuedIndex && _entityIndex.GetComponentMask(entity.Index).IsSet(ManagedComponentType<T>.ID);
+            if (!other && has) return false;
+            if (other && has && ParallelReadCheck.Compiled) throw ParallelReadCheck.OtherWrite(typeof(T), entity);
+            ParallelReadCheck.CurrentBatch!.Commands.SetManagedComponent(entity, value);
+            return true;
+        }
 
         /// <summary>
         /// Gets the EntityIndex for advanced scenarios (iteration, chunk access).

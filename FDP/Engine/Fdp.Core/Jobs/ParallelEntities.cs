@@ -118,6 +118,7 @@ namespace Fdp.Core.Jobs
             private TJob _job;
             private Entity[] _entities = Array.Empty<Entity>();
             private int _count, _batchSize;
+            private EntityRepository? _repo;
 
             public void Run(EntityRepository repo, Entity[] entities, int count, in TJob job)
             {
@@ -129,7 +130,12 @@ namespace Fdp.Core.Jobs
                 while (_contexts.Count < batches) _contexts.Add(new BatchContext());
                 for (int b = 0; b < batches; b++) { _contexts[b].Reset(); _contexts[b].Batch = b; }
 
-                pool.Run(this, batches);
+                _repo = repo;
+                // ⭐ N-10 (CE-4472) — the phase: while it runs, a batch thread's cross-entity read of a declared type is served from the last-tick
+                //   view, and its structural changes / bus publishes on THIS world go into its batch's buffer (merged below, in batch order)
+                ParallelReadCheck.EnterPhase();
+                try { pool.Run(this, batches); }
+                finally { ParallelReadCheck.ExitPhase(); _repo = null; }
 
                 long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
                 for (int b = 0; b < batches; b++) _contexts[b].Commands.Playback(repo);
@@ -146,26 +152,28 @@ namespace Fdp.Core.Jobs
             {
                 int from = batch * _batchSize, to = Math.Min(_count, from + _batchSize);
                 var ctx = _contexts[batch];
-                if (ParallelReadCheck.Compiled)
-                {   // ⭐ N-2 (CE-4464, F-1) — the batch is a parallel phase on THIS thread, and each entity is the current one (one per-thread
-                    //   current entity, read by the read check; the census keeps its own walk stack below)
-                    bool was = ParallelReadCheck.Active;
-                    ParallelReadCheck.Active = true;
-                    try
+                // ⭐ N-2 / N-10 — the batch is a phase on THIS thread over ITS world: each entity is the current one (the per-entity rule's own vs
+                //   other), and the batch's buffer takes the deferred effects. The census keeps its own walk stack.
+                bool was = ParallelReadCheck.Active;
+                ParallelReadCheck.Active = true;
+                ParallelReadCheck.SetBatch(ctx, _repo);
+                int slot = EntityCensus.On ? EntityCensus.Push() : -1;
+                try
+                {
+                    for (int i = from; i < to; i++)
                     {
-                        for (int i = from; i < to; i++) { ParallelReadCheck.Current = _entities[i].Index; _job.Execute(_entities[i], i, ctx); }
+                        ParallelReadCheck.Current = _entities[i].Index;
+                        if (slot >= 0) EntityCensus.Set(slot, _entities[i].Index);
+                        _job.Execute(_entities[i], i, ctx);
                     }
-                    finally { ParallelReadCheck.Current = -1; ParallelReadCheck.Active = was; }
-                    return;
                 }
-                if (EntityCensus.On)
-                {   // ⭐ N-1 — each entity of the batch is the one being processed (serial runs; a pool worker has no system reader)
-                    int slot = EntityCensus.Push();
-                    for (int i = from; i < to; i++) { EntityCensus.Set(slot, _entities[i].Index); _job.Execute(_entities[i], i, ctx); }
-                    EntityCensus.Pop(slot);
-                    return;
+                finally
+                {
+                    if (slot >= 0) EntityCensus.Pop(slot);
+                    ParallelReadCheck.Current = -1;
+                    ParallelReadCheck.SetBatch(null, null);
+                    ParallelReadCheck.Active = was;
                 }
-                for (int i = from; i < to; i++) _job.Execute(_entities[i], i, ctx);
             }
         }
     }

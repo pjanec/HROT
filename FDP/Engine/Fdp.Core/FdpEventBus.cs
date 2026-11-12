@@ -91,6 +91,7 @@ namespace Fdp.Core
         /// <param name="evt">Event to publish</param>
         public void Publish<T>(T evt) where T : unmanaged
         {
+            if (ParallelReadCheck.DefersBus(this)) { ParallelReadCheck.CurrentBatch!.Commands.PublishEvent(in evt); return; }   // ⭐ N-10 / F-2 — a publish in a phase rides the batch, in batch order
             if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.BusPublish, TraceId);
             int typeId = EventType<T>.Id;
             if (FdpConfig.EnforceExplicitEventRegistration && !_nativeStreams.ContainsKey(typeId))
@@ -127,6 +128,11 @@ namespace Fdp.Core
         /// <param name="evt">Event to publish</param>
         public void PublishManaged<T>(T evt) // No class constraint — allows managed structs
         {
+            if (ParallelReadCheck.DefersBus(this) && !typeof(T).IsValueType && evt is object boxed)
+            {   // ⭐ N-10 / F-2 — a publish in a phase rides the batch, in batch order (a managed STRUCT event has no buffer op: published at once, locked)
+                ParallelReadCheck.CurrentBatch!.Commands.PublishManagedEventRaw(GetManagedTypeId<T>(), boxed);
+                return;
+            }
             if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.BusPublish, TraceId);
             int typeId = GetManagedTypeId<T>();
             if (FdpConfig.EnforceExplicitEventRegistration && !_managedStreams.ContainsKey(typeId))

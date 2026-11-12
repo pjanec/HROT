@@ -23,6 +23,46 @@ namespace Fdp.Core
         /// <summary>The switch: <c>HROT_READ_CHECK=1</c>. Read once — off, the JIT removes every hook.</summary>
         public static readonly bool Compiled = Environment.GetEnvironmentVariable("HROT_READ_CHECK") == "1";
 
+        // ⭐⭐ N-10 (CE-4472; R-4212 / R-4214 ④⑤, docs/DESIGN_Parallel_Simulation.md §18–§18.2) — the per-entity rule IN THE REPOSITORY, always on
+        //   (no longer a measuring prototype): while a per-entity parallel phase runs anywhere in the process (AnyPhase — one static load, so serial
+        //   code stays near free: §18.3 measured), a read of ANOTHER entity's declared type on a batch thread is served from the repository's
+        //   LAST-TICK view (EntityRepository.CaptureLastTick, taken serially at the Simulation phase start); a structural change or a bus publish
+        //   made on a batch thread is deferred into that batch's command buffer (F-6, F-2), merged in batch order after the phase. Compiled
+        //   (HROT_READ_CHECK=1, Debug / tests) adds the CHECKS: an undeclared cross read, a cross write and an access with no current entity throw.
+        private static int s_phases;
+
+        /// <summary>A per-entity parallel phase is running somewhere in the process (the cheap first test of every hook).</summary>
+        public static bool AnyPhase
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)] get => s_phases != 0;
+        }
+
+        /// <summary>A per-entity phase starts (the caller, before its batches are handed out — the pool's start orders it).</summary>
+        public static void EnterPhase() => System.Threading.Interlocked.Increment(ref s_phases);
+
+        /// <summary>The phase ended (after every batch is done).</summary>
+        public static void ExitPhase() => System.Threading.Interlocked.Decrement(ref s_phases);
+
+        [ThreadStatic] private static Jobs.BatchContext? t_batch;
+        [ThreadStatic] private static EntityRepository? t_batchRepo;
+
+        /// <summary>The batch this thread is running (its command buffer takes the deferred effects), or null.</summary>
+        public static Jobs.BatchContext? CurrentBatch
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)] get => t_batch;
+        }
+
+        /// <summary>The batch thread enters / leaves a batch of a phase over <paramref name="repo"/>.</summary>
+        internal static void SetBatch(Jobs.BatchContext? batch, EntityRepository? repo) { t_batch = batch; t_batchRepo = repo; }
+
+        /// <summary>Is a batch of a phase over <paramref name="repo"/> running on THIS thread (a structural change of THAT world is deferred)?</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool Defers(EntityRepository repo) => s_phases != 0 && t_batch != null && ReferenceEquals(t_batchRepo, repo);
+
+        /// <summary>Is a batch of a phase over the world whose bus is <paramref name="bus"/> running on THIS thread (a publish is deferred)?</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool DefersBus(FdpEventBus bus) => s_phases != 0 && t_batch != null && ReferenceEquals(t_batchRepo?.Bus, bus);
+
         /// <summary>A parallel per-entity phase is running ON THIS THREAD. ⭐ N-2 (CE-4464): per thread, not process-wide — the UI thread reading
         /// world A while the sim thread runs a parallel phase is not in that phase (a process-wide flag would make every A read a "cross-entity" one).
         /// <see cref="Jobs.ParallelEntities"/> sets it around each batch it runs.</summary>
@@ -46,7 +86,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsOther(int index) => t_current != index + 1;
 
-        // ── the declared mask: the types a cross-entity read may touch (unmanaged and managed ids are separate spaces) ──
+        // ── the declared mask: the types a cross-entity read may touch (one id space for unmanaged and managed — ComponentType.cs) ──
         private static ulong[] s_unmanaged = new ulong[4];
         private static ulong[] s_managed = new ulong[4];
 
@@ -57,57 +97,57 @@ namespace Fdp.Core
         public static void DeclareManaged<T>() where T : class => Set(ref s_managed, ManagedComponentType<T>.ID);
 
         /// <summary>Forget every declaration (tests).</summary>
-        public static void ClearDeclarations() { Array.Clear(s_unmanaged); Array.Clear(s_managed); }
+        public static void ClearDeclarations() { Array.Clear(s_unmanaged); Array.Clear(s_managed); s_declaredMask = default; HasDeclarations = false; }
+
+        private static BitMask512 s_declaredMask;
+
+        /// <summary>⭐ N-10 — every declared type (unmanaged and managed, by registry id): the last-tick view copies exactly these.</summary>
+        public static BitMask512 DeclaredMask => s_declaredMask;
+
+        /// <summary>Has anything been declared (no declaration ⇒ no last-tick view to take)?</summary>
+        public static bool HasDeclarations { get; private set; }
 
         private static void Set(ref ulong[] bits, int id)
         {
+            s_declaredMask.SetBit(id);
+            HasDeclarations = true;
             if ((id >> 6) >= bits.Length) Array.Resize(ref bits, (id >> 6) + 1);
             bits[id >> 6] |= 1UL << (id & 63);
         }
 
         private static bool IsSet(ulong[] bits, int id) => (id >> 6) < bits.Length && (bits[id >> 6] & (1UL << (id & 63))) != 0;
 
-        // ── the last-tick copy (one array per type) ──
-        private static class LastTickUnmanaged<T> where T : unmanaged { public static T[] Rows = Array.Empty<T>(); }
-        private static class LastTickManaged<T> where T : class { public static T?[] Rows = Array.Empty<T?>(); }
+        // ── the last-tick view: per repository (EntityRepository.CaptureLastTick) ──
 
-        /// <summary>Copy <typeparamref name="T"/>'s rows of <paramref name="repo"/> into the last-tick copy (before the phase).</summary>
-        public static void CopyUnmanaged<T>(EntityRepository repo) where T : unmanaged
-        {
-            int n = repo.EntityIndexUntraced.MaxIssuedIndex + 1;
-            ref var rows = ref LastTickUnmanaged<T>.Rows;
-            if (rows.Length < n) rows = new T[Math.Max(n, rows.Length * 2)];
-            var table = repo.GetComponentTable<T>();
-            for (int i = 0; i < n; i++) rows[i] = table.GetRO(i);
-        }
+        /// <summary>The prototype's / the bench's entry: takes <paramref name="repo"/>'s last-tick view of every declared type.</summary>
+        public static void CopyUnmanaged<T>(EntityRepository repo) where T : unmanaged => repo.CaptureLastTick();
 
-        /// <summary>Copy <typeparamref name="T"/>'s references of <paramref name="repo"/> into the last-tick copy (before the phase).</summary>
-        public static void CopyManaged<T>(EntityRepository repo) where T : class
-        {
-            int n = repo.EntityIndexUntraced.MaxIssuedIndex + 1;
-            ref var rows = ref LastTickManaged<T>.Rows;
-            if (rows.Length < n) rows = new T?[Math.Max(n, rows.Length * 2)];
-            for (int i = 0; i < n; i++) rows[i] = repo.LastTickManagedRow<T>(i);
-        }
+        /// <summary>The prototype's / the bench's entry: takes <paramref name="repo"/>'s last-tick view of every declared type.</summary>
+        public static void CopyManaged<T>(EntityRepository repo) where T : class => repo.CaptureLastTick();
 
         // ── the slow paths (not inlined: the hot path keeps only the test) ──
 
-        /// <summary>A cross-entity read of unmanaged <typeparamref name="T"/> during the phase: the last-tick row, or a throw when undeclared.</summary>
+        /// <summary>A cross-entity read of unmanaged <typeparamref name="T"/> during a phase: the LAST-TICK row when declared; else (checks off) the
+        /// live row as before, (checks on) a throw.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static ref readonly T OtherUnmanagedRO<T>(Entity e) where T : unmanaged
+        public static ref readonly T OtherUnmanagedRO<T>(EntityRepository repo, Entity e) where T : unmanaged
         {
-            if (t_current == 0) throw NoCurrent(typeof(T), e);
-            if (!IsSet(s_unmanaged, ComponentType<T>.ID)) throw Undeclared(typeof(T), e);
-            return ref LastTickUnmanaged<T>.Rows[e.Index];
+            if (t_current == 0 && Compiled) throw NoCurrent(typeof(T), e);
+            if (IsSet(s_unmanaged, ComponentType<T>.ID) && repo.LastTickWorld is { } last && last.HasUnmanagedComponentUntraced<T>(e))
+                return ref last.LiveUnmanagedRO<T>(e);
+            if (Compiled) throw Undeclared(typeof(T), e);
+            return ref repo.LiveUnmanagedRO<T>(e);
         }
 
-        /// <summary>A cross-entity read of managed <typeparamref name="T"/> during the phase: the last-tick reference, or a throw when undeclared.</summary>
+        /// <summary>A cross-entity read of managed <typeparamref name="T"/> during a phase: the LAST-TICK reference when declared; else (checks off)
+        /// the live one, (checks on) a throw.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static ref readonly T OtherManagedRO<T>(Entity e) where T : class
+        public static ref readonly T OtherManagedRO<T>(EntityRepository repo, Entity e) where T : class
         {
-            if (t_current == 0) throw NoCurrent(typeof(T), e);
-            if (!IsSet(s_managed, ManagedComponentType<T>.ID)) throw Undeclared(typeof(T), e);
-            return ref Unsafe.As<T?, T>(ref LastTickManaged<T>.Rows[e.Index]);
+            if (t_current == 0 && Compiled) throw NoCurrent(typeof(T), e);
+            if (IsSet(s_managed, ManagedComponentType<T>.ID) && repo.LastTickWorld is { } last) return ref last.LiveManagedRefRO<T>(e);
+            if (Compiled) throw Undeclared(typeof(T), e);
+            return ref repo.LiveManagedRefRO<T>(e);
         }
 
         /// <summary>A cross-entity write during the phase (the design: a command; this prototype: a throw).</summary>

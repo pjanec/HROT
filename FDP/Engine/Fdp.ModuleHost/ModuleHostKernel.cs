@@ -798,6 +798,11 @@ namespace Fdp.ModuleHost
                 }
             }
             
+            // ⭐⭐ N-10 (CE-4472; R-4214 ④) — the LAST-TICK view, taken SERIALLY before the Simulation phase dispatches: it holds this tick's ingress,
+            //   ghosts, UI jobs and the previous phase's merged commands; every per-entity job of the phase reads another entity's declared type
+            //   from it. ⛔ Nothing declared ⇒ nothing taken (zero cost: the default today).
+            if (Fdp.Core.ParallelReadCheck.HasDeclarations) _liveWorld.CaptureLastTick();
+
             // ═══════════ DISPATCH PHASE ═══════════
             var tasksToWait = _tasksToWait; tasksToWait.Clear();   // ⭐ POC 4 J-2 — a field reused every frame (⛔ was a new List per frame, R-2084)
             
