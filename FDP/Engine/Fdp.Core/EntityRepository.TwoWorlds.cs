@@ -44,11 +44,12 @@ namespace Fdp.Core
                 EnsureSingletonCapacity(id);
                 if (_singletons[id] is not IComponentTable mine || _borrowedSingletons.IsSet(id) || mine.GetType() != st.GetType())
                 {
-                    mine = (IComponentTable)Activator.CreateInstance(st.GetType())!;   // first sync only (a type change or a borrowed slot)
+                    mine = NewTableLike(st.GetType());   // first sync only (a type change or a borrowed slot)
                     _singletons[id] = mine;
                     _borrowedSingletons.ClearBit(id);
                 }
-                mine.SyncFrom(st);
+                mine.CopyRowFrom(st, 0, _globalVersion);   // ⛔ NOT SyncFrom: a singleton slot is not reliably version-stamped (a managed Set writes
+                                                           //    version 0), so a dirty-chunk sync skipped it — measured by TwoWorldsTests
             }
         }
 
@@ -126,6 +127,16 @@ namespace Fdp.Core
                     myMask.SetBit(id);
                 }
             }
+        }
+
+        /// <summary>A new, empty table of <paramref name="t"/>: <c>ComponentTable&lt;T&gt;()</c>, or <c>ManagedComponentTable&lt;T&gt;(int chunkSize = …)</c>
+        /// with its default (an optional parameter is not a parameterless constructor to <see cref="Activator"/>).</summary>
+        private static IComponentTable NewTableLike(Type t)
+        {
+            if (t.GetConstructor(Type.EmptyTypes) != null) return (IComponentTable)Activator.CreateInstance(t)!;
+            return (IComponentTable)Activator.CreateInstance(t,
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.OptionalParamBinding,
+                null, new object[] { Type.Missing }, null)!;
         }
 
         private void EnsureKeepCapacity(int n)
