@@ -5,6 +5,7 @@ updated: 2026-11-10 (§14.8 as built — CE-4373; §14 detailed design of the li
 current-answer: ⭐ §14 the detailed design (inventory, measured sample, classes, sequence, modules, E-1…E-12, Q-O10…Q-O12) · §4a the wizard contract · §5 the rules · §13 the review
 known-rot: §5.5's "split along the shortest cut" for holes is replaced by §14.5 E-4 (a cut through each hole's centre)
 related-designs:
+  - DESIGN_ImGui_Draw_Data_Renderer.md — §5: the preview map's level of detail (tiny buildings = one rectangle, cull, dash budget, vertex caps) and the renderer fix behind the 65 536-vertex crash (CE-1495)
   - PLAN_Large_Terrain.md — §9: this pipeline goes THROUGH the importer and is built in parallel; O-0 adds the input-set READER + conformance checks to Hrot.Terrain.InputSet
   - DESIGN_Terrain_Import_UTM.md §10 — the import input set (the target format of this tool)
   - DESIGN_Terrain_Synth.md — the synthetic generator of the same input set

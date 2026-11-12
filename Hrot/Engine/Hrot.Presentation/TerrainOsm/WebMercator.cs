@@ -24,6 +24,16 @@ public static class WebMercator
         return (x, y);
     }
 
+    /// <summary>⭐ CE-1495 — the zoom-independent half of <see cref="ToPixel"/>: the position in the unit square (x east, y south, 0..1). <c>ToPixel(lat, lon, z)</c> = this × <c>TileSize · 2^z</c>, bit for bit.</summary>
+    public static (double X, double Y) ToUnit(double lat, double lon)
+    {
+        lat = Math.Clamp(lat, -MaxLatitude, MaxLatitude);
+        double x = (lon + 180.0) / 360.0;
+        double s = Math.Sin(lat * Math.PI / 180.0);
+        double y = 0.5 - Math.Log((1 + s) / (1 - s)) / (4 * Math.PI);
+        return (x, y);
+    }
+
     /// <summary>The lat/lon of a world-pixel position at <paramref name="zoom"/>.</summary>
     public static (double Lat, double Lon) ToGeo(double x, double y, double zoom)
     {

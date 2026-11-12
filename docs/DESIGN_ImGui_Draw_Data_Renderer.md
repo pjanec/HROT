@@ -19,6 +19,10 @@ related-designs:
 *"Too many vertices in ImDrawList using 16-bit indices"* at 65 536 vertices in ONE window's draw list and the editor dies. 📌 Twice: CE-4223 (the Timeline panel's dashes — fixed inside that panel) and the OSM wizard's map preview
 (right after the download — thousands of buildings). ⭐ A fix inside each panel cannot be complete; the renderer is the one place every panel passes through.
 
+**INVENTORY** *(prior art, `2026-11-12`)* — `scripts/cbm.sh search_graph '{"name_pattern":".*(ImGuiRenderer|RaylibPresentationShell|FdpApplication|UiFrameSession|PlayerApplication|StrideInspectorWindow).*","label":"Class"}'` → 11 (the hosts and their tests; no class
+renders draw data itself — `IImGuiRenderer` in `ImGui/Renderers/` is the per-type *widget* renderer registry, unrelated). grep `rlImGui\.(Begin|End|Setup)`: the editor shell (`RaylibPresentationShell`, `Program`), `PlayerApplication`, `FdpApplication`, `StrideInspectorWindow`, `UiFrameSession`,
+`ReplayBrowserSubsystemTests` — all routed through `ImGuiRenderer`; left on rlImGui (not HROT hosts): `GizmoMap.Presentation/GizmoViewerFrontend`, `FDP/Examples/*`, `FDP/ExtDeps/*/demos`, `tools/ui-probe`. `check_index_coverage` is not available through the CLI — coverage not checked.
+
 ## 2. The render path — one place, every host
 
 ```mermaid
@@ -57,7 +61,7 @@ sequenceDiagram
 ## 4. Verification *(CE-1495)*
 
 `ImGuiRendererFrameRail` — 50 000 rectangles (200 000 vertices) in one window render without the assert, and rectangles past vertex 65 536 are read back in their own colour; the flag is on the context; the render step allocates 0 B.
-⭐ The visualisation is unchanged: ~55 existing frame-rail classes (~320 screenshots) rendered with `HROT_IMGUI_RENDERER=rlimgui` and with the new renderer, compared pixel by pixel — the table is in the CE-1495 tracker row.
+⭐ The visualisation is unchanged, measured two ways (the table is in the CE-1495 tracker row): **A/B in the harness** — `HROT_IMGUI_AB=<dir>` draws every frame of every rail twice over the same scene (ours, rlImGui's) and compares pixels: 6 884 frames, 0 differing (a 1 px vertex shift flags 37/37); and **screenshots** — 55 classes, 318 PNGs, `HROT_IMGUI_RENDERER=rlimgui` vs the new renderer: 303 pixel-identical, the other 15 are rails that are not deterministic on the old renderer either.
 
 ## 5. The OSM preview's level of detail *(`OsmMapView`)*
 
