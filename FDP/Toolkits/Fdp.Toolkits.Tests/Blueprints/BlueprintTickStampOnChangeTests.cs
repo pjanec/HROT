@@ -94,4 +94,39 @@ public sealed unsafe class BlueprintTickStampOnChangeTests
         }
         finally { BlueprintTickSystem.StampOnChange = was; }
     }
+
+    /// <summary>⭐ Q-1 widened — the brain's per-tick store view (<see cref="OccurrenceStoreAccess.BeginTickView"/>): a BTree / HSM tick takes
+    /// its block writable every tick; with the knob on, the block's chunk is stamped at the view's end only when its bytes changed.
+    /// 🔴 Red-proof: the knob off ⇒ the unchanged tick stamps (the second assert of the knob-off test above, here the first).</summary>
+    [Fact]
+    public void TheBrainTickView_StampsItsBlock_OnlyWhenTheTickChangedIt()
+    {
+        bool was = BlueprintTickSystem.StampOnChange;
+        BlueprintTickSystem.StampOnChange = true;
+        try
+        {
+            using var w = new EntityRepository();
+            BlueprintTierTable.RegisterAll(w);
+            var e = w.CreateEntity();
+            Assert.True(OccurrenceStoreAccess.TryAttachSlot(w, e, 77, 16, 1, OccurrenceKind.BTree, out _, out _));
+            var table = TableOf(w, BlueprintTierTable.Of(w, e)!);
+
+            void Tick(byte value)
+            {
+                w.Tick();
+                using var view = OccurrenceStoreAccess.BeginTickView(w, e);
+                Assert.True(OccurrenceStoreAccess.TryFindSlot(w, e, 77, out byte* block, out int off, out _));
+                block[off] = value;   // a node writing its state, as the interpreter does every tick
+            }
+
+            Tick(5);
+            uint first = w.GlobalVersion;
+            Tick(5);                                   // the same bytes
+            Assert.False(table.HasChanges(first));
+            uint second = w.GlobalVersion;
+            Tick(6);                                   // a change
+            Assert.True(table.HasChanges(second));
+        }
+        finally { BlueprintTickSystem.StampOnChange = was; }
+    }
 }

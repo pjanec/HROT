@@ -77,6 +77,7 @@ namespace Fdp.Toolkit.Tests
             for (int i = 0; i < agents.Length; i++)
             {
                 agents[i] = world.SpawnAgent((float)rng.NextDouble(), (float)rng.NextDouble());
+                world.Repo.GetComponentRW<UtilityDebugFlags>(agents[i]).TraceEnabled = 0;   // as in production: a traced unit always scores fresh
                 int contacts = rng.Next(0, 4);
                 for (int c = 0; c < contacts; c++)
                     world.SeedContact(agents[i], world.Repo.CreateEntity(), 20f + 300f * (float)rng.NextDouble(), (float)rng.NextDouble(),
