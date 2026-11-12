@@ -1,0 +1,15 @@
+{
+  "roots": [
+    { "side": "sim", "type": "Fdp.ModuleHost.Abstractions.IEcsModuleSystem", "methods": ["Execute"] },
+    { "side": "sim", "type": "Fdp.ModuleHost.Abstractions.IEcsModule", "methods": ["Tick"] },
+    { "side": "sim", "type": "Fdp.ModuleHost.Abstractions.ISystemGroup", "methods": ["*"] },
+    { "side": "sim", "type": "Hrot.Map.Common.ClusterLoad.ILoadPartProvider", "methods": ["*"] },
+    { "side": "sim", "type": "Hrot.Orchestrator.OrchestratorCore", "methods": ["Tick", "TickUi"] },
+    { "side": "ui", "type": "Fdp.Presentation.WindowManager.ManagedWindow", "methods": ["DrawClientArea", "Render", "BeforeBegin", "DrawLocalMenuBar"] },
+    { "side": "ui", "type": "Fdp.Toolkit.Vis2D.Abstractions.IMapLayer", "methods": ["Update", "Draw", "HandleInput", "HandleHover", "Draw3D", "DrawOverlay"] },
+    { "side": "ui", "type": "Fdp.Toolkit.Vis3D.IMeshLayer3D", "methods": ["*"] },
+    { "side": "ui", "type": "Fdp.Diagnostics.Contracts.Panels.IPanelViewModel", "methods": ["*"] }
+  ],
+  "worldNamespaces": ["Fdp.Core", "Fdp.Kernel"],
+  "skipProjectsContaining": ["Test", "Benchmark", "Example", "Sample", "Demo"]
+}
