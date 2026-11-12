@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — ✅ the concept APPROVED (R-4205, `2026-11-11`); next S-0 (the architect question for the details + a FDP-DES-012 section) before any build; a proof of concept exists (§7)
-updated: 2026-11-11
-current-answer: ⭐ §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
+updated: 2026-11-12
+current-answer: ⭐ §13 SHARED STATE — every singleton / side table the UI reads, classified (no blocker; NetworkEntityMap, TrafficFrame, the TKB, the road graph are the real torn reads) · §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
 stale-below: nothing
 known-rot: none
 known-conflict: FDP/Engine/Fdp.ModuleHost/docs/UserGuide/06_SimulationViewsAndExecutionModes.md shows a two-replica swap in DoubleBufferProvider — the code syncs ONE replica in place (DoubleBufferProvider.cs:63-66); this design does not rely on it
@@ -341,3 +341,63 @@ The PoC ran a toy world: no singletons, no managed tables, no editor frame aroun
 ⭐ **Recommendation:** keep the concept; do S-0b first (a measurement plus an inventory — no production change) so the build is sized on numbers;
 meanwhile take (b)'s cheap items from Evaluation Cost §11h, which help both shapes. If the real publish turns out large (tens of ms per tick at
 1 000 men), the fallback inside the same concept is a NARROW published view (only what the map and panels draw), not the whole world.
+
+## 13. ⭐ Shared state between the two threads — every singleton and side table the UI reads, and how each is handled *(coordinator, `2026-11-12`)*
+
+🔒 User, `2026-11-12`: *"the critical questions how to deal with the singletons, which can be written in the simulation and cannot be simply
+duplicated or double buffered … we have to do the analysis to know how to continue. It's no point trying to develop POC without knowing how."*
+⭐ The overnight experiment (`exp/threaded-kernel`, its §12) listed the singletons but did not classify them; this section does. It holds for either
+shape — a published snapshot (§3) or the experiment's "copy into the UI's world" (its §12): in both, the UI reads on the main thread while the
+simulation writes on the worker.
+
+```mermaid
+flowchart TD
+  Q[a singleton or side table the UI reads] --> R{who reads it on the MAIN thread?}
+  R -->|only gizmos - kernel systems, so the worker| W[no cross-thread read: nothing to do]
+  R -->|panels, map layers, 3-D, menus| M{how does the simulation change it?}
+  M -->|never after load, or swapped as a whole object| S[SHARE the reference]
+  M -->|small value, every tick| C[COPY by value at the sync]
+  M -->|derivable from components the UI already gets| B[REBUILD on the UI side]
+  M -->|large, replaced, native memory| L[LEASE the version - the old one lives until the UI lets go]
+  M -->|the same object rewritten in place, rarely| V[SWAP THE INSIDE - one holder, new contents in one write]
+  M -->|a log the simulation appends to| F[FORWARD the new entries at the sync]
+```
+*What the picture shows that prose hid:* the question is never "can it be double-buffered" but "how does the simulation change it" — and every
+case found has a treatment, ⭐ four of which (share, lease, swap the inside, per-thread pools) the code ALREADY uses for today's background readers.
+
+### 13.1 The world singletons the UI reads on the main thread
+
+| singleton | UI files (non-gizmo) | how the simulation changes it — code | treatment | precedent |
+|---|---|---|---|---|
+| `TerrainWorld` | 12 (2-D / 3-D terrain layers, framing, ghost, doors, ground height, sounds) | ✔ `init`-only, replaced whole on a terrain change (`TerrainResidency.cs:351,453`); lazy caches behind a lock or benign `??=` (`TerrainWorld.cs:160,211,222`); the Bepu index has a pool PER THREAD and frees itself by finalizer only (`BepuTerrainIndex.cs:14-28,117-121`) | **share** | CE-3279: built for background readers |
+| `IGeographicTransform` | 11 (cursor, picks, orders) | ✔ `SwitchableGeoTransform`: a `volatile` swap of an immutable frame on a terrain load (`SwitchableGeoTransform.cs`) | **share** | the switchable pattern |
+| `LiveTerrainBakeInfo` | 3 | ✔ immutable, replaced whole after a bake (`StaticObstacleBake.cs:253`) | **share** | |
+| `ScenarioDescriptionResident` | 2 | ✔ replaced whole (`ScenarioDescription.cs:86`, `PresetInPlace.cs:131`); ⛔ no in-place write found | **share** | |
+| `TrafficNetCache` | 1 (3-D traffic) | ✔ get-only, built once per road net | **share** | |
+| `INavmeshProvider`, `ICoverProvider`, `IEqsTemplateRegistry`, `SpatialGridData` | 0–2 (gizmos, the inspector, `WorldInfoReport`) | read on the main thread only by the inspector and the debug report | **share** (gizmos are on the worker) | `SyncFrom` already shares them with EQS (`EntityRepository.Sync.cs:118-129`) |
+| `GlobalTime`, `ShotTraces`, `DetonationTraces` | 12 / 0 / 0 | ✔ unmanaged; written every tick (traces: 64-slot rings, ~7 KB each) | **copy** by value | an ordinary singleton copy |
+| `NetworkEntityMap` | ⚠ **19** (orders, RTS commands, possession, squad roster, menus, waypoints) | ⛔ two plain `Dictionary`s **changed in place every tick** — spawn, ghost creation, every lightweight round (`NetworkSpawningSystem.cs:248`, `GhostCreationSystem.cs:71`, `LightweightRoundIdentitySystem.cs:59`) | **rebuild** on the UI side from `NetworkIdentity` (the UI copies it anyway) | ✔ `NetworkEntityMap.RebuildFromWorld` exists for SoD modules (`NetworkEntityMap.cs:223`); ⚠ its per-tick cost at 13 800 entities NOT measured |
+| `ZoneEnvironmentData` (the road graph) | 2 | ⛔ a struct of `NativeArray`s; a bridge collapse publishes a new graph (`BridgeClosureSystem.cs:140-142`) and the old one is FREED | **lease** — the UI's copy holds a lease until the next sync | ✔ `RoadNetworkHolder` pins a retired graph while a lease is open (`RoadNetworkHolderTests` C6) |
+| `TrafficFrame` | 2 (3-D traffic lights, ambient bodies) | ⛔ its car and pedestrian lists are the module's LIVE lists, **cleared and refilled every tick** (`TrafficModules.cs:72-73,197,263`); two `Func` callbacks read the replica set | **copy** the lists into UI-owned lists at the sync; ⚠ the callbacks need the same | — |
+| `ITkbDatabase` | ⚠ **27** (add-entity, catalogue, weapon kits, possession …) | ⛔ ONE object, **`Clear()` + `Register` in place** when a load stages a different TKB (`KnowledgeBaseLoadStep.cs:67,107`); plain `Dictionary`s (`TkbDatabase.cs:14-15`); also held directly by DI, so replacing the singleton alone misses holders | **swap the inside** — a `SwitchableTkbDatabase` (build the new catalogue aside, swap in one write) | ✔ `SwitchableGeoTransform`, `SwitchableNavmeshProvider`: *"replacing the object would leave the ~15 holders on the old one"* |
+| `IOrderForm`, `OrdersOffered`, `CanvasContextMenuState`, `SortedHierarchyData` | — | written by the UI itself (`OrderForm.cs:61`, `MapInteractionPack.cs:388`, `CanvasMenuUpdateSystem.cs:63`, `HierarchyOrderSystem.cs:65`) | **UI-owned** — stay on the UI side | — |
+
+### 13.2 Side tables keyed by the world — singletons in disguise
+
+44 `ConditionalWeakTable<EntityRepository, …>` (the experiment's X-2). The ones the SIMULATION writes and the UI reads:
+
+| table | written by | UI files | treatment |
+|---|---|---|---|
+| `ShotLog`, `DetonationLog`, `SquadReportLog`, `EditOutcomeLog`, `EditJournal` | weapons, squads, the edit apply — the worker | 1–5 each | **forward** — append-only logs: copy the new entries at the sync |
+| `KillFeed`, `RecentShots`, `StrikeTracker` | `EffectSystems.cs:84-141` — kernel systems that consume combat events | 3–9 | move those systems to the UI side, fed by forwarded events (the experiment's §12 open item) |
+| `LiveRefScope` | a per-world cache rebuilt from the world | 18 | per world — the UI side gets its own, rebuilt from what it copies |
+
+### 13.3 What this settles, and what it does not
+
+| | |
+|---|---|
+| ✅ **no blocker found** | every singleton and sim-written side table the UI reads fits one of six treatments; four already exist in the code for today's background readers |
+| ✅ the "torn read" risk (§11 F-2) | `TerrainWorld`, cover and the spatial grid are safe to share (immutable or read only on the worker); the real torn reads are **`NetworkEntityMap`, `TrafficFrame`, the TKB during a load, and the road graph on a bridge collapse** — each with a named treatment |
+| ⚠ **not measured** | the cost of rebuilding `NetworkEntityMap` and copying the traffic lists per tick at 1 000 men |
+| ⚠ **not swept** | shared state held OUTSIDE the world — DI services and statics the UI and the simulation both hold (e.g. a service captured in a constructor); the TKB is one such, found through its singleton. ⛔ The next sweep |
+| ⚠ coverage | method: typed singleton reads in `Hrot.Presentation`, `Fdp.Presentation`, `Hrot/Editor`, `Hrot.Editor` + every type set as a singleton anywhere, matched by name in those folders + the world-keyed tables; ⛔ `check_index_coverage` is not in the CLI, so the list may miss a reader reached through a helper in another assembly |
