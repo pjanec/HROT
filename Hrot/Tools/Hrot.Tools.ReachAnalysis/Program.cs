@@ -147,6 +147,7 @@ internal static class Program
         };
         File.WriteAllText(Path.Combine(outDir, "reach.json"), JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
         WriteMarkdown(Path.Combine(outDir, "reach.md"), rows);
+        Console.WriteLine($"[reach] {ThreadStatics.Count} [ThreadStatic] fields excluded (per thread)");
         Console.WriteLine($"[reach] {rows.Count} fields cross the line ({result.sharedFields} outside the world, {result.worldFields} world internals) → {outDir}");
         return 0;
     }
@@ -243,6 +244,7 @@ internal static class Program
     }
 
     private static HashSet<string> PresentationInTick = new();
+    private static readonly ConcurrentDictionary<string, bool> ThreadStatics = new();   // [ThreadStatic] fields seen — excluded (per thread)
     private static HashSet<string> NoDispatch = new();   // member doc ids whose dispatch is NOT expanded (systems are roots of their own; a group's Execute would re-add every system)
 
     private static string DocName(INamedTypeSymbol t) => (t.OriginalDefinition.GetDocumentationCommentId() ?? "T:" + Full(t))[2..];
@@ -436,6 +438,8 @@ internal static class Program
         if (!InSource(member)) return;
         // a struct's INSTANCE field is not shared state by itself: the copy lives in a local, an array element or a field — the container is what is shared
         if (!isStatic && member.ContainingType.IsValueType) return;
+        // a [ThreadStatic] field is one per thread: safe by construction
+        if (isStatic && member.GetAttributes().Any(a => a.AttributeClass?.Name is "ThreadStaticAttribute" or "ThreadStatic")) { ThreadStatics[Key(member)] = true; return; }
         string key = Key(member);
         Fields.GetOrAdd(key, _ => new FieldInfo
         {
