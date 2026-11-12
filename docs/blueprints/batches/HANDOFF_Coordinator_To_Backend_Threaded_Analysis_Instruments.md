@@ -9,7 +9,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: an OVERNIGHT ANALYSIS — build the INSTRUMENTS that tell us the right threading solution (not the solution)
 
-**For:** a backend session (any lane that runs it overnight). **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen there.
+**For:** a backend session (any lane that runs it overnight). **From:** coordinator. **Dispatched at `25bce1e00`**, scope frozen there.
 🔒 User, `2026-11-12`: *"let's try analyzing the rest of unknowns. So not building some solution, but building something that tells us what the
 right solution is."* · *"It's no point trying to develop POC without knowing how."*
 
