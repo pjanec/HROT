@@ -19,6 +19,9 @@ namespace Fdp.Tests
     /// </summary>
     public class EntityCensusTests
     {
+        /// <summary>A part's metadata as the census reads it: <see cref="GlobalComponentIds.PartMetadata"/>, its parent first.</summary>
+        [ComponentId(GlobalComponentIds.PartMetadata)] public struct CensusPart { public Entity ParentEntity; public int InstanceId; }
+
         [Fact]
         public void TheCensusIsOffByDefault_AndAWalkPushesNothing()
         {
@@ -43,6 +46,9 @@ namespace Fdp.Tests
             w.RegisterComponent<A>(); w.RegisterComponent<B>();
             var e0 = w.CreateEntity(); var e1 = w.CreateEntity(); var e2 = w.CreateEntity();
             foreach (var e in new[] { e0, e1, e2 }) { w.AddComponent(e, new A { X = 1 }); w.AddComponent(e, new B { VX = 1 }); }
+            w.RegisterComponent<CensusPart>();
+            var part = w.CreateEntity();                                // e0's part (a child sensor)
+            w.AddComponent(part, new CensusPart { ParentEntity = e0 }); w.AddComponent(part, new B { VX = 0 });
             var q = w.Query().With<A>().Build();
             EntityCensus.ResetThread();
             using (AccessTrace.Scope(reader, TraceContext.Tick))
@@ -51,6 +57,7 @@ namespace Fdp.Tests
                 {
                     _ = w.GetComponentRO<A>(e);                         // own read
                     w.GetComponentRW<A>(e).X++;                         // own write
+                    if (e.Index == e0.Index) w.GetComponentRW<B>(part).VX++;   // own-part write (the part's parent is e0)
                     var next = e.Index == e0.Index ? e1 : e0;
                     _ = w.GetComponentRO<B>(next);                      // other read (a looked-up neighbour)
                     w.GetComponentRW<B>(next).VX++;                      // other write
@@ -74,6 +81,7 @@ namespace Fdp.Tests
             Assert.Equal(1, N("Write", "Position", "None"));
             Assert.Equal(0, N("Read", "Position", "Other"));
             Assert.Equal(0, N("Write", "Velocity", "Own"));
+            Assert.Equal(1, N("Write", "Velocity", "OwnPart"));
         }
     }
 }

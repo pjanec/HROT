@@ -198,6 +198,9 @@ namespace Fdp.Core
         /// <summary>Remembers repository <paramref name="id"/> so the dump can say how many entities it holds. ⛔ ON only.</summary>
         public static void RegisterRepo(int id, EntityRepository repo) { lock (s_nameLock) s_repoRefs[id] = new WeakReference<EntityRepository>(repo); }
 
+        /// <summary>⭐ N-1 — the live repository of id <paramref name="id"/>, or null (the census resolves a part's parent through it).</summary>
+        internal static EntityRepository? RepoOf(int id) { lock (s_nameLock) return s_repoRefs.TryGetValue(id, out var wr) && wr.TryGetTarget(out var r) ? r : null; }
+
         /// <summary>A new event-bus id (1-based). ⛔ ON only.</summary>
         public static int NextBusId()
         {
@@ -314,7 +317,7 @@ namespace Fdp.Core
                             var t = line.Trim();
                             if (t.StartsWith("phase ", StringComparison.Ordinal)) SetPhase(t.Substring(6).Trim());
                             else if (t == "dump") { Dump(); lastDump = Environment.TickCount64; }
-                            else if (t == "reset") Reset();
+                            else if (t == "reset") { Reset(); if (EntityCensus.On) EntityCensus.Reset(); }   // ⭐ N-1 — the census too
                         }
                     }
                     if (Environment.TickCount64 - lastDump > 5_000) { Dump(); lastDump = Environment.TickCount64; }

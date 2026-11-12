@@ -26,6 +26,7 @@ def main():
     ap.add_argument("--census", required=True)
     ap.add_argument("--arch", required=True)
     ap.add_argument("--rig")
+    ap.add_argument("--arch-start", help="the architecture snapshot taken at the census reset: executions are counted from it")
     ap.add_argument("--node", default="cgf")
     ap.add_argument("--phases", default="Simulation,PostSimulation")
     ap.add_argument("--subsystem", default=None)
@@ -34,13 +35,19 @@ def main():
     frames = max(1, c.get("frames", 1))
     arch = json.load(open(a.arch)); arch = arch.get("data") or arch
     phases = a.phases.split(",")
-    order, phase_of = [], {}
+    order, phase_of, execs = [], {}, {}
     for sub in arch["subsystems"]:
         if a.subsystem and sub["subsystem"] != a.subsystem: continue
         for s in sub["systems"]:
             n = s.get("systemName") or ""
             if s["phase"] in phases and not n.endswith(GROUPS) and n not in phase_of:
-                order.append(n); phase_of[n] = s["phase"]
+                order.append(n); phase_of[n] = s["phase"]; execs[n] = max(1, s.get("executions") or 0)
+    if a.arch_start:   # executions since the reset = end − start
+        st = json.load(open(a.arch_start)); st = st.get("data") or st
+        for sub in st["subsystems"]:
+            for x in sub["systems"]:
+                n = x.get("systemName") or ""
+                if n in execs: execs[n] = max(1, execs[n] - (x.get("executions") or 0))
     ms = {}
     if a.rig:
         for v, name in json.load(open(a.rig))["nodes"][a.node]["all_ms"]:
@@ -72,7 +79,7 @@ def main():
         rels = per.get(s)
         ph = phase_of[s]
         if not rels:
-            rows.append((s, ph, ms.get(s, 0.0), "NOT SEEN", [], [], [], 0, 0, 0)); continue
+            rows.append((s, ph, ms.get(s, 0.0), "NOT SEEN", collections.Counter(), collections.Counter(), collections.Counter(), 0, 0, 0)); continue
         own_w = sum(n for (k, t), n in rels.get("Own", {}).items() if k in WRITE)
         cross_w = collections.Counter()
         cross_struct = collections.Counter()
@@ -91,15 +98,16 @@ def main():
         rows.append((s, ph, ms.get(s, 0.0), cls, cross_w, cross_struct, last_tick, none_w, none_all, own_w))
 
     rows.sort(key=lambda r: -r[2])
-    print(f"# Census — node `{a.node}`, {frames} frames, phases {a.phases}\n")
+    print(f"# Census — node `{a.node}`, phases {a.phases} — counts per EXECUTION of each system (its profiler count)\n")
     tally = collections.Counter(r[3] for r in rows)
     tms = collections.Counter()
     for r in rows: tms[r[3]] += r[2]
     print("| class | systems | VM ms / frame |\n|---|---|---|")
     for k in ("READY", "CONVERTIBLE", "GLOBAL", "NOT SEEN"): print(f"| {k} | {tally[k]} | {tms[k]:.1f} |")
-    print("\n| system | phase | ms | class | cross-entity writes / frame | structural on others / frame | last-tick reads (types) | 'none' writes / frame | read-after-create |")
+    print("\n| system | phase | ms | class | cross-entity writes / run | structural on others / run | last-tick reads (types) | 'none' writes / run | read-after-create |")
     print("|---|---|---|---|---|---|---|---|---|")
     for s, ph, m, cls, cw, cst, lt, nw, na, ow in rows:
+        frames = execs.get(s, 1)   # ⚠ per EXECUTION of this system (its profiler count; both count since the process started)
         cw_s = ", ".join(f"`{short(t)}` {n / frames:.1f}" for t, n in cw.most_common(4)) + (f" (+{len(cw) - 4})" if len(cw) > 4 else "")
         cs_s = ", ".join(f"{k} `{short(t)}` {n / frames:.1f}" for (k, t), n in cst.most_common(3))
         lt_s = ", ".join(f"`{short(t)}`" for t, _ in lt.most_common(5)) + (f" (+{len(lt) - 5})" if len(lt) > 5 else "")

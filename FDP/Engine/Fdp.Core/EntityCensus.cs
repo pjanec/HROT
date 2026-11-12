@@ -16,6 +16,8 @@ namespace Fdp.Core
     /// <item><b>own</b> — the entity of the system's OUTERMOST entity loop (the one a per-entity job would be given);</item>
     /// <item><b>other-scan</b> — not the processed entity, but the entity of an INNER loop the system runs while processing (a scan over neighbours);</item>
     /// <item><b>other</b> — any other entity (a target, a squad member, a looked-up id);</item>
+    /// <item><b>own-part</b> — a PART of the processed entity (its <c>PartMetadata.ParentEntity</c> is the processed entity: a child sensor, an owned
+    /// part) — exclusive to that entity, so a per-entity job may write it directly;</item>
     /// <item><b>none</b> — no entity loop is running (a global system, an event-driven pass, or a loop the hooks do not see — see "blind spots").</item>
     /// </list>
     /// The current entity is a per-thread STACK: an <see cref="EntityQuery"/> walk pushes a slot when it starts, sets it per entity, and pops it when
@@ -39,7 +41,7 @@ namespace Fdp.Core
         private static readonly string OutPath = OutputPath;
 
         /// <summary>The class of an access relative to the entity being processed.</summary>
-        public enum Rel : byte { Own = 0, OtherScan = 1, Other = 2, None = 3 }
+        public enum Rel : byte { Own = 0, OtherScan = 1, Other = 2, None = 3, OwnPart = 4 }
 
         // ── the per-thread stack of the entities being walked ──
         [ThreadStatic] private static int[]? t_stack;
@@ -73,6 +75,24 @@ namespace Fdp.Core
             return Rel.Other;
         }
 
+        // a part's parent: PartMetadata (GlobalComponentIds.PartMetadata) starts with its ParentEntity — read raw, the tracer muted (not an access of the system)
+        private static unsafe int ParentIndex(int repoId, int index)
+        {
+            var repo = AccessTrace.RepoOf(repoId);
+            if (repo == null) return -1;
+            AccessTrace.Mute();
+            try
+            {
+                var idx = repo.EntityIndexUntraced;
+                if (index < 0 || index > idx.MaxIssuedIndex) return -1;
+                var e = new Entity(index, idx.GetMetadataUnsafe(index).Generation);
+                if (!repo.IsAlive(e) || !repo.HasComponentByTypeId(e, GlobalComponentIds.PartMetadata)) return -1;
+                return ((Entity*)repo.GetComponentPointer(e, GlobalComponentIds.PartMetadata))->Index;
+            }
+            catch { return -1; }
+            finally { AccessTrace.Unmute(); }
+        }
+
         // ── frames and creations ──
         private static int s_frame;
         private static readonly ConcurrentDictionary<long, int> s_createdAt = new();
@@ -104,6 +124,7 @@ namespace Fdp.Core
         {
             if (s_pump == null) Start();
             var rel = Classify(index);
+            if (rel is Rel.Other or Rel.OtherScan && t_stack != null && ParentIndex(repo, index) == t_stack[0]) rel = Rel.OwnPart;
             var cell = s_cells.GetOrAdd(new Key(reader, kind, type, repo, rel), static _ => new Cell());
             long n = Interlocked.Increment(ref cell.Count);
             if (!IsWrite(kind) && s_createdAt.TryGetValue(((long)repo << 32) | (uint)index, out int f) && f == Volatile.Read(ref s_frame))
@@ -140,6 +161,9 @@ namespace Fdp.Core
                 AppDomain.CurrentDomain.ProcessExit += (_, _) => { try { Dump(); } catch { } };
             }
         }
+
+        /// <summary>Drops every count (the tracer's control line <c>reset</c> — a run resets after its warm-up, so the load is not counted).</summary>
+        public static void Reset() { s_cells.Clear(); s_createdAt.Clear(); }
 
         /// <summary>Writes the counts as JSON: one row per (reader, kind, type, repo, class).</summary>
         public static void Dump()
