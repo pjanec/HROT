@@ -294,7 +294,7 @@ As §2a–§2c, with these differences (each measured during the build):
 Rails (`TacticsTreesTests`): `AQ96_AThreatMidMove_CrouchesHim_AndRushes_TheSameMove` · `AQ96_ANearMissInTheOpen_DropsHim_HeStaysDownUnderFire_ThenShiftsAndRises`
 · `AQ96_CoveredByHisHalf_HeRisesUnderFire_AloneHeStaysDown` · `AQ96_NoDropWhenArriving_AndAnUprightRunIsNotKept`.
 Demos: `uf-alone-under-fire` (one man, nobody covers him) and `uf-squad-under-fire` (the fire-and-movement cast) — the first scenarios that
-carry `header.description` (what they show and how to judge them; the round-trip is backend's, [handoff](batches/HANDOFF_Behaviors_To_Backend_Scenario_Description.md)).
+carry `header.description` (what they show and how to judge them; the round-trip is backend's, handoff).
 `python3 scripts/utility-demo-check.py --launch uf-alone-under-fire` (and `uf-squad-under-fire`); the live results are below.
 
 | live, 2026-10-20 | measured |

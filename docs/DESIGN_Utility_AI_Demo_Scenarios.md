@@ -856,7 +856,7 @@ H1/H2 need nothing at all and can start at once; the backend merges `behaviors` 
 |---|---|---|
 | behaviors merges `backend` | behaviors | ⭐ when `origin/backend` carries a commit titled `feat(CE-3072 B0)` — before H3/H4/H6; ⭐ again before its final commit |
 | backend merges `behaviors` | backend | at the start of every slice (rule 7), and ⭐ before B6 (needs H2, H5) and B7 (needs H7) |
-| the dispatch | backend → behaviors | [`HANDOFF_Danger_Crossing_Behaviors.md`](blueprints/batches/HANDOFF_Danger_Crossing_Behaviors.md) |
+| the dispatch | backend → behaviors | `HANDOFF_Danger_Crossing_Behaviors.md` |
 
 #### 10.6a ✅ AS-BUILT — B0 (`CE-3072`) and B1 (`CE-3080`), `2026-10-06`
 
@@ -970,7 +970,7 @@ Rails: `DangerAlongRouteClassifierTests` ×6, `DangerAreaSensorSystemTests` ×6 
 
 #### 10.7b OpenGround — the first kind after v1 *(`CE-3081`, backend, `2026-10-14`; for behaviors' `CE-2161` (the live D3 "Bound" demo); build-state: BUILT `2026-10-14`, as drawn — the as-built line at the end)*
 
-> 🔒 **Dispatched** by the behaviours lane ([`HANDOFF_Behaviors_To_Backend_OpenGround`](blueprints/batches/HANDOFF_Behaviors_To_Backend_OpenGround.md),
+> 🔒 **Dispatched** by the behaviours lane (`HANDOFF_Behaviors_To_Backend_OpenGround`,
 > frozen at `4a9b037f5`) — user, `2026-10-14`: *"Each behavior needs to be demoed in some scenario"*. §10.7: *"a run with no cover
 > within the corridor"*.
 

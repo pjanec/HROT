@@ -14,7 +14,7 @@ design-basis: DESIGN_Details_Panel_View_Switching.md §6 L6 (re-staged 2026-08-2
 
 > **Design:** 📄 [`DESIGN_Details_Panel_View_Switching.md`](../DESIGN_Details_Panel_View_Switching.md)
 > §6 `L6` · §5 · §2 · the `L6` sequence
-> **Handoff:** 📄 [`HANDOFF_L6_Entity_Views_On_Scenario.md`](HANDOFF_L6_Entity_Views_On_Scenario.md)
+> **Handoff:** 📄 `HANDOFF_L6_Entity_Views_On_Scenario.md`
 > **dispatched at** `16be5f2c2` · **started at** `f968e693` *(marker `f8e694d0`)* ·
 > **branch** `claude/hrot-implementation-j1jvin`
 > ⭐ Run **autonomously** per §2b — no coordinator round-trip between items.

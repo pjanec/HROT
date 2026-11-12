@@ -2583,11 +2583,11 @@ replicate it).
 `AimAndFireExecutor.HoldOf` + `FireBlind`, `FireAtPointExecutor.ShootAtPoint` (`obeyRoe`), `HiddenTargetThrow.TryThrow`, reason
 `ActionReason.HoldNoFireArea`. Rails: `EngagementAreaTests` (6, four red-proofed) · `CgfLogicPackTests`, `MissionControlModuleTests`
 (+1 input system). Backend asked for the kind 4, the commander's component on the men's nodes, and DA-14's round origin
-([note](../../blueprints/batches/NOTE_Behaviors_To_Backend_Sectors.md)). ⚠ Nothing WRITES a sector yet — the plays that do are the next
+(note). ⚠ Nothing WRITES a sector yet — the plays that do are the next
 slices (`CE-2275` SquadDefend, `CE-2257` the clearing, the march), so no demo shows it until then.
 
 
-#### 13c-1. Backend's half, as built *(`CE-3261`, `CE-3262`, `CE-3263` — 2026-10-19; behaviors' [sectors note](../../blueprints/batches/NOTE_Behaviors_To_Backend_Sectors.md) ① ② ③ ⑤ — cross-lane fold by backend)*
+#### 13c-1. Backend's half, as built *(`CE-3261`, `CE-3262`, `CE-3263` — 2026-10-19; behaviors' sectors note ① ② ③ ⑤ — cross-lane fold by backend)*
 
 | ask | as built | rail |
 |---|---|---|

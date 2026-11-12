@@ -452,7 +452,7 @@ Editing is initiated via the IOS context menu: the operator right-clicks a route
 ### 11.4 The waypoint editor on EVERY authoring host, with the air fields (`CE-1096`, air hand-off U2, ui, designed `2026-10-14`)
 
 🔒 **User, `2026-10-14`:** the air-operations plan *"Approved"* (R-2015) — U2 *"per-waypoint height, kind and hold in the route editor"*
-([HANDOFF_Behaviors_To_Ui_Air_Operations.md](../../blueprints/batches/HANDOFF_Behaviors_To_Ui_Air_Operations.md)) → the ui plan → *"Ok go"*.
+(HANDOFF_Behaviors_To_Ui_Air_Operations.md) → the ui plan → *"Ok go"*.
 
 📐 **INVENTORY** *(graph `search_graph .*Waypoint.* Class` = 25 — the only waypoint-properties UI is `Hrot.IG.UI.WaypointEditorPanel`; window
 registrations grep'd per host)*:

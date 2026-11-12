@@ -8,7 +8,7 @@ known-conflict: none.
 -->
 # REPORT — **HN-037: the allocator unification** *(backend lane, overnight)*
 
-> 📌 **Dispatch:** [`HANDOFF_Allocator_Unification.md`](HANDOFF_Allocator_Unification.md), frozen at
+> 📌 **Dispatch:** `HANDOFF_Allocator_Unification.md`, frozen at
 > **`33c819a13`**. Branch `claude/blueprint-macro-feature-sdmspn`. Started-marker `ea02fe25f` (rule 1b).
 > **ids allocated: `HN-050`…`HN-058`** *(rule 5)*, starting at `HN-050` as directed.
 

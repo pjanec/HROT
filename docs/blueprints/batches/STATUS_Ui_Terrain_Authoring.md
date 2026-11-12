@@ -8,7 +8,7 @@ related-designs:
   - STATUS_Backend_Terrain_Authoring_2.md — backend's parallel batch (T-1 and T-2 landed during this run and are merged; T-3 recipes, T-4 Unpack, T-5 road alignment are NOT built)
 -->
 
-# STATUS — ui: terrain authoring in the editor ([handoff](HANDOFF_Coordinator_To_Ui_Terrain_Authoring.md))
+# STATUS — ui: terrain authoring in the editor (handoff)
 
 Started at `c8dc93df4` (merged `coordinator` + `backend@80051b2f0`); `backend@dc680a442` (T-1, T-2) merged before U-7. Tracker ids from the ui block: CE-1481 … CE-1490 (CE-1488 follow-up fonts/icons/hint · CE-1489 block Details form · CE-1490 Edit terrain…). Frames: rendered by the rails to the session scratchpad (`HROT_RAIL_SHOTS`), ⛔ never committed.
 
@@ -18,7 +18,7 @@ Started at `c8dc93df4` (merged `coordinator` + `backend@80051b2f0`); `backend@dc
 | U-2 | CE-1481 | ✅ DONE | the fitted placing ghost (pure `FeatureExpander`, cached, 0 B steady), R rotates, one `TerrainBlock` / `TerrainFeature` per click; rails `U2_*` |
 | U-3 | CE-1482, CE-1489 | ✅ DONE (follow-up 2026-11-11: Details form built, menu icons, hint fix) | outline + chip + selection + block menu (Re-roll · Rotate · Change recipe… one undo step each; **Unpack live since follow-up 3**); `TerrainBlockGizmoTests`, `TerrainBlockFrameRail` |
 | U-4 | CE-1483 | ✅ DONE | template houses are tan footprints below 6 px/m, floor plan above; `TerrainBlockFrameRail` |
-| U-5 | CE-1484, CE-1490 | ◐ PART | Save terrain as… ✅; **follow-up 2026-11-11: Edit terrain… ✅ (staged to `opened/terrain/<t>`), SOURCE chip + right-click ✅, File ▸ Edit Terrain… / Save Terrain ✅, `TERRAIN SOURCE ·` title ✅**; ⏭ greyed: a terrain whose ground left the catalogue ([NOTE](NOTE_Ui_To_Backend_Edit_Terrain.md)), a terrain with no source (E-3) |
+| U-5 | CE-1484, CE-1490 | ◐ PART | Save terrain as… ✅; **follow-up 2026-11-11: Edit terrain… ✅ (staged to `opened/terrain/<t>`), SOURCE chip + right-click ✅, File ▸ Edit Terrain… / Save Terrain ✅, `TERRAIN SOURCE ·` title ✅**; ⏭ greyed: a terrain whose ground left the catalogue (NOTE), a terrain with no source (E-3) |
 | U-6 | CE-1485 | ✅ DONE | 3-D chunks adopt a new world and rebuild only those under the dirty rectangles: demo-city 16 chunks, 48 builds at load, one moved rectangle ⇒ 3 builds |
 | U-7 | CE-1486, CE-1492 | ◐ PART | lines / areas / points through the existing tools on T-2; **follow-up 2: the options panel (kind · height · bridge span · scatter recipe / density / seed), per-type coloured clutter glyphs**; **the area scatter is greyed (no recipe carries a `scatter` section yet)** |
 | U-8 | CE-1487, CE-1491 | ✅ DONE (follow-up 2: the plan with relief, chips, tooltip, zoom; the preset tiles generated; the mockup's rows) | the three-step wizard over T-1; deviations in §15a-2 (the engine's option labels, no clutter / bridge rows) |

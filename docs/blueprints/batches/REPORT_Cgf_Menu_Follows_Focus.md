@@ -9,7 +9,7 @@ known-conflict: none.
 # REPORT — **CGF menu adoption + the follows-focus registry model** *(`CE-041`…`CE-045`, UXI-05)*
 
 > 📌 **Dispatched at `4b31db747`** · **started-marker `762add67a`** *(rule 1b, pushed before any code)*.
-> 📄 Handoff: [`HANDOFF_Cgf_Menu_Follows_Focus.md`](HANDOFF_Cgf_Menu_Follows_Focus.md) ·
+> 📄 Handoff: `HANDOFF_Cgf_Menu_Follows_Focus.md` ·
 > design: [`DESIGN_Cgf_Menu_Follows_Focus_Slice.md`](../../DESIGN_Cgf_Menu_Follows_Focus_Slice.md).
 > ⭐ **All five items DONE.** ⚠ **Four argued deviations** — §2 — of which **two need a coordinator/user
 > call**: `File/Reload` and what CGF actually gained.

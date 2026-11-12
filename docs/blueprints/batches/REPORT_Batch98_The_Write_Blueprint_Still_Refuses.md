@@ -9,7 +9,7 @@ stale-below: nothing
 | | |
 |---|---|
 | **branch** | `claude/hrot-implementation-j1jvin` |
-| **handoff** | [`HANDOFF_Batch98_The_Write_Blueprint_Still_Refuses.md`](HANDOFF_Batch98_The_Write_Blueprint_Still_Refuses.md) · ⛔ §2 **WITHDRAWN** by [`STEER_Batch98b…`](STEER_Batch98b_Properties_Is_A_Custom_Dialog.md) |
+| **handoff** | `HANDOFF_Batch98_The_Write_Blueprint_Still_Refuses.md` · ⛔ §2 **WITHDRAWN** by `STEER_Batch98b…` |
 | **scope frozen at** | ⭐ **`18dfcbb25`** |
 | **base for every RED** | ⭐ **`18dfcbb25`** |
 | **started-marker** *(rule 1b)* | `9a4f054` |

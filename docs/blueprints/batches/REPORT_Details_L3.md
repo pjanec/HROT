@@ -9,7 +9,7 @@ known-conflict: none.
 # ⭐⭐⭐ REPORT — **Details panel migration, layer `L3`** *(migrate the views)*
 
 > **Design:** 📄 [`DESIGN_Details_Panel_View_Switching.md`](../DESIGN_Details_Panel_View_Switching.md)
-> §4 · §6 `L3` · **dispatch:** [`HANDOFF_Details_Panel_Migration.md`](HANDOFF_Details_Panel_Migration.md)
+> §4 · §6 `L3` · **dispatch:** `HANDOFF_Details_Panel_Migration.md`
 > **started at** `55cc60e1` *(marker `ea30bbe6`)* · **branch** `claude/hrot-implementation-j1jvin`
 > ⭐ Re-synced from the coordinator at the start *(rule 7)*; re-pulled before the final commit *(rule 4)*.
 > ⛔ **No diagram in this report** — 📌 diagrams live in the design, never in the batch.

@@ -181,7 +181,7 @@ related-designs:
 
 ## SESSION 2026-11-10 (c) — THE OSM WIZARD LIVE, E-1…E-3
 
-Handoff [HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live.md](batches/HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live.md) (dispatched e233f69a6); record
+Handoff HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live.md (dispatched e233f69a6); record
 [STATUS_Ui_Osm_Wizard_Live.md](batches/STATUS_Ui_Osm_Wizard_Live.md).
 
 | item | state |
@@ -211,7 +211,7 @@ items done and pushed to `ui` (last 9553bd85b); the record is [STATUS_Ui_Large_T
 
 ## SESSION 2026-11-10 — THE OSM TERRAIN WIZARD (CE-4375), BUILT AGAINST THE FAKES
 
-⭐ [HANDOFF_Coordinator_To_Ui_Osm_Wizard.md](batches/HANDOFF_Coordinator_To_Ui_Osm_Wizard.md) W-1…W-5 done: the wizard (`Hrot.Presentation/TerrainOsm/`), File ▸ New ▸ Terrain
+⭐ HANDOFF_Coordinator_To_Ui_Osm_Wizard.md W-1…W-5 done: the wizard (`Hrot.Presentation/TerrainOsm/`), File ▸ New ▸ Terrain
 from OpenStreetMap… (greyed — no real pipeline on the tree yet), fakes + 16 rails, conformance C-1…C-15 all ✅ with the ⚠ list —
 [STATUS_Ui_Osm_Wizard.md](batches/STATUS_Ui_Osm_Wizard.md); design [DESIGN_Terrain_From_OSM.md](../DESIGN_Terrain_From_OSM.md) §6b + §6b-as-built.
 ⭐ The REAL pipeline is composed (`OsmPipelines.Online` — one composition with the CLI; per-area road builder). ⭐ **Next for this item:** an `ITileSource` (OSM tiles,
@@ -221,7 +221,7 @@ contract extension first. Filed: [CE-1468](Blueprint_Issues_Tracker.md) (the til
 
 ## ⭐⭐⭐ SESSION 2026-11-09 (b) — NEXT_2 A-1…A-10, DONE *(state at `ui` + this doc commit, pushed)*
 
-⭐ **[HANDOFF_Coordinator_To_Ui_Next_2](batches/HANDOFF_Coordinator_To_Ui_Next_2.md) is finished.** Every row is in [STATUS_Ui_Next_2](batches/STATUS_Ui_Next_2.md):
+⭐ **HANDOFF_Coordinator_To_Ui_Next_2 is finished.** Every row is in [STATUS_Ui_Next_2](batches/STATUS_Ui_Next_2.md):
 A-2 one Scenario tab (CE-4346) · A-3 the struct editor opens buffers / maps (CE-4351, CE-4352) · A-4 group drag measured working end to end (CE-4342) · A-5 toasts from the font (CE-4343) ·
 A-6 RTS checkmark (CE-4347) · A-7 the wheel past the eyes (CE-4348) · A-8 the pick dropdown's columns (CE-4349) · A-9 ▶ greyed with the merged world's reason · A-10 the Car in the atlas (CE-4273).
 
@@ -230,7 +230,7 @@ A-6 RTS checkmark (CE-4347) · A-7 the wheel past the eyes (CE-4348) · A-8 the 
 `BranchWallTicks`, the master mints the mark label, the popup's unit is THE entity field) — as built in [DESIGN_Bookmarks_And_Notes](../UX/DESIGN_Bookmarks_And_Notes.md) §5.
 
 **⏭ Next, in order:**
-1. **Go Live greyed from a replay on another cluster** — still waits on backend ([NOTE_Ui_To_Backend_GoLive_Refusal_Fact](batches/NOTE_Ui_To_Backend_GoLive_Refusal_Fact.md)).
+1. **Go Live greyed from a replay on another cluster** — still waits on backend (NOTE_Ui_To_Backend_GoLive_Refusal_Fact).
 2. Merge the other lanes; look for `To_Ui` notes.
 
 **Things measured this session (each one cost time):**
@@ -246,7 +246,7 @@ A-6 RTS checkmark (CE-4347) · A-7 the wheel past the eyes (CE-4348) · A-8 the 
 ⭐ **U-11 rest (CE-4330 ui half) is BUILT** — every row in [DESIGN_Recording_Storage §11](../DESIGN_Recording_Storage.md): ⑤ picker location chips · ③ ⏏ Close the session asks Archive / Keep / Discard (radios on the ONE confirmation shape) · ⑦ Delete from archive (picker row's right-click) · ④ the import dialog (ask or join, Continue in background / Cancel, opens by itself) + CE-4331 ③ Start / Cancel on another cluster · ⑥ the orchestrator panel draws the same Transfers list (`StorageJobList`) · the quit guard checked (backend's, drawn). Frame rails render each against the mockup (`/tmp/hrot-frames/ce4330-*.png`, no PNG in git).
 
 **⏭ Next, in order:**
-1. **Go Live greyed from a replay on another cluster** — waits on backend: [NOTE_Ui_To_Backend_GoLive_Refusal_Fact](batches/NOTE_Ui_To_Backend_GoLive_Refusal_Fact.md) (the master's `GoLiveRefusal` is not replicated; the job's `Reason` covers only part of it). The master's refusal is the gate meanwhile.
+1. **Go Live greyed from a replay on another cluster** — waits on backend: NOTE_Ui_To_Backend_GoLive_Refusal_Fact (the master's `GoLiveRefusal` is not replicated; the job's `Reason` covers only part of it). The master's refusal is the gate meanwhile.
 2. **CE-4273** — the Car's thumbnail (`scripts/thumbnails.py --types Car --pack` against a live editor).
 3. **CE-1466** (3-D click-select hit-tests the 2-D footprints) · **CE-1467** (bookmark deviations).
 4. Merge `coordinator`, look for `To_Ui` notes.
@@ -275,11 +275,11 @@ A-6 RTS checkmark (CE-4347) · A-7 the wheel past the eyes (CE-4348) · A-8 the 
 
 | handoff | status | state |
 |---|---|---|
-| [User findings overnight](batches/HANDOFF_Coordinator_To_Ui_User_Findings_Overnight.md) | [STATUS](batches/STATUS_Ui_User_Findings_Overnight.md) | ✅ all closed or remainder filed: CE-1476 (U-10 Windows measure), CE-1477 (U-5 the real click on Windows), CE-1478 (U-2 frame apply + per-tick systems in replay); U-12's exit 1 needs one Windows run |
-| [Destruction drawing](batches/HANDOFF_Coordinator_To_Ui_Destruction_Drawing.md) | [STATUS](batches/STATUS_Ui_Destruction_Drawing.md) | ✅ (built by an earlier session; re-verified, a breach rebuild = 26 ms) |
-| [Next_3](batches/HANDOFF_Coordinator_To_Ui_Next_3.md) | [STATUS](batches/STATUS_Ui_Next_3.md) | ✅ C-0 … C-10 |
+| User findings overnight | [STATUS](batches/STATUS_Ui_User_Findings_Overnight.md) | ✅ all closed or remainder filed: CE-1476 (U-10 Windows measure), CE-1477 (U-5 the real click on Windows), CE-1478 (U-2 frame apply + per-tick systems in replay); U-12's exit 1 needs one Windows run |
+| Destruction drawing | [STATUS](batches/STATUS_Ui_Destruction_Drawing.md) | ✅ (built by an earlier session; re-verified, a breach rebuild = 26 ms) |
+| Next_3 | [STATUS](batches/STATUS_Ui_Next_3.md) | ✅ C-0 … C-10 |
 
-**Next:** after backend moves `NodeIdRanges` ([REQUEST](batches/NOTE_Ui_To_Backend_NodeIdRanges_Home.md)), drop `Hrot.ReplayBrowser → Hrot.Orchestrator`. Then merge `coordinator` and look for the next handoff (`ls -t docs/blueprints/batches | grep -E "HANDOFF.*Ui|To_Ui"` — ⚠ check a STATUS file does not already exist before creating one: other ui sessions run on Windows).
+**Next:** after backend moves `NodeIdRanges` (REQUEST), drop `Hrot.ReplayBrowser → Hrot.Orchestrator`. Then merge `coordinator` and look for the next handoff (`ls -t docs/blueprints/batches | grep -E "HANDOFF.*Ui|To_Ui"` — ⚠ check a STATUS file does not already exist before creating one: other ui sessions run on Windows).
 **Traps:** container restarts kill workers — stash their WIP (look for a leftover mutation first), never commit it unseen; workers now revert a mutation in the same shell command that tests it.
 
 ## ⭐⭐⭐ SESSION 2026-11-08 — RUN CONTROLS, BATCH Z, AFTER-Z (PAUSED) *(state at `ui@7a302a3c2`, pushed, tree clean; the user said PAUSE — token allowance near; nothing in flight)*
@@ -288,19 +288,19 @@ A-6 RTS checkmark (CE-4347) · A-7 the wheel past the eyes (CE-4348) · A-8 the 
 
 | handoff | status file | state |
 |---|---|---|
-| [HANDOFF_Coordinator_To_Ui_And_Backend_Run_Controls](batches/HANDOFF_Coordinator_To_Ui_And_Backend_Run_Controls.md) — AQ108 §0 switch now, Live ends in two steps, the indicator, ▶ colour, the Save slot, the Player's briefing + summary, fidelity (R-1 … R-8) | [STATUS_Run_Controls_Ui](batches/STATUS_Run_Controls_Ui.md) | ✅ all DONE |
-| [HANDOFF_Coordinator_To_Ui_Next](batches/HANDOFF_Coordinator_To_Ui_Next.md) — Z-1 AAR flag text · Z-2 U4 + Edit ▸ History · Z-3 A7 Details tabs · Z-4 H6 seats · Z-5 K2/K3/K7 · Z-6 K5/K6 · Z-7 K4 · Z-8 L-10 Run setup (+ CE-4329 seat text → status bar, autosave setting + recovery for backend) | [STATUS_Ui_Next](batches/STATUS_Ui_Next.md) | ✅ all DONE |
-| [HANDOFF_Coordinator_To_Ui_After_Z](batches/HANDOFF_Coordinator_To_Ui_After_Z.md) — U-1 … U-12 | [STATUS_Ui_After_Z](batches/STATUS_Ui_After_Z.md) (its "RESUME HERE") | ✅ U-1 … U-10, U-12, CE-2426 · ⏸ **U-11 rest** |
+| HANDOFF_Coordinator_To_Ui_And_Backend_Run_Controls — AQ108 §0 switch now, Live ends in two steps, the indicator, ▶ colour, the Save slot, the Player's briefing + summary, fidelity (R-1 … R-8) | [STATUS_Run_Controls_Ui](batches/STATUS_Run_Controls_Ui.md) | ✅ all DONE |
+| HANDOFF_Coordinator_To_Ui_Next — Z-1 AAR flag text · Z-2 U4 + Edit ▸ History · Z-3 A7 Details tabs · Z-4 H6 seats · Z-5 K2/K3/K7 · Z-6 K5/K6 · Z-7 K4 · Z-8 L-10 Run setup (+ CE-4329 seat text → status bar, autosave setting + recovery for backend) | [STATUS_Ui_Next](batches/STATUS_Ui_Next.md) | ✅ all DONE |
+| HANDOFF_Coordinator_To_Ui_After_Z — U-1 … U-12 | [STATUS_Ui_After_Z](batches/STATUS_Ui_After_Z.md) (its "RESUME HERE") | ✅ U-1 … U-10, U-12, CE-2426 · ⏸ **U-11 rest** |
 
 **⏭ Next, in order (nothing started):**
-1. **U-11 rest** (CE-4330 ui half) over backend's facts ② ③ ⑥ (`7a9016887`, [NOTE](batches/NOTE_Backend_To_Ui_Recording_Storage.md)): ① picker chips · ② ⏏ Close the session asks Archive / Keep / Discard (default Archive; no question when not recorded — `RunModeChoice.AskToClose` / `CloseSession`, R-4171) · ③ delete-from-archive confirmation · ④ import dialog · ⑤ quit guard · ⑥ the orchestrator panel's list. Built already: the status-bar segment + Transfers popover (`10a60648c`). Design [DESIGN_Recording_Storage](../DESIGN_Recording_Storage.md) §7.3 / §8 / §10, mockup `docs/UX/recording-storage-visual.svg`. ⭐ Commit + push per piece.
+1. **U-11 rest** (CE-4330 ui half) over backend's facts ② ③ ⑥ (`7a9016887`, NOTE): ① picker chips · ② ⏏ Close the session asks Archive / Keep / Discard (default Archive; no question when not recorded — `RunModeChoice.AskToClose` / `CloseSession`, R-4171) · ③ delete-from-archive confirmation · ④ import dialog · ⑤ quit guard · ⑥ the orchestrator panel's list. Built already: the status-bar segment + Transfers popover (`10a60648c`). Design [DESIGN_Recording_Storage](../DESIGN_Recording_Storage.md) §7.3 / §8 / §10, mockup `docs/UX/recording-storage-visual.svg`. ⭐ Commit + push per piece.
 2. **CE-4273** — the Car's thumbnail: `scripts/thumbnails.py --types Car --pack` against a live editor (the script half `202cd5c5c` is built), commit page + index.
 3. Open ui rows: **CE-1466** (3-D click-select still hit-tests the 2-D footprints — U-9 fixed hover only) · **CE-1467** (bookmark deviations, Bookmarks design §5).
 4. Then merge `coordinator` and look for the next handoff / notes to ui (`ls -t docs/blueprints/batches | grep To_Ui`).
 
 **Decided this session (rulings in RULINGS.md):** R-4168 (Preview with a preset in place; no checkpoints in AAR / unrecorded Live) · R-4169 (map letters stay on while following) · R-4170 (seat · hat text → status bar) · R-4176 (ui leans approved: informational hat menu, Observe-hat camera; per-user key overrides PARKED) · R-4178 (Keyboard shortcuts → View ▸ Settings, supersedes R-4176 #3).
 
-**Known reds (pre-existing, not ui's to chase):** Presentation CE1039 / CE1380 / CE1227 (+ load-flaky CE4318, StringFieldTyping 0 B, RouteWaypointGizmo CE1096) · Editor `EveryToolIsInTheGeneratedCatalog` (backend's storage routes not in the MCP catalog — [FYI](batches/NOTE_Ui_To_Backend_Tool_Catalog_Regen.md)) · AiShared CE1325 / CE3403 0 B load-flaky · ClusterRunner 6 (EveryReplayWriterIsGated, EverySystemStateFieldIsClassified ×2, EverySystemForgetsTheLastWorld, CE1436_CgfShapedHost, CE1446) · Blueprints 4 · Fdp.Toolkits DEBT-AIB-030 rotating.
+**Known reds (pre-existing, not ui's to chase):** Presentation CE1039 / CE1380 / CE1227 (+ load-flaky CE4318, StringFieldTyping 0 B, RouteWaypointGizmo CE1096) · Editor `EveryToolIsInTheGeneratedCatalog` (backend's storage routes not in the MCP catalog — FYI) · AiShared CE1325 / CE3403 0 B load-flaky · ClusterRunner 6 (EveryReplayWriterIsGated, EverySystemStateFieldIsClassified ×2, EverySystemForgetsTheLastWorld, CE1436_CgfShapedHost, CE1446) · Blueprints 4 · Fdp.Toolkits DEBT-AIB-030 rotating.
 
 **Traps measured this session:**
 - a 0 B rail can go red inside a full class run from JIT TIERING (call counting allocates on the test thread) — take the smallest of several windows (`PossessionStationTests.Keymap`, `DOTNET_TieredCompilation=0` proves it).
@@ -314,11 +314,11 @@ A-6 RTS checkmark (CE-4347) · A-7 the wheel past the eyes (CE-4348) · A-8 the 
 
 🔒 User: *"Merge coordinator and follow the handoff HANDOFF_Coordinator_To_Ui_Todays_Rulings.md"* — merged `coordinator@29a9bd83b` + `backend@add7d4c20`,
 started `428f681b5`. ⭐ The live per-item state is the **"Third handoff"** table in [STATUS_Editing_UX_Build_Ui.md](batches/STATUS_Editing_UX_Build_Ui.md);
-the order is the [handoff](batches/HANDOFF_Coordinator_To_Ui_Todays_Rulings.md) (scope frozen at `b3c6c99a`).
+the order is the handoff (scope frozen at `b3c6c99a`).
 
 | # | item | state |
 |---|---|---|
-| 1 | A3 corrections (R-4162) | ✅ `177de710b` — Rotate Edit + Live, *Save selection as macro…* Edit only, goldens regenerated. ⚠ Save in **Preview** still refuses instead of checkpointing — REQUEST to backend: [NOTE_Ui_To_Backend_Preview_Checkpoint](batches/NOTE_Ui_To_Backend_Preview_Checkpoint.md) |
+| 1 | A3 corrections (R-4162) | ✅ `177de710b` — Rotate Edit + Live, *Save selection as macro…* Edit only, goldens regenerated. ⚠ Save in **Preview** still refuses instead of checkpointing — REQUEST to backend: NOTE_Ui_To_Backend_Preview_Checkpoint |
 | 2 | P-7 (CE-4303) the Orders tab | 🔨 CLAIMED · plan `c7139739e` ([Mission plan §5.11](../UX/DESIGN_Mission_Plan_Editor.md), slices 7a–7d) · ✅ **7a** `cdaa914c3` (read-only tab: `OrdersPlanModel` + `OrdersTab`, `details.orders`, via `EntityDetailsHostServices.Missions`, Editor + CGF). ⏭ **7b** = editing (+ Add task with Wait first, the order form, the *then* picker §5.6 as presets → `{type: Then, params}`, give up, remove / reorder) |
 | 3–7 | A4 selection rules · B-16 seats H2–H4 · B-10 K2 / K3 / K7 · CE-4305 (only if backend has not claimed it) · P-8 (after backend P-5 / P-6) | ⏳ not started |
 
@@ -334,7 +334,7 @@ document"*.
 
 ### ⭐ The situation in one paragraph
 
-The editing-UX bundle ([handoff](batches/HANDOFF_Coordinator_To_Ui_Rules_Bundle_And_Takeover.md)) is being built in order B-10 → B-11 → B-14 →
+The editing-UX bundle (handoff) is being built in order B-10 → B-11 → B-14 →
 B-16 → B-17. **B-10 K1 is built** (one key router; focus decides who gets keys). **B-10 K2 is partly built** (CE-4281); its hat scopes and
 **K3 central Esc wait for the `HatArbiter`** (seats-and-hats H3, part of B-16), by the user-approved order. **B-11 A1, A2, A3 are built** (the
 action catalogue composes every map menu; greyed when the station cannot run it; the ONE station mode decides what is offered). ⏸ **Two things
@@ -400,7 +400,7 @@ Hrot.Editor.Tests 822/845 (22 skipped, **1 red, not ours** — below) · Hrot.Pl
 
 | ⭐ read first | |
 |---|---|
-| the two handoffs | [Editing_UX_Build](batches/HANDOFF_Coordinator_To_Ui_Editing_UX_Build.md) (dispatched `9c50cec00`) · [Rules_Bundle_And_Takeover](batches/HANDOFF_Coordinator_To_Ui_Rules_Bundle_And_Takeover.md) (dispatched `9c599cc7a`, scope frozen there) |
+| the two handoffs | Editing_UX_Build (dispatched `9c50cec00`) · Rules_Bundle_And_Takeover (dispatched `9c599cc7a`, scope frozen there) |
 | the protocol | [PROTOCOL_Two_Lanes_Self_Coordinating](batches/PROTOCOL_Two_Lanes_Self_Coordinating.md) — after each item: commit by path, push `ui`, update the STATUS file, `git fetch origin ui backend coordinator`, answer backend notes, merge backend (merge, never rebase), restore the test projects; a user decision ⇒ a QUESTION note with a lean, never block |
 | ⭐ the live state, per item | [STATUS_Editing_UX_Build_Ui.md](batches/STATUS_Editing_UX_Build_Ui.md) · the report [REPORT_Editing_UX_Build_Ui.md](batches/REPORT_Editing_UX_Build_Ui.md) |
 
@@ -474,7 +474,7 @@ ids: the ui block is **CE-1000–1999**, next free **CE-1466**. · Never commit 
 ## ⭐⭐⭐ SESSION 2026-10-29 (b) — THE UNIFICATION PAUSE (R-3066) *(state at `ui@71e8ac588`, pushed, tree clean)*
 
 🔒 User: *"We need to pause any development until we enforce the unification and sharing."* ui's share is BUILT — report:
-[NOTE_Ui_To_Coordinator_Unification_Done.md](batches/NOTE_Ui_To_Coordinator_Unification_Done.md). AQ108 §2.10 – §2.13 + §2.11a carry every as-built.
+NOTE_Ui_To_Coordinator_Unification_Done.md. AQ108 §2.10 – §2.13 + §2.11a carry every as-built.
 ⏳ Open: CE-1441 (as files are touched) · R-3068 ②–④ (waits on backend CE-3341) · CE-4100 (the rest of CE-4097, after the pause).
 ⭐ Learned: **one Sonnet agent at a time** (CLAUDE.md) · **remove a worktree right after merging it** (eleven filled the disk) · after removing worktrees,
 `dotnet build-server shutdown` (the compiler server kept their analyzer paths ⇒ "Could not load file or assembly" from source generators) ·
@@ -484,12 +484,12 @@ the CGF-constructing integration rails fail together on DDS participant creation
 
 | batch | task | state | where |
 |---|---|---|---|
-| editor fixes ([HANDOFF](batches/HANDOFF_Coordinator_To_Ui_Editor_Fixes.md)) | CE-4085 menu order · CE-4081 Esc stops a take · CE-4084 the map's visible centre | ✅ all built | Menu Follows Focus §MB.2 · Film Director §8.4 · Map 3-D §6af |
-| run modes ([HANDOFF](batches/HANDOFF_Coordinator_To_Ui_Run_Modes.md)) | CE-4098 Recent + Open Recording · CE-4096 Start screen · CE-4097 mode picker (core + part two) · CE-4083 status-bar time control removed | ✅ all built (CE-4096/4098 ahead of CE-4089, user) | AQ108 §2.6–§2.9 |
+| editor fixes (HANDOFF) | CE-4085 menu order · CE-4081 Esc stops a take · CE-4084 the map's visible centre | ✅ all built | Menu Follows Focus §MB.2 · Film Director §8.4 · Map 3-D §6af |
+| run modes (HANDOFF) | CE-4098 Recent + Open Recording · CE-4096 Start screen · CE-4097 mode picker (core + part two) · CE-4083 status-bar time control removed | ✅ all built (CE-4096/4098 ahead of CE-4089, user) | AQ108 §2.6–§2.9 |
 | — | CE-4054 `inPreview` half | ✅ closed (already fixed; rails added) | Replay Time Axis §12y |
 | — | CE-1392 flaky rebuild test | ⏭ in the flaky lane, row open (backend) | tracker |
 
-⏳ **Waits on backend:** CE-1436 — one cluster ingress + one cluster read model on every node ([NOTE (frame)](batches/NOTE_Ui_To_Backend_One_Cluster_Ingress_And_Read_Model.md)); until it lands CGF / SimHost / IG hosts go live without the unsaved-edits prompt · the recorded-scenario hash for AAR → Preview's two buttons ([NOTE](batches/NOTE_Ui_To_Backend_Recorded_Scenario_Hash.md)) · CE-4089 the content move (the Start screen / pickers then list the new folders with no ui change).
+⏳ **Waits on backend:** CE-1436 — one cluster ingress + one cluster read model on every node (NOTE (frame)); until it lands CGF / SimHost / IG hosts go live without the unsaved-edits prompt · the recorded-scenario hash for AAR → Preview's two buttons (NOTE) · CE-4089 the content move (the Start screen / pickers then list the new folders with no ui change).
 ⚠ **Not built (AQ108 §2.8a):** "ask to keep recordings" (no setting exists) · checkpoint-here in AAR (no recorder in a replay) · D9's review-start default.
 ⭐ **Rules learned this session:** one Sonnet agent at a time (CLAUDE.md, user `2026-10-29`) · an absence claim needs a WHOLE-tree search (a one-folder grep sent backend a wrong note — coordinator caught it).
 ⚠ Known pre-existing reds: `EverySystemForgetsTheLastWorldTests`, `EverySystemStateFieldIsClassifiedTests` (runner), `TheDetailsPanelHonoursARequestForAViewTests.CE1150_*` (AiShared); load-flaky HTTP rails in `Hrot.Editor.Tests` pass alone.
@@ -516,7 +516,7 @@ add / delete + edge handles, K lens). ⚠ Headless editor tests: run serially un
 | built | where |
 |---|---|
 | `CE-3330` part 1 — zoom / pan / follow / ruler / snapping / keys / right-click menu (DAR §10, R-4087 addendum 2–5) | [Director Timeline §2d](../DESIGN_Director_Timeline_Editor.md) |
-| `CE-3330` part 2 — `LiveTimelineSource` on the builder's own per-frame step (`TimelineFrameScanner`), the editor shows the panel live + `GET /timeline/*` | same §2d; note to coordinator + backend: [NOTE_Ui_To_Coordinator_Review_Timeline_Built](batches/NOTE_Ui_To_Coordinator_Review_Timeline_Built.md) |
+| `CE-3330` part 2 — `LiveTimelineSource` on the builder's own per-frame step (`TimelineFrameScanner`), the editor shows the panel live + `GET /timeline/*` | same §2d; note to coordinator + backend: NOTE_Ui_To_Coordinator_Review_Timeline_Built |
 | `CE-3330` part 3 — T13 the Sim axis on backend's P0/P1 `ReplayTimeMap` (`TimelineAxis`, `AxisCursor`, `TimelineView.Remap`, ◯ / ● pause ticks, the Replay Browser's S / W toggle) | same §2d |
 
 **Next, in order:** ① when the rest of backend's data D lands (`ReplaySessionTopic`, `ITimeTransportFacade.Mode / Axis / EnterReview / Seek`): the session layer, the live menu's review items, the toolbar mode indicator + S / W icon — the panel's menu and
@@ -548,7 +548,7 @@ Next free ui id: **`CE-1361`** (tracker header table).
 | what | where |
 |---|---|
 | ⭐ **two coordinator → ui handoffs not yet read this session** | `git fetch origin coordinator` ⇒ `batches/HANDOFF_Coordinator_To_Ui_Replay_Ui_State.md`, `batches/NOTE_Coordinator_To_Ui_Timeline_Behaviour_History_Approved.md` — read them FIRST |
-| the Timeline programme `CE-1301…1306` | [handoff](batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md) |
+| the Timeline programme `CE-1301…1306` | handoff |
 | Brain-tab / runtime rows `CE-1278…1286`, `CE-1322`, `CE-1324` | tracker; Brain View design |
 | camera story `CE-1293` (design first), `CE-1295` (M key), `CE-1298…1300`, `CE-1313` health bar | tracker |
 | ⚠ `CE-1296` / `CE-1297` (crouch camera jump, prone from FPS) are probably FIXED by `CE-1348` — verify and close | tracker |
@@ -603,7 +603,7 @@ one live-write path (params without restart) for the agent and the user, `POST /
 |---|---|---|
 | 0 | ⏳ **the scenario regressions**: 12 scenarios fail their own checks since `18c6e3770` (not CE-1269 — measured at its parent); a bisect is finding the commit; 7 crashed on ±Infinity — fixed (CE-1292), their goldens to re-record; `uc-urban-battle` times out, `uc-a10-zu23-dry` does not load | the regression suite is the net under everything below |
 | 1 | **Behaviour Debugging S1 — make "stop me" work** ([design](../DESIGN_Behaviour_Debugging.md) DBG-6…8): CE-1284 (journal break baseline before Input), CE-1291 (node breakpoints break), CE-1285 + Q44 (one breakpoint list, in the existing condition editor) | the debugger's core promise is broken in three places; ⏸ waits for the user's DBG approval |
-| 2 | **Timeline R0 + R1** (CE-1301, CE-1302 — the coordinator's [handoff](batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md), dispatched at `7cca2013e`): measure, then THE Timeline panel — also the Trace Timeline (R-4075) | R1 is useful on its own and is the joint with debugging (the debugged unit's swimlane, the Brain lane BV-30); R0 is measurement and may start any time |
+| 2 | **Timeline R0 + R1** (CE-1301, CE-1302 — the coordinator's handoff, dispatched at `7cca2013e`): measure, then THE Timeline panel — also the Trace Timeline (R-4075) | R1 is useful on its own and is the joint with debugging (the debugged unit's swimlane, the Brain lane BV-30); R0 is measurement and may start any time |
 | 3 | **Behaviour Debugging S2–S4**: the graph (CE-1273…1277), node runtime + variables (CE-1279, CE-1286), the hub (CE-1278, CE-1280…1283) | S4's "seek to this change in a recording" lands on R1 |
 | 4 | **Camera**: CE-1294 (over-the-shoulder movement stutters) first, then the CE-1293 design (over-the-shoulder on any unit / FPS default / vehicle seats / orbit) with leans | the stutter blocks the default; the design can be drafted while R1 builds |
 | 5 | **Timeline R2 → R2b → R3 → R4** (CE-1303…1306): the director on the Timeline, promote + predicate extensions, graphics / audio / stills, reels + HTTP | the handoff's own order; R2b's predicate extensions also serve the breakpoint conditions |
@@ -672,14 +672,14 @@ Work list: [PLAN §3a #21–#35](PLAN_Ui_FPS_And_Quick_Wins.md) (its §4 log has
 
 ⭐ **For the user to confirm** (each taken overnight as a lean): CR-1…CR-3 · OS-1…OS-6 · the police-look and card-row deviations ·
 the abstract-crew Board lean · CL (cloud layers) / MO (the moon — needs a backend ephemeris) / NL (night lights) for CE-1146.
-⭐ **FYI from backend:** [NOTE_Backend_To_Ui_Stepped_Runs_Repeat](batches/NOTE_Backend_To_Ui_Stepped_Runs_Repeat.md) — after
+⭐ **FYI from backend:** NOTE_Backend_To_Ui_Stepped_Runs_Repeat — after
 merging `backend`, a film take where hearing decides a beat may move by one step ⇒ re-scout it (not a regression).
 ⚠ **Measured trap:** the ClusterRunner integration project needed `dotnet restore` (types moved to `Hrot.EcsNode`) — the third
 stale-binary trap.
 
 ## ⭐⭐⭐ SESSION `2026-10-21` — THE FILM DIRECTOR (`CE-4038`), dispatched by backend (R-3038)
 
-📄 [HANDOFF_Backend_To_Ui_Film_Director.md](batches/HANDOFF_Backend_To_Ui_Film_Director.md) (scope frozen at `687208f56`) ·
+📄 HANDOFF_Backend_To_Ui_Film_Director.md (scope frozen at `687208f56`) ·
 [DESIGN_Film_Director.md §8](../DESIGN_Film_Director.md) (AS BUILT) · [REPORT](batches/REPORT_Ui_To_Backend_Film_Director.md).
 
 | | state |
@@ -718,7 +718,7 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 
 | item | state |
 |---|---|
-| backend's [NOTE](batches/NOTE_Backend_To_Ui_Walk_Run_Mount_UnderFire_Binoculars.md) (on `origin/backend`) | `CE-1208` walk/run speeds, `CE-1222` the operator's mount, `CE-1223` `UnderFire` replicated, `CE-1224` binoculars for every leader by ROLE — all built there; nothing in ui has to change. ⚠ `CE-1206`: their fix (no gunner gate while possessed) does NOT explain the ZU-23 case — they ask ui to reproduce live: which slot the HUD held, what refusal it showed |
+| backend's NOTE (on `origin/backend`) | `CE-1208` walk/run speeds, `CE-1222` the operator's mount, `CE-1223` `UnderFire` replicated, `CE-1224` binoculars for every leader by ROLE — all built there; nothing in ui has to change. ⚠ `CE-1206`: their fix (no gunner gate while possessed) does NOT explain the ZU-23 case — they ask ui to reproduce live: which slot the HUD held, what refusal it showed |
 | `CE-1206` | ✅ closed by backend `2026-10-20` — not reproduced live (one press fired the ZU-23); reopen with the HUD state if seen |
 | `CE-1158` | the live cluster run is still owed |
 | `CE-1197` | sidewalks need a SumoSharp `SceneKind` (cross-lane, coordinator) |
@@ -728,7 +728,7 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 - [`DESIGN_Entity_Brain_View.md`](../DESIGN_Entity_Brain_View.md) (`R-1026`): Phase 1 the Brain tab (`CE-1248`, ui), Phase 2 the brain journal (`CE-1249` ui, `CE-1250` behaviors), the HSM history-list bug (`CE-1251`). READY-TO-BUILD; ⛔ ask before starting.
 - ✅ FIXED `2026-10-23`: the two reds after the merge — `EntityTypeCatalogTests.CE2138_…` (golden now carries behaviors' 2009 AssaultRifleman, CE-2260) and `FilmDirectorTests.CE4038_…` (a reel's `"waiting"` list of parked clips is now read, written back and never played — [Film Director §4a](../DESIGN_Film_Director.md)).
 - Phase 3 (§9, R-1028): C#-only behaviours as read-only graphs in memory — ✅ **BUILT `2026-10-23`** `CE-1251`…`CE-1256` ([Brain View §11](../DESIGN_Entity_Brain_View.md)): the 12 C# HSMs in the HSM editor, code-built BTree/HSM documents read-only (breakpoints still work), the HSM highlight + history named through the catalog's metadata, *Open running behaviour* on the Brain tab, the statechart layout, the Blueprint highlight follows the debugged unit.
-- ✅ **LIVE CHECK `2026-10-23`** ([Agent Shared View §10.1](../DESIGN_Agent_Shared_View.md)): headless editor on `df-lone-soldier-reflex`, then its own run recording — every brain / view / replay route answers; fixed what it found (2-D `/view` by the rectangle, `/replay/search` `Changed` against the previous frame + full component names, "entered" region text). `CE-1250`'s ui half built and handed to behaviors ([HANDOFF](batches/HANDOFF_Ui_To_Behaviors_Brain_Journal_Causes.md)).
+- ✅ **LIVE CHECK `2026-10-23`** ([Agent Shared View §10.1](../DESIGN_Agent_Shared_View.md)): headless editor on `df-lone-soldier-reflex`, then its own run recording — every brain / view / replay route answers; fixed what it found (2-D `/view` by the rectangle, `/replay/search` `Changed` against the previous frame + full component names, "entered" region text). `CE-1250`'s ui half built and handed to behaviors (HANDOFF).
 - ✅ **BUILT `2026-10-23`** (as-built: [Brain View §11](../DESIGN_Entity_Brain_View.md), [Agent Shared View §10](../DESIGN_Agent_Shared_View.md)): `CE-1268` catalog rail + regeneration (R-1030), `CE-1249` brain journal (component 460, generic writers, `--brain-journal off`), `CE-1248` Brain tab (rank 34) + `GET /entities/{id}/brain`, `/journal?since=`, `CE-1258` exact `Changed` + journal break, `CE-1257` "Debug this unit" (tab, map AI-trace menu, `POST /entities/{id}/debug`), `CE-1261` region lines + `StateChanged`, `CE-1262` `GET /view`, `CE-1263` `GET /selection`, `CE-1264` first-person **I** selects the crosshair's unit, `CE-1265` replay twins (history = a frame walk), `CE-1266` `POST /replay/search`. Owed: a live check in the editor (and over an editor recording); `CE-1250` (behaviors: the causes and play writers); Phase 3 `CE-1251…1256`; `CE-1259` deferred.
 - ⭐ `CE-1250` behaviors half merged (`ec556fdb5`) — the journal now names causes and move sources. `CE-1269` (a lone soldier restarts FightFromCover every 1–3 s) was handed to behaviors, then withdrawn and fixed by ui (below).
 - ✅ **FIXED `2026-10-23` by ui** (cross-lane, the user: *"fix it right here"*): `CE-1269` — `FightFromCover`'s `WouldReturn` guard now asks "a hostile seen and still remembered" (AQ98 row C″); the handoff is withdrawn.
@@ -814,10 +814,10 @@ Gates at `67f432f6c`: Presentation 635/0, `Map3DFrameRail` 20/20, Core 29/0, Sim
 | CE-1130 | OPEN — small-arms sight zero and bullet drop (direct rounds have no gravity yet) — for the combat lane | [tracker](Blueprint_Issues_Tracker.md) |
 | CE-1131…1145 | ✅ BUILT `2026-10-16`: 1131 (own vehicle hidden in FPS), 1132 (Ctrl+RMB attack, legend, reticle), 1136 (3-D screen marquee), 1137 (camera sound setting), 1138/1142 (wheel streak, WASD by eye height + accel + boosts), 1139 (root cause: IG had no stance — now ingests it), 1140 (HUD Roboto bottom-left, coloured), 1141 (footsteps −18 dB), 1143 (C/Z/Ctrl/Shift), 1145 (FPS counter + `GET /diagnostics/render`). ⏳ OPEN: 1133 (not reproduced by an end-to-end rail — needs the user's repro), ✅ 1134/1135 BUILT later the same day (the inspector's menu IS the map's entity menu on all four hosts; Properties… opens the inspector; Center View / Select now work on every map host and in 3-D — [canvas-context-menu-design §10](../designs/gizmos-1/canvas-context-menu-design.md)), 1144 (design §8h accepted, not ready to build) | [tracker](Blueprint_Issues_Tracker.md), [Map 3D §6z](../DESIGN_Map_3D_Mode.md), [Entity Control §13.8](../DESIGN_Entity_Control.md) |
 | CE-1146 | ⏳ the SIMPLE slice BUILT `2026-10-16` (FPS only: sun direction + disc, sky with sunrise/sunset glow, light never below twilight, cloud dims, fog from visibility; effects stay bright); OPEN for the discussion: cloud layers, moon, precipitation, smoke on the wind, lights that light the ground | [Map 3D §6aa](../DESIGN_Map_3D_Mode.md), [tracker](Blueprint_Issues_Tracker.md) |
-| CE-1144 → CE-1151…1158 | ⏳ use key READY TO BUILD `2026-10-16` (§8h; the brain's verdict to the HUD is §8h.6). DISPATCHED at `2dfec7a37`: backend 1151/1152/1153/1156, behaviors 1154/1155/1157; ✅ backend delivered (`4439b8aba`, §8h.7); ⭐ **CE-1158 station BUILT `2026-10-16`** (§8h.9) — owed: screenshots + live run once behaviors' CE-1154/1155/1157 land (behaviors started CE-1154 at `82842f755`) — [ui handoff](batches/HANDOFF_Use_Key_To_UI.md) | [Entity Control §8h](../DESIGN_Entity_Control.md), [backend handoff](batches/HANDOFF_Use_Key_To_Backend.md), [behaviors handoff](batches/HANDOFF_Use_Key_To_Behaviors.md) |
+| CE-1144 → CE-1151…1158 | ⏳ use key READY TO BUILD `2026-10-16` (§8h; the brain's verdict to the HUD is §8h.6). DISPATCHED at `2dfec7a37`: backend 1151/1152/1153/1156, behaviors 1154/1155/1157; ✅ backend delivered (`4439b8aba`, §8h.7); ⭐ **CE-1158 station BUILT `2026-10-16`** (§8h.9) — owed: screenshots + live run once behaviors' CE-1154/1155/1157 land (behaviors started CE-1154 at `82842f755`) — ui handoff | [Entity Control §8h](../DESIGN_Entity_Control.md), backend handoff, behaviors handoff |
 | CE-1161 (+CE-3217) | ✅ BUILT `2026-10-16` overnight — backend's weather/time handoff U1–U4: empty-map click → Details shows the Scenario view (start time, global weather via the inspector) and the Zones view; Weather Region area tool (born with standard weather) | [Weather and Time §7](../designs/weather/DESIGN_Weather_And_Time.md), [tracker](Blueprint_Issues_Tracker.md) |
 | CE-1159 | ✅ BUILT `2026-10-16` overnight — `scenarios/demos/sensing-and-weather/ua-weather-regions` (dusk, fog bank + overcast overlapping, IFV + rifleman); railed through the production serializer. 3-D screenshots left for the user's live look | [Weather and Time §7.4](../designs/weather/DESIGN_Weather_And_Time.md) |
-| CE-1162…1165 | 📐 DESIGNED `2026-10-16` overnight — civilian display U-1…U-4 (behaviors' frame): class-driven person kit + police/elderly looks · live side colour (= CE-125 §3.1) + IG override precedence · `EffectState` poses + 2-D text · gas/smoke clouds in `EffectLayer` with terrain skipping see-through prisms. ⛔ no build until the user rules CV-1/CV-4/CV-6 and backend B-1/B-2/B-3 exist; four findings sent to backend (F-1…F-4) | [Civilians §8](../DESIGN_Civilians_And_Crowd_Control.md), [findings handoff](batches/HANDOFF_Ui_To_Backend_Civilians_Findings.md) |
+| CE-1162…1165 | 📐 DESIGNED `2026-10-16` overnight — civilian display U-1…U-4 (behaviors' frame): class-driven person kit + police/elderly looks · live side colour (= CE-125 §3.1) + IG override precedence · `EffectState` poses + 2-D text · gas/smoke clouds in `EffectLayer` with terrain skipping see-through prisms. ⛔ no build until the user rules CV-1/CV-4/CV-6 and backend B-1/B-2/B-3 exist; four findings sent to backend (F-1…F-4) | [Civilians §8](../DESIGN_Civilians_And_Crowd_Control.md), findings handoff |
 
 ### `2026-10-17` overnight (ui) — the civilian display finished, go-to-definition, a BTree picker defect
 
@@ -840,9 +840,9 @@ Gates at `67f432f6c`: Presentation 635/0, `Map3DFrameRail` 20/20, Core 29/0, Sim
 
 | id | to | what | file |
 |---|---|---|---|
-| CE-1102 | backend | ✅ DONE (`b6ad14c83`): presets P1, laid gun P2, pitch / roll P3, active mount P4 — ui side done (CE-1107 / 1108) | [handoff](batches/HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md) · [report](batches/REPORT_Backend_Presets_Elevation_Attitude.md) |
-| CE-1109 | behaviors | FM-4's time-on-target lay time per gun from its turret (the real M109 needs up to 18 s, FM-4 assumes 10) | [handoff](batches/HANDOFF_Ui_To_Behaviors_FM4_Lay_Time_From_The_Turret.md) |
-| CE-1110 | backend | ✅ DONE — a heading-only attribute patch keeps the body's pitch and roll | [handoff](batches/HANDOFF_Ui_To_Backend_Heading_Patch_Keeps_Attitude.md) |
+| CE-1102 | backend | ✅ DONE (`b6ad14c83`): presets P1, laid gun P2, pitch / roll P3, active mount P4 — ui side done (CE-1107 / 1108) | handoff · [report](batches/REPORT_Backend_Presets_Elevation_Attitude.md) |
+| CE-1109 | behaviors | FM-4's time-on-target lay time per gun from its turret (the real M109 needs up to 18 s, FM-4 assumes 10) | handoff |
+| CE-1110 | backend | ✅ DONE — a heading-only attribute patch keeps the body's pitch and roll | handoff |
 
 ### Next, in order (leans)
 
@@ -1921,7 +1921,7 @@ wait as **separate** Bash calls. `--mode all` node ids seen live: CGF=400 (Brain
 > — **THE STANDING DESIGN: the approach, the constraints, the phase plan.** ⚠ Read it AFTER §0.0d — §0.0d says which of its sections are live *(§5c is phase 2)*.
 > **①** [`Architect_Question_63_Unify_Subsystem_Composition.md`](Architect_Question_63_Unify_Subsystem_Composition.md)
 > — ⭐⭐ **§9 and §10 are USER RULINGS (canon)**; ⭐⭐ **§12 is the phase-0 venue**; ⛔⛔ **§11 is SUPERSEDED — do not quote it.**
-> **②** [`batches/HANDOFF_Cgf_Bootstrap_Unification.md`](batches/HANDOFF_Cgf_Bootstrap_Unification.md) — the dispatched FRAME. ⚠ **stale on two points**, see the STATUS block.
+> **②** `batches/HANDOFF_Cgf_Bootstrap_Unification.md` — the dispatched FRAME. ⚠ **stale on two points**, see the STATUS block.
 > **③** [`Architect_Question_62_Unify_The_Composition_Root.md`](Architect_Question_62_Unify_The_Composition_Root.md) — the predecessor; ⚠ AQ63 §3 supersedes its SHAPE and STAGING.
 >
 > 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · dispatch sha **`fd8da0967`** · rule-1b started-marker pushed (`1c4325ac5`; phase 0's own at `830fd32c7`). ⭐ ids **`CE-`**, next free **`CE-110`**.
@@ -2798,7 +2798,7 @@ designs [`../DESIGN_Cgf_Scenario_Windows_Slice.md`](../DESIGN_Cgf_Scenario_Windo
 
 📄 **Design: [`../DESIGN_Perspective_Unification.md`](../DESIGN_Perspective_Unification.md) §3** — now
 `BUILT`, with per-item **AS-BUILT** notes folded in *(obligation ⑤)*.
-📄 **Handoff: [`batches/HANDOFF_Perspective_Model_Part_A.md`](batches/HANDOFF_Perspective_Model_Part_A.md)** ·
+📄 **Handoff: `batches/HANDOFF_Perspective_Model_Part_A.md`** ·
 **Report: [`batches/REPORT_Perspective_Model_Part_A.md`](batches/REPORT_Perspective_Model_Part_A.md)**.
 
 ⭐ **`BP-488`–`BP-497`.** All items landed; ⛔ nothing descoped. ⭐ **Next free id: `BP-498`.**
@@ -2823,7 +2823,7 @@ stale, and `Hrot.Presentation/Windows/FdpEntityInspectorHelper.cs` is on no lane
 > ⚠ **This section and §2 are HISTORY as of `2026-08-23`.** ⭐ Read §0 for where the lane actually is.
 
 📄 **The design: [`DESIGN_Details_Panel_View_Switching.md` §7](DESIGN_Details_Panel_View_Switching.md).**
-📄 **The dispatch: [`batches/TASKS_One_Shell_BP399.md`](batches/TASKS_One_Shell_BP399.md).**
+📄 **The dispatch: `batches/TASKS_One_Shell_BP399.md`.**
 
 | # | what | state |
 |---|---|---|
@@ -2847,7 +2847,7 @@ stale, and `Hrot.Presentation/Windows/FdpEntityInspectorHelper.cs` is on no lane
 
 ---
 
-## 2. ⭐⭐⭐ THE NEXT TASK — **[`batches/HANDOFF_Panel_Observability.md`](batches/HANDOFF_Panel_Observability.md)**
+## 2. ⭐⭐⭐ THE NEXT TASK — **`batches/HANDOFF_Panel_Observability.md`**
 
 > 🔒 **The user's instruction, `2026-08-22`:** *"then your task will be `HANDOFF_Panel_Observability.md`."*
 

@@ -9,7 +9,7 @@ related-designs:
   - docs/DESIGN_Entity_Control.md §8r.2 — CE-1299 and CE-2317 as built
   - docs/DESIGN_Gizmo_Anchor_Identity.md §6.7a — CE-1300 as built
 -->
-# REPORT — ui → coordinator: possessed mounted guns *(answers [the handoff](HANDOFF_Coordinator_To_Ui_Mounted_Guns.md), dispatched at `22b255f3b`; merged `coordinator@7652b2c33`)*
+# REPORT — ui → coordinator: possessed mounted guns *(answers the handoff, dispatched at `22b255f3b`; merged `coordinator@7652b2c33`)*
 
 | item | state | evidence | commits |
 |---|---|---|---|

@@ -1765,7 +1765,7 @@ a casualty with `IsEmbarkedTag.Mode == Stretcher` and the `IsAssistingTag` secon
 to the generic helicopter), the door gunners (404's seats 8–11 — ✅ CHECKED `2026-10-15` in `CE1105_V`: they draw through the station path, but the gunner's seat sat inside the fuselage; CE-1106 moved it into the door, §6u), a dense
 stream for the M134 / GAU-8 (the clients see only every 5th M134 round, at the behaviour's cadence), the real gun types (600–612 resolve to
 the weapon-system kits, 107 to the SP-artillery kit — verified in the picker golden). ~~STILL BLOCKED — the sheaf aim points and the
-fire-mission form (behaviors' IF-2).~~ ✅ **DONE `2026-10-16` — §6x** (CE-1121). ⭐ HANDED TO BACKEND (`CE-1102`, [handoff](blueprints/batches/HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md)): the laid elevation (P2), pitch and roll (P3), the active weapon (P4), and the weapon presets that replace the editor placement (P1, 🔒 R-1001). ✅ **DELIVERED `2026-10-15` (`b6ad14c83`, merged into ui `103c9903a`)**: P1 / P2 / P3 need no ui change (the HMMWV and the new technicals 108 / 109 draw through the station path; the laid tube through `LaidPose`; the attitude arrives in `SimTransform.Rotation`); ✅ **P3 live-verified `2026-10-16`** (CE-1123: an A-10 in a −60° turn, the same roll and pitch on the IG node as on SimHost); P4 is CE-1107. ⚠ Left: a heading-only attribute patch still levels a banked body ([steer](blueprints/batches/STEER_Backend_P3_Every_Ingress_Restores_Attitude.md) row 7).
+fire-mission form (behaviors' IF-2).~~ ✅ **DONE `2026-10-16` — §6x** (CE-1121). ⭐ HANDED TO BACKEND (`CE-1102`, handoff): the laid elevation (P2), pitch and roll (P3), the active weapon (P4), and the weapon presets that replace the editor placement (P1, 🔒 R-1001). ✅ **DELIVERED `2026-10-15` (`b6ad14c83`, merged into ui `103c9903a`)**: P1 / P2 / P3 need no ui change (the HMMWV and the new technicals 108 / 109 draw through the station path; the laid tube through `LaidPose`; the attitude arrives in `SimTransform.Rotation`); ✅ **P3 live-verified `2026-10-16`** (CE-1123: an A-10 in a −60° turn, the same roll and pitch on the IG node as on SimHost); P4 is CE-1107. ⚠ Left: a heading-only attribute patch still levels a banked body (steer row 7).
 
 ⭐ **CE-1108 — found checking P1 in a frame (`CE1102_V`):** the technicals' gunner seat (104 / 105 / 108 / 109) had **no place**, so its
 rifleman was drawn at the pickup's reference point, inside the body; the HMMWV's ring gunner sat at 1.2 m and only his head cleared the roof.
@@ -3399,7 +3399,7 @@ work as the floor as well"*). ⚠ A floor material of its own needs the terrain 
 ### 6af. CE-4084 — the map's centre is the centre of the VISIBLE area, not of the window — DESIGN `2026-10-28`, ⭐ AS-BUILT `2026-10-28` (ui)
 
 🔒 User (CE-4084): *"usually the panels are placed all around with the map in the center of the space surrounded by docked panels. the map
-zoom center and camera turn center stays in the center of [the screen]"*. ⭐ Frame: [`HANDOFF_Coordinator_To_Ui_Editor_Fixes.md`](blueprints/batches/HANDOFF_Coordinator_To_Ui_Editor_Fixes.md) task 3.
+zoom center and camera turn center stays in the center of [the screen]"*. ⭐ Frame: `HANDOFF_Coordinator_To_Ui_Editor_Fixes.md` task 3.
 
 **INVENTORY** (graph + grep, `2026-10-28`; ⚠ `check_index_coverage` is not available through the CLI):
 `search_graph .*(OpenMapArea|VisibleArea|LayoutEvaluator|ViewCentre).*` → one: `OpenMapArea` (CE-1140), its readers `PossessionStation.cs:734`,
@@ -3481,7 +3481,7 @@ point under `c`; `c = null` byte-identical to today; 2-D `AnchorAt` keeps a worl
 
 Rails: `Map3DTests.CE4084_*` (off-centre projection / pick = draw / frustum NDC; centred = the old formulas; the wheel keeps the point under c; 2-D ↔ 3-D keeps it) · `MapCameraTests.CE4084_*` (`AnchorAt` keeps every world point; `FocusOn` lands at c, with and without smoothing; no area ⇒ the window's middle) · `PossessionStationTests.CE4084_*` (the aim pick is at c; `OpenMapArea.Centre` and the camera's default source).
 
-### 6ag. CE-1462 — the 2-D map frames its terrain when it is loaded — AS-BUILT `2026-11-03` (ui, W-B1; backend's [note](blueprints/batches/NOTE_Backend_To_Ui_Showcase_And_Macros.md) §3 ②)
+### 6ag. CE-1462 — the 2-D map frames its terrain when it is loaded — AS-BUILT `2026-11-03` (ui, W-B1; backend's note §3 ②)
 
 **Measured:** nothing framed a terrain on load — `GET /view`'s `rect2D` stayed at the pixel default `[0, −1200, 2200, 0]` (Zoom 1, Target 0); `demo-city` only looked framed because it falls inside that rectangle, `cqb-village` (330 × 232 m) did not. The 3-D camera has no terrain framing of its own (no terrain use in `MapCamera3D`); it takes the 2-D camera's pose when the map is switched to 3-D (`OverheadMatching`), so a framed 2-D map frames the first 3-D view too — a map STARTED in 3-D (e.g. `mapInLoad`) is not framed: left as it is.
 
@@ -3711,7 +3711,7 @@ changes the SHIPPED look: demo-city's, test-town's, bt-range's and highway-rest'
 
 ### 6aj. CE-4392 — building destruction drawn on the 2-D and 3-D maps *(ui, `2026-11-10`; build-state: BUILT — as-built below the table)*
 
-Handoff [HANDOFF_Coordinator_To_Ui_Destruction_Drawing.md](blueprints/batches/HANDOFF_Coordinator_To_Ui_Destruction_Drawing.md). 🔒 R-4196: the display node's terrain is
+Handoff HANDOFF_Coordinator_To_Ui_Destruction_Drawing.md. 🔒 R-4196: the display node's terrain is
 not changed — the damage is DRAWN from the replicated `BuildingDamage` entities (`BuildingDamageTable.Of`). R-4195: the look is ours, for performance.
 Related: [DESIGN_Terrain_Import_UTM.md](DESIGN_Terrain_Import_UTM.md) §8.2 (what the damage is, B-9 / B-12) · [DESIGN_Terrain_World.md](DESIGN_Terrain_World.md) §10a (the 2-D plan).
 

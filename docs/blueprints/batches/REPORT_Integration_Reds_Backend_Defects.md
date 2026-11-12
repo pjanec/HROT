@@ -9,7 +9,7 @@ known-conflict: ⛔ QA-033 — the merged CE-051 change takes down 127 of 267 in
 -->
 # REPORT — **Close the backend-owned refiled integration reds** *(BACKEND lane, `QA-`)*
 
-📄 Frame: [`HANDOFF_Integration_Reds_Backend_Defects.md`](HANDOFF_Integration_Reds_Backend_Defects.md)
+📄 Frame: `HANDOFF_Integration_Reds_Backend_Defects.md`
 · dispatch `42a6ef37c` · started-marker `d3311a3a6` *(rule 1b)*.
 
 ## 0. ⭐⭐⭐ HEADLINE

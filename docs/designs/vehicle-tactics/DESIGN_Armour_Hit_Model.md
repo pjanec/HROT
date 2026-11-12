@@ -321,7 +321,7 @@ and a blast susceptibility per hull.*
 | ④ | ⛔ **no person number moves** for grenades, 40 mm and RPG HE (golden or rail); ⚠ any number that DOES move (a bomb's fragments through a wall) is listed in the report |
 | ⑤ | `ua-air-strike` ③ passes live (the behaviours lane re-runs it) |
 
-⭐ **Handoff:** [HANDOFF_Behaviors_To_Backend_Area_Effects_Vehicles.md](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Area_Effects_Vehicles.md).
+⭐ **Handoff:** HANDOFF_Behaviors_To_Backend_Area_Effects_Vehicles.md.
 
 ### 7.5 Classes and sequence — backend's design step (`2026-10-15`)
 
@@ -416,7 +416,7 @@ Rails: `ReferenceLibraryTests.AE1_ABiggerShell_ThrowsHeavierFragments_…` · `A
 
 ### 7.7 AE5 — a fragment on a HULL is a hit, not a share of a man's dose (backend design step, `2026-10-15`)
 
-📐 **Measured** (behaviors, live `ua-air-strike`, [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Fragments_On_Hulls.md)):
+📐 **Measured** (behaviors, live `ua-air-strike`, handoff):
 after AE1 a hull takes the PERSONNEL fragment sum — `FragmentDamage · falloff · exposure · chance` (`AreaEffectSystem.cs:157`), where
 `FragmentDamage = 600 · explosive kg` is a man's dose. A Mk-82 (89 kg) puts 1 253 on a pickup 121 m away (300 hp) and 41 638 at 20 m (×140).
 ⇒ the person rule is right for a man and wrong for a hull: a hull is struck by **so many fragments**, each doing **one round's damage**.

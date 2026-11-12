@@ -10,7 +10,7 @@ related-designs:
 
 # STATUS — rendering the large terrain UNDER LOAD (ui; CE-4387 … CE-4390)
 
-Handoff [HANDOFF_Coordinator_To_Ui_Windows_Render_Under_Load.md](HANDOFF_Coordinator_To_Ui_Windows_Render_Under_Load.md), dispatched at `bdccd3d86` (stamped
+Handoff HANDOFF_Coordinator_To_Ui_Windows_Render_Under_Load.md, dispatched at `bdccd3d86` (stamped
 `a1a0054be`); started after the live-terrain batch, `coordinator@a1a0054be` merged into ui at `7489ecfe9`. The user's Windows machine, Release, **every run hidden**
 (`HROT_HIDDEN_WINDOW=1`) and **uncapped** (`--target-fps 0`) — GPU-honest, no vsync / compositor.
 

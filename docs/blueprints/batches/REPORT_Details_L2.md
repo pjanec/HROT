@@ -9,7 +9,7 @@ known-conflict: none.
 # ⭐⭐⭐ REPORT — **Details panel migration, layer `L2`** *(the shell)*
 
 > **Design:** 📄 [`DESIGN_Details_Panel_View_Switching.md`](../DESIGN_Details_Panel_View_Switching.md)
-> §2 · §2b · §4 · §6 `L2` · **dispatch:** [`HANDOFF_Details_Panel_Migration.md`](HANDOFF_Details_Panel_Migration.md)
+> §2 · §2b · §4 · §6 `L2` · **dispatch:** `HANDOFF_Details_Panel_Migration.md`
 > **started at** `55cc60e1` *(marker `669bc293`)* · **branch** `claude/hrot-implementation-j1jvin`
 > ⭐ **Re-synced from the coordinator at the start** *(rule 7)* and **re-pulled before the final commit**
 > *(rule 4)*.

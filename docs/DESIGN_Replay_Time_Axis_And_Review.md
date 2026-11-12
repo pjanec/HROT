@@ -1532,7 +1532,7 @@ compares at the landed `simSeconds` the status reports, or allows `[t − 1 fram
 
 ### 12x. ✅ FIXED `2026-10-27` — the branch's rate (CE-4067), a stepped recording's events (CE-4062), a sim seek ON a frame (CE-4066), a recording opened unregistered (CE-1372)
 
-From the coordinator's [handoff](blueprints/batches/HANDOFF_Coordinator_To_Backend_Replay_Fixes.md):
+From the coordinator's handoff:
 
 | row | cause (measured / read) | fix |
 |---|---|---|

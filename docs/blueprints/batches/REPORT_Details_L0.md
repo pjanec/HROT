@@ -9,7 +9,7 @@ known-conflict: none. L0.4 is deferred, not blocked — §6.
 # ⭐⭐⭐ REPORT — **Details panel migration, layer `L0`** *(the context)*
 
 > **Design:** 📄 [`DESIGN_Details_Panel_View_Switching.md`](../DESIGN_Details_Panel_View_Switching.md)
-> §6 `L0` · **dispatch:** [`HANDOFF_Details_Panel_Migration.md`](HANDOFF_Details_Panel_Migration.md)
+> §6 `L0` · **dispatch:** `HANDOFF_Details_Panel_Migration.md`
 > **Scope frozen at** `e2c1348a5` · **started at** `7b81ce00` · **branch** `claude/hrot-implementation-j1jvin`
 > ⚠ The started-marker says `7b81ce00`, not `e2c1348a5`: rule 7 says re-sync from the coordinator
 > branch, so I merged its head, which contains the dispatch. ⛔ No `L0` item differs between them.

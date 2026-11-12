@@ -243,7 +243,7 @@ path, `EntityMaster` and the TKB derivation all work without a `SimTransform` (c
 | **W-5**: `ParachuteModel.Autonomous` reads `WeatherField.WindAt(world, his position)`; the airborne release point reads it at the carrier's place, half way to the ground; `struct Wind` deleted, id 393 RESERVED | `DescentModels.cs`, `AirborneDrillBehaviors.cs` (behaviors' file — cross-lane), `Descent.cs`, `GlobalComponentIds.cs` | |
 
 **Moved to the ui lane** (deviation from §5's S1 row — editor UI is theirs): the area tool's "Weather Region" kind, the inspectors and the
-Scenario Details view → [HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time.md](../../blueprints/batches/HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time.md)
+Scenario Details view → HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time.md
 (with CE-3217). ⚠ **Not built:** a runtime WEATHER edit from a non-owning node has no attribute path yet (only the clock has one) — the
 editor owns the World Environment in edit mode and writes the component directly; a runtime weather change from another host is a
 follow-up (the attribute vocabulary or `UpdateEntityDescriptorRequestSystem`). ⭐ **AS-BUILT `2026-11-09` (CE-4346):** both, by kind — the scalars through the `Weather.*` attributes (D4), the whole value (wind levels + cloud layers) through `UpdateEntityDescriptorRequest(dtWeather)` → the owner's `UpdateEntityDescriptorRequestSystem.ProcessWeatherUpdate` (📄 [Details forms](../../UX/DESIGN_Details_Forms.md) Part 2's as-built line).
@@ -268,7 +268,7 @@ carries the global weather to SimHost on `dtWeather`.
 
 ## 7. The editor half — the scenario's start time and weather in Details; the Weather Region tool (ui, `CE-1161`) — ✅ BUILT `2026-10-16` (§7.4)
 
-📨 [HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time](../../blueprints/batches/HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time.md) U1–U4
+📨 HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time U1–U4
 (+ [CE-3217](../../blueprints/Blueprint_Issues_Tracker.md)). The ui lane designs and builds it; the engine half is §6.
 
 ### 7.1 INVENTORY (measured `2026-10-16`, grep + reads; the codebase-memory graph indexed this session)

@@ -1,4 +1,4 @@
-# STATUS — backend: recording storage + autosave ([handoff](HANDOFF_Coordinator_To_Backend_Recording_Storage.md))
+# STATUS — backend: recording storage + autosave (handoff)
 
 | # | id | state | commit | note |
 |---|---|---|---|---|
@@ -10,7 +10,7 @@
 ---
 _backend lane, 2026-11-08_
 
-**[HANDOFF_Coordinator_To_Backend_After_Recording_Storage](HANDOFF_Coordinator_To_Backend_After_Recording_Storage.md)** (received at `cfcbe0fbd`):
+**HANDOFF_Coordinator_To_Backend_After_Recording_Storage** (received at `cfcbe0fbd`):
 
 | # | id | state | note |
 |---|---|---|---|
@@ -18,12 +18,12 @@ _backend lane, 2026-11-08_
 | V-2 | CE-4284 | DONE | a non-owner's route edit → `UpdateEntityDescriptorRequest(dtMapRoute)` → the owner applies + acks + publishes; one encoding `MapRouteWire`. Rail `MapRouteTranslatorTests.CE4284_*` (two nodes, round trip). Design `DESIGN_Details_Forms.md` §1 updated |
 
 Gates (V): `Hrot.Map.Common.Tests` 88/88 · `Hrot.SimHost.Tests` (`UpdateEntityDescriptorRequestSystemTests` + `SimHostAppTests`) 8/8 · `Hrot.Presentation.Tests` Map3D under Xvfb 565/567 — the 2 reds (`FilmFrameRail.CE1380_A2DFilmFrame_*`: "the window shows the unit's symbol"; `Map3DFrameRail.CE1227_V_DemoCity_*`: 14283/18949 samples agree) are PRE-EXISTING: red at base `d688c6cc2` with `Picking.cs` reverted (2-D drawing, not picking — ui's area).
-**[HANDOFF_Coordinator_To_Backend_Queue_After_V](HANDOFF_Coordinator_To_Backend_Queue_After_V.md)** (received at `560565730`):
+**HANDOFF_Coordinator_To_Backend_Queue_After_V** (received at `560565730`):
 
 | # | id | state | note |
 |---|---|---|---|
 | X-1 | CE-4345 | DONE | one steer limit in the one integrator (`BicycleModel.SteerLimit`, radius ≥ v²/`MaxLatAccel`); the possessed drive now integrates through `BicycleModel.Integrate`; the AI's cornering cap is the inverse. Rails `CarKinematicsSystemTests.CE4345_*` possessed + AI (red with the limit off); CarKinem 274/274; `Hrot.SimHost.Tests` Possession 12/12. Design Motion Domains §5i |
-| X-2 | CE-4344 | FILED on behaviors (measured) | the latch is `OperatorControlBehavior.OperateWeapon` (behaviors), not the weapon: [NOTE](NOTE_Backend_To_Behaviors_Possessed_Shot_Through_Reload.md) with the proposed patch and rail shape |
+| X-2 | CE-4344 | FILED on behaviors (measured) | the latch is `OperatorControlBehavior.OperateWeapon` (behaviors), not the weapon: NOTE with the proposed patch and rail shape |
 | X-3 CE-4346 | Start editable · *Local time offset* · weather layers whole to the owner (dtWeather request) | ✅ backend half | NOTE to ui; Details forms Part 2 as-built |
 | — (behaviors note) | `/run-mode` from Edit waits for the live load it starts (the next load was rejected inside its park) | ✅ | NOTE to behaviors; RUNBOOK_Filming §0b |
 | X-4 CE-2153 | the SimHost integration harness paths (solver + engine-backed nav module + flat navmesh) | ✅ | `EntityMission_MovesEntity` green, project 50/50 |

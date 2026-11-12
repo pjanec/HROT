@@ -8,7 +8,7 @@ related-designs:
   - STATUS_Backend_Terrain_Overlay.md — the previous batch (O-0…O-8)
 -->
 
-# STATUS — backend: terrain authoring, part 2 ([handoff](HANDOFF_Coordinator_To_Backend_Terrain_Authoring_2.md))
+# STATUS — backend: terrain authoring, part 2 (handoff)
 
 Started at `157418c69` (merged `coordinator@157418c69` into `backend@e9a0b213b`).
 
