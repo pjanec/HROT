@@ -374,3 +374,20 @@ HIDDEN windows — a process Windows treats as background may already have been 
 | background work delays frame work | equal thread priorities | the sim thread AboveNormal; the pool's FRAME lane Normal; its BACKGROUND lane (EQS, egress scan, recorder) BelowNormal |
 | ⭐ Intel hybrid (P- + E-cores) | `Environment.ProcessorCount` counts both; a batch on an E-core finishes later and the whole parallel step waits for it | size the frame lane to the PERFORMANCE cores (`GetSystemCpuSetInformation`, `EfficiencyClass`), let the background lane use the efficiency cores; keep adaptive batches (stragglers absorbed). ⚠ The user's machine is AMD (no E-cores) ⇒ this can be designed and unit-tested, measured only on an Intel hybrid machine |
 | ⭐ a console node FREEZES when someone clicks in its window | QuickEdit mode: a text selection blocks every write to the console ⇒ a thread that logs (a console line per step) stops, and the simulation with it | console hosts turn QuickEdit OFF at start-up (`SetConsoleMode`, clear `ENABLE_QUICK_EDIT_MODE`) |
+
+### 18.2 ⭐ What goes into the last-tick copy — DECLARED by construction, not "copy all" *(user, `2026-11-12`: "why copying all, even blueprint knows what entity it reads and can say whenever it does what component it reads")*
+
+Measured: the generated behaviour code reads components through TYPED calls only — `GetComponentRO<T>(entity)` on `self`, a child sensor, or an
+entity variable (`__t0`, `__t5` …): 15 such reads in `Hrot.AI.Behaviors`' generated files, e.g. `UnitRoster`, `LocomotionChannel`,
+`DangerAreaCognitiveBuffer` on a child; ⛔ no boxed / reflective / by-name reads (grep over the generated files). ⇒ the GENERATOR knows, for every
+asset, which component types it reads and whether the entity is the unit itself / its own part or ANOTHER entity.
+
+| content | how its cross-entity reads are known |
+|---|---|
+| blueprints, BTrees, HSMs (generated, incl. user assets compiled at run time) | ⭐ the generator emits, per asset, the set of component types read on entities other than self / own parts; registered with the asset; hot reload replaces it between ticks |
+| hand-written systems and the library helpers generated code calls (`UnitSensors.Of`, `EnemyStrengthRatio` …) | a declaration on the system / helper (D-6), seeded from the census (N-2) |
+| the last-tick copy's mask | the UNION over everything loaded — derived, never a hand list; changed chunks only (the 18 types the census saw: CGF 1.9–2.7 ms vs 5.2–8.5 ms for a full copy) |
+| something undeclared slipping through | Debug / tests: the repository's read path (keyed by the census's per-thread current entity) THROWS on a cross-entity read of a type outside the mask ⇒ found by a rail, not in the field |
+
+⚠ Not yet measured: the per-read cost of that check on the hot path (the tracer counted ~10⁹ accesses per run) — a static "parallel phase active"
+flag checked first keeps serial code near free; to measure before the build.
