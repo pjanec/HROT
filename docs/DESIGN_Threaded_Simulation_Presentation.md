@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — ✅ the concept APPROVED (R-4205, `2026-11-11`); next S-0 (the architect question for the details + a FDP-DES-012 section) before any build; a proof of concept exists (§7)
-updated: 2026-11-11
-current-answer: ⭐ §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
+updated: 2026-11-12
+current-answer: ⭐ §13 SHARED STATE (13.7 the verdict: no blocker; S-1 = take the presentation out of the node frame first) — every singleton / side table the UI reads, classified (no blocker; NetworkEntityMap, TrafficFrame, the TKB, the road graph are the real torn reads) · §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
 stale-below: nothing
 known-rot: none
 known-conflict: FDP/Engine/Fdp.ModuleHost/docs/UserGuide/06_SimulationViewsAndExecutionModes.md shows a two-replica swap in DoubleBufferProvider — the code syncs ONE replica in place (DoubleBufferProvider.cs:63-66); this design does not rely on it
 related-designs:
+  - blueprints/batches/HANDOFF_Coordinator_To_Backend_Threaded_POC_2.md — CE-4439, POC 2: builds §14's target shape on exp/threaded-poc-2
+  - blueprints/batches/HANDOFF_Coordinator_To_Backend_Threaded_Analysis_Instruments.md — CE-4436, the instruments that answer §13.7's unknowns
   - DESIGN_Parallel_Simulation.md — parallelism INSIDE the worker's tick (data-parallel loops in the hot systems); the two share one core budget
   - blueprints/Architect_Question_111_Threaded_Kernel_Details.md — S-0: the nine details to settle before building (snapshot content, publish cadence, stale commands, run controls, HTTP default, inline view, where the pieces live, the store, who builds)
   - DESIGN_Evaluation_Cost_And_Cadence.md — §11h ui's Windows measurement of the editor's preview frame (CE-4433) — the numbers this design answers; its §13 now points here
@@ -341,3 +343,177 @@ The PoC ran a toy world: no singletons, no managed tables, no editor frame aroun
 ⭐ **Recommendation:** keep the concept; do S-0b first (a measurement plus an inventory — no production change) so the build is sized on numbers;
 meanwhile take (b)'s cheap items from Evaluation Cost §11h, which help both shapes. If the real publish turns out large (tens of ms per tick at
 1 000 men), the fallback inside the same concept is a NARROW published view (only what the map and panels draw), not the whole world.
+
+## 13. ⭐ Shared state between the two threads — every singleton and side table the UI reads, and how each is handled *(coordinator, `2026-11-12`)*
+
+🔒 User, `2026-11-12`: *"the critical questions how to deal with the singletons, which can be written in the simulation and cannot be simply
+duplicated or double buffered … we have to do the analysis to know how to continue. It's no point trying to develop POC without knowing how."*
+⭐ The overnight experiment (`exp/threaded-kernel`, its §12) listed the singletons but did not classify them; this section does. It holds for either
+shape — a published snapshot (§3) or the experiment's "copy into the UI's world" (its §12): in both, the UI reads on the main thread while the
+simulation writes on the worker.
+
+```mermaid
+flowchart TD
+  Q[a singleton or side table the UI reads] --> R{who reads it on the MAIN thread?}
+  R -->|only gizmo PRODUCERS - kernel systems, so the worker - see 13.4| W[no cross-thread read today]
+  R -->|panels, map layers, 3-D, menus| M{how does the simulation change it?}
+  M -->|never after load, or swapped as a whole object| S[SHARE the reference]
+  M -->|small value, every tick| C[COPY by value at the sync]
+  M -->|derivable from components the UI already gets| B[REBUILD on the UI side]
+  M -->|large, replaced, native memory| L[LEASE the version - the old one lives until the UI lets go]
+  M -->|the same object rewritten in place, rarely| V[SWAP THE INSIDE - one holder, new contents in one write]
+  M -->|a log the simulation appends to| F[FORWARD the new entries at the sync]
+```
+*What the picture shows that prose hid:* the question is never "can it be double-buffered" but "how does the simulation change it" — and every
+case found has a treatment, ⭐ four of which (share, lease, swap the inside, per-thread pools) the code ALREADY uses for today's background readers.
+
+### 13.1 The world singletons the UI reads on the main thread
+
+| singleton | UI files (non-gizmo) | how the simulation changes it — code | treatment | precedent |
+|---|---|---|---|---|
+| `TerrainWorld` | 12 (2-D / 3-D terrain layers, framing, ghost, doors, ground height, sounds) | ✔ `init`-only, replaced whole on a terrain change (`TerrainResidency.cs:351,453`); lazy caches behind a lock or benign `??=` (`TerrainWorld.cs:160,211,222`); the Bepu index has a pool PER THREAD and frees itself by finalizer only (`BepuTerrainIndex.cs:14-28,117-121`) | **share** | CE-3279: built for background readers |
+| `IGeographicTransform` | 11 (cursor, picks, orders) | ✔ `SwitchableGeoTransform`: a `volatile` swap of an immutable frame on a terrain load (`SwitchableGeoTransform.cs`) | **share** | the switchable pattern |
+| `LiveTerrainBakeInfo` | 3 | ✔ immutable, replaced whole after a bake (`StaticObstacleBake.cs:253`) | **share** | |
+| `ScenarioDescriptionResident` | 2 | ✔ replaced whole (`ScenarioDescription.cs:86`, `PresetInPlace.cs:131`); ⛔ no in-place write found | **share** | |
+| `TrafficNetCache` | 1 (3-D traffic) | ✔ get-only, built once per road net | **share** | |
+| `INavmeshProvider`, `ICoverProvider`, `IEqsTemplateRegistry`, `SpatialGridData` | 0–2 (gizmos, the inspector, `WorldInfoReport`) | read on the main thread only by the inspector and the debug report | **share** (gizmos are on the worker) | `SyncFrom` already shares them with EQS (`EntityRepository.Sync.cs:118-129`) |
+| `GlobalTime`, `ShotTraces`, `DetonationTraces` | 12 / 0 / 0 | ✔ unmanaged; written every tick (traces: 64-slot rings, ~7 KB each) | **copy** by value | an ordinary singleton copy |
+| `NetworkEntityMap` | ⚠ **19** (orders, RTS commands, possession, squad roster, menus, waypoints) | ⛔ two plain `Dictionary`s **changed in place every tick** — spawn, ghost creation, every lightweight round (`NetworkSpawningSystem.cs:248`, `GhostCreationSystem.cs:71`, `LightweightRoundIdentitySystem.cs:59`) | **rebuild** on the UI side from `NetworkIdentity` (the UI copies it anyway) | ✔ `NetworkEntityMap.RebuildFromWorld` exists for SoD modules (`NetworkEntityMap.cs:223`); ⚠ its per-tick cost at 13 800 entities NOT measured |
+| `ZoneEnvironmentData` (the road graph) | 2 | ⛔ a struct of `NativeArray`s; a bridge collapse publishes a new graph (`BridgeClosureSystem.cs:140-142`) and the old one is FREED | **lease** — the UI's copy holds a lease until the next sync | ✔ `RoadNetworkHolder` pins a retired graph while a lease is open (`RoadNetworkHolderTests` C6) |
+| `TrafficFrame` | 2 (3-D traffic lights, ambient bodies) | ⛔ its car and pedestrian lists are the module's LIVE lists, **cleared and refilled every tick** (`TrafficModules.cs:72-73,197,263`); two `Func` callbacks read the replica set | **copy** the lists into UI-owned lists at the sync; ⚠ the callbacks need the same | — |
+| `ITkbDatabase` | ⚠ **27** (add-entity, catalogue, weapon kits, possession …) | ⛔ ONE object, **`Clear()` + `Register` in place** when a load stages a different TKB (`KnowledgeBaseLoadStep.cs:67,107`); plain `Dictionary`s (`TkbDatabase.cs:14-15`); also held directly by DI, so replacing the singleton alone misses holders | **swap the inside** — a `SwitchableTkbDatabase` (build the new catalogue aside, swap in one write) | ✔ `SwitchableGeoTransform`, `SwitchableNavmeshProvider`: *"replacing the object would leave the ~15 holders on the old one"* |
+| `IOrderForm`, `OrdersOffered`, `CanvasContextMenuState`, `SortedHierarchyData` | — | written by the UI itself (`OrderForm.cs:61`, `MapInteractionPack.cs:388`, `CanvasMenuUpdateSystem.cs:63`, `HierarchyOrderSystem.cs:65`) | **UI-owned** — stay on the UI side | — |
+
+### 13.2 Side tables keyed by the world — singletons in disguise
+
+44 `ConditionalWeakTable<EntityRepository, …>` (the experiment's X-2). The ones the SIMULATION writes and the UI reads:
+
+| table | written by | UI files | treatment |
+|---|---|---|---|
+| `ShotLog`, `DetonationLog`, `SquadReportLog`, `EditOutcomeLog`, `EditJournal` | weapons, squads, the edit apply — the worker | 1–5 each | **forward** — append-only logs: copy the new entries at the sync |
+| `KillFeed`, `RecentShots`, `StrikeTracker` | `EffectSystems.cs:84-141` — kernel systems that consume combat events | 3–9 | move those systems to the UI side, fed by forwarded events (the experiment's §12 open item) |
+| `LiveRefScope` | a per-world cache rebuilt from the world | 18 | per world — the UI side gets its own, rebuilt from what it copies |
+
+### 13.3 What this settles, and what it does not
+
+| | |
+|---|---|
+| ✅ **no blocker found** | every singleton and sim-written side table the UI reads fits one of six treatments; four already exist in the code for today's background readers |
+| ✅ the "torn read" risk (§11 F-2) | `TerrainWorld`, cover and the spatial grid are safe to share (immutable or read only on the worker); the real torn reads are **`NetworkEntityMap`, `TrafficFrame`, the TKB during a load, and the road graph on a bridge collapse** — each with a named treatment |
+| ⚠ **not measured** | the cost of rebuilding `NetworkEntityMap` and copying the traffic lists per tick at 1 000 men |
+| ⚠ **not swept** | shared state held OUTSIDE the world — DI services and statics the UI and the simulation both hold (e.g. a service captured in a constructor); the TKB is one such, found through its singleton. ⛔ The next sweep |
+| ⚠ coverage | method: typed singleton reads in `Hrot.Presentation`, `Fdp.Presentation`, `Hrot/Editor`, `Hrot.Editor` + every type set as a singleton anywhere, matched by name in those folders + the world-keyed tables; ⛔ `check_index_coverage` is not in the CLI, so the list may miss a reader reached through a helper in another assembly |
+
+### 13.4 ⚠ Gizmos — presentation by intent, produced inside the tick today *(user, `2026-11-12`: "Aren't the gizmos part of the presentation layer? So the fact that they are handled by simulation is not exactly what we want.")*
+
+✔ The gizmo producers are kernel systems (`DataDrivenGizmoSystem`, `StatelessGizmoSystem` — `IEcsModuleSystem`), so 13.1's "share" for the navmesh,
+cover, EQS and spatial grid holds ONLY while they stay there. The split is designed: [gizmos-1](designs/gizmos-1/gizmo-input-focus-design.md) §1–§3 —
+every node's backend emits primitives, one "dumb terminal" draws any node's stream (perspective by `NodeId`), and the interactive tools' FSMs live on
+the backend in an ECS-agnostic core. ⛔ But in a threaded editor that puts every gizmo — and every interactive tool's response — at the TICK rate.
+
+| gizmo kind | ⭐ lean | why |
+|---|---|---|
+| **overlays of simulation state** — navmesh, cover, EQS, brain debug, traces, roads | stay producers on the worker; the map draws the latest published primitive frame at the frame rate (the experiment's triple buffer, X4-2) | their content changes only when the simulation ticks; a remote node's overlays arrive the same way |
+| **interactive tools and UI-state gizmos** — drag / rotate handles, vertex editors, placement ghost, selection / hover, measuring | move to the presentation side, run every frame against the UI's copy, write commands | they must answer the mouse at the frame rate; gizmos-1's interaction core is ECS-agnostic, so it can run there |
+
+⚠ If ALL gizmos moved to the main thread instead, their reads join 13.1: ⛔ the spatial grid is the same `_grid` rebuilt in place every tick
+(`SpatialHashSystem.cs:98,120`) ⇒ a torn read; the navmesh's tiles change (`INavmeshTileVersions`) — in place or by a new mesh is ⛔ not measured.
+⚠ Not done yet: the inventory of gizmos into the two kinds, and what producing them costs inside the tick.
+
+### 13.5 ⭐ The sweep's main finding — the tick already CONTAINS presentation work *(two read-only sweeps, `2026-11-12`)*
+
+The threading line is NOT "the kernel vs the UI": the editor's node frame runs presentation code today, so it must be split out FIRST (S-1).
+
+```mermaid
+flowchart LR
+  subgraph TICK[the node frame today - one thread]
+    K[simulation systems]
+    G[gizmo systems - 79 gizmos: 47 overlays, 26 tools / UI, 6 mixed]
+    T[tool activation, centre-on-entity camera, selection systems]
+    H[afterKernel: hot-reload drain, BrainObservation, debug-settings memory, regeneration scheduler]
+    O[orchestrator core + its UI cache, time transport]
+  end
+  K --> W1[stays on the WORKER]
+  O --> W1
+  G -->|47 overlays| W1
+  G -->|26 tools + 6 mixed| M1[moves to the MAIN thread]
+  T --> M1
+  H --> M1
+```
+*What the picture shows that prose hid:* half of what "the kernel" runs in the editor is presentation; moving the WHOLE frame to the worker (the
+experiment's D-7) carries the tools, the camera, the selection and four editor objects across the thread line with it.
+
+| where in the frame today | what | ⭐ treatment |
+|---|---|---|
+| gizmo systems (`MapInteractionPack.cs:170-260`, run by `GizmoInteractionModule`; ~8.0 ms playing / 5.9 paused at 1 000 men on Windows, §11h) | **47 overlays** of simulation state | stay on the worker; the map draws the published primitive frame (triple buffer, X4-2) |
+| | **26 tools / UI gizmos** (drag, rotate, vertex / waypoint / mission editors, measuring, placement / paste ghosts, pickers, RTS command mode, box select, layer panel, selection highlight, rubber band, context menu) | the main thread, every frame, against the UI's copy; ⛔ the drag preview writes `SimTransform` / `VehicleState` every drag frame (`EntityDragGizmo.cs:278,284`, `GroupTransform.cs:260,266`) ⇒ a ghost on the UI side, the commit a command |
+| | **6 mixed** — `EntityPresentationGizmo`, `NamedPointGizmo` emit the PICK BOXES the pickers hit-test, and read the map zoom; `TerrainBlockGizmo`, `RouteGizmo`, the designation / fire-mission overlays style by the UI SELECTION | split: the overlay on the worker, the pick boxes and the selection styling on the main thread from the copied positions |
+| `ScenarioEditorModule.cs:103-130` | `ToolActivationDrainSystem` (activates tools), `CenterOnEntitySystem` (moves `MapCamera`), the selection systems | the main thread |
+| `afterKernel` (`EditorSubsystem.cs:2833-2846`) | `BrainObservation` (two writers, no lock), `UnitDebugSettingsMemory` (file I/O), `RegenerationScheduler` (asset saves; two writers), the hot-reload drain (fires UI events: the hot-reload log, document lambdas) | the main thread; the hot-reload SWAP stays a worker step between ticks and its UI events are marshalled to the main thread |
+
+### 13.6 Shared state OUTSIDE the world — what the simulation side writes and the UI reads (or the reverse)
+
+| object | how it changes | thread-safe today | ⭐ treatment |
+|---|---|---|---|
+| `ClusterUiCache` + `ClusterView` (`ClusterUiCache.cs:173-219`; 11 / 19 UI files) | every tick, in place: 3 dictionaries, a list, ~25 scalars | ⛔ none | **publish** an immutable view after `UiCache.Update()`, swap the reference |
+| `MasterSyncController` (8 UI files: sim-time readout, awaiting-acks) | every tick, in place | ⛔ none | **publish** a small status struct per tick; Play / Pause / Step / Run-to become commands (Q111-D) |
+| `DebugPrimitiveBuffer` (16 UI files) | every tick; `EndFrame` resets the cursor | writes `Interlocked`, ⛔ no read / reset fence | **triple buffer** (prototyped, X4-2) |
+| `BehaviorRegistry` (58 UI files) | hot reload `MergeFrom` in place (`BehaviorRegistry.cs:954`), ~12 dictionaries | ⛔ only an `Interlocked` revision | **swap the inside** — ✔ precedent `BlueprintRegistry` swaps with `Interlocked.Exchange` |
+| `TkbDatabase` (30 UI files) | `Clear` + refill on a load (13.1) | ⛔ none | **swap the inside** |
+| `DataBreakpointManager` (7 UI files) | both ways: the kernel records hits, the panels add / remove / enable | ⛔ none | edits → commands; hits → a forwarded log |
+| `MapCameraViewport`, `MapUserConfig`, `GizmoSettingsRegistry` (UI → worker: culling and the overlays read them) | UI writes, every frame / rarely | ⛔ none | **copy** to the worker with the commands each tick |
+| `Map3DBuild` status (UI → the load phase, `Map3DBuild.cs:85-91`) | UI writes rarely | ⛔ none | a `volatile` status the load step polls |
+| `GizmoRuleTimings` (static, `HROT_FRAME_STATS` only) | every tick | ⛔ none | per thread, or a lock (diagnostics only) |
+| the buses (UI publishes intents) | every tick | publish / swap locked, ⛔ a read across a swap is not | commands (F-4) |
+| the debug API's HTTP jobs (`MainThreadJobQueue.DrainAll`) | both | — | by job: world jobs on the worker between ticks (Q111-E), UI jobs on the main thread |
+
+✔ **Already safe** (locked, `Concurrent*`, `volatile` / `Interlocked` swap): `BlueprintRegistry`, `RoadNetworkHolder`, `SwitchableNavmeshProvider`,
+`LiveTimelineSource`, `DiagnosticEventHistoryService`, `PanelSnapshot`, the log targets, `LoadProgress`, `TerrainContentRegistry`,
+`ComponentTypeRegistry`, `EntityClassTable`, the id allocators. ⭐ DI singletons are UI-only (the AI and blueprint editors' services).
+⚠ Correction to one sweep claim: `NetworkEntityMap` is `ConcurrentDictionary` only in `Fdp.Network.Cyclone`; the one the UI reads
+(`Fdp.Toolkits/Replication/Services/NetworkEntityMap.cs:15-16`) is two plain dictionaries — 13.1 stands.
+
+### 13.7 Verdict of the analysis
+
+| | |
+|---|---|
+| ✅ **no blocker** | every shared object found — 16 world singletons, 5 simulation-written logs, 17 objects outside the world, 79 gizmos — fits one of the treatments: share · copy · rebuild · lease · swap the inside · publish an immutable view · forward a log · move to the main thread · command |
+| ⭐ **the real work is a SPLIT, not a lock** | S-1 is "take the presentation OUT of the node frame" (13.5) before any thread moves — the tools, gizmo tools, camera, selection and four `afterKernel` objects. ⭐ It is worth doing even single-threaded: it is the seam R-4205's pulled presentation module (Q111-G `RunMode.Pulled`) needs |
+| ⚠ **not measured** | per tick: rebuilding `NetworkEntityMap`, copying the traffic lists, publishing `ClusterUiCache`; the per-rule gizmo cost at 1 000 men |
+| ⚠ **not traced** | `TimelineLaneCatalog` (UI lane edits vs `Step`), `OrchestratorCore.ScenarioPanel`, `GizmoUiStateHub`, the mission service's async acks; the 170 static collections triaged by mutation count, not read one by one; ⛔ `check_index_coverage` is not in the CLI |
+
+⭐ **Next — evidence, not a build:** [CE-4436](blueprints/batches/HANDOFF_Coordinator_To_Backend_Threaded_Analysis_Instruments.md) — a runtime access tracer, a static reachability analysis, the treatments' costs, the out-of-the-tick dependencies; its verdict is folded back into this section.
+
+## 14. ⭐ The whole picture — threads, worlds, copies, locks by host mode *(coordinator, `2026-11-12`; 🔒 user: "looks good at least for next version of the POC to verify it" — ⭐ the TARGET SHAPE the next proof of concept verifies; not ruled)*
+
+![threading architecture](img/threading-architecture.svg)
+
+*Generated by `scripts/gen-threading-architecture-svg.py`. What the picture shows that prose hid:* the three modes differ only in WHICH copies and
+waits exist — headless pays for no presentation, a playing editor pays one masked sync per tick, only stepping pays the ordered merge and the joins.
+
+| question (user, `2026-11-12`) | answer |
+|---|---|
+| *"the inspector should read the selected entity on demand — how?"* | the S→A copy has two masks: TABLES (all rows of a type — map, 3-D, overlays) and ROWS (types × the selected / inspected entities — panels, the inspector). The inspector reflects over every table, so as a TABLE reader it forced 206 more whole tables into the copy (≈ 13 ms vs ≈ 5.7); as a ROW reader it copies one entity's rows (µs). ⚠ A row copy does not exist yet (`SyncFrom` copies whole chunks); the first look at a newly selected entity arrives with the next sync |
+| *"what is the UI writing into singletons?"* | ✔ traced (A-1): ONE `SingletonSet` — `IOrderForm`, the UI registering its own order form. The rest: UI state kept as world singletons by presentation systems that run in the tick (`SelectionStore`, `CanvasContextMenuState`, `SortedHierarchyData`) ⇒ they stay in A, outside the mask; `UnitDebugSettings` (the Brain tab's per-unit debug toggles, read by `DebugStatePatchSystem`) ⇒ a command. ⚠ `StationMode`, `ReplayState`, `WorldEpoch`, `ITkbDatabase`, `NetworkEntityMap` show as "get-by-ref on both sides, write unproven" only because `GetSingletonUnmanaged` returns a writable `ref` — the same disease as A1-2: add a read-only singleton read |
+| *"which systems should we parallelize?"* | by measured payoff (Windows, CGF 242 ms): ⭐ brains 105 ms (Throughput, R-4208) · state egress 28 ms → ALREADY off the frame on a replica (CE-3427, built, OFF by default, never measured on a big node) · weapon dispatcher 21 ms (≈ 2 days) · recorder capture 20 ms → off the frame on the same replica (its file I/O is already async) · ✔ done: stress, threat · ⛔ not callouts (no gain) |
+| *"split egress: background translators from a snapshot, hot ones from the live world at the end of the tick?"* | ✔ that design EXISTS — [Egress §7](DESIGN_Egress_Change_Detection.md), CE-3427 N-1: events (shots, hits), lifecycle, ownership, time and smart egress stay ON the frame on the live world; translators marked `IOffFrameEgress` scan a replica synced at the end of Export while the next tick runs; runtime switch `/diagnostics/egress`. ⚠ `WorldPos` (positions, the biggest) is off-frame there — but the data is still the tick's end state; it leaves after the scan (≈ the same time an on-frame scan would take), not a tick later, so positions lose little. ⏳ Not yet measured on a 1 000-man node (B-8) |
+
+### 14.1 The anti-race strategy — one writer per world, and nothing shared that can change in place
+
+| rule | how |
+|---|---|
+| **S has one writer: the sim thread** | the pool writes only inside the tick, through per-batch buffers merged by the sim thread; ⛔ a write to S from any other thread is a defect — a Debug guard throws |
+| **A has one writer: the main thread** — except the sync | the sync writes A while holding A's lock; the UI holds the same lock for its world work ⇒ they never overlap |
+| **the UI reads only A** — its own copies, never S | per-tick singletons arrive in A at the sync: COPIED (time, traces), REBUILT (`NetworkEntityMap`), or an IMMUTABLE VIEW published (cluster cache, clock status); logs FORWARDED |
+| **an object both worlds hold by reference never changes in place** | immutable (terrain, geo), or changed by swapping the inside in ONE atomic write (TKB, behaviour registry, navmesh ✔) ⇒ a reader sees the old or the new whole, never half; native memory LEASED (roads ✔) |
+| **every UI write to simulated state is a COMMAND** | a thread-safe queue drained by the sim thread at the tick's start (Input); validated there, refused through the edit outcome (Q111-C); a drag is a ghost in A and the drop one command; UI bus publishes become commands |
+| **UI-only state is written directly in A** | selection, menus, camera, order form, effects; what the sim must read from it (the culling viewport, gizmo settings) rides to S with the commands each tick |
+| **reads are reads** | a managed component read and a singleton read must stop returning a writable reference / stamping the chunk (A1-2) — otherwise a read on the main thread is a write; the 3 unsafe statics get a lock / `Concurrent` / `Lazy` |
+
+### 14.2 The anti-race strategy and the gizmo split, as a picture
+
+![anti-race and gizmo split](img/threading-anti-race.svg)
+
+*Generated by `scripts/gen-anti-race-svg.py`. What the picture shows that prose hid:* every piece of shared data has exactly one crossing
+mechanism, and only the yellow ones (copied at the sync) take a lock — publishing, sharing, leasing and commands need none. The gizmo split
+follows the same line: what a gizmo DRAWS from S stays on the sim thread; what answers the mouse moves to the main thread.
