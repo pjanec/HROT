@@ -80,7 +80,12 @@ namespace Hrot.AI.Behaviors.Brains
             if (!world.HasComponent<UnderFireMove>(self))
             {
                 if (!keeps) return;
-                world.AddComponent(self, new UnderFireMove());
+                // ⭐ N-11 (CE-4473) — ADDED WITH ITS FINAL VALUE (one structural change): inside the brains' parallel phase an add is deferred to
+                //   the batch's buffer, so adding a default and then writing it would write a component that is not there yet
+                var fresh = new UnderFireMove();
+                Fill(ref fresh, actionInstanceId, gait, askedSpeed, threatened);
+                world.AddComponent(self, fresh);
+                return;
             }
             ref var u = ref world.GetComponentRW<UnderFireMove>(self);
             if (!keeps)
@@ -90,6 +95,11 @@ namespace Hrot.AI.Behaviors.Brains
                 u.Phase = UnderFirePhase.Moving;
                 return;
             }
+            Fill(ref u, actionInstanceId, gait, askedSpeed, threatened);
+        }
+
+        private static void Fill(ref UnderFireMove u, uint actionInstanceId, MoveGait gait, float askedSpeed, bool threatened)
+        {
             u.ActionInstanceId = actionInstanceId;
             u.HoldIntentId = 0;   // the executor's OnEnter writes the move's own intent; a man down is re-halted by the system
             u.Gait = (byte)gait;
