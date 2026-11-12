@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — in progress
+state: LIVE — P-1…P-8 first pass done
 updated: 2026-11-12
 current-answer: P-8 the verdict (top, when written) · then the items
 related-designs:
@@ -14,9 +14,53 @@ related-designs:
 `coordinator` merged (`5f0761334`; the one conflict, the design's §13.8 vs §14, resolved by keeping both). ⛔ Nothing goes to a lane.
 Switch: **`HROT_THREADED_KERNEL=2`** (default OFF ⇒ the editor is today's).
 
-## P-8 — the verdict
+## P-8 — the verdict *(Opus, `2026-11-12`; folded into the design as [§14.3](../../DESIGN_Threaded_Simulation_Presentation.md))*
 
-⏳ not yet.
+**Decision:** §14's shape holds, and three of its pieces are now built and proven:
+- **reads are reads** (P-1);
+- **the S→A sync** (P-5): tables + rows + singletons + events, **≈ 9 ms + 3–4 ms per tick at 1 000 men on the VM**;
+- **the published gizmo frame** (P-6).
+
+⛔ **The shortcut this POC used to get two worlds — clone S and retarget the existing kernel onto it — does NOT work, and the reason is
+measured:** a system that CACHED a query or captured the world at construction keeps using A. 📐 About 26–28 production sites cache a query.
+The first one hit (`MapLayerAssignmentSystem:79`) throws every tick. The exception escapes the node frame and skips the rest of the tick AND the
+sync, so **A froze after 8 syncs** and the two-worlds editor shows a stale world. ⇒ **S must be COMPOSED as its own node** (§12.4's "main build
+item"), not retargeted. That is the real cost to finish, and the next POC's first item.
+
+| what is proven | evidence |
+|---|---|
+| ✅ reads stamp nothing with the switch ON | `PureReadsTests` 9/9, red-proved; Fdp.Core suite ON vs OFF: no new red |
+| ✅ two statics made thread-safe; the third already was | `UtilityStaticsRaceTests`, red-proved; `PresetCache` under its lock at every access |
+| ✅ the S→A sync is correct and affordable | `TwoWorldsTests` 4/4 (they caught 2 defects of the first build). Live: engage 154–193 ms; tables 8.7–9.3 ms, rows + map + events 3.4–4.5 ms (VM) |
+| ✅ events reach S from the UI | run 2: spawn, delete and two orders went through the A→S bus forward |
+| ✅ input and picking read the published gizmo frame | `PublishedGizmoFrameTests` 2/2, red-proved |
+| ✅ the guard lists every write across the line | run 2: 3 UI writes lost at the sync (HTTP `edit_component` / patch), the P-7 list |
+
+| what broke | why |
+|---|---|
+| ⛔ A froze after 8 syncs (worker faults every tick) | a cached `EntityQuery` built on A, walked against S (`MapLayerAssignmentSystem`); the sync sits after the tick in one `try` |
+| ⛔ pause never settles (*"the cluster pause barrier appears stuck"*) | open — not traced; same class suspected (the pause path bound to A) |
+| ⚠ S's perception grid is a default `[0..1000]` | an object built over A at load that the clone does not carry |
+| ⚠ the Edit-state save refused | the preview could not stop cleanly after the faults |
+
+**Rejected:**
+- *Retarget the existing kernel onto a clone* — about 26–28 cached queries and the captured objects stay on A (run 2).
+- *Make the guard the safety net for the shortcut* — it sees writes only; the run-2 faults were READS of the wrong world.
+- *Judge the frame time on the VM* — software GL draws 600–730 ms a frame in both modes. ⇒ the Windows script.
+
+**Still unknown:**
+- The drawing frame on real hardware: run `python scripts/threaded-poc2-measure.py --out <dir>` on the 8-core Windows machine (it runs the same
+  session OFF and with `=2`). ⚠ Until S is composed, its two-worlds numbers show a FROZEN A — useful for the main thread's cost alone.
+- The pause path.
+- P-3 (the presentation step) — not built: it needs a main-side gizmo buffer, and running it against a frozen A would prove nothing.
+- Typed commands (P-7) — only the bus forward exists.
+
+**The real cost to finish**, in order:
+1. Compose S as its own node (the editor's bootstrap builds the node and the presentation in ONE pass — `RegisterHostSystems`).
+2. Make the ~26–28 cached queries and the captured objects world-aware, or have S's composition never see A.
+3. P-3: a main-side gizmo buffer and the moved systems (the table in §P-3).
+4. P-7: commands for the guard's list plus X-2's ~15 direct writes.
+5. The four replication sites that mutate managed components in place (P-1's list).
 
 ## The items
 
@@ -29,6 +73,7 @@ Switch: **`HROT_THREADED_KERNEL=2`** (default OFF ⇒ the editor is today's).
 | P-5 | the S→A sync | ✅ built, 4 rails, measured live | `ebb14e995` `3a3cf2b16` | §P-4 below |
 | P-6 | the gizmo frame published; picking | ✅ the A-4 ⑥ race fixed + 2 rails (red-proved) | `5d637d1d6` | §P-6 below |
 | P-7 | UI writes as commands; the guard | ⚠ the guard built and run; events forwarded (the baseline command path); no typed commands | `ebb14e995` `5d637d1d6` | §P-7 below |
+| P-8 | the verdict; the Windows script; §14 as built | ✅ | this commit | top of this file · `scripts/threaded-poc2-measure.py` · design §14.3 |
 
 ## P-1 / P-2 — reads are reads; the unsafe statics *(Sonnet worker, Opus review, `2026-11-12`)*
 
