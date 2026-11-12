@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Core;
-using Fdp.Core.Parallel;
+using Fdp.Core.Jobs;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -19,8 +19,8 @@ public sealed class ParallelEntitiesTests
     private readonly ITestOutputHelper _out;
     public ParallelEntitiesTests(ITestOutputHelper output) => _out = output;
 
-    private struct Input { public int Seed; }
-    private struct Counter { public int V; public int Written; }
+    [ComponentId(503)] private struct Input { public int Seed; }
+    [ComponentId(504)] private struct Counter { public int V; public int Written; }
 
     private struct TheJob : IEntityBatchJob
     {
@@ -39,7 +39,7 @@ public sealed class ParallelEntitiesTests
             c.V = v;
             if (e.Index % 11 == 0) ctx.Commands.SetComponent(Target, new Counter { V = e.Index, Written = 1 });
             if (e.Index % 97 == 0) { var made = ctx.Commands.CreateEntity(); ctx.Commands.AddComponent(made, new Counter { V = -e.Index }); }
-            if ((v & 7) == 0) ctx.Defer(e, 1, v);
+            if (e.Index % 13 == 0) ctx.Defer(e, 1, v);
         }
 
         public void ApplyDeferred(EntityRepository repo, in Deferred d) => Log.Add(d.Entity.Index);

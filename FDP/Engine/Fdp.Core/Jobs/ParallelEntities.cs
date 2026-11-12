@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Fdp.Core.Parallel
+namespace Fdp.Core.Jobs
 {
     /// <summary>
     /// ⭐ R-4207 (docs/DESIGN_Parallel_Simulation.md §7) — determinism is a MODE. <see cref="Deterministic"/>: the result does not depend on the

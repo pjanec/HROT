@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 
-namespace Fdp.Core.Parallel
+namespace Fdp.Core.Jobs
 {
     /// <summary>
     /// ⭐ P-0 (docs/DESIGN_Parallel_Simulation.md §5, §7) — ONE persistent pool of worker threads for the simulation's data-parallel loops.
