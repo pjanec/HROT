@@ -152,6 +152,19 @@ evidence is `file:line` or a design §, else marked INFERENCE. Duplicates merged
 | U-5 | ⭐ which reads go to last tick: systems run one after another (no dependency scheduler, J-3) ⇒ data written by an EARLIER system in the phase is already safe live | only types written by the SAME system (or a system running concurrently) go to last tick | removes needless latency on perception → squad → order chains; shrinks the copy |
 | U-6 | the Deterministic / Throughput switch is a process static set by an environment variable, not derived from the node's time mode | derive it per kernel from the time controller (or state that it IS the time mode) | a second owner of one concept |
 
+#### 7.1a The user's answers (`2026-11-12`) — R-4214, R-4215
+
+🔒 *"U1 okay, U2 okay, U3. I don't understand how player be done differently than all the others, because they all share the code and they should stay the
+same. There is should be no difference between how player is handled from how the others are handled. U4, okay. U5, okay. U6, I don't understand if
+we can derive determinism from the time mode. We never need to have different determinism modes for different part of the system, even in mode --
+all. Either everything is deterministic or not."*
+
+| # | outcome |
+|---|---|
+| U-1, U-2, U-4, U-5 | ✅ approved as leaned (R-4214) |
+| U-3 | ⭐ **NO host is handled differently (R-4215).** Measured: the threaded mode lives INSIDE `EditorSubsystem.cs` (the only host file naming `HROT_THREADED_KERNEL` / `ComposedWorlds` / the gate, beside the kernel and core files) while every host already shares `HrotNodeContext` and `SharedApplicationBootstrapper` (`PlayerApplication.cs:235,849`). ⇒ the prototype broke "shared and unified": ⭐ the threading moves into the SHARED node frame and presentation shell, so the editor, the player and every windowed host get it by construction, and headless hosts run the same code with no presentation world. ⇒ track A's first build item |
+| U-6 | ⭐ **one process-wide setting, never per part, `--mode all` included (R-4215).** ⇒ with U-1 the parallel rule is deterministic at any thread count, so the only remaining difference is background-job TIMING (an EQS answer arriving a variable number of frames later in continuous play), which the TIME mode already owns (stepped mode waits, Time §17). ⭐ Lean (to confirm): drop the separate Deterministic / Throughput switch entirely — the parallel part is always deterministic; `UtilityPrescore`'s Throughput-only gate (`UtilityPrescore.cs:31`) goes |
+
 ### 7.2 Design fixes the reviews require (no user decision — they make the rule TRUE)
 
 | # | fix | evidence |
