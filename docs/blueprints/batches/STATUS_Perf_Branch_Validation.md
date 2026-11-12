@@ -75,3 +75,26 @@ steps the paused live run and reads `/entities/{id}` was used; the repo script i
 
 The serial-vs-parallel rails at 1 / 2 / 4 / 8 threads (`ParallelEntitiesTests` P0, `ThreatEvaluationParallelRailTests`, `StressSystemTests` P1,
 `CalloutsTests` P1) are green in V-1's suites.
+
+## V-5 — replication and recording
+
+| check | result |
+|---|---|
+| replication suites (Egress §7's gate list lives in these) | `Hrot.Network.NED.Tests` 197 / 0 · `Fdp.Network.Cyclone.Tests` 112 / 0 · `Fdp.Toolkits.Tests` Replication/Replay namespaces: no red beyond the base's (V-1) |
+| record → replay → seek | `Fdp.Core.Tests` flight-recorder rails and `Fdp.Toolkits.Tests` Replay — green in V-1; `Hrot.ReplayBrowser.Tests` 96 / 0 / 8 (V-6, under a display); `ManagedReadsReplayEquivalenceTests` (both read modes, the same state hash) |
+| ⭐ the managed-read detector (`HROT_MANAGED_MUTATION_CHECK=1`) over a 12-scenario subset (`bc-house-clear, bc-house-defended, bc-room-clear, bt-doors, bt-grenade-posture, bt-mortar-roof, bt-window-duel, cc-platoon-bound, df-civilian-ordered, pc-ambush-bypass, pc-attack-dry, uc-a10-zu23-dry`) | ✅ **0 hits** — 12 editor processes, 74 726 frames, 175 781 managed reads checked |
+
+⚠ 6 of those 12 scenarios failed their checks with the detector on — compared against the full regression (V-4), serial and at the base.
+
+## V-6 — the editor and the UI (under `xvfb-run -a`)
+
+| suite | exp/perf | the reds |
+|---|---|---|
+| `Hrot.Presentation.Tests` | 2 117 / 5 / 11 | 4 red at the base (three 3-D / film frame rails, one window-per-process); `TheBuildingDamagePlan…OnADisplayNode` green alone (2 / 2, twice) ⇒ order-dependent in the full run |
+| `Hrot.Editor.AiShared.Tests` | 2 351 / 4 / 0 | 3 red at the base; `AIE004…GetFontForSize_NoContext_ReturnsZero` green alone (19 / 19, twice) ⇒ order-dependent (a theme context left by an earlier test) |
+| `Hrot.Editor.Tests` | 953 / 2 / 3 | both red at the base (with a display it runs 40 more tests than V-1's 913) |
+| `Hrot.Blueprints.Tests` | 4 239 / 1 / 9 | red at the base (the edit-dialog width frame rail) |
+| `Hrot.ReplayBrowser.Tests` | 96 / 0 / 8 | — |
+| `Hrot.Diagnostics.Breakpoints.Tests` | 171 / 0 / 0 | — |
+
+⇒ no red the branch caused. ⚠ The two order-dependent ones were run alone at the base, not in a base full-suite run.
