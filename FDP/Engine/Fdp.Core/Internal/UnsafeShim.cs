@@ -246,6 +246,7 @@ namespace Fdp.Core.Internal
             private static readonly AddManagedDelegate<T> _add;
             private static readonly GetRWDelegate<T> _getRW;
             // Managed RO uses RW delegate in this shim approach
+            private static readonly GetRWDelegate<T> _getRefRO;   // ⭐ POC 3 (A1-2) — a read that does not stamp
             private static readonly HasDelegate _has;
             private static readonly RemoveDelegate _remove;
             
@@ -266,6 +267,8 @@ namespace Fdp.Core.Internal
 
                 _getRW = (GetRWDelegate<T>)Delegate.CreateDelegate(typeof(GetRWDelegate<T>), null, 
                     repoType.GetMethod(nameof(EntityRepository.GetManagedComponentRW), flags)!.MakeGenericMethod(typeT));
+                _getRefRO = (GetRWDelegate<T>)Delegate.CreateDelegate(typeof(GetRWDelegate<T>), null,
+                    repoType.GetMethod(nameof(EntityRepository.GetManagedComponentRefRO), flags)!.MakeGenericMethod(typeT));
 
                 _has = (HasDelegate)Delegate.CreateDelegate(typeof(HasDelegate), null, 
                     repoType.GetMethod(nameof(EntityRepository.HasManagedComponent), flags)!.MakeGenericMethod(typeT));
@@ -292,7 +295,8 @@ namespace Fdp.Core.Internal
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static ref readonly T GetRO(EntityRepository repo, Entity e) 
             {
-                 // Return RW as RO
+                 // Return RW as RO — ⭐ POC 3 (A1-2): unless HROT_MANAGED_READ_NO_STAMP=1, then a read that does not stamp the chunk version
+                 if (!EntityRepository.ManagedReadsStamp) return ref _getRefRO(repo, e);
                  return ref _getRW(repo, e);
             }
 

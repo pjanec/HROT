@@ -1490,6 +1490,21 @@ namespace Fdp.Core
         /// Allocates if component doesn't exist yet.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>⭐ POC 3 (A1-2) — a managed read by reference that does not stamp the chunk version (<see cref="ManagedReadsStamp"/> off).</summary>
+        internal ref T GetManagedComponentRefRO<T>(Entity entity) where T : class
+        {
+            var table = GetManagedTable<T>(false);
+            ref var val = ref table.GetRefNoStamp(entity.Index);
+            return ref Unsafe.As<T?, T>(ref val);
+        }
+
+        /// <summary>
+        /// ⭐ POC 3 (Parallel Simulation §11, A1-2) — true (today's default): a managed <c>GetComponent&lt;T&gt;</c> READ stamps the chunk version,
+        /// so every reader marks the chunk changed for the recorder, egress gates and snapshots. <c>HROT_MANAGED_READ_NO_STAMP=1</c> turns it off
+        /// (an experiment: the default is the user's call — a reader mutating a managed object in place would no longer be recorded).
+        /// </summary>
+        public static bool ManagedReadsStamp { get; set; } = Environment.GetEnvironmentVariable("HROT_MANAGED_READ_NO_STAMP") != "1";
+
         internal ref T GetManagedComponentRW<T>(Entity entity) where T : class
         {
             #if FDP_PARANOID_MODE

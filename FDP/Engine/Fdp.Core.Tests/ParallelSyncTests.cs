@@ -12,9 +12,9 @@ namespace Fdp.Core.Tests;
 [Collection("FdpWorkerPool")]
 public sealed class ParallelSyncTests
 {
-    [ComponentId(506)] private struct A { public int V; }
-    [ComponentId(507)] private struct B { public long V; public float W; }
-    [ComponentId(508)] private struct C { public double V; }
+    [ComponentId(320)] private struct A { public int V; }
+    [ComponentId(321)] private struct B { public long V; public float W; }
+    [ComponentId(322)] private struct C { public double V; }
 
     private static EntityRepository World(out Entity[] es)
     {

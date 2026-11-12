@@ -176,6 +176,19 @@ namespace Fdp.Core
         }
         
         /// <summary>
+        /// ⭐ POC 3 (the parallel-simulation experiment; Parallel Simulation §11, A1-2) — the slot by reference for a READ: as
+        /// <see cref="GetRW"/> (allocates the chunk if missing) but the chunk version is NOT stamped. ⚠ A managed component is immutable and
+        /// replaced whole (CLAUDE.md) — a reader that mutates the object in place is a defect this no longer hides.
+        /// </summary>
+        public ref T? GetRefNoStamp(int entityIndex)
+        {
+            int chunkIndex = entityIndex / _chunkSize;
+            int localIndex = entityIndex % _chunkSize;
+            if (_chunks[chunkIndex] == null) _chunks[chunkIndex] = NewChunk();
+            return ref _chunks[chunkIndex][localIndex];
+        }
+
+        /// <summary>
         /// Gets reference for read/write access. Allocates chunk if needed.
         /// </summary>
         public ref T? GetRW(int entityIndex, uint version)
