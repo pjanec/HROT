@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — options analysed, lean stated; NOT ruled
 updated: 2026-11-12
-current-answer: §2 the lean · §1 what exists (measured) · §3 the options · §4 the hazards · §5 the staged plan · §6 open
+current-answer: ⭐ §7 determinism is a switchable MODE (R-4207) and what per-batch buffers cost · §2 the lean · §1 what exists (measured) · §3 the options · §4 the hazards · §5 the staged plan · §6 open
 stale-below: nothing
 related-designs:
   - DESIGN_Threaded_Simulation_Presentation.md — the simulation on a worker thread (R-4205); this design parallelises INSIDE that worker's tick — the two add up, and share one core budget (its §11 F-20)
@@ -75,7 +75,7 @@ machinery exist; a handful of systems hold most of the cost; the per-entity loop
 
 | hazard | why it breaks | remedy |
 |---|---|---|
-| ⛔ **non-deterministic order** — per-thread buffers and events land in thread order, and which thread gets which batch varies run to run | stepped mode, replay and the scenario regression's goldens require the same result every run | ⭐ per-BATCH buffers (not per-thread), played back in batch order; events written per batch and appended in batch order — the result is then independent of the thread count |
+| ⛔ **non-deterministic order** — per-thread buffers and events land in thread order, and which thread gets which batch varies run to run | stepped mode, replay, filming and the scenario regression's goldens require the same result every run — ⚠ only in the Deterministic MODE (§7) | ⭐ per-BATCH buffers (not per-thread), played back in batch order; events written per batch and appended in batch order — the result is then independent of the thread count |
 | writes to ANOTHER entity in place | two batches writing one entity race | only through the command buffer (deferred to the batch merge) |
 | structural changes (create, destroy, add / remove) mid-loop | invalidates the query | already command-buffer-only |
 | shared caches: `Dictionary`, `ConditionalWeakTable`, static lists in systems and helpers | "collection modified", torn state | per-batch scratch, or computed before the loop |
@@ -105,3 +105,52 @@ thread counts. A difference is a hazard the conversion missed. Plus the existing
 | does any event consumer depend on the order of events within a frame | the per-batch merge makes order deterministic but different from today's serial order — goldens may need regenerating once |
 | can more than one CGF node own a share of the units | option D |
 | the parallelism budget with the threaded presentation | §4, Threaded design §11 F-20 |
+
+## 7. ⭐ Determinism is a MODE, not a law — switchable against throughput *(user, `2026-11-12`; R-4207)*
+
+🔒 User, `2026-11-12`: *"If Determinism mode goes against performance mode, these two are not necessary at the same time (determinism good for film
+taking and regression test harnesses and special cases like stepped mode, real big scale simulation does not need) — needs to be switchable. What would
+per batch buffers mean to performance?"*
+
+| who needs determinism | who does not |
+|---|---|
+| the film director and its stills · the scenario regression and its goldens · the determinism rails · stepped mode and Run-to (Time Architecture §17, R-3035) · replaying a run to compare it | a big live exercise — 1 000 to 10 000 men at real time, where only throughput matters |
+
+### 7.1 What per-batch buffers cost
+
+⭐ **Almost nothing — the determinism is in the ORDER OF PLAYBACK, not in how work is shared out.** Threads still steal batches dynamically
+(load balancing unchanged); each batch writes into its OWN pooled buffer instead of its thread's; at the end the buffers are played back in batch order
+instead of thread order.
+
+| | per-thread buffers (throughput) | per-batch buffers (deterministic) | difference |
+|---|---|---|---|
+| the parallel loop | the same batches, stolen dynamically | the same | none |
+| recording a command | append to the thread's buffer | append to the batch's buffer | none |
+| buffers alive | one per thread (~cores) | one per batch (~2 × cores, pooled — the adaptive batching targets 2 per core) | a few dozen small pooled objects, 0 B per steady frame once warm |
+| playback | buffers in thread order — one serial pass over every command | buffers in batch order — the SAME serial pass | none: the same total commands |
+| events | written straight into the bus, concurrently (lock-free) | written into the batch's list, appended to the bus in batch order | ⚠ one extra copy of each event — proportional to the EVENTS, not to the entities (tens to hundreds per tick) |
+| a system that writes only its own entity (stress, callouts, weapons) | no buffer at all | no buffer at all | none |
+
+⇒ the per-batch merge costs one copy of the events and a few pooled buffers — microseconds per tick. **It is not where determinism costs
+performance.** ⭐ Measure it in P-0 to confirm.
+
+### 7.2 Where determinism DOES cost performance
+
+| deterministic behaviour | its cost | in throughput mode |
+|---|---|---|
+| ⭐ **stepped mode waits for background jobs on a step** (EQS, navigation — `ModuleHostKernel.cs:678-683`, Time Architecture §17) | the step waits the slowest job (EQS ~58 ms per run at 1 000 men, §11h) | never wait — results land when they land (today's continuous play already does this) |
+| slow modules on SIM-time slots | a module can run only at its slot | wall-clock cadence (Scale Rig C-1, built) |
+| results independent of the thread count — per-batch order, no parallel floating-point reductions in an unstable order | negligible (7.1); a stable reduction where one sums floats across batches | per-thread order, any reduction order |
+| the same random stream every run | a per-entity seeded stream | the same (it is also faster than a shared locked one) |
+
+⇒ ⭐ **the switch matters for the WAITS, not for the buffers.** Most of it already exists as the TIME mode: stepped (deterministic) vs continuous.
+
+### 7.3 The switch
+
+| | ⭐ lean |
+|---|---|
+| ONE setting, `SimulationMode { Deterministic, Throughput }`, read by the kernel and `ForEachParallel` | one place, not a flag per system |
+| ⭐ chosen by WHAT IS RUNNING, not by hand: stepped mode, Run-to, filming, recording a regression, the test harnesses ⇒ Deterministic; continuous live play ⇒ Throughput | the user never has to remember it; stepped mode stays deterministic by construction (R-3035 unchanged) |
+| the per-batch merge stays ON in both modes unless P-0 measures a cost | it is nearly free (7.1), and one merge path is simpler than two — ⛔ a second code path only if a number justifies it |
+| the throughput mode is still CORRECT, only not repeatable — the same commands apply, possibly in another order | a run in throughput mode is valid; it simply cannot be compared byte for byte |
+| the tests run BOTH modes: the serial-vs-parallel rails in Deterministic, a smoke run in Throughput | so the fast mode cannot rot |
