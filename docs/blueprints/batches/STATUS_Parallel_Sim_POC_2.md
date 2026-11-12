@@ -119,6 +119,7 @@ scoring). Q-5's cheapest win is not parallelism: 12 % of the dispatcher looks up
 | `Q4_ThePrescoredPosture_IsTheSerialPosture_AtEveryThreadCount` | the pre-score job leaves its buffer unscored | ✅ red |
 | `TheBrainTickView_StampsItsBlock_OnlyWhenTheTickChangedIt` | the view stamps at once (the deferral never taken) | ✅ red (⚠ a first attempt with `if (false)` did not compile — unreachable code is an error here — and ran a stale binary; redone with a runtime-false condition) |
 | `BlueprintTickStampOnChangeTests` (blueprint tick) | the knob off | ✅ red (its own knob-off rail) |
+| ⭐ `ParallelGuard` (Debug) under the pre-score rail | the score job takes a `UtilityResultBuffer` writable | ✅ throws `a writable UtilityResultBuffer was taken inside a READ-ONLY parallel body`; without the mutation the rail passes ⇒ the posture scoring takes nothing writable |
 
 ### D-7 — Q-2 measured: off-frame egress gives the CGF nothing
 | claim | basis |
@@ -136,3 +137,10 @@ scoring). Q-5's cheapest win is not parallelism: 12 % of the dispatcher looks up
 | CGF frame | 212.2 ms · 11.0 fps | **159.7 ms · 13.6 fps** |
 | garbage / frame | 955 KB | 730 KB |
 ⚠ One pair on a noisy VM (±15 %), but the brain moved 35 ms where the noise reference systems (dispatcher, egress, stress) moved < 5. ⭐ On 8 cores the scoring share (67 % of the brain) divides further; the serial remainder of the walk becomes the floor.
+
+### D-9 — Q-4's acceptance items, as they apply to a pre-score
+| handoff item | as built |
+|---|---|
+| "no cover held by two units for more than a bounded number of ticks" (R-4208) | ⭐ **not needed by this cut**: cover claims are made by the tree walk, which stays SERIAL — the pre-score only computes the posture decision's scores. R-4208 is the rule for the NEXT step (a parallel tree walk) |
+| "a Debug guard on a brain writing another unit's state" | ⭐ stronger for this cut: `ParallelGuard` makes ANY writable reference inside the parallel scoring throw in Debug (`NativeChunkTable.GetRefRW`) — proven on the rail, red-proven |
+| "brain ms at 1 / 2 / 4 / 8 threads" | VM: 2 threads only (D-8); the Windows column is `--poc2`'s `rec-all` (+ add `HROT_SIM_THREADS`) |
