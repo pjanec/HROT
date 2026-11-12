@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: MEASURE whether every simulation system can run per entity in parallel — the cross-entity access census
 
-**For:** the session that was running threaded POC 4 (paused by the user). **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen.
+**For:** the session that was running threaded POC 4 (paused by the user). **From:** coordinator. **Dispatched at `cf8dbebab`**, scope frozen.
 🔒 User, `2026-11-12`: *"todays computers have 16+ physical cores so parallelization is the way to go"* · *"basically every system can be
 parallelized including the brains"* · *"the lane doing HANDOFF_Coordinator_To_Backend_Threaded_POC_4.md is now paused so we can use it to do
 whatever measurements we need in this direction"*.
