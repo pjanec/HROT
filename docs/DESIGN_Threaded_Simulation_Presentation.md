@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: FDP/Engine/Fdp.ModuleHost/docs/UserGuide/06_SimulationViewsAndExecutionModes.md shows a two-replica swap in DoubleBufferProvider — the code syncs ONE replica in place (DoubleBufferProvider.cs:63-66); this design does not rely on it
 related-designs:
+  - DESIGN_Threaded_Work_Inventory.md — the MEASURED work inventory (UI writes, run controls, HTTP routes, the gizmo move, the gates) and the open decisions D-1…D-5
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Threaded_POC_4.md — CE-4448, POC 4: the guard silent, stepping / Run-to / hot reload threaded, the combination with the parallel simulation
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Threaded_POC_2.md — CE-4439, POC 2: builds §14's target shape on exp/threaded-poc-2
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Threaded_Analysis_Instruments.md — CE-4436, the instruments that answer §13.7's unknowns
@@ -690,3 +691,26 @@ the published frame and the guard are ready for it.
   the pick-box producers and the selection move together, with the selection riding to S as UI state.
 - **A world can be reached four ways a construction walk cannot see:** a `Func<EntityRepository>`, a shared singleton's closure (`StationMode`), an
   object built after start-up, and a callback into the presentation. ⇒ the walk AND the run-time guard, never one alone.
+
+### 14.5 POC 3 on the 8-core Windows machine *(`STATUS_Ui_Windows_Perf.md` on exp/perf, `2026-11-12`)*
+
+The drawing frame while PLAYING the 1 000-man rig: **97 ms → 15.6 ms** (p95 ~105 → ~17.7); 0 faults, no freeze, pause and step work; the sync
+~4.5 ms tables + ~0.65 ms rows per tick. ⚠ **Open:** on its thread the node ticks only **~4.8 times a second** while playing (OFF: once per 97 ms
+frame) and every 100–130 ms while paused (OFF paused update 14.5 ms) — sim time still keeps real time, so each tick takes a bigger step. Either the
+worker paces itself (the lock / yield) or a tick costs more on the worker. ⭐ Must be explained before the shape is called done.
+
+### 14.6 ⭐ The WHOLE gizmo block runs on the main thread — no split by kind *(R-4211, supersedes §14.2's three-way split)*
+
+🔒 User, `2026-11-12`, on the backend session's plan to split the gizmos: *"which i rejected as too big complication for the maintenance it and
+asked to put whole gizmo block to presentation thread"*. ⇒ all registered gizmos (overlays, tools, mixed, UI) run as ONE block on the main
+thread over world A, every frame; the S→A mask carries what the ACTIVE gizmos read — it follows the shown layers: nothing when no gizmo is shown, all ≈ 57 types (A-1, tables ≈ 1.3 ms) when every kind is on; most often only the entity labels (🔒 user, `2026-11-12`: "what gizmos read depends solely on what gizmos are active … this is accepted cost. Most often just entity labels are enabled."); a layer switched on gets its data at the next sync; tools write
+by ghost + command. The gizmo module's NON-gizmo world writers (action dispatch, effect / wreck spawn, lifespan) are simulation and stay in the
+tick. Headless nodes have no main-thread presentation: their gizmo stream is produced in their own tick and sent over the network, as today.
+§14.2's picture is redrawn to this (`scripts/gen-anti-race-svg.py`). ⛔ HISTORY: §13.4–13.5's 47 / 26 / 6 split by kind is superseded.
+
+### 14.7 The pictures redrawn for per-entity parallelism *(`2026-11-12`)*
+
+Both pictures now show §18 of the Parallel Simulation design (the rule inside the tick): every per-entity system runs on the pool in every mode;
+an effect on another entity is a command merged in a FIXED order, so the result is the same at any thread count — the deterministic mode no longer
+keeps the brains serial; a read of another entity's in-phase-written data sees LAST tick. ⚠ Two details stay OPEN until the census (CE-4449):
+how the last-tick view is made (a small per-type copy, the replica R, or a phase reorder — N-5) and which systems are GLOBAL (N-4).

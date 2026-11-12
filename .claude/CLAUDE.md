@@ -577,6 +577,22 @@ was *first lean wrong · third lean right*, **because the USER'S CORRECTIONS WER
 ⚠⚠ **That is the wrong division of labour — the user was acting as the test suite.** ⇒ ⭐ **spend the tool
 calls first; a slower, measured first answer is the deliverable.**
 
+## ⭐⭐⭐ START FROM THE PROVEN SOLUTION, THEN JUSTIFY EVERY PIECE — **the code's current shape is a cost, not a boundary** *(user, `2026-11-12`)*
+
+> 🔒 **User, verbatim:** *"the rule 'consider standard proven solutions even if code is not yet there' is generic and should go to claude.md."* ·
+> *"not even standard approaches can be adopted blindly, all decisions must have a strong reason"*
+
+📌 **The miss that produced this:** for a day of threading / parallelism work every plan was derived from what the code did — brains write other
+entities ⇒ "brains are hard, convert the self-writing systems"; determinism ⇒ "keep the serial order". The standard ECS discipline (write your own
+entity, others by command, read last tick — deterministic at any thread count) was known and never stated, because the plan was formed from the
+code in front of me. The user had even said it (*"writing stuff via command buffers, allowing parallel runs"*).
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐⭐ **before inventorying constraints, STATE the proven solution for the problem class** (how engines / the literature solve it) | ⭐ then measure the code against it: what it does today is the CONVERSION COST, ⛔ not a limit on the design |
+| ⭐⭐⭐ **⛔ never adopt a standard approach blindly** — every piece needs a STRONG REASON measured here: the cost it adds, the problem it removes, and why our case fits | 📌 the same day: a fixed simulation step was proposed as "standard" and rejected — under overload it spirals or falls behind real time, and a dynamic step suits this simulation. ⇒ a standard piece goes through the claim table like any lean |
+| ⭐⭐ **the claim table gets one more row**: *"the proven solution for this problem class is ___; we adopt / adapt / reject it because ___ (measured)"* | ⛔ an empty row means the target was never stated |
+
 ## ⛔⛔⛔ EXPLORE WIDE, DECIDE SHORT — **the output contract for "how does X work" / "how should X work"** *(user, `2026-09-16`)*
 
 > ⭐⭐⭐ **User, verbatim:** *"explore widely, then give me the decision in under a page with the rejected

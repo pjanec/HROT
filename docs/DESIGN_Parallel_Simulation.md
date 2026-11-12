@@ -518,9 +518,72 @@ the two modes; a recording replays to the same state either way.
 `PartMetadata` and `NetworkAuthority` are WRITTEN every frame (`OwnershipApplier.Apply` on every `OwnershipUpdate`, `BrainTickSystem`, command-buffer
 playback), measured with `HROT_STAMP_TRACE`. ⇒ the gate needs CE-3442 (skip a no-op ownership write / a per-entity authority signal).
 
-## 18. Per-entity parallelism *(the proposal is §18 on `coordinator`, CE-4449)*
 
-### 18.1 ⭐ As measured — the cross-entity access census *(branch `exp/entity-census`, measure only; status: [`STATUS_Entity_Access_Census.md`](blueprints/batches/STATUS_Entity_Access_Census.md))*
+### 11.1 Update — `exp/perf` on the 8-core Windows machine *(`STATUS_Ui_Windows_Perf.md` on exp/perf, `2026-11-12`)*
+
+| | serial | everything on | |
+|---|---|---|---|
+| CGF frame (1 000 men, recorded) | 256 ms (8.8 fps) | **163–173 ms (12.2 fps)** | **1.52×** (POC 2 alone: 1.47×) |
+| `BrainTickSystem` | 96 ms | **42 ms** | the pre-score, posture + threat ranking |
+| the one worker pool | everything on, 1 thread: 255 ms | at its budget: 173 ms | **the pool buys 81 ms** |
+| SimHost with off-frame egress | 96–104 ms | **42–51 ms** | 20 → 40–45 fps |
+| the sampled timer · T-2 gate · Q-1 | — | inside the 9 ms noise | the gate still skips 0 (CE-3442) |
+
+⚠ **Two open anomalies:** ① off-frame egress + the parallel replica sync ALONE on a serial CGF frame makes it **slower** (252 → 337–339 ms,
+reproduced; brain, weapons, ingress all grow) — invisible with everything on; suspected CPU contention on the 7 pinned logical CPUs, not measured.
+② network ingress falls 14 → 3.6 ms with threads though it is not parallelised — unexplained.
+
+## 18. ⭐ Per-entity parallel brains — the proposal and what decides it *(threaded POC 4 session + the user, `2026-11-12`; a lean, not ruled)*
+
+🔒 User, `2026-11-12`: *"todays computers have 16+ physical cores so parallelization is the way to go."* Today only the brains' READ-ONLY scoring is
+parallel (the pre-score: BrainTick 96 → 42 ms on Windows); the tree / HSM / action / blueprint execution is serial because it may write OTHER
+entities (A-1: BrainTick writes 42 component types, squad-shared ones among them — `UnitRoster`, `SquadCognitiveState`) and a later brain may read them.
+
+**The rule proposed** (the standard ECS discipline): a brain writes its OWN entity directly; anything aimed at another entity is a command in a
+per-batch buffer, played in a fixed order after the phase; a read of another entity's brain-written component sees LAST tick's value. Precedents:
+R-4208 (cover claims one tick late), `ParallelEntities` per-batch merge (POC 1), `ParallelGuard`.
+
+| what decides it | how to measure | status |
+|---|---|---|
+| how many cross-entity WRITES, and where (each becomes a command) | a census: BrainTick sets a thread-local "current brain entity"; every component write / read classified own vs other, by type and call site, sampled stacks; one 1 000-man run | ⛔ not measured (A-1 counts per TYPE, not per entity) |
+| cross-entity READS of brain-written components (must see last tick) | the same census | ⛔ not measured |
+| ⭐ beyond components — the census must also count | ① STRUCTURAL changes, even on the own entity (create / destroy, add / remove: EQS child sensors are created in-tick) ⇒ deferred · ② bus publishes ⇒ per-batch event lists (exist) · ③ shared state outside components: `DecisionCadence`, dedup dictionaries, `BlueprintSharedState`, sim statics (`ObjectiveCensus.s_men`, `MemberEvaluationBehavior.s_current` — A-2 "sim-only scratch, unconfirmed") · ④ entities created this tick and read by a later brain · ⑤ leader → soldier orders within one tick (with commands they arrive a tick later — a behaviour change like R-4208, the user's call) | ⛔ |
+| the prize | a trace splitting BrainTick's remaining ~42 ms (Windows) into scoring vs execution | ⛔ |
+
+⭐ **Determinism comes for free with this rule.** The serial order is what makes today's result order-dependent; if every cross-entity effect is a
+command merged in a FIXED order and every cross-entity read sees last tick, the result no longer depends on thread count or batch split — parallel
+AND deterministic (Jacobi instead of Gauss-Seidel). It is a DIFFERENT result from today's serial one (a friend's claim seen a tick later), so the
+regression goldens are re-baselined once — and R-4208's "Throughput only" could extend to Deterministic mode.
+
+**The prize, bounded honestly:** the brains are one link of the measured chain (stress → threat → brain → callouts → weapons → squad, §16 J-3); the
+same rule applies to every per-entity system in it, and that — not the brains alone — is what lets 16 cores pay. ⇒ census the brains first; if the
+lists are short, the rule becomes the engine's rule for per-entity systems, enforced by `ParallelGuard`.
+
+🔒 User, `2026-11-12`: *"basically every system can be parallelized including the brains, there is nothing why brains should be handled differently,
+is it?"* — ✔ the RULE is the same for every per-entity system; the brains differ only in HOW MUCH they touch (42 written types, structural changes,
+state outside components). Systems that are not per-entity (a spatial-hash build, ingress / egress, command playback) need a parallel algorithm
+of their own (a partitioned build, a reduction), not the rule. ⇒ the census covers EVERY system of the phase, not only the brains
+([CE-4449](blueprints/batches/HANDOFF_Coordinator_To_Backend_Entity_Access_Census.md)).
+
+### 18.1 ⭐ The census verdict and the user's three calls *(R-4212, R-4213, `2026-11-12`)*
+
+The census ([status](blueprints/batches/STATUS_Entity_Access_Census.md) on `exp/entity-census`): **GO — the rule is viable for the whole Simulation
+phase.** CGF systems: 18 READY · 11 CONVERTIBLE (128 ms VM) · 6 GLOBAL · 36 no per-entity access in the run. Genuine cross-entity writes: callouts /
+utterances and the command order journal (everything else was the brain's own child sensors); in-tick child-sensor creation ⇒ deferred; the
+last-tick set = 18 types, a masked copy of them costs **CGF 1.9–2.7 ms, SimHost 0.9 ms** (a full copy 5.2–8.5 ms) ⇒ the last-tick view is that small
+masked copy (settles D-4's half). Prize (Windows serial 256 ms): 2.05× at 4 cores, 2.5× at 8, 2.8× at 16 — the floor beyond 8 is egress, the
+recorder and ingress (per-entity scans too).
+
+🔒 User, `2026-11-12`: *"yes to all three"* — **R-4212:** ① a brain (and any per-entity system) reads other units' in-phase-written state from
+LAST tick (the last-tick copy); ② a callout / an order to another entity is a command and reaches its listeners one tick later; ③ squad-level
+systems run in parallel per SQUAD, not per man.
+
+🔒 User, `2026-11-12`: *"we do not want a timing taking 12% so whatever helps"* — **R-4213** (supersedes R-4209's "sampled 1 in 16, on by
+default"): the census measured the SAMPLED per-query timer still at 11.9 % of BrainTick ⇒ `QueryTimings` is OFF by default in every host; the
+scale rig, the measurement scripts and `/diagnostics/queries?enable=1` turn it on when someone measures.
+
+
+### 18.2 ⭐ As measured — the cross-entity access census, detail *(branch `exp/entity-census`, measure only; status: [`STATUS_Entity_Access_Census.md`](blueprints/batches/STATUS_Entity_Access_Census.md))*
 
 ⭐ **The rule is viable for the whole Simulation phase.** The CGF's heavy systems are all per-entity walks with SHORT conversion lists; the payoff
 beyond 8 cores is bounded by egress, the recorder and ingress, not by the brains.
@@ -538,3 +601,18 @@ beyond 8 cores is bounded by egress, the recorder and ingress, not by the brains
 The instrument: `EntityCensus` (`HROT_ENTITY_CENSUS=1`, `Fdp.Core`) — a per-thread stack of the entities the system is walking, every access
 classified own / own-part / other / other-scan / none. ⛔ Blind spots: raw pointers taken once, `GetComponentTable`, loops that are not
 `EntityQuery` walks (counted as "none"), pool workers (run it with `HROT_SIM_THREADS=1`).
+
+## 19. Windows scheduling: power throttling, hybrid cores, console pauses *(user, `2026-11-12`: "what about windows frontend / backend throttling and intel performance cores vs e-cores … i do not want headless mode running in console to be any slower")*
+
+Measured: graph + grep for `PowerThrottling|SetProcessInformation|timeBeginPeriod|ThreadPriority|PriorityClass|EcoQoS|CpuSet|EfficiencyClass|ProcessorAffinity`
+over `FDP` and `Hrot` ⇒ ONE hit (`OverlayCompileTracker.cs:36`, a BelowNormal compile thread). ⇒ ⛔ nothing today opts out of Windows' power
+throttling, sets the simulation's thread priorities, or knows performance vs efficiency cores. ⚠ Every Windows measurement so far ran with
+HIDDEN windows — a process Windows treats as background may already have been throttled (EcoQoS), so those numbers may be pessimistic.
+
+| risk | what Windows does | ⭐ lean |
+|---|---|---|
+| background / hidden / console processes slowed | Windows 11 applies EcoQoS (power throttling: lower clocks, efficiency cores) to processes it deems background, and may ignore their timer-resolution requests | every HROT process opts OUT at start-up: `SetProcessInformation(ProcessPowerThrottling)` with `EXECUTION_SPEED` and `IGNORE_TIMER_RESOLUTION` off; per thread for the sim thread and the pool (`SetThreadInformation(ThreadPowerThrottling)`) |
+| `Sleep(1)` / waits pace the loop at 15.6 ms | the default timer resolution | `timeBeginPeriod(1)` while a simulation runs (honoured once the opt-out above is in place) |
+| background work delays frame work | equal thread priorities | the sim thread AboveNormal; the pool's FRAME lane Normal; its BACKGROUND lane (EQS, egress scan, recorder) BelowNormal |
+| ⭐ Intel hybrid (P- + E-cores) | `Environment.ProcessorCount` counts both; a batch on an E-core finishes later and the whole parallel step waits for it | size the frame lane to the PERFORMANCE cores (`GetSystemCpuSetInformation`, `EfficiencyClass`), let the background lane use the efficiency cores; keep adaptive batches (stragglers absorbed). ⚠ The user's machine is AMD (no E-cores) ⇒ this can be designed and unit-tested, measured only on an Intel hybrid machine |
+| ⭐ a console node FREEZES when someone clicks in its window | QuickEdit mode: a text selection blocks every write to the console ⇒ a thread that logs (a console line per step) stops, and the simulation with it | console hosts turn QuickEdit OFF at start-up (`SetConsoleMode`, clear `ENABLE_QUICK_EDIT_MODE`) |
