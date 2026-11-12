@@ -545,7 +545,12 @@ namespace Fdp.ModuleHost
         {
             long whole = KernelFrameTimings.Start();   // ⭐ CE-4433
             try { UpdateInternalCore(deltaTime, globalTime); }
-            finally { KernelFrameTimings.Stop("(kernel Update, whole)", whole); }
+            finally
+            {
+                KernelFrameTimings.Stop("(kernel Update, whole)", whole);
+                if (Fdp.Core.ManagedMutationCheck.On) Fdp.Core.ManagedMutationCheck.EndFrame();
+                if (Fdp.Core.StampTrace.On) Fdp.Core.StampTrace.EndFrame();   // ⭐ CE-4445 M-4   // ⭐ CE-4445 M-2 — the frame's managed reads vs their baseline
+            }
             if (Fdp.Core.Diagnostics.ContentVersioning.On) Fdp.Core.Diagnostics.ContentVersioning.EndFrame(_liveWorld);   // ⭐ D-5 — before the sample
             if (Fdp.Core.Diagnostics.TableWriteStats.On) Fdp.Core.Diagnostics.TableWriteStats.EndFrame(_liveWorld);   // ⭐ M-1 — the write instrument
         }

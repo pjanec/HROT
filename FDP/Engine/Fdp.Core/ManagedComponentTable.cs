@@ -176,19 +176,6 @@ namespace Fdp.Core
         }
         
         /// <summary>
-        /// ⭐ POC 3 (the parallel-simulation experiment; Parallel Simulation §11, A1-2) — the slot by reference for a READ: as
-        /// <see cref="GetRW"/> (allocates the chunk if missing) but the chunk version is NOT stamped. ⚠ A managed component is immutable and
-        /// replaced whole (CLAUDE.md) — a reader that mutates the object in place is a defect this no longer hides.
-        /// </summary>
-        public ref T? GetRefNoStamp(int entityIndex)
-        {
-            int chunkIndex = entityIndex / _chunkSize;
-            int localIndex = entityIndex % _chunkSize;
-            if (_chunks[chunkIndex] == null) _chunks[chunkIndex] = NewChunk();
-            return ref _chunks[chunkIndex][localIndex];
-        }
-
-        /// <summary>
         /// Gets reference for read/write access. Allocates chunk if needed.
         /// </summary>
         public ref T? GetRW(int entityIndex, uint version)
@@ -204,10 +191,27 @@ namespace Fdp.Core
             
             // Update version
             _chunkVersions[chunkIndex] = version;
+            if (StampTrace.On) StampTrace.Note(typeof(T));   // ⭐ CE-4445 M-4 — who stamps (opt-in)
             
             return ref _chunks[chunkIndex][localIndex];
         }
         
+        // POC 2 / P-1 - the slot a pure read of an unallocated chunk points at. Never written (callers hold a ref readonly).
+        private static T? _nullSlot;
+
+        /// <summary>
+        /// POC 2 / P-1 - a read-only REFERENCE to the slot: stamps NO chunk version and allocates NO chunk
+        /// (an unallocated chunk yields a ref to a shared null slot).
+        /// </summary>
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public ref readonly T? GetRefRO(int entityIndex)
+        {
+            int chunkIndex = entityIndex / _chunkSize;
+            var chunk = _chunks[chunkIndex];
+            if (chunk == null) return ref _nullSlot;
+            return ref chunk[entityIndex % _chunkSize];
+        }
+
         /// <summary>
         /// Gets value for read-only access. Does NOT allocate.
         /// Returns null if chunk not allocated.
@@ -227,6 +231,10 @@ namespace Fdp.Core
         /// <summary>
         /// Sets component value with version tracking.
         /// </summary>
+        /// <inheritdoc/>
+        public void CopyRowFrom(IComponentTable source, int entityIndex, uint version)
+            => Set(entityIndex, ((ManagedComponentTable<T>)source).GetRO(entityIndex), version);
+
         public void Set(int entityIndex, T? value, uint version)
         {
             int chunkIndex = entityIndex / _chunkSize;
@@ -242,6 +250,7 @@ namespace Fdp.Core
             if (version != 0)
             {
                 _chunkVersions[chunkIndex] = version;
+                if (StampTrace.On) StampTrace.Note(typeof(T));   // ⭐ CE-4445 M-4 — who stamps (opt-in)
             }
         }
 

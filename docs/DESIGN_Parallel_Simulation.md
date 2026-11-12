@@ -5,6 +5,7 @@ updated: 2026-11-12
 current-answer: ⭐ §16 POC 4 as built (one pool; no dependency scheduler) · §13 a job system? (the lean POC 4 tested) · §15 POC 3 as built (the cheap wins) · §14 POC 2 as built (the brain pre-score) · §12 R-4209 the sampled timer · §11 the aggregate (where the time is) · §10 after the experiment (R-4208, the emitter fix) · §9 the AS-BUILT of the overnight experiment (exp/parallel-sim) · §8 interleaving and quantizing (do less per frame) · §7 determinism is a switchable MODE (R-4207) and what per-batch buffers cost · §2 the lean · §1 what exists (measured) · §3 the options · §4 the hazards · §5 the staged plan · §6 open
 stale-below: nothing
 related-designs:
+  - blueprints/batches/HANDOFF_Coordinator_To_Backend_Managed_Reads_Audit.md — CE-4445, the managed-read audit and the default flip (R-4210)
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Parallel_Sim_POC_4.md — CE-4444, POC 4: §13's one pool and the dependency-scheduler measurement
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Parallel_Sim_POC_2.md — CE-4440, POC 2: the serial 70 % on exp/parallel-sim-2
   - blueprints/batches/HANDOFF_Coordinator_To_Ui_Windows_Parallel_Sim_Measure.md — CE-4437, the 8-core Windows measurement of exp/parallel-sim
@@ -501,3 +502,18 @@ a pool item without a cap; the recorder makes one `Task` per frame.*
 
 The chain: Stress → Threat (`TargetMemory`) → **Brain** (`TargetMemory`, `StanceIntent`, `BehaviorState`) → Callout → WeaponDispatcher
 (`WeaponState`) → Squad. ⭐ The cores belong INSIDE those systems (data-parallel, as the pre-score), not beside them.
+## 17. Managed component reads stop stamping — the default, after an audit *(R-4210)*
+
+🔒 User, `2026-11-12`: *"yes, queue the audit; the other backend lane is free, if it can be done in parallel with POC4"* — on the lean: a managed
+`GetComponent` READ must not bump the chunk version (A1-2); it becomes the DEFAULT once an audit has found and fixed every in-place mutation of a
+managed component (already forbidden — CLAUDE.md: managed components are immutable and replaced whole). Both lanes hit it: the threaded editor
+(a read off the sim thread is a write race) and the egress visit gate (POC 3 T-2: 0 skips, because `OwnershipEgressSystem`'s reads stamp every
+chunk). Built and measured in [CE-4445](blueprints/batches/HANDOFF_Coordinator_To_Backend_Managed_Reads_Audit.md).
+
+⭐ **As built (`exp/managed-reads`, not merged — [status](blueprints/batches/STATUS_Managed_Reads_Audit.md)):** the default is the non-stamping read
+(`ThreadedReads.PureReads`; `HROT_MANAGED_READ_STAMP=1` restores the stamping read for one release). The audit and a runtime detector found no
+RECORDED managed component mutated in place; two `NoReplay` bookkeeping types are mutated in place by design and kept. Rails unchanged between
+the two modes; a recording replays to the same state either way.
+⛔ **The premise "the reads defeat the egress gate" was incomplete:** with the flip, the CGF gate still skips 0 — `DescriptorOwnership`,
+`PartMetadata` and `NetworkAuthority` are WRITTEN every frame (`OwnershipApplier.Apply` on every `OwnershipUpdate`, `BrainTickSystem`, command-buffer
+playback), measured with `HROT_STAMP_TRACE`. ⇒ the gate needs CE-3442 (skip a no-op ownership write / a per-entity authority signal).

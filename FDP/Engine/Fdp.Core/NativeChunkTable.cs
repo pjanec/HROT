@@ -178,6 +178,7 @@ namespace Fdp.Core
             // each write invalidates other cores' cache lines (false sharing),
             // causing severe performance degradation.
             // Also ignoring version 0 to prevent read-via-indexer from resetting versions.
+            if (currentVersion != 0 && StampTrace.On) StampTrace.Note(typeof(T));   // ⭐ CE-4445 M-4 — who stamps (opt-in)
             if (currentVersion != 0 && _chunkVersions[chunkIndex].Value != currentVersion)
             {
                 if (_preStamp != null) _preStamp[chunkIndex] = _chunkVersions[chunkIndex].Value;   // ⭐ D-5 — the version before this frame's stamp
