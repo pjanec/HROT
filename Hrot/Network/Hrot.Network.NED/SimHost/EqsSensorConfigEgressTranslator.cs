@@ -50,6 +50,17 @@ namespace Hrot.Network.NED.SimHost
         // disposed only once it is gone (CE-486).
         private readonly Dictionary<Entity, Entity> _parentOf = new();
         private readonly HashSet<Entity> _seen = new();
+
+        // ⭐ POC 3 T-2 (the parallel-simulation experiment; POC 2 D-4: this translator was 17 of the CGF's ~39 ms of egress — it built every
+        //   sensor's topic every frame, then compared). Opt-in HROT_EQS_CONFIG_GATE=1: the shared egress visit gate (CE-2407, Egress §5) skips a
+        //   sensor nothing touched — its own inputs declared; authority / ownership / parts writes, seek / restore / wipe (H3) and a structural
+        //   change force a visit; the sweep visits every sensor at least once per SweepPeriod frames (the bound for the inputs no signal names:
+        //   a solver re-pick from the cluster cache). A sensor HELD for a context slot's network id is visited every frame until it publishes.
+        internal static bool GateOn { get; set; } = Environment.GetEnvironmentVariable("HROT_EQS_CONFIG_GATE") == "1";
+        private readonly EgressVisitGate _gate = new(typeof(EqsSensor), typeof(SensorConfigPayload), typeof(EqsContextPoints), typeof(PartMetadata));
+        private readonly HashSet<Entity> _held = new();
+        /// <summary>The sensors the gate skipped since creation (a rail reads it).</summary>
+        internal long GateSkipped { get; private set; }
         // The wire keys a LIVE local sensor holds this scan — every local sensor, with authority or not. CE-486: an ended
         // sensor whose key a live one now holds writes nothing (the same-scan write-then-end race, design §2 ①, cannot
         // happen). CE-490: an instance a local sensor holds is never an orphan.
@@ -92,6 +103,7 @@ namespace Hrot.Network.NED.SimHost
                 _recordedSolver.Clear();
                 _solverOf.Clear();
                 _suspendedByUs.Clear();
+                _held.Clear();   // ⭐ T-2 — per world, like the rest
             }
 
             // Query all entities with EqsSensor regardless of NetworkIdentity:
@@ -104,6 +116,8 @@ namespace Hrot.Network.NED.SimHost
 
             _seen.Clear();
             _liveKeys.Clear();
+            bool gated = GateOn;
+            if (gated) _gate.Begin(view);
             foreach (var entity in query)
             {
                 // The wire key — the ONE rule (EqsSensorKey). A child whose parent is gone or local-only, and a
@@ -111,6 +125,12 @@ namespace Hrot.Network.NED.SimHost
                 var kind = EqsSensorKey.Resolve(view, entity, out int parentNetworkId, out int localChildIndex, out var parent);
                 if (kind is EqsSensorKeyKind.None or EqsSensorKeyKind.LocalOnly) continue;
                 _liveKeys.Add((parentNetworkId, localChildIndex));
+                if (gated && !_gate.Visit(entity) && !_held.Contains(entity))
+                {
+                    if (_published.ContainsKey(entity)) _seen.Add(entity);   // still live: not an ended sensor for the gone pass below
+                    GateSkipped++;
+                    continue;
+                }
 
                 // ⭐⭐ CE-3036 / R-185 K — a TKB sensor is built from the unit's TKB on EVERY node: its default never goes on
                 //    the wire. Only an OVERRIDE does (R-187 N′ — a SensorConfigPayload on it); when the override ends, ONE
@@ -136,7 +156,11 @@ namespace Hrot.Network.NED.SimHost
                 if (!TrySlotNetId(sensor.ContextSlot0, out int slot0)
                     || !TrySlotNetId(sensor.ContextSlot1, out int slot1)
                     || !TrySlotNetId(sensor.ContextSlot2, out int slot2))
+                {
+                    _held.Add(entity);   // ⭐ T-2 — visited every frame until the slot's id exists (no input of its own changes then)
                     continue;
+                }
+                _held.Remove(entity);
 
                 var topic = new EqsSensorConfigTopic
                 {
