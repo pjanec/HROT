@@ -48,13 +48,11 @@ namespace Fdp.Core
     public static class AccessTrace
     {
         /// <summary>The switch: <c>HROT_ACCESS_TRACE=1</c>. Read once.</summary>
-        public static readonly bool On = Environment.GetEnvironmentVariable("HROT_ACCESS_TRACE") == "1" || WorldGuard.On;
+        public static readonly bool On = Environment.GetEnvironmentVariable("HROT_ACCESS_TRACE") == "1" || WorldGuard.On || EntityCensus.On;   // ⭐ POC 2 (the world guard) + N-1 (the census needs the readers)
 
-        /// <summary>⭐ POC 2 (CE-4439) — the counting itself; OFF when only the world guard turned the hooks on.</summary>
+        /// <summary>⭐ POC 2 (CE-4439) — the counting itself; OFF when only the world guard or the census turned the hooks on.</summary>
         internal static readonly bool Aggregate = Environment.GetEnvironmentVariable("HROT_ACCESS_TRACE") == "1";
 
-        /// <summary>The name of a reader id (the guard's report).</summary>
-        internal static string ReaderName(int id) { lock (s_nameLock) return id >= 0 && id < s_readerNames.Count ? s_readerNames[id] : "(?)"; }
         internal static int CurrentReaderId => CurrentReader();
         internal static bool CurrentContextIsTick => CurrentContext == TraceContext.Tick;
         internal static bool CurrentContextIsPresentation => CurrentContext == TraceContext.Presentation;
@@ -207,6 +205,9 @@ namespace Fdp.Core
         /// <summary>Remembers repository <paramref name="id"/> so the dump can say how many entities it holds. ⛔ ON only.</summary>
         public static void RegisterRepo(int id, EntityRepository repo) { lock (s_nameLock) s_repoRefs[id] = new WeakReference<EntityRepository>(repo); }
 
+        /// <summary>⭐ N-1 — the live repository of id <paramref name="id"/>, or null (the census resolves a part's parent through it).</summary>
+        internal static EntityRepository? RepoOf(int id) { lock (s_nameLock) return s_repoRefs.TryGetValue(id, out var wr) && wr.TryGetTarget(out var r) ? r : null; }
+
         /// <summary>A new event-bus id (1-based). ⛔ ON only.</summary>
         public static int NextBusId()
         {
@@ -231,6 +232,33 @@ namespace Fdp.Core
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void RecordName(TraceKind kind, string name, int repo) => RecordObj(kind, name, repo);
+
+        // ⭐ N-1 (the entity census) — the same records with the ENTITY the access is about: the census classifies it against the entity the
+        //   thread is processing (EntityCensus). A muted access (inside a TryGet / traced RO) is the outer one's, as for the tracer.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void RecordE<T>(TraceKind kind, int repo, int entity)
+        {
+            RecordObj(kind, typeof(T), repo);
+            if (EntityCensus.On && t_muted == 0) EntityCensus.Note(kind, typeof(T), repo, entity, CurrentReader());
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void RecordNameE(TraceKind kind, string name, int repo, int entity)
+        {
+            RecordObj(kind, name, repo);
+            if (EntityCensus.On && t_muted == 0) EntityCensus.Note(kind, name, repo, entity, CurrentReader());
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void RecordIdE(TraceKind kind, int typeId, int repo, int entity)
+        {
+            object key = (object?)ComponentTypeRegistry.GetType(typeId) ?? "(component id " + typeId + ")";
+            RecordObj(kind, key, repo);
+            if (EntityCensus.On && t_muted == 0) EntityCensus.Note(kind, key, repo, entity, CurrentReader());
+        }
+
+        /// <summary>⭐ N-1 — a reader's name (the census's dump).</summary>
+        public static string ReaderName(int id) { lock (s_nameLock) return id >= 0 && id < s_readerNames.Count ? s_readerNames[id] : "(?)"; }
 
         /// <summary>By component id (the raw / reflection paths).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -298,7 +326,7 @@ namespace Fdp.Core
                             var t = line.Trim();
                             if (t.StartsWith("phase ", StringComparison.Ordinal)) SetPhase(t.Substring(6).Trim());
                             else if (t == "dump") { Dump(); lastDump = Environment.TickCount64; }
-                            else if (t == "reset") Reset();
+                            else if (t == "reset") { Reset(); if (EntityCensus.On) EntityCensus.Reset(); }   // ⭐ N-1 — the census too
                         }
                     }
                     if (Environment.TickCount64 - lastDump > 5_000) { Dump(); lastDump = Environment.TickCount64; }

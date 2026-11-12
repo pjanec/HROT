@@ -112,6 +112,39 @@ internal static class Program
         var reach = rootSets.ToDictionary(kv => kv.Key, kv => Reach(kv.Key, kv.Value));
         foreach (var kv in reach) Console.WriteLine($"[reach] side {kv.Key}: {rootSets[kv.Key].Count} roots → {kv.Value.Count} reachable methods");
 
+        // ⭐ N-3 (the entity census, docs/DESIGN_Parallel_Simulation.md §18) — PER SYSTEM: reach from ONE system's Execute alone and list the fields outside
+        //   the world it may WRITE (statics, its own fields, other objects'). HROT_REACH_PER_SYSTEM=1 (every constructed system) or a comma list of type
+        //   names. ⚠ Same over-approximation as the sides: an interface / virtual call reaches EVERY source implementation.
+        if (Environment.GetEnvironmentVariable("HROT_REACH_PER_SYSTEM") is { Length: > 0 } perSystemSpec)
+        {
+            var wanted = perSystemSpec == "1" ? null : new HashSet<string>(perSystemSpec.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            var perSys = new List<object>();
+            foreach (var t in SourceTypes.Distinct(SymbolEqualityComparer.Default).OfType<INamedTypeSymbol>().OrderBy(x => Full(x)))
+            {
+                if (t.IsAbstract || !Matches(t, "Fdp.ModuleHost.Abstractions.IEcsModuleSystem") || !constructed.Contains(DocName(t))) continue;
+                if (wanted != null && !wanted.Contains(t.Name)) continue;
+                var exec = t.GetMembers("Execute").OfType<IMethodSymbol>().Where(m => !m.IsAbstract).Select(Key).ToHashSet();
+                if (exec.Count == 0) continue;
+                string side = "sys:" + Full(t);
+                var r = Reach(side, exec);
+                var acc = Accesses(r);
+                Parents.Remove(side);
+                string ownPrefix = "F:" + DocName(t) + ".";
+                var writes = acc.Where(kv => kv.Value.Writes.Count > 0)
+                    .Select(kv => (kv.Key, fi: Fields.TryGetValue(kv.Key, out var x) ? x : new FieldInfo { Key = kv.Key, Display = kv.Key }, kv.Value))
+                    .Where(x => !roots.WorldNamespaces.Any(ns => x.fi.Namespace.StartsWith(ns, StringComparison.Ordinal)))
+                    .Select(x => new Dictionary<string, object>
+                    {
+                        ["field"] = x.fi.Display, ["static"] = x.fi.IsStatic, ["own"] = x.Key.StartsWith(ownPrefix, StringComparison.Ordinal),
+                        ["namespace"] = x.fi.Namespace, ["writers"] = Witness(x.Value.Writes),
+                    })
+                    .OrderByDescending(d => (bool)d["static"]).ThenBy(d => (string)d["field"]).ToList();
+                perSys.Add(new { system = Full(t), name = t.Name, reachable = r.Count, writes });
+            }
+            File.WriteAllText(Path.Combine(outDir, "perSystem.json"), JsonSerializer.Serialize(perSys, new JsonSerializerOptions { WriteIndented = true }));
+            Console.WriteLine($"[reach] per system: {perSys.Count} systems → perSystem.json");
+        }
+
         // per side: field → (read witnesses, write witnesses), construction writes excluded
         var access = reach.ToDictionary(kv => kv.Key, kv => Accesses(kv.Value));
         var sides = access.Keys.OrderBy(k => k).ToArray();

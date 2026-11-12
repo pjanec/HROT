@@ -563,6 +563,8 @@ namespace Fdp.ModuleHost
         {
             long whole = KernelFrameTimings.Start();   // ⭐ CE-4433
             using var traceFrame = Fdp.Core.AccessTrace.Scope("kernel:frame (outside systems)", Fdp.Core.TraceContext.Tick);   // ⭐ A-1 — the node frame's own steps (swap, time push, dispatch); each system pushes its own scope
+            if (Fdp.Core.EntityCensus.On) { Fdp.Core.EntityCensus.NextFrame(); Fdp.Core.EntityCensus.ResetThread(); }   // ⭐ N-1
+            if (LastTickProbe.On) LastTickProbe.BeforeFrame(_liveWorld);   // ⭐ N-5 — the last-tick view's cost (HROT_LASTTICK_TYPES)
             try { UpdateInternalCore(deltaTime, globalTime); }
             finally
             {
