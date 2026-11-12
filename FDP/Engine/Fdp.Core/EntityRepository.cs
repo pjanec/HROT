@@ -1324,6 +1324,7 @@ namespace Fdp.Core
         internal ref T GetUnmanagedComponentRW<T>(Entity entity) where T : unmanaged
         {
             if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Write, TraceId, entity.Index);
+            if (ParallelReadCheck.Compiled && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) throw ParallelReadCheck.OtherWrite(typeof(T), entity);   // ⭐ CE-4454 — §18.2 prototype
             ValidateWriteAccess<T>(entity);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1339,6 +1340,7 @@ namespace Fdp.Core
         internal ref readonly T GetUnmanagedComponentRO<T>(Entity entity) where T : unmanaged
         {
             if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Read, TraceId, entity.Index);
+            if (ParallelReadCheck.Compiled && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ref ParallelReadCheck.OtherUnmanagedRO<T>(entity);   // ⭐ CE-4454 — §18.2 prototype
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
             if (!HasUnmanagedComponent<T>(entity)) throw new InvalidOperationException($"Entity {entity} missing {typeof(T).Name}");
@@ -1541,6 +1543,7 @@ namespace Fdp.Core
         internal T GetManagedComponent<T>(Entity entity) where T : class
         {
             if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Read, TraceId, entity.Index);
+            if (ParallelReadCheck.Compiled && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ParallelReadCheck.OtherManagedRO<T>(entity);   // ⭐ CE-4454 — §18.2 prototype
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1559,6 +1562,7 @@ namespace Fdp.Core
         internal ref T GetManagedComponentRW<T>(Entity entity) where T : class
         {
             if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Write, TraceId, entity.Index);
+            if (ParallelReadCheck.Compiled && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) throw ParallelReadCheck.OtherWrite(typeof(T), entity);   // ⭐ CE-4454 — §18.2 prototype
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1574,6 +1578,7 @@ namespace Fdp.Core
         internal ref readonly T GetManagedComponentRefRO<T>(Entity entity) where T : class
         {
             if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Read, TraceId, entity.Index);   // ⭐ N-1 — the pure managed read (the default since CE-4445) must be seen too
+            if (ParallelReadCheck.Compiled && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ref ParallelReadCheck.OtherManagedRO<T>(entity);   // ⭐ CE-4454 — §18.2 prototype
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1590,6 +1595,7 @@ namespace Fdp.Core
         internal T GetManagedComponentRO<T>(Entity entity) where T : class
         {
             if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Read, TraceId, entity.Index);
+            if (ParallelReadCheck.Compiled && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ParallelReadCheck.OtherManagedRO<T>(entity);   // ⭐ CE-4454 — §18.2 prototype
             var table = GetManagedTable<T>(false);
             var v = table.GetRO(entity.Index)!;
             if (ManagedMutationCheck.On) ManagedMutationCheck.OnRead(table, entity.Index, v);   // ⭐ CE-4445 M-2
@@ -1805,6 +1811,9 @@ namespace Fdp.Core
         
         /// <summary>⭐ A-1 — the entity index without a trace record (the query walk records its own).</summary>
         internal EntityIndex EntityIndexUntraced => _entityIndex;
+
+        /// <summary>CE-4454 — the managed row for the last-tick copy (<see cref="ParallelReadCheck.CopyManaged{T}"/>).</summary>
+        internal T? LastTickManagedRow<T>(int index) where T : class => GetManagedTable<T>(false).GetRO(index);
 
         /// <summary>
         /// Gets the EntityIndex for advanced scenarios (iteration, chunk access).
