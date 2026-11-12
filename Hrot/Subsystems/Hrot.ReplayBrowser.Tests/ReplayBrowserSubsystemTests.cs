@@ -3254,7 +3254,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Fdp.Toolkit.Vis3D.LitShader.Reset();   // a program compiled in another window of this process died with it
         try
         {
-            rlImGui_cs.rlImGui.Setup(true);
+            Fdp.Presentation.Raylib.ImGuiRenderer.Setup(true);
             Hrot.UI.Common.Map3D.FilmStudio.Reset();
             string dir = Path.Combine(_tempDir, "window", "exercises", Guid.NewGuid().ToString());
             string path = RecordFilmRun(dir, 6d);
@@ -3274,7 +3274,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
                 _subsystem.DrawWorld();
                 rlImGui_cs.rlImGui.Begin();
                 _subsystem.DrawUI();
-                rlImGui_cs.rlImGui.End();
+                Fdp.Presentation.Raylib.ImGuiRenderer.End();
                 Raylib_cs.Raylib.EndDrawing();
             }
             string rec = System.Text.Json.JsonSerializer.Serialize(path);
@@ -3480,7 +3480,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Fdp.Toolkit.Vis3D.LitShader.Reset();
         try
         {
-            rlImGui_cs.rlImGui.Setup(true);
+            Fdp.Presentation.Raylib.ImGuiRenderer.Setup(true);
             Hrot.UI.Common.Map3D.FilmStudio.Reset();
             string dir = Path.Combine(_tempDir, "ce4119", Guid.NewGuid().ToString(), "exercises", Guid.NewGuid().ToString());
             string path = RecordFilmRun(dir, pilotLike ? 45d : 6d, blasts: new[] { blastAt });
@@ -3501,7 +3501,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
                 _subsystem.DrawWorld();
                 rlImGui_cs.rlImGui.Begin();
                 _subsystem.DrawUI();
-                rlImGui_cs.rlImGui.End();
+                Fdp.Presentation.Raylib.ImGuiRenderer.End();
                 Raylib_cs.Raylib.EndDrawing();
             }
             Assert.Null(_subsystem.CreateDebugProvider()!.ReplayBrowser!.Open(new[] { path }, 0));
@@ -3781,7 +3781,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Fdp.Toolkit.Vis3D.LitShader.Reset();
         try
         {
-            rlImGui_cs.rlImGui.Setup(true);
+            Fdp.Presentation.Raylib.ImGuiRenderer.Setup(true);
             Hrot.UI.Common.Map3D.FilmStudio.Reset();
             string dirA = Path.Combine(_tempDir, "window", "exercises", Guid.NewGuid().ToString());
             string dirB = Path.Combine(_tempDir, "window", "exercises", Guid.NewGuid().ToString());
@@ -3803,7 +3803,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
                 _subsystem.DrawWorld();
                 rlImGui_cs.rlImGui.Begin();
                 _subsystem.DrawUI();
-                rlImGui_cs.rlImGui.End();
+                Fdp.Presentation.Raylib.ImGuiRenderer.End();
                 Raylib_cs.Raylib.EndDrawing();
             }
             string a = System.Text.Json.JsonSerializer.Serialize(pathA), b = System.Text.Json.JsonSerializer.Serialize(pathB);
@@ -3864,7 +3864,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Fdp.Toolkit.Vis3D.LitShader.Reset();
         try
         {
-            rlImGui_cs.rlImGui.Setup(true);
+            Fdp.Presentation.Raylib.ImGuiRenderer.Setup(true);
             Hrot.UI.Common.Map3D.FilmStudio.Reset();
             string dirA = Path.Combine(_tempDir, "window", "exercises", Guid.NewGuid().ToString());
             string dirB = Path.Combine(_tempDir, "window", "exercises", Guid.NewGuid().ToString());
@@ -3881,7 +3881,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
                 _subsystem.DrawWorld();
                 rlImGui_cs.rlImGui.Begin();
                 _subsystem.DrawUI();
-                rlImGui_cs.rlImGui.End();
+                Fdp.Presentation.Raylib.ImGuiRenderer.End();
                 Raylib_cs.Raylib.EndDrawing();
             }
             var renders = _subsystem.Director!.Renders;
@@ -3955,7 +3955,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Raylib_cs.Raylib.InitWindow(1280, 720, "HROT Replay Browser — P2 live proof");
         try
         {
-            rlImGui_cs.rlImGui.Setup(true);
+            Fdp.Presentation.Raylib.ImGuiRenderer.Setup(true);
             Hrot.UI.Common.Map3D.FilmStudio.Reset();
             // ⚠ The runner process has touched every recorded assembly by now (its boot registers them); a bare test process has not, and
             //   SchemaValidator asks the REGISTERED ids (CE-1372) ⇒ load the recording's assemblies before Initialize's component discovery runs.
@@ -3972,7 +3972,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
                 _subsystem.DrawWorld();
                 rlImGui_cs.rlImGui.Begin();
                 _subsystem.DrawUI();
-                rlImGui_cs.rlImGui.End();
+                Fdp.Presentation.Raylib.ImGuiRenderer.End();
                 Raylib_cs.Raylib.EndDrawing();
             }
 
@@ -4082,7 +4082,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Raylib_cs.Raylib.InitWindow(1280, 720, "HROT Replay Browser — P6 live proof");
         try
         {
-            rlImGui_cs.rlImGui.Setup(true);
+            Fdp.Presentation.Raylib.ImGuiRenderer.Setup(true);
             Hrot.UI.Common.Map3D.FilmStudio.Reset();
             Fdp.Core.FlightRecorder.RecordedAssemblies.EnsureLoaded(
                 Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(recording + ".meta.json")));
@@ -4096,7 +4096,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
                 _subsystem.DrawWorld();
                 rlImGui_cs.rlImGui.Begin();
                 _subsystem.DrawUI();
-                rlImGui_cs.rlImGui.End();
+                Fdp.Presentation.Raylib.ImGuiRenderer.End();
                 if (grabScreen != null)
                 {
                     var screen = Raylib_cs.Raylib.LoadImageFromScreen();
