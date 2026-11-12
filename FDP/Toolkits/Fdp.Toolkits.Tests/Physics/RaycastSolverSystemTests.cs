@@ -735,7 +735,7 @@ namespace Fdp.Toolkit.Physics.Tests
         {
             for (int k = 0; k < 64; k++) SpawnCollider(new Vector2(k * 3f, (k % 7) - 3f), radius: 1f, layer: 1);
             const int Rays = 200;
-            RaycastHit[] Solve(int threads, out long onWorkers)
+            RaycastHit[] Solve(int threads, int idBase, out long onWorkers)
             {
                 Fdp.Core.Jobs.FdpWorkerPool.Resize(threads);
                 long w0 = Fdp.Core.Jobs.FdpWorkerPool.Shared.FrameBatchesOnWorkers;
@@ -744,7 +744,7 @@ namespace Fdp.Toolkit.Physics.Tests
                     _world.Bus.Publish(new RaycastRequestEvent
                     {
                         Start = new Vector3(-10f, (r % 9) - 4f, 0f), End = new Vector3(200f, ((r * 5) % 9) - 4f, 0f),
-                        RayId = PhysicsConstants.PackBulletRayId(r + 1), LayerMask = 1,
+                        RayId = PhysicsConstants.PackBulletRayId(idBase + r), LayerMask = 1,
                     });
                 _world.Bus.SwapBuffers();
                 new RaycastSolverSystem().Execute(view, 0.016f);
@@ -754,13 +754,14 @@ namespace Fdp.Toolkit.Physics.Tests
                 new RaycastResultMaterializationSystem().Execute(view, 0.016f);
                 var hits = new RaycastHit[Rays];
                 var ring = _world.GetSingleton<RaycastBatchData>().Hits;
-                for (int r = 0; r < Rays; r++) hits[r] = ring[(int)((uint)PhysicsConstants.PackBulletRayId(r + 1) % (uint)PhysicsConstants.RaycastBatchCapacity)];
+                for (int r = 0; r < Rays; r++) { hits[r] = ring[(int)((uint)PhysicsConstants.PackBulletRayId(idBase + r) % (uint)PhysicsConstants.RaycastBatchCapacity)];
+                      Assert.Equal(PhysicsConstants.PackBulletRayId(idBase + r), hits[r].RayId); }   // ⭐ every cast answered its OWN request (a slot left stale fails here)
                 return hits;
             }
             try
             {
-                var serial = Solve(1, out _);
-                var parallel = Solve(4, out long onWorkers);
+                var serial = Solve(1, 1, out _);
+                var parallel = Solve(4, 1001, out long onWorkers);
                 Assert.True(onWorkers > 0, "no cast ran on a pool worker");
                 Assert.Contains(serial, h => h.HasHit == 1);
                 for (int r = 0; r < Rays; r++)

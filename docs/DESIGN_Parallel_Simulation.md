@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — options analysed, lean stated; NOT ruled
 updated: 2026-11-12
-current-answer: ⭐ §13 a job system? (POC 4) · §15 POC 3 as built (the cheap wins) · §14 POC 2 as built (the brain pre-score) · §12 R-4209 the sampled timer · §11 the aggregate (where the time is) · §10 after the experiment (R-4208, the emitter fix) · §9 the AS-BUILT of the overnight experiment (exp/parallel-sim) · §8 interleaving and quantizing (do less per frame) · §7 determinism is a switchable MODE (R-4207) and what per-batch buffers cost · §2 the lean · §1 what exists (measured) · §3 the options · §4 the hazards · §5 the staged plan · §6 open
+current-answer: ⭐ §16 POC 4 as built (one pool; no dependency scheduler) · §13 a job system? (the lean POC 4 tested) · §15 POC 3 as built (the cheap wins) · §14 POC 2 as built (the brain pre-score) · §12 R-4209 the sampled timer · §11 the aggregate (where the time is) · §10 after the experiment (R-4208, the emitter fix) · §9 the AS-BUILT of the overnight experiment (exp/parallel-sim) · §8 interleaving and quantizing (do less per frame) · §7 determinism is a switchable MODE (R-4207) and what per-batch buffers cost · §2 the lean · §1 what exists (measured) · §3 the options · §4 the hazards · §5 the staged plan · §6 open
 stale-below: nothing
 related-designs:
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Parallel_Sim_POC_4.md — CE-4444, POC 4: §13's one pool and the dependency-scheduler measurement
@@ -404,3 +404,100 @@ parallel, from the world as it stood at the start of the brain phase; so no clai
 | the CGF's EqsSensorConfig egress | its cost was a LOCK + a new list per sensor per frame in `SimpleClusterStateCache.AllNodeIds` — one snapshot rebuilt on a set change, and the ids read once per scan | trace: the call gone from the profile |
 | ⚠ the egress visit gate on the CGF | skips nothing: `OwnershipEgressSystem`'s managed READS stamp `DescriptorOwnership`'s chunk (A1-2) ⇒ "authority changed" ⇒ a full scan every frame. ⭐ A non-stamping managed read built opt-in (`HROT_MANAGED_READ_NO_STAMP=1`); the default is the user's call | gate stats: 0 skipped of ~6 M |
 | the replica sync | its per-table copies on the worker pool (`EntityRepository.ParallelSync`); fully off the main thread is NOT safe (the next frame writes what it would read) | launch 11.9 → 8.4 ms; SimHost frame with off-frame egress 106 → 49 (Windows 92 → 40) |
+
+## 16. ⭐ As-built on `exp/parallel-sim-4` — POC 4, ONE pool and the dependency-scheduler question *(not merged; status: [`STATUS_Parallel_Sim_POC_4.md`](blueprints/batches/STATUS_Parallel_Sim_POC_4.md) on that branch)*
+
+⭐ §13's lean, built and measured: **one pool, two lanes — GO; a dependency scheduler — NO-GO** (the heavy systems are one chain of real
+data dependencies: best case −9 to −14 ms of a 158 ms frame). §13's table of four mechanisms is SUPERSEDED on this branch by the rows below.
+
+| mechanism (§13) | on `exp/parallel-sim-4` |
+|---|---|
+| `Fdp.ModuleHost.Threading.WorkerPool` | ⛔ deleted — its windows run on `FdpWorkerPool`'s BACKGROUND lane |
+| `FdpWorkerPool` | ⭐ THE pool: FRAME lane (`Run`) + BACKGROUND lane (`TryRun`), one budget (cores − 2) |
+| `Parallel.ForEach` / `Parallel.For` | ⭐ gone from `EntityQuery.ForEachParallel` and `RaycastSolverSystem` — both on the frame lane, 0 B when warm |
+| `Task.Run` (background modules, recorder) | ⚠ unchanged — cross-frame work; needs a third job kind (a capped long-job queue), not built |
+
+```mermaid
+classDiagram
+    class FdpWorkerPool {
+        +Shared$ FdpWorkerPool
+        +Budget()$ int
+        +Resize(int)$
+        +Threads int
+        +Run(IBatchWork, int batches)
+        +TryRun(int count, Action~int~) bool
+        -WorkerLoop()
+    }
+    class IBatchWork {
+        <<interface>>
+        +RunBatch(int)
+    }
+    class ParallelEntities
+    class EntityRepository_SyncPairs
+    class EntityQuery_RangeWork
+    class RaycastSolverSystem
+    class EqsSolverSystem
+    class EgressPipeline
+    IBatchWork <|.. EntityQuery_RangeWork
+    IBatchWork <|.. RaycastSolverSystem
+    IBatchWork <|.. EntityRepository_SyncPairs
+    ParallelEntities ..> FdpWorkerPool : Run (frame lane)
+    EntityQuery_RangeWork ..> FdpWorkerPool : Run (frame lane)
+    RaycastSolverSystem ..> FdpWorkerPool : Run (frame lane)
+    EntityRepository_SyncPairs ..> FdpWorkerPool : Run (frame lane)
+    EqsSolverSystem ..> FdpWorkerPool : TryRun (background lane)
+    EgressPipeline ..> FdpWorkerPool : TryRun (background lane)
+```
+*What the picture shows that prose hid: every caller now reaches ONE class; the lane is chosen by the CALL (`Run` vs `TryRun`), so a caller
+cannot land on a second pool by construction.*
+
+```mermaid
+sequenceDiagram
+    participant M as main thread (a parallel system)
+    participant B as background caller (egress thread / EQS)
+    participant W as pool worker
+    participant P as FdpWorkerPool
+    B->>P: TryRun(60 items)
+    P-->>W: wake
+    W->>P: TryFrame() — none
+    W->>B: run background item k
+    M->>P: Run(work, 48 batches)
+    P-->>W: wake
+    M->>M: takes batches itself
+    W->>P: item k finished → TryFrame()
+    W->>M: runs frame batches until none left
+    W->>B: then the next background item
+    P-->>M: all 48 done → Run returns
+    P-->>B: all 60 done → TryRun returns true
+```
+*What it shows: a frame run waits for at most the ONE background item a worker is inside (the J-1 rail measures it).*
+
+```mermaid
+graph TD
+    K[ModuleHostKernel frame] --> S[parallel systems: Stress, Threat, Callouts, pre-score] --> FR[FRAME lane]
+    K --> RC[RaycastSolverSystem] --> FR
+    Q[any ForEachParallel caller: CarKinematics, LinearKinematics] --> FR
+    SY[EntityRepository.SyncFrom, HROT_PARALLEL_SYNC] --> FR
+    ET[egress pipeline thread, off-frame] --> BG[BACKGROUND lane]
+    EQ[EqsSolverSystem window] --> BG
+    FR --> POOL((FdpWorkerPool threads))
+    BG --> POOL
+    BM[SlowBackground modules: Navigation, Traffic, EQS module] -.-> TP[.NET thread pool, unchanged]
+    AR[AsyncRecorder per-frame flush] -.-> TP
+    style TP fill:#fdd,stroke:#c00
+    style BM fill:#fdd,stroke:#c00
+    style AR fill:#fdd,stroke:#c00
+```
+*Red: the cross-frame work still OUTSIDE the one budget — a module tick can last 100 ms and a hung one is a zombie (CE-3066), so it cannot be
+a pool item without a cap; the recorder makes one `Task` per frame.*
+
+**J-3 — why no dependency scheduler** (full table: [`J3_Access_Analysis.md`](blueprints/batches/parallel-sim-4/J3_Access_Analysis.md)):
+
+| phase | serial ms | critical path ms | ideal on 6 cores | gain |
+|---|---|---|---|---|
+| Simulation | 149.8 | 144.2 | 144.2 | 5.6 |
+| all phases | 158.1 | 149.4 | 149.4 | **8.7 (5.5 %)** |
+| all, structural changes deferred + managed reads not stamping | 158.1 | 143.7 | 143.7 | **14.4 (9 %)** |
+
+The chain: Stress → Threat (`TargetMemory`) → **Brain** (`TargetMemory`, `StanceIntent`, `BehaviorState`) → Callout → WeaponDispatcher
+(`WeaponState`) → Squad. ⭐ The cores belong INSIDE those systems (data-parallel, as the pre-score), not beside them.
