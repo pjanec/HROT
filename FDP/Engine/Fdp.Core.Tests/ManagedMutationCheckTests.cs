@@ -56,6 +56,27 @@ namespace Fdp.Tests
             Assert.Equal(0, ManagedMutationCheck.DistinctHits);
         }
 
+        public struct MmcLink { public int Id; public string? Name; }
+        public struct MmcPoint { public float X; public string? Note; public MmcLink Link; }
+        [ComponentId(494)] public sealed record MmcRoute { public IReadOnlyList<MmcPoint> Points { get; init; } = new List<MmcPoint>(); }
+
+        /// <summary>📌 the rig's first false positive: a struct nested past the depth limit was hashed by the identity of a NEW box each read.</summary>
+        [Fact]
+        public void Nested_structs_past_the_depth_limit_are_not_a_hit()
+        {
+            ManagedMutationCheck.Reset();
+            var w = new EntityRepository();
+            using var _ = w;
+            w.RegisterManagedComponent<MmcRoute>();
+            var e = w.CreateEntity();
+            w.SetManagedComponent(e, new MmcRoute { Points = new List<MmcPoint> { new() { X = 1, Note = "a", Link = new MmcLink { Id = 3, Name = "n" } } } });
+            w.Tick();
+            Assert.True(w.TryGetTable(typeof(MmcRoute), out var t));
+            ManagedMutationCheck.OnRead(t, e.Index, w.GetComponentRO<MmcRoute>(e));
+            ManagedMutationCheck.EndFrameCore();
+            Assert.Equal(0, ManagedMutationCheck.DistinctHits);
+        }
+
         [Fact]
         public void An_unchanged_read_and_a_stamped_write_are_not_hits()
         {

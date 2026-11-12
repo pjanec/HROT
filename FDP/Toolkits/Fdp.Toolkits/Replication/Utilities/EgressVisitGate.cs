@@ -50,7 +50,7 @@ namespace Fdp.Toolkit.Replication.Utilities
 
         // ⭐ diagnostics: process-wide totals, printed every ~10 s when HROT_EGRESS_GATE_STATS=1 (why a full scan happened, how much was skipped)
         private static readonly bool s_stats = Environment.GetEnvironmentVariable("HROT_EGRESS_GATE_STATS") == "1";
-        private static long s_begins, s_full, s_visited, s_skipped, s_fullAuth, s_fullDirty, s_fullClock;
+        private static long s_begins, s_full, s_visited, s_skipped, s_fullAuth, s_fullDirty, s_fullClock, s_fullNetAuth, s_fullOwn, s_fullParts;
         private static long s_nextPrint = System.Diagnostics.Stopwatch.GetTimestamp();
 
         public long FullScans { get; private set; }
@@ -109,8 +109,12 @@ namespace Fdp.Toolkit.Replication.Utilities
                         || Changed(_authority, since) || Changed(_ownership, since) || Changed(_parts, since);
             _all = full;
             if (full) FullScans++;
-            if (s_stats) Stats(full, !_scanned || now < since, _signals!.AllDirtyAt >= since,
-                                Changed(_authority, since) || Changed(_ownership, since) || Changed(_parts, since));
+            if (s_stats)
+            {
+                bool ca = Changed(_authority, since), co = Changed(_ownership, since), cp = Changed(_parts, since);
+                if (full) { if (ca) s_fullNetAuth++; if (co) s_fullOwn++; if (cp) s_fullParts++; }
+                Stats(full, !_scanned || now < since, _signals!.AllDirtyAt >= since, ca || co || cp);
+            }
             _since = since;
             _lastScan = now;
             _scanned = true;
@@ -123,7 +127,7 @@ namespace Fdp.Toolkit.Replication.Utilities
             long now = System.Diagnostics.Stopwatch.GetTimestamp();
             if (now < s_nextPrint) return;
             s_nextPrint = now + System.Diagnostics.Stopwatch.Frequency * 10;
-            Console.WriteLine($"[EgressGate] begins {s_begins} full {s_full} (authority {s_fullAuth}, all-dirty {s_fullDirty}, first/clock {s_fullClock}) visited {s_visited} skipped {s_skipped}");
+            Console.WriteLine($"[EgressGate] begins {s_begins} full {s_full} (authority {s_fullAuth} [NetworkAuthority {s_fullNetAuth}, DescriptorOwnership {s_fullOwn}, PartMetadata {s_fullParts}], all-dirty {s_fullDirty}, first/clock {s_fullClock}) visited {s_visited} skipped {s_skipped}");
         }
 
         // HasChanges is "> since"; the gate asks "≥ since" — a write stamped later in the frame of the previous scan is revisited.

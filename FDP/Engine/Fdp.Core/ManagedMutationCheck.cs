@@ -71,7 +71,7 @@ namespace Fdp.Core
                     if (!ReferenceEquals(now, r.Obj)) continue;                      // replaced whole (or gone): correct use
                     if (r.Table.GetVersionForEntity(r.Index) != r.Version) continue;  // stamped since the read: recorded
                     if (Fingerprint(r.Obj, 2) == r.Print) continue;                   // unchanged
-                    string key = r.Type.FullName + (IsTransient(r.Type) ? " [Transient: never recorded / snapshotted]" : "") + " | " + r.Reader;
+                    string key = r.Type.FullName + (IsTransient(r.Type) ? " [NoReplay: not recorded]" : "") + " | " + r.Reader;
                     s_hits[key] = s_hits.TryGetValue(key, out var h) ? (h.Count + 1, h.Example) : (1, $"entity index {r.Index}");
                 }
                 s_reads.Clear();
@@ -114,7 +114,7 @@ namespace Fdp.Core
             {
                 if (s_transient.TryGetValue(t, out var b)) return b;
                 var a = t.GetCustomAttribute<DataPolicyAttribute>();
-                b = a != null && (a.Policy & DataPolicy.Transient) != 0;
+                b = a != null && (a.Policy & DataPolicy.NoReplay) != 0;   // "not recorded" — NoPreview alone (kept out of the snapshot) IS recorded
                 s_transient[t] = b;
                 return b;
             }
@@ -128,7 +128,8 @@ namespace Fdp.Core
             if (o == null) return 17;
             var t = o.GetType();
             if (t.IsPrimitive || t.IsEnum || o is string || o is decimal || o is DateTime || o is Guid) return o.GetHashCode();
-            if (depth < 0) return RuntimeHelpers.GetHashCode(o);
+            // past the depth limit: a reference by identity; a VALUE by its value (a boxed struct is a new box per read — its identity means nothing)
+            if (depth < 0) return t.IsValueType ? o.GetHashCode() : RuntimeHelpers.GetHashCode(o);
             unchecked
             {
                 long h = 1469598103934665603;
