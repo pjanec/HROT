@@ -91,4 +91,4 @@ there: ¼.
 | Fdp.Toolkits.Tests: raycast + physics + car kinematics | ✅ 185 / 185 |
 | Fdp.ModuleHost.Tests: the frame-synced / policy / convoy classes | ✅ 74 / 74 |
 | red-proofs | J-1 ✅ red · J-2 query ✅ red · J-2 raycast ✅ red (after tightening) |
-| `DeterminismRails` · scenario subset (`bc-house-defended`, `ld-sentry-surprise`, `cc-platoon-bound`) | running — see below |
+| `DeterminismRails` · scenario subset (`bc-house-defended`, `ld-sentry-surprise`, `cc-platoon-bound`) | ✅ **5 / 5** · ✅ **3 / 3 PASS** |
