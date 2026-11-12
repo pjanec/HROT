@@ -296,3 +296,11 @@ DEPENDENCIES from declared reads / writes, so independent systems run at the sam
 managed component (already forbidden — CLAUDE.md: managed components are immutable and replaced whole). Both lanes hit it: the threaded editor
 (a read off the sim thread is a write race) and the egress visit gate (POC 3 T-2: 0 skips, because `OwnershipEgressSystem`'s reads stamp every
 chunk). Built and measured in [CE-4445](blueprints/batches/HANDOFF_Coordinator_To_Backend_Managed_Reads_Audit.md).
+
+⭐ **As built (`exp/managed-reads`, not merged — [status](blueprints/batches/STATUS_Managed_Reads_Audit.md)):** the default is the non-stamping read
+(`ThreadedReads.PureReads`; `HROT_MANAGED_READ_STAMP=1` restores the stamping read for one release). The audit and a runtime detector found no
+RECORDED managed component mutated in place; two `NoReplay` bookkeeping types are mutated in place by design and kept. Rails unchanged between
+the two modes; a recording replays to the same state either way.
+⛔ **The premise "the reads defeat the egress gate" was incomplete:** with the flip, the CGF gate still skips 0 — `DescriptorOwnership`,
+`PartMetadata` and `NetworkAuthority` are WRITTEN every frame (`OwnershipApplier.Apply` on every `OwnershipUpdate`, `BrainTickSystem`, command-buffer
+playback), measured with `HROT_STAMP_TRACE`. ⇒ the gate needs CE-3442 (skip a no-op ownership write / a per-entity authority signal).

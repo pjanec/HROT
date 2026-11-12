@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — in progress (exp/managed-reads)
+state: LIVE — done (exp/managed-reads); not merged into any lane
 updated: 2026-11-12
 current-answer: VERDICT (top), then M-1 … M-5
 stale-below: nothing yet
@@ -15,7 +15,24 @@ related-designs:
 
 ## VERDICT
 
-_(written at M-5)_
+⭐ **FLIP — done on this branch: a managed read no longer stamps the chunk version (the default); `HROT_MANAGED_READ_STAMP=1` restores the old
+stamping read for one release.** ⛔ **But it does NOT unlock the egress visit gate on the CGF** — POC 3's premise was incomplete.
+
+| question | answer | basis |
+|---|---|---|
+| does production mutate a RECORDED managed component in place after reading it? | ⭐ **no** — audit + detector agree | M-1: 26 sites, all classified; M-2: 0 hits on a recorded type over ~3 300 frames, ~1.76 M reads, CGF + SimHost, 1 000 men |
+| what does mutate in place? | two NOT-recorded (`NoReplay`) bookkeeping types, `EgressPublicationState` / `OutgoingGrantsPending` — **kept** (replacing them whole allocates per publish, R-2084; nothing reads their version) | M-1 rows 1-4; M-2 hits tagged `[NoReplay]` |
+| what was fixed? | `ReferenceInvoker` (replication attribute patch, no production caller) re-sets the instance — 0 B | M-1 row 12 |
+| rails with the flip ON | **unchanged vs the stamping read on the same binary**: Fdp.Core 1 319 / 6 (stamping 1 320 / 5 — the extra is `EventBusTests.Publish_MultiThreaded_AllEventsRecorded`, 3/3 green alone, an event-bus thread test); Fdp.Toolkits 4 949 / 4 both; Hrot.Network.NED 196 / 0 both | M-4 |
+| does a recording replay identically? | ⭐ **yes** — the same replayed-state hash in both modes, every frame equal to the live world | `ManagedReadsReplayEquivalenceTests`, red-proved |
+| what does the flip save? | in a world that READS its managed components every frame: **recorded delta bytes −84 %** (2.06 MB → 0.33 MB over 120 frames). On the 1 000-man rig: **no measurable change** (CGF 321.8 → 320.6 KB compressed per delta frame) — its managed chunks are dirty from real writes anyway | M-4 |
+| the egress gate on the CGF | ⛔ **still 0 skipped** (3.81 M visits; 4 859 of 4 943 full scans forced by `DescriptorOwnership`) — the tables it watches are WRITTEN every frame: `OwnershipIngressSystem` ~5 `DescriptorOwnership` sets/frame (`OwnershipApplier.Apply` sets a new record for every `OwnershipUpdate`, a repeat included), `BrainTickSystem` ~4 `PartMetadata`/frame, `NetworkAuthority` via command-buffer playback | M-4 stamp trace ⇒ filed **CE-3442** |
+| the threaded editor | ⭐ unblocked on this point: a read on the main thread no longer writes the chunk version | the PureReads path, 0 B (`PureReadsTests`) |
+
+⭐ **Must stay:** the two `NoReplay` in-place types (document, do not convert); the diagnostic switch for one release; the detector and the stamp
+tracer as instruments (off by default, one `static readonly bool` each).
+⚠ **Not done:** the editor feature rails and a scenario-regression subset were not run under the detector (the rig covered the CGF + SimHost
+systems); `ParamUsage` shares its rewritten object with earlier snapshots — a different hazard, filed **CE-3443**.
 
 ## Shared files (POC 4 runs in parallel)
 
@@ -95,3 +112,70 @@ bookkeeping**, and the detector reports such hits tagged `[Transient]` rather th
 **Coverage, stated:** one method at a time; one alias level; generic `T` reads and non-generic reads are not followed (rows 12, 13 were found
 by the graph + grep instead); `check_index_coverage` is not in the CLI, so the graph inventory's completeness could not be checked. ⇒ the
 runtime detector (M-2) is the second net.
+
+
+## M-2 — the runtime detector (`HROT_MANAGED_MUTATION_CHECK=1`)
+
+`FDP/Engine/Fdp.Core/ManagedMutationCheck.cs`. Every managed object a READ hands out (the shim's `GetRO`, `GetManagedComponentRO`,
+`TryGetComponent` — so the editor's reflection reads too) is fingerprinted with the table's version for that entity and the system reading it
+(the scheduler names it). At the kernel frame's end: the same object still in its slot, the version unmoved, the fingerprint changed ⇒ a hit,
+written to `HROT_MANAGED_MUTATION_OUT/managed-mutations-<pid>.txt`. Managed SINGLETONS are not hooked (they never stamped). Rails
+`ManagedMutationCheckTests` (4) — red-proved: the fingerprint comparison off ⇒ the in-place rail fails; the value-hash of a boxed struct off ⇒
+the nested-struct rail fails.
+
+| run (demo-city, 1 000 men, 50 vehicles, 10 aircraft; Release) | CGF | SimHost |
+|---|---|---|
+| stamping reads | 2 097 frames, 972 568 reads: `EgressPublicationState` ×2 363, `OutgoingGrantsPending` ×262 — both `[NoReplay]` | 1 109 frames, 781 152 reads: **0** |
+| non-stamping (default) | 2 087 frames, 987 183 reads: `EgressPublicationState` ×2 363 | 1 163 frames, 786 333 reads: **0** |
+
+⇒ ⭐ every hit is in M-1's table. 📌 Two DETECTOR bugs found on the way, both fixed with a rail: a struct past the depth limit was hashed by the
+identity of a fresh box (false `RoutePlan` / `SubordinateOrders` hits), and "not recorded" tested ANY `Transient` bit (`NoPreview` alone is
+recorded).
+
+📌 **Rig trap, cost ~30 min:** on Linux `scripts/cluster-node.sh` runs the **Debug** runner unless `HROT_RUNNER_DLL` is set, and its `stop-all` is
+`pkill -f 'ClusterRunner[.]dll'` — ⛔ a shell whose COMMAND LINE contains that path kills itself. Set it inside a wrapper script.
+
+## M-3 — fixes
+
+| site | fix | per-frame allocation |
+|---|---|---|
+| `JsonAttributeCompiler.cs` `ReferenceInvoker<T>` | re-set the same instance (`SetManagedComponent`) after the setter | 0 B |
+| `EgressPublicationState`, `OutgoingGrantsPending` | ⭐ **kept** — `NoReplay`, node-local bookkeeping; no reader of their version | replacing whole = a new dictionary per publish (R-2084) |
+| `ParamUsage` | none here — recorded either way (it calls `SetComponent`); the snapshot sharing is **CE-3443** | — |
+
+## M-4 — the flip, the rails, the measurements
+
+`ThreadedReads.PureReads = HROT_MANAGED_READ_STAMP != "1"` — the default; the legacy read is the diagnostic switch.
+
+| gate (same Release binary, each run twice) | non-stamping (default) | stamping (`HROT_MANAGED_READ_STAMP=1`) |
+|---|---|---|
+| `dotnet test FDP/Engine/Fdp.Core.Tests -c Release --no-build` | 1 319 passed / 6 failed / 22 skipped | 1 320 / 5 / 22 |
+| `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests -c Release --no-build` | 4 949 / 4 / 1 | 4 949 / 4 / 1 |
+| `dotnet test Hrot/Network/Hrot.Network.NED.Tests -c Release --no-build` | 196 / 0 | 196 / 0 |
+
+The common reds name files this branch does not touch (`BitMask512` paranoid throws, `DeployProcessorSystem.cs:97` wall clock,
+`BridgeRoads.cs` / `TerrainContentHash.cs` JSON options, `TakeCheckpointIntent`, the S0 id/type rails, `BinaryMergerTests`) ⇒ pre-existing.
+⚠ Their pre-existence was shown by the identical result under the stamping read, not by a run at the base sha.
+
+| measurement | stamping | non-stamping |
+|---|---|---|
+| ⭐ replay equivalence rail — replayed-state hash (120 frames) | `0296B83E…E61D` | `0296B83E…E61D` — **equal** |
+| replay equivalence rail — recorded delta bytes | 2 063 835 | **326 427 (−84 %)** |
+| rig CGF recorder — compressed / uncompressed per delta frame | 321 795 / 5 409 060 | 320 607 / 5 302 590 |
+| rig SimHost recorder — compressed / uncompressed per delta frame | 177 040 / 2 453 528 | 183 823 / 2 485 770 |
+| rig CGF egress gate — skipped / visited | 0 / 3 788 328 | **0 / 3 806 127** |
+| …full scans: `DescriptorOwnership` · `PartMetadata` · `NetworkAuthority` | 4 845 · 3 809 · 3 277 of 4 929 | 4 859 · 3 851 · 3 305 of 4 943 |
+
+**Who writes them** (`HROT_STAMP_TRACE=DescriptorOwnership,NetworkAuthority,PartMetadata`, `FDP/Engine/Fdp.Core/StampTrace.cs`), CGF, 2 162 frames:
+
+| stamps | type | writer |
+|---|---|---|
+| 11 776 | `DescriptorOwnership` | `OwnershipIngressSystem` (→ `OwnershipApplier.Apply`) |
+| 8 610 | `PartMetadata` | `BrainTickSystem` |
+| 4 290 | `PartMetadata` | `NetworkSpawningSystem` |
+| 4 166 | `DescriptorOwnership` | `CycloneEgressSystem` |
+| 2 891 | `NetworkAuthority` | command-buffer playback |
+| 1 871 | `NetworkAuthority` | `NetworkSpawningSystem` |
+
+⇒ the gate cannot skip on the CGF while any of its three "authority" tables is written every frame; the remedy (skip a no-op ownership Set,
+or a per-entity rather than per-table authority signal) is **CE-3442**.

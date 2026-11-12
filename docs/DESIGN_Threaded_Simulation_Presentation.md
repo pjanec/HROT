@@ -508,7 +508,7 @@ waits exist — headless pays for no presentation, a playing editor pays one mas
 | **an object both worlds hold by reference never changes in place** | immutable (terrain, geo), or changed by swapping the inside in ONE atomic write (TKB, behaviour registry, navmesh ✔) ⇒ a reader sees the old or the new whole, never half; native memory LEASED (roads ✔) |
 | **every UI write to simulated state is a COMMAND** | a thread-safe queue drained by the sim thread at the tick's start (Input); validated there, refused through the edit outcome (Q111-C); a drag is a ghost in A and the drop one command; UI bus publishes become commands |
 | **UI-only state is written directly in A** | selection, menus, camera, order form, effects; what the sim must read from it (the culling viewport, gizmo settings) rides to S with the commands each tick |
-| **reads are reads** | a managed component read and a singleton read must stop returning a writable reference / stamping the chunk (A1-2) — otherwise a read on the main thread is a write; the 3 unsafe statics get a lock / `Concurrent` / `Lazy` |
+| **reads are reads** | a managed component read and a singleton read must stop returning a writable reference / stamping the chunk (A1-2) — otherwise a read on the main thread is a write; the 3 unsafe statics get a lock / `Concurrent` / `Lazy` — ⭐ **managed component reads: done** on `exp/managed-reads` (CE-4445): the non-stamping read is the default, after an audit + runtime detector found no recorded component mutated in place ([status](blueprints/batches/STATUS_Managed_Reads_Audit.md)) |
 
 ### 14.2 The anti-race strategy and the gizmo split, as a picture
 
