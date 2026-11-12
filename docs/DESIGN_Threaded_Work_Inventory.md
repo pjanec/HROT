@@ -255,6 +255,12 @@ the census method and its short conversion list · the one pool's two lanes (no 
 |---|---|---|---|
 | O-1 | ⭐ **the lock shape** — REVISED (user, `2026-11-12`: "why the UI is always busy? Because it is always looping, so the simulation thread will hardly ever find a time when the UI is not reading"): ✅ K-1 measured exactly that — A is free only for microseconds between main-thread frames ⇒ ⛔ "try the lock, skip the sync" would almost never sync — WITHDRAWN. Releasing A before drawing is impossible (layers read A while drawing, X4-1); double-buffering A itself breaks "A is one object for life" (44 world-keyed side tables) | ⭐ **a STAGING copy, pulled by the UI**: the sim, after a tick, copies the masked state into a staging world B (double-buffered B1 / B2, an atomic "latest complete" index) — it never waits for the UI; at the START of each UI frame, the main thread — the only reader of A — copies the latest complete B into A, only when B holds a newer tick (the UI loops faster than the sim ticks) | ✅ the UI loops continuously (K-1) · ✅ the masked copy ~4.5 ms tables + 0.65 rows on Windows (§14.5) ⇒ ~5 ms on the main thread per NEW tick, not per frame · ⛔ memory: two staging worlds (each ≈ the masked A, ~106 MB at 1 000 men — N-1) on top of the editor's 4.24 GB · ⛔ events / logs / edit outcomes queued per tick into B and drained into A in order — to build and rail |
 
+#### 8.2a ✅ O-1 DECIDED — R-4216
+
+🔒 User, `2026-11-12`: *"yes, approved, Two-staging worlds. One is used by the UI and the other is being written by the simulation thread."* ⇒ the
+lock between the threads is gone: the sim writes one staging world after each tick, the UI pulls the other (the latest complete) into A at its
+frame start; events / logs / edit outcomes travel queued with each staging world.
+
 ### 8.3 Fixes — no decision needed (the reviews and measurements require them)
 
 | fix | evidence |
