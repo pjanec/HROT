@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: an OVERNIGHT EXPERIMENT — POC 3 of the threaded editor: COMPOSE the simulation as its own node
 
-**For:** a backend session. **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen there. ⭐ **Still an experiment.**
+**For:** a backend session. **From:** coordinator. **Dispatched at `83314af49`**, scope frozen there. ⭐ **Still an experiment.**
 ⛔⛔ **Autonomous — never stop for a question** (R-4156). Decide, record with a claim table, continue; a failed premise stops THAT item (R-106).
 You may change the design where the code shows a better way — fold it into §14 (as-built rule).
 
