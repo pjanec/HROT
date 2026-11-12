@@ -438,7 +438,7 @@ def main():
             report["nodes"][mode] = {
                 "work_ms": round(work, 2), "background_ms": round(background, 2), "garbage_b": round(gb, 0), "frames_per_s": round((frames - f1[port]) / max(1e-6, w2 - w1), 1),
                 "peak_gb": round((proc.get("peakWorkingSetBytes") or 0) / 2**30, 2), "heap_gb": round((proc.get("managedHeapBytes") or 0) / 2**30, 2),
-                "gc": [proc.get("gen0"), proc.get("gen1"), proc.get("gen2")], "entities": st.get("entityCount"),
+                "gc": [proc.get("gen0"), proc.get("gen1"), proc.get("gen2")], "threads": proc.get("threads"), "entities": st.get("entityCount"),
                 "top_ms": [[round(ms, 2), n] for ms, _, n in top[:8]], "all_ms": [[round(ms, 3), n] for ms, _, n in top],   # every system — a system below the top 8 is not 0 (parallel POC 2)
                 "top_b": [[round(b), n] for b, n in gtop[:8] if b > 0],
                 "queries": queries(port, (frames - f1[port]) / max(1e-6, w2 - w1), a.queries),

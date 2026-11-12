@@ -410,9 +410,7 @@ namespace Fdp.Core
             // to avoid excessive synchronization overhead.
             if (hint == ParallelHint.Light)
             {
-                int coreCount = FdpConfig.MaxDegreeOfParallelism > 0 
-                    ? FdpConfig.MaxDegreeOfParallelism 
-                    : Environment.ProcessorCount;
+                int coreCount = Jobs.FdpWorkerPool.Shared.Threads;   // ⭐ J-2 — the pool's own budget
                 
                 // Target ~2x batches per core.
                 // 4x adds too much synchronization overhead for light work.
@@ -440,24 +438,13 @@ namespace Fdp.Core
                 ValidateBatches(workBatches, maxIndex);
 #endif
                 
-                // 6. Execute Parallel Loop
-                Parallel.ForEach(workBatches, FdpConfig.ParallelOptions, range =>
-                {
-                    // Tight hot-first inner loop
-                    for (int i = range.Item1; i < range.Item2; i++)
-                    {
-                        ref var compMask = ref entityIndex.GetComponentMaskUnsafe(i);
-                        if (!BitMask512.HasAll(compMask, _includeMask)) continue;
-                        if (BitMask512.HasAny(compMask, _excludeMask))  continue;
-
-                        ref readonly var meta = ref entityIndex.GetMetadataUnsafe(i);
-                        if (!meta.IsActive) continue;
-                        if (Matches(in compMask, in meta))
-                        {
-                            action(new Entity(i, meta.Generation));
-                        }
-                    }
-                });
+                // 6. Execute on THE worker pool (POC 4 J-2, docs/DESIGN_Parallel_Simulation.md §13) — ⛔ was Parallel.ForEach: a closure, the
+                //    TPL's partitioner and its tasks every call, on a second set of threads beside the pool's. ⭐ A pooled work object instead ⇒
+                //    0 B per call once warm, one budget. Batches are the same ranges; their RUN order was never deterministic.
+                var work = RangeWork.Rent();
+                work.Set(this, entityIndex, action, workBatches);
+                try { Jobs.FdpWorkerPool.Shared.Run(work, workBatches.Count); }
+                finally { work.Return(); }
             }
             finally
             {
@@ -532,6 +519,37 @@ namespace Fdp.Core
             }
         }
         
+        /// <summary>⭐ POC 4 J-2 — one <see cref="ForEachParallel"/> call's work: batch i = the i-th entity range. Kept per thread and reused
+        /// (a nested / concurrent call on the same thread takes a fresh one) ⇒ no allocation per call.</summary>
+        private sealed class RangeWork : Jobs.FdpWorkerPool.IBatchWork
+        {
+            [ThreadStatic] private static RangeWork? t_free;
+            private EntityQuery? _query;
+            private EntityIndex? _index;
+            private Action<Entity>? _action;
+            private System.Collections.Generic.List<(int Start, int End)>? _ranges;
+
+            public static RangeWork Rent() { var w = t_free ?? new RangeWork(); t_free = null; return w; }
+            public void Set(EntityQuery q, EntityIndex index, Action<Entity> action, System.Collections.Generic.List<(int Start, int End)> ranges)
+            { _query = q; _index = index; _action = action; _ranges = ranges; }
+            public void Return() { _query = null; _index = null; _action = null; _ranges = null; t_free = this; }   // never root the caller
+
+            public void RunBatch(int batch)
+            {
+                var q = _query!; var index = _index!; var action = _action!;
+                var range = _ranges![batch];
+                for (int i = range.Start; i < range.End; i++)
+                {
+                    ref var compMask = ref index.GetComponentMaskUnsafe(i);
+                    if (!BitMask512.HasAll(compMask, q._includeMask)) continue;
+                    if (BitMask512.HasAny(compMask, q._excludeMask))  continue;
+                    ref readonly var meta = ref index.GetMetadataUnsafe(i);
+                    if (!meta.IsActive) continue;
+                    if (q.Matches(in compMask, in meta)) action(new Entity(i, meta.Generation));
+                }
+            }
+        }
+
         /// <summary>
         /// Gets the include mask (for advanced usage).
         /// </summary>

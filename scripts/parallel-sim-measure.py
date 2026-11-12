@@ -9,6 +9,7 @@ count with HROT_PARALLEL_SIM=1, and prints the converted systems' ms/frame side 
     python scripts/parallel-sim-measure.py --content          # + commit by content (D-5), live and recorded
     python scripts/parallel-sim-measure.py --pin --poc2       # POC 2: each item against a recorded serial baseline
     python scripts/parallel-sim-measure.py --pin --poc3       # POC 3: the same for POC 3's items
+    python scripts/parallel-sim-measure.py --pin --poc4       # POC 4: the ONE worker pool — serial vs everything on (1 / all threads), threads per node
 
 Build Release first:  dotnet build Hrot/Runner/Hrot.ClusterRunner/Hrot.ClusterRunner.csproj -c Release
 Windows: HROT_HIDDEN_WINDOW=1 is set for every node (no window ever shows). Results land in --out (default ./parallel-sim-results).
@@ -46,7 +47,8 @@ def run(name, env_extra, out, rig_args):
     with open(out / f"{name}.txt", "w") as f:
         subprocess.run(cmd, env=env, stdout=f, stderr=subprocess.STDOUT, cwd=ROOT)
     try:
-        return json.loads(js.read_text())["nodes"]["cgf"]
+        nodes = json.loads(js.read_text())["nodes"]
+        return dict(nodes["cgf"], _nodes=nodes)
     except Exception as e:
         print(f"    no result ({e}); see {out / (name + '.txt')}")
         return None
@@ -66,6 +68,17 @@ POC3 = [
 ]
 
 
+# ⭐ POC 4 (exp/parallel-sim-4) — the ONE worker pool (J-1) and the parallel loops on it (J-2): everything on with all threads and with one,
+#   against a recorded serial baseline; every node's OS thread count printed (the rig's "threads", from /diagnostics/architecture).
+_ALL = {"HROT_EQS_CONFIG_GATE": "1", "HROT_PARALLEL_SIM": "1", "HROT_SIM_MODE": "throughput", "HROT_BRAIN_PRESCORE": "1",
+        "HROT_BP_STAMP_ON_CHANGE": "1", "FDP_EGRESS_OFFFRAME": "1", "HROT_PARALLEL_SYNC": "1"}
+POC4 = [
+    ("rec-serial",   {}),
+    ("rec-all",      _ALL),                                  # everything on, the pool at its budget (cores - 2)
+    ("rec-all-1",    dict(_ALL, HROT_SIM_THREADS="1")),       # everything on, ONE thread: what the pool itself buys
+]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--threads", type=int, nargs="+", default=[1, 2, 4, 8])
@@ -78,9 +91,15 @@ def main():
                     help="POC 2: RECORDED serial vs each item (timer off, Q-1 stamp on change, Q-2 off-frame egress, Q-4 brain pre-score) and all together")
     ap.add_argument("--poc3", action="store_true",
                     help="POC 3: RECORDED serial vs timer sampled / every call / off, the EqsSensorConfig gate, the pre-score, the parallel replica sync, all together")
+    ap.add_argument("--poc4", action="store_true",
+                    help="POC 4: RECORDED serial vs everything on (the one worker pool) at its budget and at one thread; threads per node")
     a = ap.parse_args()
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     rig_args = ["--pin"] if a.pin else []
+    if a.poc4:
+        runs = {name: run(name, env, out, rig_args + ["--record"]) for name, env in POC4}
+        report(runs, out, nodes=True)
+        return
     if a.poc3:
         runs = {name: run(name, env, out, rig_args + ["--record"]) for name, env in POC3}
         report(runs, out)
@@ -102,7 +121,7 @@ def main():
     report(runs, out)
 
 
-def report(runs, out):
+def report(runs, out, nodes=False):
     cols = [k for k, v in runs.items() if v]
     print("\nms/frame (CGF node)" + "".join(f"{c:>11}" for c in cols))
     print(f"{'whole frame':<26}" + "".join(f"{runs[c]['work_ms']:>11.1f}" for c in cols))
@@ -113,6 +132,10 @@ def report(runs, out):
             row.append(sum(ms for ms, n in rows if n.endswith("/" + s)))
         print(f"{s:<26}" + "".join(f"{v:>11.2f}" for v in row))
     print(f"{'garbage B/frame':<26}" + "".join(f"{runs[c]['garbage_b']:>11.0f}" for c in cols))
+    if nodes:   # ⭐ POC 4 — every node's frame work and OS threads
+        for n in ("cgf", "simhost", "orchestrator"):
+            print(f"{n + ' work ms':<26}" + "".join(f"{(runs[c]['_nodes'].get(n) or {}).get('work_ms', 0):>11.1f}" for c in cols))
+            print(f"{n + ' threads':<26}" + "".join(f"{str((runs[c]['_nodes'].get(n) or {}).get('threads')):>11}" for c in cols))
     print(f"\nraw reports: {out.resolve()}")
 
 

@@ -75,6 +75,7 @@ namespace Fdp.ModuleHost
         /// background monitors. Only accessed on the main thread; no locking required.
         /// </summary>
         private readonly List<ModuleEntry> _drainingModules = new();
+        private readonly List<Task> _tasksToWait = new();   // ⭐ POC 4 J-2 — the frame-synced runs this frame waits on
 
         /// <summary>
         /// Serializes topology compilation tasks so at most one background compile
@@ -767,7 +768,7 @@ namespace Fdp.ModuleHost
             }
             
             // ═══════════ DISPATCH PHASE ═══════════
-            var tasksToWait = new List<Task>();
+            var tasksToWait = _tasksToWait; tasksToWait.Clear();   // ⭐ POC 4 J-2 — a field reused every frame (⛔ was a new List per frame, R-2084)
             
             foreach (var entry in topology.Modules)
             {
@@ -909,7 +910,14 @@ namespace Fdp.ModuleHost
             if (tasksToWait.Count > 0)
             {
                 kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
-                Task.WaitAll(tasksToWait.ToArray());
+                // ⭐ POC 4 J-2 — WaitAll without the array per frame: every run is waited for, then the faults (a fail-fast report) are thrown together
+                List<Exception>? waitFaults = null;
+                for (int w = 0; w < tasksToWait.Count; w++)
+                {
+                    try { tasksToWait[w].Wait(); }
+                    catch (AggregateException ex) { (waitFaults ??= new List<Exception>()).AddRange(ex.InnerExceptions); }
+                }
+                if (waitFaults != null) throw new AggregateException(waitFaults);
                 KernelFrameTimings.Stop("frame-synced wait", kt, kb);
                 
                 // Harvest immediately
