@@ -80,6 +80,33 @@ namespace Fdp.Core.Jobs
         }
     }
 
+    /// <summary>
+    /// ⭐ N-11 (CE-4473; docs/DESIGN_Parallel_Simulation.md §18.2, D-6 "a declaration on the system") — a per-entity job declares the component
+    /// types it reads on OTHER entities that NOTHING writes during its own phase: such a read is served LIVE (correct: the value cannot move
+    /// under it) and is never copied into the last-tick view. ⚠ Per JOB, not process-wide: a type stable in one phase (the threat ranking reads
+    /// stances) may be written in another (every brain writes its own stance).
+    /// </summary>
+    public interface IStableReads
+    {
+        /// <summary>Called once per job type (on a default instance — declare types, read no fields).</summary>
+        void DeclareStableReads(PhaseReadSet reads);
+    }
+
+    /// <summary>A set of component type ids (unmanaged and managed share one id space).</summary>
+    public sealed class PhaseReadSet
+    {
+        internal ulong[] Bits = new ulong[8];
+        public PhaseReadSet Unmanaged<T>() where T : unmanaged => Set(ComponentType<T>.ID);
+        public PhaseReadSet Managed<T>() where T : class => Set(ManagedComponentType<T>.ID);
+        private PhaseReadSet Set(int id)
+        {
+            if ((id >> 6) >= Bits.Length) Array.Resize(ref Bits, (id >> 6) + 1);
+            Bits[id >> 6] |= 1UL << (id & 63);
+            return this;
+        }
+        internal bool Has(int id) => (id >> 6) < Bits.Length && (Bits[id >> 6] & (1UL << (id & 63))) != 0;
+    }
+
     /// <summary>⭐ N-11 — an effect a per-entity job's helper defers to the serial step after the phase (<see cref="BatchContext.Later"/>).</summary>
     public interface IPhaseFollowUp
     {
@@ -143,6 +170,15 @@ namespace Fdp.Core.Jobs
         private sealed class Runner<TJob> : FdpWorkerPool.IBatchWork where TJob : struct, IEntityBatchJob
         {
             public static readonly Runner<TJob> Instance = new();
+            // ⭐ N-11 — the job type's declared stable reads (null: none), built once
+            private static readonly PhaseReadSet? s_stable = BuildStable();
+            private static PhaseReadSet? BuildStable()
+            {
+                if (default(TJob) is not IStableReads declares) return null;
+                var set = new PhaseReadSet();
+                declares.DeclareStableReads(set);
+                return set;
+            }
             public Entity[] Scratch = new Entity[64];
             private readonly List<BatchContext> _contexts = new();
             private TJob _job;
@@ -187,7 +223,7 @@ namespace Fdp.Core.Jobs
                 //   other), and the batch's buffer takes the deferred effects. The census keeps its own walk stack.
                 bool was = ParallelReadCheck.Active;
                 ParallelReadCheck.Active = true;
-                ParallelReadCheck.SetBatch(ctx, _repo);
+                ParallelReadCheck.SetBatch(ctx, _repo, s_stable);
                 int slot = EntityCensus.On ? EntityCensus.Push() : -1;
                 try
                 {
@@ -202,7 +238,7 @@ namespace Fdp.Core.Jobs
                 {
                     if (slot >= 0) EntityCensus.Pop(slot);
                     ParallelReadCheck.Current = -1;
-                    ParallelReadCheck.SetBatch(null, null);
+                    ParallelReadCheck.SetBatch(null, null, null);
                     ParallelReadCheck.Active = was;
                 }
             }

@@ -89,6 +89,9 @@ namespace Fdp.Toolkit.Behavior
         }
 
         private static void PrepareToolkitFrame(EntityRepository repo)
-            => Fdp.Toolkit.Utility.DecisionCadence.Of(repo).PrepareFrame(repo);
+        {
+            Fdp.Toolkit.Utility.DecisionCadence.Of(repo).PrepareFrame(repo);
+            Fdp.Toolkit.Replication.Utilities.PartIndex.PrepareFrame(repo);   // a unit's parts (its sensors) — read by every brain
+        }
     }
 }

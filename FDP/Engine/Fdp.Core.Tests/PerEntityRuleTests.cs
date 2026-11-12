@@ -145,6 +145,43 @@ public sealed class PerEntityRuleTests
         finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
     }
 
+    /// <summary>Reads its left neighbour's <see cref="Doomed"/> (nobody writes it in the phase) — declared STABLE by the job (N-11, D-6).</summary>
+    private struct StableJob : IEntityBatchJob, IStableReads
+    {
+        public EntityRepository Repo; public Entity[] Ring; public int N;
+        public void DeclareStableReads(PhaseReadSet reads) => reads.Unmanaged<Doomed>();
+        public void Execute(Entity e, int index, BatchContext ctx)
+            => Repo.GetComponentRW<Val>(e).V = Repo.GetComponentRO<Doomed>(Ring[(index + N - 1) % N]).X;
+        public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
+    }
+
+    /// <summary>The same read with no declaration.</summary>
+    private struct UndeclaredJob : IEntityBatchJob
+    {
+        public EntityRepository Repo; public Entity[] Ring; public int N;
+        public void Execute(Entity e, int index, BatchContext ctx)
+            => Repo.GetComponentRW<Val>(e).V = Repo.GetComponentRO<Doomed>(Ring[(index + N - 1) % N]).X;
+        public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
+    }
+
+    /// <summary>⭐ N-11 (D-6) — with the checks on (<c>HROT_READ_CHECK=1</c>): a cross read of a type the JOB declares stable is served live
+    /// (no throw, the neighbour's value); the same read undeclared throws. 🔴 Red-proof: the stable test removed from the read path ⇒ the
+    /// declared job throws too.</summary>
+    [SkippableFact]
+    public void N11_AJobsStableRead_IsServedLive_AnUndeclaredOneThrows_ChecksOn()
+    {
+        Skip.IfNot(ParallelReadCheck.Compiled && !ParallelReadCheck.Survey, "run with HROT_READ_CHECK=1");
+        try
+        {
+            FdpWorkerPool.Resize(2);
+            using var w = World(256, out var list);
+            ParallelEntities.Run(w, list, list.Length, new StableJob { Repo = w, Ring = list, N = list.Length });
+            Assert.Equal((long)(list.Length - 1), w.GetComponentRO<Val>(list[0]).V);   // the left neighbour of 0 is the last: X = its index
+            Assert.ThrowsAny<Exception>(() => ParallelEntities.Run(w, list, list.Length, new UndeclaredJob { Repo = w, Ring = list, N = list.Length }));
+        }
+        finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
+    }
+
     [Fact]
     public void N10_ASteadyRun_WithTheRuleInPlace_AllocatesNothing()
     {

@@ -120,8 +120,14 @@ namespace Fdp.Toolkit.Perception.Systems
         private Entity[] _list = new Entity[64];
         private int[] _threatsOut = new int[64];
 
-        private struct EvaluateJob : Fdp.Core.Jobs.IEntityBatchJob
+        private struct EvaluateJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.IStableReads
         {
+            // ⭐ N-11 (D-6) — what the ranking reads on its targets that nothing writes while it runs (measured: the scale-rig survey)
+            public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads
+                .Unmanaged<Fdp.Toolkit.Physics.Components.PhysicsCollider>()
+                .Unmanaged<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>()
+                .Unmanaged<global::CarKinem.Core.VehicleParams>()
+                .Unmanaged<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
             public ThreatEvaluationSystem Owner;
             public EntityRepository Repo;
             public float DeltaTime;

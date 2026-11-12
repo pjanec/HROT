@@ -78,7 +78,10 @@ namespace Fdp.Core
         }
 
         /// <summary>The batch thread enters / leaves a batch of a phase over <paramref name="repo"/>.</summary>
-        internal static void SetBatch(Jobs.BatchContext? batch, EntityRepository? repo) { t_batch = batch; t_batchRepo = repo; }
+        internal static void SetBatch(Jobs.BatchContext? batch, EntityRepository? repo, Jobs.PhaseReadSet? stable)
+        { t_batch = batch; t_batchRepo = repo; t_stable = stable; }
+
+        [ThreadStatic] private static Jobs.PhaseReadSet? t_stable;   // the running job's stable reads (N-11)
 
         /// <summary>Is a batch of a phase over <paramref name="repo"/> running on THIS thread (a structural change of THAT world is deferred)?</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -159,6 +162,7 @@ namespace Fdp.Core
         {
             if (t_current == 0 && Compiled) { if (Survey) Note("no-current", typeof(T)); else throw NoCurrent(typeof(T), e); }
             if (repo.IsOwnPartOfCurrent(e.Index)) return ref repo.LiveUnmanagedRO<T>(e);   // N-11 — its own part: live
+            if (t_stable != null && t_stable.Has(ComponentType<T>.ID)) return ref repo.LiveUnmanagedRO<T>(e);   // N-11 — stable in this phase: live
             if (IsSet(s_unmanaged, ComponentType<T>.ID) && repo.LastTickWorld is { } last && last.HasUnmanagedComponentUntraced<T>(e))
                 return ref last.LiveUnmanagedRO<T>(e);
             if (Compiled) { if (Survey) Note("undeclared-read", typeof(T)); else throw Undeclared(typeof(T), e); }
@@ -172,6 +176,7 @@ namespace Fdp.Core
         {
             if (t_current == 0 && Compiled) { if (Survey) Note("no-current", typeof(T)); else throw NoCurrent(typeof(T), e); }
             if (repo.IsOwnPartOfCurrent(e.Index)) return ref repo.LiveManagedRefRO<T>(e);   // N-11 — its own part: live
+            if (t_stable != null && t_stable.Has(ManagedComponentType<T>.ID)) return ref repo.LiveManagedRefRO<T>(e);   // N-11 — stable in this phase
             if (IsSet(s_managed, ManagedComponentType<T>.ID) && repo.LastTickWorld is { } last) return ref last.LiveManagedRefRO<T>(e);
             if (Compiled) { if (Survey) Note("undeclared-read", typeof(T)); else throw Undeclared(typeof(T), e); }
             return ref repo.LiveManagedRefRO<T>(e);

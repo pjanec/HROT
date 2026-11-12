@@ -25,6 +25,10 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.Roe>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Squad.SquadLeadership>();   // a member's brain asks who leads his squad
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Core.CommandHierarchy.UnitRoster>();          // the squad assignment (StandardInputs.IsAssignedTarget)
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Squad.SquadCognitiveState>();          // — and its squad's assigned targets
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Core.CommandHierarchy.UnitSubordinate>();      // the ROE through his commander (AimAndFireExecutor)
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.CoverClaim>();       // a friend's cover claim (R-4208: seen a tick late)
         }
     }
 }

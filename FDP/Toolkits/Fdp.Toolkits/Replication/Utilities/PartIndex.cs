@@ -68,6 +68,15 @@ namespace Fdp.Toolkit.Replication.Utilities
             return Scan(view, parent, dest);
         }
 
+        /// <summary>⭐ N-11 (CE-4473) — refreshes <paramref name="repo"/>'s index serially before the brains' per-entity phase (BrainPhase): inside
+        /// it nothing is added (structural changes are deferred), so every read there takes the fast path instead of rebuilding under the lock.</summary>
+        public static void PrepareFrame(EntityRepository repo)
+        {
+            if (!repo.IsComponentTypeRegistered<PartMetadata>()) return;
+            var index = Of(repo);
+            lock (index) index.EnsureFresh(repo);
+        }
+
         private void EnsureFresh(EntityRepository repo)
         {
             uint now = repo.GlobalVersion;
