@@ -64,7 +64,8 @@ def main():
     for s in SYSTEMS:
         row = []
         for c in cols:
-            row.append(sum(ms for ms, n in runs[c]["top_ms"] if n.endswith("/" + s)))
+            rows = runs[c].get("all_ms") or runs[c]["top_ms"]   # ⭐ every system (the rig's all_ms) — top_ms cut at 8 read a dropped system as 0.00
+            row.append(sum(ms for ms, n in rows if n.endswith("/" + s)))
         print(f"{s:<26}" + "".join(f"{v:>11.2f}" for v in row))
     print(f"{'garbage B/frame':<26}" + "".join(f"{runs[c]['garbage_b']:>11.0f}" for c in cols))
     print(f"\nraw reports: {out.resolve()}")
