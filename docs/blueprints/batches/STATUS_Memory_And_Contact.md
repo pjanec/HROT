@@ -61,8 +61,32 @@ the last-tick copies ≈ S (masked + full together). ⚠ The undo ring reported 
 terrain / navmesh / physics native buffers — not attributed here). ⚠ The 15 pooled snapshot worlds hold **205 MB of committed native chunks
 while EMPTY** (0 entities): the pool keeps its chunks committed between uses.
 
-__N1C__
+### N-1c — what fills the GC heap (`dotnet-gcdump`, run A's set-up, 75 s into the live run)
 
-__N1D__
+The report lists each type by size bucket with the LARGEST object of the bucket ⇒ per type a range: count × the bucket floor … count × the largest.
+
+| | cgf (heap 1.12 GB) | simhost (heap 1.33 GB) |
+|---|---|---|
+| `byte[]` | **311–449 MB** — three arrays of exactly 128 MiB (a buffer grown by doubling) | 75–182 MB |
+| ⭐ `PaddedVersion[]` (a table's chunk versions) | **89–217 MB** | **84–167 MB** |
+| `float[]` | 95–122 MB (one 127 MB array — the terrain grid) | 100–136 MB |
+| `int[]` | 27–97 MB | 43–140 MB |
+| replay-browser timeline (`PositionSample[]`, `TimelineEvent[]`, `SearchResultPayload[]`) | 11–55 MB | 9–47 MB |
+| navmesh (`DtLink[]`) | — | 4–29 MB |
+
+⇒ ⭐⭐ **two causes dominate, both fixable, neither is the men:**
+1. **`PaddedVersion[]` is sized for `MAX_ENTITIES`, not for the world** (`NativeChunkTable.cs:56,65`: `_totalChunks = FdpConfig.GetRequiredChunks<T>()`,
+   1 000 000 entities ⇒ 250 000 chunks × 64 B = 16 MB for a 16 KB component) — in EVERY world: S, the replica, both last-tick copies and each pooled
+   snapshot, even an EMPTY one. ⇒ grow it with the committed chunks (the chunks themselves are already committed on demand).
+2. **The recording**: run B (no `--record`) holds 0.66 GB of CGF heap, run A 1.15 GB — the ~0.5 GB difference is the three 128 MiB buffers + the
+   replay-browser timeline types. ⚠ Their owner is not named by the report (no roots); the B/A difference is the attribution.
+
+
+### N-1d — every node in ONE process (`--mode all`), 1 000 men
+
+`cluster-node.sh start all`, the rig's scenario loaded live, 90 s: **working set 5.65 GB · GC heap 3.62 GB · GC committed 4.47 GB**; 4 worlds built
+by the node builder (139 MB native together) + 15 pooled snapshot worlds (51 MB, empty). ⇒ ⛔ **over 4 GB** — the sum of the nodes' heaps in one
+process (cgf 0.66 + simhost 1.29 + the rest, plain), no single owner.
+
 
 __N2__

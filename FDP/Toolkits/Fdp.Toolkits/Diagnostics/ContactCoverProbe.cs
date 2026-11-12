@@ -28,6 +28,10 @@ namespace Fdp.Toolkit.Diagnostics
     public static class ContactCoverProbe
     {
         public static readonly bool On = Environment.GetEnvironmentVariable("HROT_CONTACT_PROBE") == "1";
+        /// <summary><c>HROT_CONTACT_PROBE_DETAIL=1</c> — a last column naming each commit: <c>entity:x,z</c> then <c>+</c> (newly live) or
+        /// <c>~d</c> (moved d m), then <c>@</c> the claim's remaining life (s).</summary>
+        public static readonly bool Detail = Environment.GetEnvironmentVariable("HROT_CONTACT_PROBE_DETAIL") == "1";
+        private static readonly System.Text.StringBuilder s_detail = new();
 
         private const float SameRadius = 1.5f, MovedM = 0.5f;
         private static readonly Dictionary<int, (Vector3 Hide, bool Live)> s_lastClaim = new();
@@ -59,7 +63,7 @@ namespace Fdp.Toolkit.Diagnostics
         {
             double now = world.SimulationTime;
             int commits = 0, samePair = 0, onLive = 0, newContacts = 0;
-            s_commits.Clear(); s_commitOwner.Clear(); s_liveOthers.Clear(); s_liveOwner.Clear(); s_unitsNew.Clear();
+            s_detail.Clear(); s_commits.Clear(); s_commitOwner.Clear(); s_liveOthers.Clear(); s_liveOwner.Clear(); s_unitsNew.Clear();
 
             if (world.IsComponentTypeRegistered<CoverClaim>())
             {
@@ -69,7 +73,11 @@ namespace Fdp.Toolkit.Diagnostics
                     bool live = c.Until.Seconds > now;
                     s_lastClaim.TryGetValue(e.Index, out var prev);
                     bool committed = live && (!prev.Live || Vector3.Distance(prev.Hide, c.Hide) > MovedM);
-                    if (committed) { commits++; s_commits.Add(c.Hide); s_commitOwner.Add(e.Index); }
+                    if (committed)
+                    {
+                        commits++; s_commits.Add(c.Hide); s_commitOwner.Add(e.Index);
+                        if (Detail) s_detail.Append($" {e.Index}:{c.Hide.X:F1},{c.Hide.Z:F1}{(prev.Live ? "~" + Vector3.Distance(prev.Hide, c.Hide).ToString("F1") : "+")}@{c.Until.Seconds - now:F2}");
+                    }
                     else if (live) { s_liveOthers.Add(c.Hide); s_liveOwner.Add(e.Index); }
                     s_lastClaim[e.Index] = (c.Hide, live);
                 }
@@ -112,7 +120,7 @@ namespace Fdp.Toolkit.Diagnostics
                 s_out = new StreamWriter(path, append: false) { AutoFlush = false };
                 s_out.WriteLine("tick\tsimTime\tcommits\tsamePair\tonLive\tunitsNewContact\tnewContacts");
             }
-            s_out.WriteLine($"{tick}\t{now:F2}\t{commits}\t{samePair}\t{onLive}\t{s_unitsNew.Count}\t{newContacts}");
+            s_out.WriteLine($"{tick}\t{now:F2}\t{commits}\t{samePair}\t{onLive}\t{s_unitsNew.Count}\t{newContacts}" + (Detail ? "\t" + s_detail : ""));
             if ((tick & 63) == 0) s_out.Flush();
         }
     }
