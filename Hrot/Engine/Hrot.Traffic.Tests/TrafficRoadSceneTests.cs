@@ -192,6 +192,39 @@ public sealed class TrafficRoadSceneTests
         Assert.Equal(350f, terrain.GroundHeightAt(-5f, 400f), 2);
     }
 
+    /// <summary>
+    /// ⭐ AQ93 E2b "adjust after netconvert" — a net given OUR heights by <see cref="Hrot.Terrain.InputSet.NetElevation"/> is no longer flat: SumoSharp parses
+    /// <c>ShapeZ</c> on EVERY lane (it needs all points of a shape to carry a z), <see cref="TrafficDrape.IsFlat"/> is false, and the road scene — built WITHOUT any ground
+    /// function, so no drape applies — stands on the ground: the lanes' own z for asphalt, paint and crosswalks, the field baked from them for the junction fills and walking
+    /// areas. ✅ Red-proof: <c>NetElevation</c> writes no z ⇒ the net stays flat ⇒ red.
+    /// </summary>
+    [Fact]
+    public void E2b_ANetGivenOurHeights_IsNotFlat_AndItsSceneStandsOnTheGround()
+    {
+        float Gentle(float x, float y) => 350f + 0.05f * x + 3f * MathF.Sin(x / 200f) * MathF.Cos(y / 170f);
+        string tmp = Path.Combine(Path.GetTempPath(), "e2b-" + Guid.NewGuid().ToString("N")[..10] + ".net.xml");
+        try
+        {
+            File.Copy(Path.Combine(TerrainRoot(), "demo-city", "demo-city.net.xml"), tmp);
+            var result = Hrot.Terrain.InputSet.NetElevation.Apply(tmp, (x, y) => (double)Gentle((float)(x - 2200), (float)(y - 2200)));   // net metres = local + the anchor
+            Assert.True(result.PointsAfter > result.PointsBefore);
+            var model = Sim.Ingest.NetworkParser.ParseXml(File.ReadAllText(tmp));
+            Assert.False(TrafficDrape.IsFlat(model));
+            Assert.All(model.LanesByHandle, l => Assert.NotNull(l.ShapeZ));
+            Assert.All(model.LanesByHandle, l => Assert.Equal(l.Shape.Count, l.ShapeZ!.Count));
+
+            var placement = SumoNetPlacement.For(model, new TerrainSumoNet("demo-city.net.xml", 2200, 2200), null);
+            var scene = TrafficRoadScene.Build(model, placement, new Vector2(0, 0), new Vector2(800, 800));   // no ground function: the net carries its heights
+            foreach (var mesh in scene.Meshes.Where(m => m.Kind != SceneKind.AmbientGround))
+            {
+                float tol = mesh.Kind == SceneKind.Junction || mesh.Sidewalk ? 0.6f : 0.15f;   // a junction fill takes its z from the baked field, not from a lane
+                var bad = mesh.Vertices.Where(v => Math.Abs(v.Z - Gentle(v.X, v.Y)) > tol).ToList();
+                Assert.True(bad.Count == 0, $"{mesh.Kind}{(mesh.Sidewalk ? " (walk)" : "")}: {bad.Count} of {mesh.Vertices.Length} vertices off the ground by more than {tol} m, e.g. {(bad.Count > 0 ? bad[0].Z - Gentle(bad[0].X, bad[0].Y) : 0)}");
+            }
+        }
+        finally { try { File.Delete(tmp); } catch (IOException) { } }
+    }
+
     /// <summary>A copy of the demo city (its flat net) whose ground is <c>groundZ</c> metres, loaded through the real residency; the folder is removed on dispose.</summary>
     internal sealed class ElevatedDemoCity : IDisposable
     {

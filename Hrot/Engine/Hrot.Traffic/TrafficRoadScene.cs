@@ -63,9 +63,12 @@ public sealed class TrafficRoadScene
         if (placement is null) throw new ArgumentNullException(nameof(placement));
 
         var (minX, minY, maxX, maxY) = Bounds(net);
-        var frame = new SceneFrame((minX + maxX) / 2.0, (minY + maxY) / 2.0);
+        // ⭐ a net WITH z (netconvert's own, or ours from NetElevation): the junction fills, walking areas and ambient ground have no z of their own (their outlines are 2-D
+        // in the model) and take it from the field baked from the lanes' z — never a flat 0 under roads at 350 m. A flat net is laid on the ground below instead (R-4030).
+        bool flatNet = TrafficDrape.IsFlat(net);
+        var frame = new SceneFrame((minX + maxX) / 2.0, (minY + maxY) / 2.0, 0.0, flatNet ? null : TerrainField.FromNetwork(net, 10.0));
         var scene = RoadSceneBuilder.Build(net, frame);
-        var drape = ground is not null && TrafficDrape.IsFlat(net) ? ground : null;
+        var drape = ground is not null && flatNet ? ground : null;
 
         var meshes = new List<TrafficRoadMesh>(scene.Meshes.Count + 2);
         foreach (var (kind, mesh) in scene.Meshes)
