@@ -164,8 +164,19 @@ namespace Fdp.Toolkit.Civilians
         {
             var man = ask.Man;
             if (!CustodyRules.Owns(world, man)) return false;
-            if (!world.HasComponent<Custody>(man)) world.AddComponent(man, default(Custody));
-            ref var c = ref world.GetComponentRW<Custody>(man);
+            if (!world.HasComponent<Custody>(man))
+            {
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                var fresh = default(Custody);
+                bool done = Act(world, man, in ask, now, ref fresh);   // (the component is added even when the verb is refused — as before)
+                world.AddComponent(man, fresh);
+                return done;
+            }
+            return Act(world, man, in ask, now, ref world.GetComponentRW<Custody>(man));
+        }
+
+        private static bool Act(EntityRepository world, Entity man, in CustodyEvent ask, double now, ref Custody c)
+        {
             switch (ask.Verb)
             {
                 case CustodyVerb.Search:

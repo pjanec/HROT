@@ -278,7 +278,14 @@ namespace Hrot.AI.Behaviors.Brains
         public static void MarkCaredFor(EntityRepository world, Entity commander, int slot)
         {
             if (slot < 0 || slot >= 16 || !world.IsComponentTypeRegistered<SquadLeadership>()) return;
-            if (!world.HasComponent<SquadLeadership>(commander)) world.AddComponent(commander, new SquadLeadership());   // succession fills the leader
+            if (!world.HasComponent<SquadLeadership>(commander))
+            {
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                var fresh = new SquadLeadership();   // succession fills the leader
+                fresh.CaredFor |= (ushort)(1 << slot);
+                world.AddComponent(commander, fresh);
+                return;
+            }
             world.GetComponentRW<SquadLeadership>(commander).CaredFor |= (ushort)(1 << slot);
         }
 

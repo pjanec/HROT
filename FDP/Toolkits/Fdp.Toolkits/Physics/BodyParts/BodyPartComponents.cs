@@ -108,7 +108,14 @@ namespace Fdp.Toolkit.Physics.BodyParts
         public static void Mark(EntityRepository repo, Entity body, byte part, Vector3 local, byte face, HitMarkKind kind)
         {
             if (part == PersonPart.None || !repo.IsAlive(body) || !repo.IsComponentTypeRegistered<HitMarks>()) return;
-            if (!repo.HasComponent<HitMarks>(body)) repo.AddComponent(body, new HitMarks());
+            if (!repo.HasComponent<HitMarks>(body))
+            {
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                var fresh = new HitMarks();
+                fresh.Add(part, local, face, kind);
+                repo.AddComponent(body, fresh);
+                return;
+            }
             repo.GetComponentRW<HitMarks>(body).Add(part, local, face, kind);
         }
     }

@@ -162,7 +162,13 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
                 if (!world.HasComponent<DebugState>(e))
                 {
                     if (!wanted) continue;
-                    world.AddComponent(e, new DebugState());
+                    // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                    var fresh = new DebugState();
+                    var freshBehavior = trace ? fresh.Behavior | BehaviorDebugFlags.EnableTraceBuffer : fresh.Behavior & ~BehaviorDebugFlags.EnableTraceBuffer;
+                    if (fresh.Ai != pins || fresh.Behavior != freshBehavior) { fresh.Ai = pins; fresh.Behavior = freshBehavior; }
+                    world.AddComponent(e, fresh);
+                    if (wanted) _managed.Add(id); else _managed.Remove(id);
+                    continue;
                 }
                 ref var state = ref world.GetComponentRW<DebugState>(e);
                 var behavior = trace ? state.Behavior | BehaviorDebugFlags.EnableTraceBuffer : state.Behavior & ~BehaviorDebugFlags.EnableTraceBuffer;

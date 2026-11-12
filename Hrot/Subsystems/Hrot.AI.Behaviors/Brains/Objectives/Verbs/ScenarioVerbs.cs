@@ -162,7 +162,17 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             if (env.IsNull) return Fail(world, self, "no World Environment");
             if (s.Began == 0)
             {
-                if (!world.HasComponent<ExerciseResult>(env)) world.AddComponent(env, new ExerciseResult());
+                if (!world.HasComponent<ExerciseResult>(env))
+                {
+                    // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                    var fresh = new ExerciseResult();
+                    if (fresh.Phase == ExercisePhase.Ended) return Fail(world, self, "the exercise already ended");
+                    fresh.Phase = ExercisePhase.Closing; fresh.Reason = p.Reason;
+                    world.AddComponent(env, fresh);
+                    s.Began = 1; s.StartedAt = (SimInstant)now;
+                    Fdp.Core.Logging.FdpLog<Log>.Info($"exercise closing ({p.Reason}) at {now:0.###} s");
+                    return NodeStatus.Running;   // the objectives close at their next tick
+                }
                 ref var r0 = ref world.GetComponentRW<ExerciseResult>(env);
                 if (r0.Phase == ExercisePhase.Ended) return Fail(world, self, "the exercise already ended");
                 r0.Phase = ExercisePhase.Closing; r0.Reason = p.Reason;
