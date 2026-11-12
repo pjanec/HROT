@@ -545,6 +545,7 @@ namespace Fdp.ModuleHost
             long whole = KernelFrameTimings.Start();   // ⭐ CE-4433
             try { UpdateInternalCore(deltaTime, globalTime); }
             finally { KernelFrameTimings.Stop("(kernel Update, whole)", whole); }
+            if (Fdp.Core.Diagnostics.TableWriteStats.On) Fdp.Core.Diagnostics.TableWriteStats.EndFrame(_liveWorld);   // ⭐ M-1 — the write instrument
         }
 
         private void UpdateInternalCore(float deltaTime, GlobalTime globalTime)

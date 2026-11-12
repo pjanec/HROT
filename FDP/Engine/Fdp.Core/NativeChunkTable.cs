@@ -177,8 +177,37 @@ namespace Fdp.Core
             {
                 _chunkVersions[chunkIndex].Value = currentVersion;
             }
+            if (Diagnostics.TableWriteStats.On && currentVersion != 0) System.Threading.Interlocked.Increment(ref RwRefs);   // ⭐ M-1 (off: removed by the JIT)
             
             return ref _chunks[chunkIndex][localIndex];
+        }
+
+        // ⭐ M-1 (DESIGN_Parallel_Simulation §8.3) — the write instrument's per-table state; touched only when TableWriteStats.On
+        internal long RwRefs;
+        private byte[]?[]? _shadow;
+
+        /// <summary>⭐ M-1 — this frame's writable references, the chunks stamped with <paramref name="frameVersion"/>, and how many of those hold the
+        /// same bytes as at the last sample; then remembers every committed chunk's bytes for the next sample.</summary>
+        internal Diagnostics.TableWriteStats.Sample SampleWrites(uint frameVersion)
+        {
+            long refs = System.Threading.Interlocked.Exchange(ref RwRefs, 0);
+            int end = UsedChunkBound, dirty = 0, same = 0, committed = 0;
+            _shadow ??= new byte[]?[_totalChunks];
+            for (int i = 0; i < end; i++)
+            {
+                if (!IsChunkCommitted(i)) continue;
+                committed++;
+                var bytes = new ReadOnlySpan<byte>((byte*)_basePtr + (long)i * FdpConfig.CHUNK_SIZE_BYTES, FdpConfig.CHUNK_SIZE_BYTES);
+                var prev = _shadow[i];
+                if (_chunkVersions[i].Value == frameVersion)
+                {
+                    dirty++;
+                    if (prev != null && bytes.SequenceEqual(prev)) same++;
+                }
+                if (prev == null) _shadow[i] = prev = new byte[FdpConfig.CHUNK_SIZE_BYTES];
+                bytes.CopyTo(prev);
+            }
+            return new Diagnostics.TableWriteStats.Sample(refs, dirty, same, committed);
         }
         
         /// <summary>

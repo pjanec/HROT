@@ -324,6 +324,14 @@ namespace Fdp.Core
         /// </summary>
         public uint GlobalVersion => _globalVersion;
 
+        /// <summary>⭐ M-1 (DESIGN_Parallel_Simulation §8.3) — the component tables, for the write instrument only (allocates; instrument path).</summary>
+        internal List<(Type, IComponentTable)> TablesForStats()
+        {
+            var list = new List<(Type, IComponentTable)>(_componentTables.Count);
+            foreach (var kv in _componentTables) list.Add((kv.Key, kv.Value));
+            return list;
+        }
+
         /// <summary>
         /// Semantic frame clock. Incremented only by Tick() — frozen during a mid-tick debug burst.
         /// Frame-index / wall-tick consumers must read this, NOT GlobalVersion.
