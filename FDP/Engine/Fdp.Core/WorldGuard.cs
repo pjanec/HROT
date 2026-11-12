@@ -64,6 +64,7 @@ namespace Fdp.Core
             }
             else if (repo == sim && !onSim) violation = "S written off the sim thread";
             else if (repo == s_presRepo && onSim) violation = "A written by the sim thread";
+            else if (repo == s_presRepo && !onSim && IsOverwritten(kind, key)) violation = "A written by the UI inside the sync (lost at the next sync — a command)";
             if (violation == null) return;
             string type = key is Type t ? t.FullName ?? t.Name : key.ToString() ?? "?";
             string id = violation + " | " + kind + " | " + type + " | " + AccessTrace.ReaderName(AccessTrace.CurrentReaderId);
@@ -78,6 +79,20 @@ namespace Fdp.Core
         }
 
         private static volatile int s_simBus, s_presBus;
+        private static BitMask512 s_syncMask, s_singletonExcept;   // what the S→A sync overwrites in A
+
+        /// <summary>The tables and singletons the S→A sync overwrites: a main-thread write to one of them in A is LOST at the next sync — it should
+        /// have been a command to S.</summary>
+        public static void ArmSyncMask(in BitMask512 tables, in BitMask512 singletonExcept) { s_syncMask = tables; s_singletonExcept = singletonExcept; }
+
+        private static bool IsOverwritten(TraceKind kind, object key)
+        {
+            if (kind is TraceKind.EntityCreate or TraceKind.EntityDestroy) return true;   // the entity index comes from S whole
+            if (key is not Type t) return false;
+            int id = ComponentTypeRegistry.GetId(t);
+            if (id < 0) return false;
+            return kind == TraceKind.SingletonSet ? !s_singletonExcept.IsSet(id) : s_syncMask.IsSet(id);
+        }
 
         /// <summary>Distinct hits so far.</summary>
         public static int DistinctHits { get { lock (s_lock) return s_hits.Count; } }

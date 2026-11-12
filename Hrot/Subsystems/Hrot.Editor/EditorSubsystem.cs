@@ -2784,6 +2784,7 @@ namespace Hrot.Editor
             _twTableMask.SetBit(Fdp.Core.ComponentType<Hrot.Map.Common.Components.SelectionState>.ID);
             _twSelQuery = s.Query().With<Hrot.Map.Common.Components.SelectionState>().Build();
             _simWorld = s;
+            Fdp.Core.WorldGuard.ArmSyncMask(_twTableMask, _twSingletonExcept);
             _kernel!.RetargetLiveWorld(s);
             Console.WriteLine($"[POC2] two worlds ENGAGED in {sw.Elapsed.TotalMilliseconds:F0} ms — S cloned from A ({_twPresMap.Entries.Count} networked entities); table mask "
                 + (_twMaskAll ? "ALL types" : $"'{maskName}' ({loaded!.Value.Types} types, {loaded.Value.Missing} not registered)")
