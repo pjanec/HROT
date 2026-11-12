@@ -18,7 +18,7 @@ namespace Fdp.Core.Diagnostics
         /// <summary>One table's sample for one frame.</summary>
         public readonly record struct Sample(long Refs, int Dirty, int Identical, int Committed);
 
-        internal interface ISampled { Sample SampleWrites(uint frameVersion); }
+        internal interface ISampled { Sample SampleWrites(uint frameVersion); int CommitByContent(uint frameVersion); }
 
         private sealed class Acc { public long Refs, Dirty, Identical, Committed; }
         private static readonly Dictionary<Type, Acc> _acc = new();
@@ -47,6 +47,29 @@ namespace Fdp.Core.Diagnostics
                 Console.WriteLine($"[WriteStats]   {n,-34} refs {a.Refs / (double)_frames,9:0.0} · dirty {a.Dirty / (double)_frames,6:0.0} / {a.Committed / (double)_frames,6:0.0} · unchanged {a.Identical / (double)_frames,6:0.0} ({(a.Dirty == 0 ? 0 : 100.0 * a.Identical / a.Dirty):0}%)");
             }
             _acc.Clear(); _frames = 0;
+        }
+    }
+
+    /// <summary>
+    /// ⭐ D-5 (the parallel experiment, E-4; docs/DESIGN_Parallel_Simulation.md §8.2) — COMMIT BY CONTENT, opt-in <c>HROT_CONTENT_VERSION=1</c>:
+    /// at each frame's end, a chunk stamped this frame that holds the same bytes as before keeps its previous version. Run BEFORE the M-1 sample,
+    /// so M-1's "dirty" then counts real changes only.
+    /// </summary>
+    public static class ContentVersioning
+    {
+        /// <summary>Read when a table is CREATED (it then keeps a pre-stamp array); set it before building the world.</summary>
+        public static bool On { get; set; } = Environment.GetEnvironmentVariable("HROT_CONTENT_VERSION") == "1";
+
+        /// <summary>The chunks reverted at the last frame's end, all tables.</summary>
+        public static int LastReverted { get; private set; }
+
+        public static void EndFrame(EntityRepository world)
+        {
+            uint v = world.GlobalVersion;
+            int n = 0;
+            foreach (var (_, table) in world.TablesForStats())
+                if (table is TableWriteStats.ISampled s) n += s.CommitByContent(v);
+            LastReverted = n;
         }
     }
 }

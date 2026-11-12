@@ -12,6 +12,7 @@ namespace Fdp.Core
         private readonly NativeChunkTable<T> _data;
 
         Diagnostics.TableWriteStats.Sample Diagnostics.TableWriteStats.ISampled.SampleWrites(uint frameVersion) => _data.SampleWrites(frameVersion);   // ⭐ M-1
+        int Diagnostics.TableWriteStats.ISampled.CommitByContent(uint frameVersion) => _data.CommitByContent(frameVersion);   // ⭐ D-5
         private readonly int _componentTypeId;
         
         public ComponentTable()

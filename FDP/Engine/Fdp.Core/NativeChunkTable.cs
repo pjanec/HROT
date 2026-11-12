@@ -175,11 +175,52 @@ namespace Fdp.Core
             // Also ignoring version 0 to prevent read-via-indexer from resetting versions.
             if (currentVersion != 0 && _chunkVersions[chunkIndex].Value != currentVersion)
             {
+                if (_preStamp != null) _preStamp[chunkIndex] = _chunkVersions[chunkIndex].Value;   // ⭐ D-5 — the version before this frame's stamp
                 _chunkVersions[chunkIndex].Value = currentVersion;
             }
             if (Diagnostics.TableWriteStats.On && currentVersion != 0) System.Threading.Interlocked.Increment(ref RwRefs);   // ⭐ M-1 (off: removed by the JIT)
             
             return ref _chunks[chunkIndex][localIndex];
+        }
+
+        // ⭐ D-5 (the parallel experiment, E-4) — COMMIT BY CONTENT: at the frame's end a chunk stamped this frame whose bytes equal its shadow
+        //   (the bytes it held when its PREVIOUS version was committed) gets that previous version back — a write that changed nothing is not a
+        //   change, for every later SyncFrom / HasChanges / QueryDelta. ⚠ Sound only for consumers that read at frame boundaries: a mid-frame
+        //   reader that saw an intermediate value (A → B → A) keeps B. Opt-in: HROT_CONTENT_VERSION=1.
+        private readonly uint[]? _preStamp = Diagnostics.ContentVersioning.On ? new uint[FdpConfig.GetRequiredChunks<T>()] : null;
+        private byte[]?[]? _cshadow;
+        private uint[]? _cshadowVer;
+
+        /// <summary>⭐ D-5 — gives every chunk stamped <paramref name="frameVersion"/> whose bytes did not change its previous version back;
+        /// keeps the shadows current. Returns the chunks reverted. Allocates only a shadow on a chunk's first sight.</summary>
+        internal int CommitByContent(uint frameVersion)
+        {
+            if (_preStamp == null) return 0;
+            _cshadow ??= new byte[]?[_totalChunks];
+            _cshadowVer ??= new uint[_totalChunks];
+            int end = UsedChunkBound, reverted = 0;
+            for (int i = 0; i < end; i++)
+            {
+                if (!IsChunkCommitted(i)) continue;
+                uint v = _chunkVersions[i].Value;
+                var bytes = new ReadOnlySpan<byte>((byte*)_basePtr + (long)i * FdpConfig.CHUNK_SIZE_BYTES, FdpConfig.CHUNK_SIZE_BYTES);
+                var sh = _cshadow[i];
+                if (v == frameVersion)
+                {
+                    // ⭐ the guard: revert only when nothing else moved the chunk since its shadow (its pre-stamp version IS the shadow's)
+                    if (sh != null && _preStamp[i] == _cshadowVer[i] && bytes.SequenceEqual(sh))
+                    {
+                        _chunkVersions[i].Value = _preStamp[i];
+                        reverted++;
+                        continue;
+                    }
+                }
+                else if (sh != null && _cshadowVer[i] == v) continue;   // untouched since its shadow
+                if (sh == null) _cshadow[i] = sh = new byte[FdpConfig.CHUNK_SIZE_BYTES];
+                bytes.CopyTo(sh);
+                _cshadowVer[i] = v;
+            }
+            return reverted;
         }
 
         // ⭐ M-1 (DESIGN_Parallel_Simulation §8.3) — the write instrument's per-table state; touched only when TableWriteStats.On
