@@ -1558,10 +1558,13 @@ namespace Hrot.Editor
             _bootstrapper = new EditorNodeBootstrapper(EditorNodeId, isolatedTempRoot, _fdpEventHistory, _navmesh, _blueprintRegistry, MuscleCapabilitiesFactory, TranslatorPlacements);
             _bootstrapper.ApplicationSystemsRegistrar = RegisterHostSystems;
             _bootstrapper.MapBuildStatus = () => _map3DBuild;   // ⭐ CE-3354 ③ — lazy: the map layers are attached after the bootstrap
+            if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds) _presWorld = new EntityRepository();   // ⭐ POC 3 — World A, the presentation's, before anything binds a world
             _node = _bootstrapper.BootstrapNode(
                 new HrotNodeConfig { NodeId = (Fdp.Core.NodeId)(EditorNodeId), SubsystemName = "Editor", Headless = true, NodeName = _nodeName },
                 EditorCapabilities.DefaultRole,
                 _networkFactory);
+
+            if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds) ComposeInitialPresentationCopy();   // ⭐ POC 3
 
             // The registrar ran inside the bootstrap; the values the rest of this method reads:
             var scenarioSerializer = _bootstrapper.ScenarioSerializer;
@@ -2092,6 +2095,7 @@ namespace Hrot.Editor
                 _previewPanel     = new PreviewPanel();
                 _zoneEditorPanel  = new ZoneEditorPanel();
             }
+            WalkComposition();   // ⭐ POC 3 C-1 — HROT_POC3_WALK (opt-in): what the composed objects hold
         }
 
         /// <summary>
@@ -2102,7 +2106,8 @@ namespace Hrot.Editor
         private void RegisterHostSystems(HrotNodeContext ctx)
         {
             _node = ctx;
-            _world = ctx.World;
+            _nodeWorld = ctx.World;
+            _world = Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds ? _presWorld! : ctx.World;   // ⭐ POC 3 — the presentation's world is A; the node's is ctx.World (S)
             _orchestrationBus = ctx.EventBus; // Control Plane bus (cluster management)
             _kernel = ctx.Kernel;
             var bootstrapper = _bootstrapper!;
@@ -2752,6 +2757,59 @@ namespace Hrot.Editor
         private readonly Entity[] _twRows = new Entity[64];
         private double _twSyncSum, _twRowSum; private long _twSyncN;
 
+        // ⭐⭐ POC 3 (CE-4442) — the node COMPOSED over S (ctx.World), the presentation over A (_presWorld = _world) from the start.
+        private EntityRepository? _presWorld;   // A
+        private EntityRepository? _nodeWorld;   // S = the node's ctx.World (every mode; in mode 3 it differs from _world)
+
+        private void ComposeInitialPresentationCopy()
+        {
+            var a = _presWorld!; var s = _nodeWorld!;
+            _simWorld = s;
+            a.SyncFrom(s, s.GetSnapshotableMask(true), includeTransient: true);
+            a.CopySingletonsFrom(s, default);
+            a.Bus.CopyRegistrationsFrom(s.Bus);
+            _twSimMap = s.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>() ? s.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>() : null;
+            _twSingletonExcept = default;
+            _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Fdp.Toolkit.Replication.Services.NetworkEntityMap>.ID);
+            _twPresMap = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            _twPresMap.RebuildFromWorld(a);
+            a.SetSingletonManaged(_twPresMap);
+            string? maskPath = Environment.GetEnvironmentVariable("HROT_TWO_WORLDS_MASKS");
+            string maskName = Environment.GetEnvironmentVariable("HROT_TWO_WORLDS_MASK") is { Length: > 0 } mn ? mn : "ui-no-inspector";
+            var loaded = maskPath != null ? Fdp.ModuleHost.PublishProbe.LoadMask(maskPath, maskName) : null;
+            _twMaskAll = loaded == null;
+            _twTableMask = loaded?.Mask ?? s.GetSnapshotableMask(true);
+            _twTableMask.SetBit(Fdp.Core.ComponentType<Hrot.Map.Common.Components.SelectionState>.ID);
+            _twSelQuery = s.Query().With<Hrot.Map.Common.Components.SelectionState>().Build();
+            Fdp.Core.WorldGuard.ArmSyncMask(_twTableMask, _twSingletonExcept);
+            Console.WriteLine($"[POC3] COMPOSED: node over S (ctx.World), presentation over A; table mask " + (_twMaskAll ? "ALL types" : $"'{maskName}'")
+                + $"; single-threaded: {Fdp.ModuleHost.ThreadedKernelGate.ComposedSingleThread}");
+        }
+
+        /// <summary>⭐ POC 3 C-1 — the rail: walk what was BUILT. No node object (the kernel: modules, systems) may reach A; no presentation object (the
+        /// canvas, the panels / windows / layers / views held by the editor) may reach S. <c>HROT_POC3_WALK=1</c> logs, <c>=exit</c> logs and exits.</summary>
+        private void WalkComposition()
+        {
+            var mode = Environment.GetEnvironmentVariable("HROT_POC3_WALK");
+            if (mode is not ("1" or "exit") || _presWorld == null || _nodeWorld == null) return;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var nodeHits = Fdp.Core.WorldReferenceWalker.Find(_kernel!, "kernel", _presWorld);
+            var presHits = new List<Fdp.Core.WorldReferenceWalker.Hit>();
+            if (_canvas != null) presHits.AddRange(Fdp.Core.WorldReferenceWalker.Find(_canvas, "canvas", _nodeWorld));
+            foreach (var f in GetType().GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public))
+            {
+                var tn = f.FieldType.Name;
+                if (!(tn.EndsWith("Panel") || tn.EndsWith("Window") || tn.EndsWith("Layer") || tn.EndsWith("View") || tn.EndsWith("Browser") || tn.EndsWith("Inspector"))) continue;
+                if (f.GetValue(this) is { } root) presHits.AddRange(Fdp.Core.WorldReferenceWalker.Find(root, "editor." + f.Name, _nodeWorld));
+            }
+            var report = Fdp.Core.WorldReferenceWalker.Report("[POC3-WALK] NODE objects reaching A", nodeHits)
+                       + Fdp.Core.WorldReferenceWalker.Report("[POC3-WALK] PRESENTATION objects reaching S", presHits);
+            Console.WriteLine(report + $"[POC3-WALK] walked in {sw.Elapsed.TotalSeconds:F1} s");
+            var outPath = Environment.GetEnvironmentVariable("HROT_POC3_WALK_OUT");
+            if (!string.IsNullOrEmpty(outPath)) System.IO.File.WriteAllText(outPath, report);
+            if (mode == "exit") Environment.Exit(0);
+        }
+
         private bool TwoWorldsStep()
         {
             bool want = _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview;
@@ -3035,6 +3093,7 @@ namespace Hrot.Editor
             if (!threaded)
             {
                 TickNodeFrame(deltaTime);   // ⭐ CE-4316 — the node frame, extracted so Run to …'s turbo loop runs the SAME one (EditorSubsystem.TurboStep)
+                if (Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds && _simWorld != null) SyncPresentationWorld();   // ⭐ POC 3 — A takes S (single-threaded)
                 if (Fdp.ModuleHost.PublishProbe.Enabled && !_publishProbeExtras) RegisterPublishProbeExtras();   // ⭐ A-3
                 Fdp.ModuleHost.PublishProbe.AfterFrame(_world);   // ⭐ EXPERIMENT (threaded kernel X-1) — opt-in HROT_PUBLISH_PROBE=1
             }

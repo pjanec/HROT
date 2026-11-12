@@ -13,7 +13,13 @@ namespace Fdp.ModuleHost
     /// </summary>
     public static class ThreadedKernelGate
     {
-        public static readonly bool Enabled = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") is "1" or "2";
+        public static readonly bool Enabled = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") is "1" or "2" or "3";
+
+        /// <summary>⭐ POC 3 (CE-4442) — <c>HROT_THREADED_KERNEL=3</c>: the NODE is COMPOSED over World S (its own repository, built by the bootstrapper)
+        /// and the PRESENTATION over World A from the start; A takes S after each node frame. <c>HROT_THREADED_SINGLE=1</c>: the node frame stays on the
+        /// main thread (the composition proven before the threading).</summary>
+        public static readonly bool ComposedWorlds = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") == "3";
+        public static readonly bool ComposedSingleThread = Environment.GetEnvironmentVariable("HROT_THREADED_SINGLE") == "1";
 
         /// <summary>⭐ POC 2 (CE-4439) — <c>HROT_THREADED_KERNEL=2</c>: TWO worlds — the simulation ticks World S on the worker, the presentation keeps
         /// World A, synced S→A after each tick (📄 DESIGN_Threaded_Simulation_Presentation.md §14). The worker runs only while <see cref="Engaged"/>.</summary>
