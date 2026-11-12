@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: an OVERNIGHT EXPERIMENT — POC 4 of the threaded editor: finish the list, prove the hard modes, and run it WITH the parallel simulation
 
-**For:** the idle backend session. **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen there. ⭐ **Still an experiment.**
+**For:** the idle backend session. **From:** coordinator. **Dispatched at `40c328f9c`**, scope frozen there. ⭐ **Still an experiment.**
 🔒 User, `2026-11-12`: *"how can we prove what is still unproven? one backend VM lane is still idle."* · *"yes, write the threaded POC 4 handoff"*.
 ⛔⛔ **Autonomous — never stop for a question** (R-4156). Decide, record with a claim table, continue; a failed premise stops THAT item (R-106).
 Fold the as-built into §14 (as-built rule).
