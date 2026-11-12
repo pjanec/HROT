@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → the Windows session: MEASURE BOTH POC 2 experiments on 8 real cores (one machine, one session)
 
-**For:** the ui session on the user's Windows machine (Ryzen 7 6800H, 8 cores). **From:** coordinator. **Dispatched at `<stamp>`**, scope frozen.
+**For:** the ui session on the user's Windows machine (Ryzen 7 6800H, 8 cores). **From:** coordinator. **Dispatched at `0db8f26a6`**, scope frozen.
 🔒 User, `2026-11-12`: *"if we need testing on real windows pls write handoff (best one for both tests - same machine)"*.
 
 ⛔⛔ **Every process HIDDEN** — `HROT_HIDDEN_WINDOW=1` (both scripts set it); no window may appear. ⛔ **Autonomous** (R-4156). ⛔ **Measure only —
