@@ -54,7 +54,7 @@ namespace Fdp.Toolkit.Utility
         private UtilityDecisionDef?[] _jobDef = new UtilityDecisionDef?[256];
         private Store?[] _jobStore = new Store?[256];
         private int _demandN, _run;
-        private UtilityRegistry? _registry;
+        private UtilityScorer? _scorer;
 
         /// <summary>The (unit, decision) pairs scored at the last <see cref="Run"/> (a rail reads it).</summary>
         public int LastScored { get; private set; }
@@ -62,9 +62,9 @@ namespace Fdp.Toolkit.Utility
         public long Taken { get; private set; }
 
         /// <summary>Records that <paramref name="self"/> scored <paramref name="decisionId"/> this frame (serial — the brain walk).</summary>
-        internal void Demand(Entity self, int decisionId, UtilityRegistry registry)
+        internal void Demand(Entity self, int decisionId, UtilityScorer scorer)
         {
-            _registry = registry;   // the registry of the scorer that asked (one per world in production: the shared catalog)
+            _scorer = scorer;   // the scorer that asked (one per world in production: over the shared catalog)
             if (_demandN == _demandE.Length) { Array.Resize(ref _demandE, _demandN * 2); Array.Resize(ref _demandD, _demandN * 2); }
             _demandE[_demandN] = self; _demandD[_demandN] = decisionId; _demandN++;
         }
@@ -90,7 +90,7 @@ namespace Fdp.Toolkit.Utility
             _demandN = 0;
             LastScored = 0;
             if (n == 0) return;
-            var registry = _registry!;
+            var registry = _scorer!.Registry;
             if (_jobE.Length < n) { Array.Resize(ref _jobE, n); Array.Resize(ref _jobDef, n); Array.Resize(ref _jobStore, n); }
             int jobs = 0;
             for (int k = 0; k < n; k++)
@@ -98,7 +98,7 @@ namespace Fdp.Toolkit.Utility
                 var e = _demandE[k];
                 int d = _demandD[k];
                 if (!repo.IsAlive(e)) continue;
-                if (!registry.TryGet(d, out var def, out _) || def == null || def.Kind != DecisionKind.PostureSelect) continue;
+                if (!registry.TryGet(d, out var def, out _) || def == null) continue;   // ⭐ T-3: option AND candidate decisions (context-free)
                 // the cadence answers it from its store this frame ⇒ no scoring will be asked for
                 if (def.CadenceSeconds > 0 && DecisionCadence.Of(repo).Reusable(repo, e, def, d, out _) != null) continue;
                 if (!_stores.TryGetValue(d, out var st)) _stores[d] = st = new Store();   // once per decision
@@ -125,7 +125,11 @@ namespace Fdp.Toolkit.Utility
                 st.Buf[i] = default;
                 // step 1 only, no trace (a traced unit is scored fresh by the serial walk) — reads the world, writes this unit's slot
                 ParallelGuard.ReadOnly = true;   // ⭐ Debug: scoring may take nothing writable
-                try { UtilityScorer.Evaluate(Repo, e, in def, default, ref st.Buf[i], null, 0, writeWinnerRecord: false); }
+                try
+                {
+                    if (def.Kind == DecisionKind.PostureSelect) UtilityScorer.Evaluate(Repo, e, in def, default, ref st.Buf[i], null, 0, writeWinnerRecord: false);
+                    else Owner._scorer!.EvaluateCandidatesForPrescore(Repo, e, in def, ref st.Buf[i]);   // ⭐ T-3 — a candidate ranking
+                }
                 finally { ParallelGuard.ReadOnly = false; }
                 st.Generation[i] = e.Generation;
                 st.Run[i] = RunId;

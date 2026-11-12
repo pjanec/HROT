@@ -291,10 +291,34 @@ public static unsafe class OccurrenceStoreAccess
             {
                 if ((Deferred & (1 << k)) == 0) continue;
                 var spec = BlueprintTierTable.Descending[Tier[k]];
-                if (!new ReadOnlySpan<byte>((byte*)Memory[k], spec.TotalSize).SequenceEqual(new ReadOnlySpan<byte>(Before[k], 0, spec.TotalSize)))
+                var nowBytes = new ReadOnlySpan<byte>((byte*)Memory[k], spec.TotalSize);
+                var wasBytes = new ReadOnlySpan<byte>(Before[k], 0, spec.TotalSize);
+                if (!nowBytes.SequenceEqual(wasBytes))
+                {
                     spec.Memory(World!, Entity);   // changed: stamp now (same frame, after the write)
+                    if (Fdp.Core.Diagnostics.TableWriteStats.On && s_noteWrites) NoteWhere((byte*)Memory[k], nowBytes.CommonPrefixLength(wasBytes));
+                }
             }
             Deferred = 0;
+        }
+
+        // ⭐ POC 3 T-4 — HROT_WRITE_STATS=1 + HROT_WRITE_STATS_NOTES=1: name the slot (kind, key) and the offset of a tick's first changed byte
+        private static readonly bool s_noteWrites = Environment.GetEnvironmentVariable("HROT_WRITE_STATS_NOTES") == "1";
+        private static void NoteWhere(byte* memory, int offset)
+        {
+            ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
+            int headerAndTable = sizeof(BlueprintBlackboardHeader) + header.SlotCount * BlueprintBlackboardPartitions.SlotEntrySize;
+            if (offset < headerAndTable) { Fdp.Core.Diagnostics.TableWriteStats.Note($"T-4 header/slot-table +{offset}"); return; }
+            byte* table = memory + sizeof(BlueprintBlackboardHeader);
+            for (int i = 0; i < header.SlotCount; i++)
+            {
+                ref var slot = ref Unsafe.AsRef<BlueprintSlotEntry>(table + i * BlueprintBlackboardPartitions.SlotEntrySize);
+                if (offset < slot.PayloadOffset || offset >= slot.PayloadOffset + slot.PayloadSize) continue;
+                Fdp.Core.Diagnostics.TableWriteStats.Note(
+                    $"T-4 {BlueprintBlackboardPartitions.GetSlotKind(memory, i)} slot {slot.BlueprintId:x8} size {slot.PayloadSize} +{offset - slot.PayloadOffset}");
+                return;
+            }
+            Fdp.Core.Diagnostics.TableWriteStats.Note($"T-4 unslotted +{offset}");
         }
 
         public void Append(int tier, byte* memory, bool stamped)

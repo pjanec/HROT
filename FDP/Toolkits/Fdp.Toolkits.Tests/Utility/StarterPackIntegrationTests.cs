@@ -65,6 +65,68 @@ namespace Fdp.Toolkit.Tests
             }
         }
 
+        /// <summary>
+        /// ⭐ POC 3 T-3 — the THREAT RANKING (a candidate decision, <see cref="UtilityScorer.TopCandidate(Fdp.Core.EntityRepository, Entity, int, ushort, out Entity, out float)"/>)
+        /// pre-scored in parallel gives the serial ranking — the same top, score and ranked buffer — at 1 / 2 / 4 / 8 threads; every unit with
+        /// contacts takes its pre-score; <c>ParallelGuard</c> (Debug) proves the ranking takes nothing writable. 🔴 Red-proof: the candidate arm
+        /// of the score job skipped ⇒ the rankings differ.
+        /// </summary>
+        [Fact]
+        public void T3_ThePrescoredThreatRanking_IsTheSerialRanking_AtEveryThreadCount()
+        {
+            bool wasEnabled = UtilityPrescore.Enabled, wasPar = Fdp.Core.Jobs.ParallelEntities.Enabled;
+            var wasMode = Fdp.Core.Jobs.ParallelEntities.Mode;
+            try
+            {
+                string serial = RankingRun(prescore: false, threads: 1, out _);
+                foreach (int t in new[] { 1, 2, 4, 8 })
+                {
+                    Assert.Equal(serial, RankingRun(prescore: true, threads: t, out long taken));
+                    Assert.Equal(200, taken);
+                }
+            }
+            finally
+            {
+                UtilityPrescore.Enabled = wasEnabled;
+                Fdp.Core.Jobs.ParallelEntities.Enabled = wasPar;
+                Fdp.Core.Jobs.ParallelEntities.Mode = wasMode;
+                Fdp.Core.Jobs.FdpWorkerPool.Resize(Fdp.Core.Jobs.FdpWorkerPool.Budget());
+            }
+        }
+
+        private static unsafe string RankingRun(bool prescore, int threads, out long taken)
+        {
+            UtilityPrescore.Enabled = prescore;
+            Fdp.Core.Jobs.ParallelEntities.Enabled = prescore;
+            Fdp.Core.Jobs.ParallelEntities.Mode = Fdp.Core.Jobs.SimulationMode.Throughput;
+            Fdp.Core.Jobs.FdpWorkerPool.Resize(threads);
+            using var world = new UtilityTestWorld();
+            var rng = new Random(23);
+            var agents = new Entity[200];
+            for (int i = 0; i < agents.Length; i++)
+            {
+                agents[i] = world.SpawnAgent((float)rng.NextDouble(), (float)rng.NextDouble());
+                world.Repo.GetComponentRW<UtilityDebugFlags>(agents[i]).TraceEnabled = 0;
+                int contacts = rng.Next(1, 5);
+                for (int c = 0; c < contacts; c++)
+                    world.SeedContact(agents[i], world.Repo.CreateEntity(), 20f + 300f * (float)rng.NextDouble(), (float)rng.NextDouble(),
+                                      (float)rng.NextDouble(), hasLos: rng.Next(2) == 0);
+            }
+            for (int i = 0; i < agents.Length; i++) world.Scorer.TopCandidate(world.Repo, agents[i], ThreatRankingDecision.Id, 0, out _, out _);   // frame 1
+            if (prescore) UtilityPrescore.Of(world.Repo).Run(world.Repo);
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < agents.Length; i++)
+            {
+                bool has = world.Scorer.TopCandidate(world.Repo, agents[i], ThreatRankingDecision.Id, 0, out var top, out float score);   // frame 2
+                sb.Append(has).Append(':').Append(top.Index).Append(':').Append(score.ToString("R")).Append(':');
+                var buf = world.Repo.GetComponentRO<UtilityResultBuffer>(agents[i]);
+                foreach (byte b in new ReadOnlySpan<byte>(&buf, sizeof(UtilityResultBuffer))) sb.Append(b.ToString("x2"));
+                sb.Append(' ');
+            }
+            taken = prescore ? UtilityPrescore.Of(world.Repo).Taken : 0;
+            return sb.ToString();
+        }
+
         private static unsafe string PostureRun(bool prescore, int threads, out long taken)
         {
             UtilityPrescore.Enabled = prescore;

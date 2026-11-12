@@ -25,6 +25,13 @@ namespace Fdp.Core.Diagnostics
         // ⭐ POC 2 — HROT_WRITE_STATS_STACKS=<table type name>: every 32nd writable reference of that table records its caller (the first
         //   frames outside Fdp.Core), printed with the report. A diagnostic: it allocates and locks; off unless named.
         private static readonly Dictionary<string, int> _callers = new();
+        /// <summary>⭐ POC 3 T-4 — a free-form diagnostic counter printed with the callers (any assembly may name what it saw).</summary>
+        public static void Note(string key)
+        {
+            if (!On) return;
+            lock (_callers) _callers[key] = _callers.TryGetValue(key, out int n) ? n + 1 : 1;
+        }
+
         internal static void SampleCaller(string table)
         {
             var st = new System.Diagnostics.StackTrace(2, false);
@@ -73,8 +80,8 @@ namespace Fdp.Core.Diagnostics
                 {
                     var top = new List<KeyValuePair<string, int>>(_callers);
                     top.Sort((p, q) => q.Value.CompareTo(p.Value));
-                    Console.WriteLine("[WriteStats] writable-ref callers (sampled 1 in 32):");
-                    for (int i = 0; i < top.Count && i < 15; i++) Console.WriteLine($"[WriteStats]   {top[i].Value,6}  {top[i].Key}");
+                    Console.WriteLine("[WriteStats] writable-ref callers (sampled 1 in 32) and notes:");
+                    for (int i = 0; i < top.Count && i < 30; i++) Console.WriteLine($"[WriteStats]   {top[i].Value,6}  {top[i].Key}");
                     _callers.Clear();
                 }
             }
