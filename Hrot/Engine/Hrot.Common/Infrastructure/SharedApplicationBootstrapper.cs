@@ -230,19 +230,7 @@ public abstract class SharedApplicationBootstrapper
                 context.Kernel.FeatureGate = context.Features;   // F-13 — the scheduler's view, set before any system registers
                 // ⭐ Edit framework F1 + seats H1/H2 — the station's edit gate, on every host by construction: the mode (a replay is Review; Live / Preview from
                 //   the action catalogue, B-11) and the SEAT's editing level, read live from station.seat (a launch flag or the scenario may change it).
-                var features = context.Features;
-                var gateWorld = context.World;
-                // ⭐⭐ B-11 A3 — the ONE station mode (cluster state + replay), installed on the world: the gate and the action catalogue read the same
-                //    source. ⛔ SUPERSEDED: the gate's own "a replay is Review, else Edit".
-                var slaveForMode = context.ClusterSlave;
-                //    ⭐ Seats H2 — and the SEAT (its level and side), so a menu, a tool and the gate read ONE answer.
-                var mode = Hrot.Common.Editing.StationMode.Install(gateWorld,
-                    () => Hrot.Common.Editing.StationMode.From(slaveForMode.View.State, Fdp.Toolkit.Replay.ReplayState.IsActive(gateWorld)),
-                    seat: () => StationSeat.Of(features),
-                    side: () => Hrot.Common.Editing.StationMode.ParseSide(StationSeat.SideOf(features)));
-                Hrot.Common.Editing.HrotEditGate.Install(gateWorld,
-                    () => mode.Current,
-                    () => mode.Level);
+                InstallStation(context.World, context);
                 NodeFeatureOverrides.NoteDeclared(context.Features.Registry.All.Select(d => d.Id));   // F-18 — so the runner can refuse an id NO node declares
                 foreach (var (fid, fjson) in NodeFeatureOverrides.FromCommandLine)   // F-7 — --feature; an id this node does not declare is another node's
                     if (context.Features.Registry.Available(fid)) context.Features.SetNodeOverride(fid, fjson);
@@ -775,5 +763,26 @@ public abstract class SharedApplicationBootstrapper
 
         public void RegisterSystems(ISystemRegistry registry) => registry.RegisterSystem(_group);
         public void Tick(ISimulationView view, float deltaTime) { }
+    }
+
+    /// <summary>
+    /// ⭐⭐ B-11 A3 + Seats H2 — the ONE station mode (cluster state + replay) and the edit gate, installed on <paramref name="world"/>: the gate and the
+    /// action catalogue read the same source; a menu, a tool and the gate read ONE seat (its level and side). ⛔ SUPERSEDED: the gate's own "a replay
+    /// is Review, else Edit". ⭐ Threaded POC 4 F-2 ① — called once per WORLD: the mode reads THIS world's replay flag, so a presentation world (A)
+    /// gets its own and never reads the simulation's (S) through a shared closure (DESIGN_Threaded_Simulation_Presentation §14.1 "nothing shared that
+    /// can change in place").
+    /// </summary>
+    public static Hrot.Common.Editing.StationMode InstallStation(EntityRepository world, HrotNodeContext context)
+    {
+        var features = context.Features;
+        var slaveForMode = context.ClusterSlave;
+        var mode = Hrot.Common.Editing.StationMode.Install(world,
+            () => Hrot.Common.Editing.StationMode.From(slaveForMode.View.State, Fdp.Toolkit.Replay.ReplayState.IsActive(world)),
+            seat: () => StationSeat.Of(features),
+            side: () => Hrot.Common.Editing.StationMode.ParseSide(StationSeat.SideOf(features)));
+        Hrot.Common.Editing.HrotEditGate.Install(world,
+            () => mode.Current,
+            () => mode.Level);
+        return mode;
     }
 }

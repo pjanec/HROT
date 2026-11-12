@@ -2779,9 +2779,21 @@ namespace Hrot.Editor
         }
 
         /// <summary>⭐ POC 3 C-4 — the presentation step: after the sync, on the main thread, against A (the caller holds the world).</summary>
+        /// <summary>The Brain tabs' observation and the per-unit debug settings' load / save — UI state, on the presentation's world (A). ⭐ POC 4 F-2 ②:
+        /// in mode 3 the presentation step runs it on the main thread (it used to run in the node frame's afterKernel hook — the worker — writing A).</summary>
+        private void TickDebugSettingsUi()
+        {
+            // ⭐ CE-1317 (BV-48) — disarm the traces of units no Brain tab has drawn for ~1 s
+            using (Fdp.Core.AccessTrace.Scope("node: afterKernel BrainObservation")) if (_world != null) Hrot.Common.Diagnostics.Gizmos.BrainObservation.Current?.Tick(_world);
+            // ⭐ CE-1329 (BV-70) — the per-unit debug settings: loaded with a scenario, saved when they change
+            using (Fdp.Core.AccessTrace.Scope("node: afterKernel UnitDebugSettingsMemory")) if (_world != null) _debugSettingsMemory.Tick(_world, _editorLogic?.LoadedScenarioName);
+        }
+
         private void RunPresentationStep(float dt)
         {
             var a = _world!;
+            try { TickDebugSettingsUi(); }
+            catch (Exception ex) { if (System.Threading.Interlocked.Increment(ref _presentationStepFaults) <= 20) Console.WriteLine("[POC3] presentation step fault: " + ex); }
             for (int i = 0; i < _presentationSystems.Count; i++)
             {
                 try { _presentationSystems[i].Execute(a, dt); }
@@ -2803,6 +2815,11 @@ namespace Hrot.Editor
             // ⭐ UI-only singletons A owns (the guard's run: the canvas menu's state written by the presentation step, the order form the UI registers)
             _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Hrot.Map.Common.Components.CanvasContextMenuState>.ID);
             _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Hrot.Common.Orders.IOrderForm>.ID);
+            // ⭐ POC 4 F-2 ① — A's OWN station mode + edit gate (reading A's replay flag), never S's object through the singleton copy
+            Hrot.Common.Infrastructure.SharedApplicationBootstrapper.InstallStation(a, _node!);
+            _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Hrot.Common.Editing.StationMode>.ID);
+            // ⭐ POC 4 F-2 ② — the per-unit debug switches: A owns its store (the Brain tab, the menus write it on the main thread); it rides to S at the sync
+            _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings>.ID);
             _twPresMap = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
             _twPresMap.RebuildFromWorld(a);
             a.SetSingletonManaged(_twPresMap);
@@ -2938,6 +2955,9 @@ namespace Hrot.Editor
             sbus.PublishCurrentOf(ab, addMissingStreams: true); // → S pending
             ab.PublishCurrentOf(sbus, addMissingStreams: true); // S's readable events → A pending
             ab.SwapBuffers();                                   // → A current, for the UI's readers
+            // ⭐ POC 4 F-2 ② — UI state the simulation reads rides A → S here, while no tick runs (§14.1 row 6)
+            if (Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Peek(a) is { } uiDebug)
+                Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(s).TakeRequestsFrom(uiDebug);
             _twSyncSum += tables; _twRowSum += sw.Elapsed.TotalMilliseconds - tables; _twSyncN++;
         }
 
@@ -3189,9 +3209,7 @@ namespace Hrot.Editor
                         // ticks, so no active simulation tick can observe a half-swapped pointer.
                         using (Fdp.Core.AccessTrace.Scope("node: afterKernel hot-reload drain")) _aiCoordinator?.DrainPendingCallbacks();   // ⭐ A-1
                         // ⭐ CE-1317 (BV-48) — disarm the traces of units no Brain tab has drawn for ~1 s
-                        using (Fdp.Core.AccessTrace.Scope("node: afterKernel BrainObservation")) if (_world != null) Hrot.Common.Diagnostics.Gizmos.BrainObservation.Current?.Tick(_world);
-                        // ⭐ CE-1329 (BV-70) — the per-unit debug settings: loaded with a scenario, saved when they change
-                        using (Fdp.Core.AccessTrace.Scope("node: afterKernel UnitDebugSettingsMemory")) if (_world != null) _debugSettingsMemory.Tick(_world, _editorLogic?.LoadedScenarioName);
+                        if (!Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds) TickDebugSettingsUi();   // ⭐ POC 4 F-2 ② — mode 3: the presentation step runs it (main thread, A)
                         // AIE-026: tick the regeneration scheduler — flushes debounced dirty saves (BTree/HSM emit-on-dirty). Safe in headless mode.
                         using (Fdp.Core.AccessTrace.Scope("node: afterKernel RegenerationScheduler")) _regenerationScheduler?.Tick();
                     });

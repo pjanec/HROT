@@ -107,6 +107,28 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             Version++;
         }
 
+        /// <summary>
+        /// ⭐ Threaded POC 4 F-2 ② (DESIGN_Threaded_Simulation_Presentation §14.1 "UI-only state written directly in A; what the sim must read
+        /// rides to S each tick") — <paramref name="ui"/>'s requests (the remembered switches, the tabs viewing, the followed unit) copied into this
+        /// (the simulation's own store) at the sync, while no tick runs. This store keeps what is its own: the units it has written
+        /// (<c>_managed</c>, so a reset still clears their bits) and what was armed on the simulation side (a breakpoint) — armed is the UNION.
+        /// 0 B once warm (the collections keep their capacity).
+        /// </summary>
+        public void TakeRequestsFrom(UnitDebugSettings ui)
+        {
+            if (ReferenceEquals(ui, this)) return;
+            if (ui.Version != Version || ui.Followed != Followed || _remembered.Count != ui._remembered.Count)
+            {
+                _remembered.Clear();
+                foreach (var kv in ui._remembered) _remembered[kv.Key] = kv.Value;
+                Followed = ui.Followed;
+                Version = ui.Version;
+            }
+            _viewed.Clear();
+            foreach (var id in ui._viewed) _viewed.Add(id);
+            foreach (var id in ui._armed) _armed.Add(id);
+        }
+
         private void Put(int netId, Entry e)
         {
             if (e.IsEmpty) { if (!_remembered.Remove(netId)) return; }
