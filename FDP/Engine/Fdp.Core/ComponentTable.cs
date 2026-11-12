@@ -7,7 +7,7 @@ namespace Fdp.Core
     /// Stores components of type T using NativeChunkTable.
     /// Provides O(1) access to components by entity index.
     /// </summary>
-    public sealed class ComponentTable<T> : IComponentTable, FlightRecorder.IUnmanagedComponentTable, Diagnostics.TableWriteStats.ISampled where T : unmanaged
+    public sealed class ComponentTable<T> : IComponentTable, FlightRecorder.IUnmanagedComponentTable, Diagnostics.TableWriteStats.ISampled, IMemorySized where T : unmanaged
     {
         private readonly NativeChunkTable<T> _data;
 
@@ -20,6 +20,10 @@ namespace Fdp.Core
             _data = new NativeChunkTable<T>();
             _componentTypeId = ComponentType<T>.ID;
         }
+
+        // ⭐ CE-4456 N-1 — the memory census
+        long IMemorySized.NativeBytes => _data.GetMemoryStats().CommittedBytes;
+        long IMemorySized.ManagedSlotBytes => 0;
         
         public int ComponentTypeId => _componentTypeId;
         public Type ComponentType => typeof(T);

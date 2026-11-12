@@ -175,6 +175,7 @@ namespace Fdp.Core
             _selfHandle = GCHandle.Alloc(this, GCHandleType.Weak);   // ⭐ CE-3183 — never roots the world
             _entityIndex = new EntityIndex();
             _componentTables = new Dictionary<Type, IComponentTable>();
+            if (MemoryCensus.On) MemoryCensus.Track(this);   // ⭐ CE-4456 N-1
             _metadata = new ComponentMetadataTable();
             _singletons = new object[64]; // Start with 64 slots, will grow if needed
             _phaseConfig.BuildCache();  // Build ID cache at initialization
@@ -1811,6 +1812,17 @@ namespace Fdp.Core
         
         /// <summary>⭐ A-1 — the entity index without a trace record (the query walk records its own).</summary>
         internal EntityIndex EntityIndexUntraced => _entityIndex;
+
+        /// <summary>⭐ CE-4456 N-1 — what this world holds: entities, native bytes (component chunks + the index), managed slot bytes, tables.</summary>
+        internal (long Entities, long Native, long ManagedSlots, int Tables) MemoryFootprint()
+        {
+            if (_disposed) return default;
+            long native = _entityIndex.NativeBytes, managed = 0; int tables = 0;
+            IComponentTable[] all;
+            lock (_componentTables) { all = new IComponentTable[_componentTables.Count]; _componentTables.Values.CopyTo(all, 0); }
+            foreach (var t in all) if (t is IMemorySized m) { native += m.NativeBytes; managed += m.ManagedSlotBytes; tables++; }
+            return (_entityIndex.ActiveCount, native, managed, tables);
+        }
 
         /// <summary>CE-4454 — the managed row for the last-tick copy (<see cref="ParallelReadCheck.CopyManaged{T}"/>).</summary>
         internal T? LastTickManagedRow<T>(int index) where T : class => GetManagedTable<T>(false).GetRO(index);

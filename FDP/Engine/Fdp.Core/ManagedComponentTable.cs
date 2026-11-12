@@ -15,7 +15,7 @@ namespace Fdp.Core
     /// Tier 2 storage for "cold" data that doesn't need the performance of native memory.
     /// Uses standard .NET arrays, so GC manages all memory.
     /// </summary>
-    public sealed class ManagedComponentTable<T> : IComponentTable, IManagedChunkedTable where T : class
+    public sealed class ManagedComponentTable<T> : IComponentTable, IManagedChunkedTable, IMemorySized where T : class
     {
         private T?[][] _chunks;
         private readonly int _chunkSize;
@@ -26,6 +26,19 @@ namespace Fdp.Core
         //   and re-synced on the next acquire, and a replay keyframe clears the world, so each re-allocated a T[16384] (128 KB, large-object
         //   heap) per managed chunk. 📐 ≈ 300 KB of garbage per frame on Crossfire (the navigation + EQS snapshots). Never escapes the table.
         private T?[][] _spare = Array.Empty<T?[]>();
+
+        // ⭐ CE-4456 N-1 — the memory census: the reference arrays (8 bytes a slot + the array header), not the objects
+        long IMemorySized.NativeBytes => 0;
+        long IMemorySized.ManagedSlotBytes
+        {
+            get
+            {
+                long n = 0; var chunks = _chunks; var spare = _spare;
+                for (int i = 0; i < chunks.Length; i++) if (chunks[i] != null) n += 24 + 8L * chunks[i]!.Length;
+                for (int i = 0; i < spare.Length; i++) if (spare[i] != null) n += 24 + 8L * spare[i].Length;
+                return n + 24 + 8L * chunks.Length;
+            }
+        }
         private int _spareCount;
 
         private T?[] NewChunk()

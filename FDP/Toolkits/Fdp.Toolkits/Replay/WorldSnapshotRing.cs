@@ -38,6 +38,7 @@ namespace Fdp.Toolkit.Replay
             _participants = new List<IPreviewRewindable>(participants ?? Array.Empty<IPreviewRewindable>());
             BudgetBytes = budgetBytes;
             MaxDepth = maxDepth;
+            Fdp.Core.MemoryCensus.RegisterOwner("WorldSnapshotRing (undo)", this, o => ((WorldSnapshotRing)o).UsedBytes);   // ⭐ CE-4456 N-1
         }
 
         public long BudgetBytes { get; }

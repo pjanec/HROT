@@ -56,6 +56,9 @@ namespace Fdp.Core
         /// </summary>
         public int ActiveCount => _activeCount;
 
+        /// <summary>⭐ CE-4456 N-1 — the index's committed native bytes (presence masks + cold metadata).</summary>
+        internal long NativeBytes => _hotMasks.GetMemoryStats().CommittedBytes + _coldMeta.GetMemoryStats().CommittedBytes;
+
         /// <summary>
         /// Creates a new entity.
         /// Thread-safe via lock.
