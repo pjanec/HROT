@@ -21,6 +21,27 @@ namespace Fdp.Core.Diagnostics
         internal interface ISampled { Sample SampleWrites(uint frameVersion); int CommitByContent(uint frameVersion); }
 
         private sealed class Acc { public long Refs, Dirty, Identical, Committed; }
+
+        // ⭐ POC 2 — HROT_WRITE_STATS_STACKS=<table type name>: every 32nd writable reference of that table records its caller (the first
+        //   frames outside Fdp.Core), printed with the report. A diagnostic: it allocates and locks; off unless named.
+        private static readonly Dictionary<string, int> _callers = new();
+        internal static void SampleCaller(string table)
+        {
+            var st = new System.Diagnostics.StackTrace(2, false);
+            var sb = new System.Text.StringBuilder();
+            int taken = 0;
+            for (int i = 0; i < st.FrameCount && taken < 4; i++)
+            {
+                var m = st.GetFrame(i)?.GetMethod();
+                if (m == null) continue;
+                string owner = m.DeclaringType?.Name ?? "?";
+                if (m.DeclaringType?.Namespace == "Fdp.Core" && taken == 0) continue;   // skip the repository's own accessors
+                if (taken++ > 0) sb.Append(" < ");
+                sb.Append(owner).Append('.').Append(m.Name);
+            }
+            string key = sb.ToString();
+            lock (_callers) _callers[key] = _callers.TryGetValue(key, out int n) ? n + 1 : 1;
+        }
         private static readonly Dictionary<Type, Acc> _acc = new();
         private static int _frames;
 
@@ -45,6 +66,17 @@ namespace Fdp.Core.Diagnostics
             {
                 var (n, a) = rows[i];
                 Console.WriteLine($"[WriteStats]   {n,-34} refs {a.Refs / (double)_frames,9:0.0} · dirty {a.Dirty / (double)_frames,6:0.0} / {a.Committed / (double)_frames,6:0.0} · unchanged {a.Identical / (double)_frames,6:0.0} ({(a.Dirty == 0 ? 0 : 100.0 * a.Identical / a.Dirty):0}%)");
+            }
+            lock (_callers)
+            {
+                if (_callers.Count > 0)
+                {
+                    var top = new List<KeyValuePair<string, int>>(_callers);
+                    top.Sort((p, q) => q.Value.CompareTo(p.Value));
+                    Console.WriteLine("[WriteStats] writable-ref callers (sampled 1 in 32):");
+                    for (int i = 0; i < top.Count && i < 15; i++) Console.WriteLine($"[WriteStats]   {top[i].Value,6}  {top[i].Key}");
+                    _callers.Clear();
+                }
             }
             _acc.Clear(); _frames = 0;
         }

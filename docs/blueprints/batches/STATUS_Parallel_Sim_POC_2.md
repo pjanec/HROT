@@ -18,9 +18,9 @@ cloud VM, 4 cores (correctness and trends); the Windows command is `scripts/para
 | measurement blind spot | ✅ | `exp/parallel-sim-2` | the rig reports EVERY system (`all_ms`); the script sums it — a system under the top-8 cut no longer reads 0.00 |
 | Q-0 profile | ✅ | — | §Q-0 — ⭐ + the per-query timer costs ~13 ms of the brain on the VM (D-1) |
 | Q-1 writes stamp only on change | 🔨 | `exp/parallel-sim-2` | D-2: done in the TICK SYSTEMS, not the emitter; the false writes are BTree / HSM, not blueprints (D-3) — measuring |
-| Q-2 off-frame state egress | 🔨 | — | switched on in the rig; CGF egress is dominated by `EqsSensorConfigTopic` (17 ms), which is NOT an off-frame translator (D-4); replication suites OFF vs ON queued |
+| Q-2 off-frame state egress | ✅ measured | — | ⛔ **no gain on the CGF**: egress 39 → 37 ms incl. the launch's 11.8 ms replica SYNC on the main thread (D-7); its biggest translator stays on the frame (D-4); replication suites OFF vs ON running |
 | Q-3 recorder capture off the frame | | | |
-| Q-4 brains in parallel (Throughput) | 🔨 | `exp/parallel-sim-2` | D-5: the posture SCORING pre-scored in parallel ahead of the serial walk; serial-vs-prescore rail green at 1/2/4/8 — measuring |
+| Q-4 brains in parallel (Throughput) | ✅ | `exp/parallel-sim-2` | ⭐ **BrainTick 92.4 → 57.4 ms (−38 %)**, CGF frame 212 → 160 ms, 11.0 → 13.6 fps on the VM's 2 threads (D-8); rail green at 1/2/4/8, red-proven |
 | Q-5 weapon dispatcher | 🔨 partial | `exp/parallel-sim-2` | D-6: the 12 % turret-lookup waste removed (shared parts index); the executor itself NOT parallelised (D-6) |
 | Q-6 verdict | | | |
 
@@ -119,3 +119,20 @@ scoring). Q-5's cheapest win is not parallelism: 12 % of the dispatcher looks up
 | `Q4_ThePrescoredPosture_IsTheSerialPosture_AtEveryThreadCount` | the pre-score job leaves its buffer unscored | ✅ red |
 | `TheBrainTickView_StampsItsBlock_OnlyWhenTheTickChangedIt` | the view stamps at once (the deferral never taken) | ✅ red (⚠ a first attempt with `if (false)` did not compile — unreachable code is an error here — and ran a stale binary; redone with a runtime-false condition) |
 | `BlueprintTickStampOnChangeTests` (blueprint tick) | the knob off | ✅ red (its own knob-off rail) |
+
+### D-7 — Q-2 measured: off-frame egress gives the CGF nothing
+| claim | basis |
+|---|---|
+| it was really on | `GET /diagnostics/egress` on the kept CGF: `mode: OffFrame`, 31 translators, 1 838 scans, 0 faults, `lastScanMs` 6.4, `lastSyncMs` 12.2 |
+| the replica SYNC runs on the MAIN thread, in the launch | `EgressPipeline.Launch` (`EgressPipeline.cs:184-188`); the rig times `EgressPipelineLaunchSystem` at **11.8 ms** |
+| egress on the frame: 39.0 ms OFF → 37.4 ms ON (25.6 egress + 11.8 launch) — a wash | `recbase` vs `recq2k`, both recorded |
+| the sync copies every chunk whose version moved — so the SAME false-dirty chunks Q-1 attacks also make the sync expensive (~300 × 64 KB of the 4 KB table alone) | M-1 (`q1wm1`) + `NativeChunkTable.SyncFrom` (`:539`, copies on a version change) |
+⇒ ⭐ on the CGF, Q-2 pays only after (a) `EqsSensorConfigTopic` gets a change gate or goes off-frame (D-4) and (b) the no-op dirty chunks are gone (Q-1 / D-5). ⚠ On the SimHost (Egress §7's own measurement: sync 0.86 ms) the trade is different — not measured here.
+
+### D-8 — Q-4 measured: the pre-score is the big one
+| | thr (parallel, Throughput) | thrps (+ `HROT_BRAIN_PRESCORE=1`) |
+|---|---|---|
+| BrainTickSystem | 92.4 ms | **57.4 ms (−38 %)** |
+| CGF frame | 212.2 ms · 11.0 fps | **159.7 ms · 13.6 fps** |
+| garbage / frame | 955 KB | 730 KB |
+⚠ One pair on a noisy VM (±15 %), but the brain moved 35 ms where the noise reference systems (dispatcher, egress, stress) moved < 5. ⭐ On 8 cores the scoring share (67 % of the brain) divides further; the serial remainder of the walk becomes the floor.

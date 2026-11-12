@@ -178,7 +178,11 @@ namespace Fdp.Core
                 if (_preStamp != null) _preStamp[chunkIndex] = _chunkVersions[chunkIndex].Value;   // ⭐ D-5 — the version before this frame's stamp
                 _chunkVersions[chunkIndex].Value = currentVersion;
             }
-            if (Diagnostics.TableWriteStats.On && currentVersion != 0) System.Threading.Interlocked.Increment(ref RwRefs);   // ⭐ M-1 (off: removed by the JIT)
+            if (Diagnostics.TableWriteStats.On && currentVersion != 0)
+            {
+                long r = System.Threading.Interlocked.Increment(ref RwRefs);   // ⭐ M-1 (off: removed by the JIT)
+                if (s_sampleStacks && (r & 31) == 0) Diagnostics.TableWriteStats.SampleCaller(typeof(T).Name);   // ⭐ POC 2 — who takes it writable
+            }
             
             return ref _chunks[chunkIndex][localIndex];
         }
@@ -225,6 +229,8 @@ namespace Fdp.Core
 
         // ⭐ M-1 (DESIGN_Parallel_Simulation §8.3) — the write instrument's per-table state; touched only when TableWriteStats.On
         internal long RwRefs;
+        private static readonly bool s_sampleStacks = Diagnostics.TableWriteStats.On
+            && Environment.GetEnvironmentVariable("HROT_WRITE_STATS_STACKS") == typeof(T).Name;
         private byte[]?[]? _shadow;
 
         /// <summary>⭐ M-1 — this frame's writable references, the chunks stamped with <paramref name="frameVersion"/>, and how many of those hold the
