@@ -547,7 +547,8 @@ namespace Fdp.ModuleHost
             finally
             {
                 KernelFrameTimings.Stop("(kernel Update, whole)", whole);
-                if (Fdp.Core.ManagedMutationCheck.On) Fdp.Core.ManagedMutationCheck.EndFrame();   // ⭐ CE-4445 M-2 — the frame's managed reads vs their baseline
+                if (Fdp.Core.ManagedMutationCheck.On) Fdp.Core.ManagedMutationCheck.EndFrame();
+                if (Fdp.Core.StampTrace.On) Fdp.Core.StampTrace.EndFrame();   // ⭐ CE-4445 M-4   // ⭐ CE-4445 M-2 — the frame's managed reads vs their baseline
             }
         }
 

@@ -275,9 +275,9 @@ namespace Fdp.ModuleHost.Scheduling
                     ExecuteGroup(group, view, deltaTime, advancing, moduleGoverns);
                 else
                 {
-                    if (Fdp.Core.ManagedMutationCheck.On) Fdp.Core.ManagedMutationCheck.CurrentReader = system.GetType().Name;   // ⭐ CE-4445 M-2
+                    if (Fdp.Core.ManagedMutationCheck.On || Fdp.Core.StampTrace.On) Fdp.Core.ManagedMutationCheck.CurrentReader = system.GetType().Name;   // ⭐ CE-4445 M-2
                     system.Execute(view, deltaTime);
-                    if (Fdp.Core.ManagedMutationCheck.On) Fdp.Core.ManagedMutationCheck.CurrentReader = null;
+                    if (Fdp.Core.ManagedMutationCheck.On || Fdp.Core.StampTrace.On) Fdp.Core.ManagedMutationCheck.CurrentReader = null;
                 }
             }
             finally
