@@ -8,6 +8,7 @@ count with HROT_PARALLEL_SIM=1, and prints the converted systems' ms/frame side 
     python scripts/parallel-sim-measure.py --threads 2 6 --mode throughput
     python scripts/parallel-sim-measure.py --content          # + commit by content (D-5), live and recorded
     python scripts/parallel-sim-measure.py --pin --poc2       # POC 2: each item against a recorded serial baseline
+    python scripts/parallel-sim-measure.py --pin --poc3       # POC 3: the same for POC 3's items
 
 Build Release first:  dotnet build Hrot/Runner/Hrot.ClusterRunner/Hrot.ClusterRunner.csproj -c Release
 Windows: HROT_HIDDEN_WINDOW=1 is set for every node (no window ever shows). Results land in --out (default ./parallel-sim-results).
@@ -17,7 +18,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SYSTEMS = ["BrainTickSystem", "StressSystem", "CgfThreatEvaluationSystem", "CalloutSystem",
-           "WeaponDispatcherSystem", "SquadCoordinationSystem", "RecorderTickSystem", "CycloneEgressSystem", "CycloneNetworkIngressSystem"]
+           "WeaponDispatcherSystem", "SquadCoordinationSystem", "RecorderTickSystem", "CycloneEgressSystem", "CycloneNetworkIngressSystem",
+           "EgressPipelineLaunchSystem"]
 
 # ⭐ POC 2 (exp/parallel-sim-2) — one recorded column per item, each against the same recorded serial baseline. Every item is opt-in.
 POC2 = [
@@ -50,6 +52,20 @@ def run(name, env_extra, out, rig_args):
         return None
 
 
+# ⭐ POC 3 (exp/parallel-sim-3) — each item against a recorded serial baseline (the sampled timer is the default now, R-4209).
+POC3 = [
+    ("rec-serial",   {}),                                                   # T-1: the sampled timer (default)
+    ("rec-timed",    {"HROT_QUERY_SAMPLE": "1"}),                           # T-1: every call timed (POC 2's default)
+    ("rec-qoff",     {"HROT_QUERY_TIMINGS": "0"}),                          # T-1: no timer
+    ("rec-t2",       {"HROT_EQS_CONFIG_GATE": "1"}),                        # T-2: the EqsSensorConfig change gate
+    ("rec-thr",      {"HROT_PARALLEL_SIM": "1", "HROT_SIM_MODE": "throughput"}),
+    ("rec-t3",       {"HROT_PARALLEL_SIM": "1", "HROT_SIM_MODE": "throughput", "HROT_BRAIN_PRESCORE": "1"}),   # T-3: posture + ranking pre-score
+    ("rec-t5",       {"FDP_EGRESS_OFFFRAME": "1", "HROT_PARALLEL_SYNC": "1"}),   # T-5: off-frame egress, its replica synced in parallel
+    ("rec-all",      {"HROT_EQS_CONFIG_GATE": "1", "HROT_PARALLEL_SIM": "1", "HROT_SIM_MODE": "throughput", "HROT_BRAIN_PRESCORE": "1",
+                      "HROT_BP_STAMP_ON_CHANGE": "1", "FDP_EGRESS_OFFFRAME": "1", "HROT_PARALLEL_SYNC": "1"}),
+]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--threads", type=int, nargs="+", default=[1, 2, 4, 8])
@@ -60,9 +76,15 @@ def main():
                     help="also run the largest thread count with HROT_CONTENT_VERSION=1 (D-5 commit by content), and a RECORDED pair with/without it")
     ap.add_argument("--poc2", action="store_true",
                     help="POC 2: RECORDED serial vs each item (timer off, Q-1 stamp on change, Q-2 off-frame egress, Q-4 brain pre-score) and all together")
+    ap.add_argument("--poc3", action="store_true",
+                    help="POC 3: RECORDED serial vs timer sampled / every call / off, the EqsSensorConfig gate, the pre-score, the parallel replica sync, all together")
     a = ap.parse_args()
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     rig_args = ["--pin"] if a.pin else []
+    if a.poc3:
+        runs = {name: run(name, env, out, rig_args + ["--record"]) for name, env in POC3}
+        report(runs, out)
+        return
     if a.poc2:
         runs = {name: run(name, env, out, rig_args + ["--record"]) for name, env in POC2}
         report(runs, out)
