@@ -636,6 +636,19 @@ waits exist — headless pays for no presentation, a playing editor pays one mas
 mechanism, and only the yellow ones (copied at the sync) take a lock — publishing, sharing, leasing and commands need none. The gizmo split
 follows the same line: what a gizmo DRAWS from S stays on the sim thread; what answers the mouse moves to the main thread.
 
+#### 14.2.1 ⭐ The two halves of a split gizmo are INTERLINKED — each says it needs the other, and where the other is *(user, `2026-11-12`)*
+
+> 🔒 User, verbatim: *"the gizmo parts after the gizmo split must be carefully interlinked so it is very clear (a) that it needs the other
+> part and (b) where the other part is"*
+
+| rule | how — checkable |
+|---|---|
+| ⭐ **built together, never alone** | ONE construction site (`MapInteractionPack`) builds both halves and hands back a PAIR; each half's constructor takes its partner (or the pair), so a half without its other half cannot be built |
+| ⭐ **(a) it NEEDS the other** | each half holds a typed `Partner` reference to the other half, and its class doc opens with *"half of a split gizmo — useless without `<see cref>` the other half"* |
+| ⭐ **(b) WHERE the other is** | the same doc line names the other half's class, its THREAD and WORLD (main / A · sim / S), and the ONE crossing that joins them (the selection riding to S at the sync, the gizmo frame published to the main thread) |
+| one name for the pair | the halves share a stem and differ by side: `…Input` (main thread, A — answers the mouse) / `…Draw` (sim thread, S — draws from S) |
+| ⭐ railed | a rail walks the BUILT map: every half has a non-null partner, the partner points back, and the two are scheduled on opposite sides (one in the presentation step, one in the kernel) |
+
 ### 14.3 ⭐ POC 2 — what the target shape cost when built *(CE-4439, backend, `2026-11-12`, branch `exp/threaded-poc-2`; [status](blueprints/batches/STATUS_Threaded_POC_2.md))*
 
 | §14.1 row | as built | measured |
