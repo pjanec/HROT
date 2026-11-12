@@ -185,7 +185,7 @@ As §3, with these differences (each measured during the build):
 | ⑤ the weapon-up hold yields for a man lying UNDER FIRE | R2-3: the pinned man scoots firing (`Holds(calm: false)`) |
 | ⑥ a `Sentry` is an ORDER TO STAY (no shift; B②), not a hidden man — so, bored, he may show an idle gesture | 🔒 the user named *"waiting in some boring job like patrolling"*; ⛔ first cut held him as hidden-on-purpose, which barred the gesture too |
 | ⑦ idle gestures (I): four `GestureKind`s 7–10 on the existing gesture channel; written only when his gesture is None or idle; calm = not prone, no round near him for 30 s, no enemy SEEN for 10 s (`CoverFightConditions.SeenWithin`), held by nothing but an order to stay; judged at most once a second | the one channel the IG already reads (`dtGesture`); a behaviour's act always wins |
-| ⑧ cross-lane (ui's files, said): `EntityBodyLayer3D.Gestured` draws an idle kind as the plain figure; `EffectStateGizmo.GestureWord` gives it no label | ⛔ cast through, an idle kind fell to the figure's default and drew the THROW's wind-up, and the gizmo read "PROTEST". The drawing itself is ui's: [handoff](batches/HANDOFF_Behaviors_To_Ui_Idle_Gestures.md) |
+| ⑧ cross-lane (ui's files, said): `EntityBodyLayer3D.Gestured` draws an idle kind as the plain figure; `EffectStateGizmo.GestureWord` gives it no label | ⛔ cast through, an idle kind fell to the figure's default and drew the THROW's wind-up, and the gizmo read "PROTEST". The drawing itself is ui's: handoff |
 
 ### 7.1 Steps 3 and 3c *(2026-10-24, with TS-B — `CE-2365`)*
 
@@ -197,7 +197,7 @@ As §3, with these differences (each measured during the build):
 | ⚠ **`FightFromCover`** | still HELD (`FightingFromCover`) | its peek / hide cycle owns his position; a shift inside it needs that tree's say — left open |
 | **the nervous head** (H) | `LookAt.Want`'s scan: each fixation held 2 s ⇒ 0.4 s at full nervousness, the five points in a SEEDED order (`NervousScanBearing`) instead of the sweep, and the head's blend 0.2 s ⇒ 0.06 s — a snap (`LookRequest.AtPoint`'s new `blendSeconds`, cross-lane: `Hrot.MuscleCharacter.Animation`) | ⚠ only where the Look node scans — a man with a sector or a bearing; a man looking at a threat follows the threat |
 
-| **`IdleLookAbout` moves his real eyes** *(ui's ask, [note](batches/NOTE_Ui_To_Behaviors_Idle_Gestures_Drawn.md))* | while he shows it, `Restlessness.Glance` scans his LOOK channel ± 60° about his facing (3 s a fixation, a 1 s blend), marked as the glance's; released when the gesture ends; a look anyone else wrote is never touched | the drawn head is where he looks (LK-5), and his perception sweeps with it |
+| **`IdleLookAbout` moves his real eyes** *(ui's ask, note)* | while he shows it, `Restlessness.Glance` scans his LOOK channel ± 60° about his facing (3 s a fixation, a 1 s blend), marked as the glance's; released when the gesture ends; a look anyone else wrote is never touched | the drawn head is where he looks (LK-5), and his perception sweeps with it |
 
 Rails (`StressSystemTests`): `CE2365_Nervousness_…` · `TacticsTreesTests.CE2368_IdleLookAbout_MovesHisRealEyes_AndReleasesOnlyItsOwnLook` · `CE2365_ANervousMan_ShiftsSoonerAndFurther` · `CE2365_InCover_TheStepStaysBehindIt_OrIsNoStep` · `CE2365_WeaponUp_HoldsACalmMan_NotANervousOne` · `AQ103H_ANervousMansScan_QuickensJerks_AndSnaps`.
 

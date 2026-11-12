@@ -84,7 +84,7 @@ The deviations from the design, each argued, are in [design §7a](../../designs/
 | ⛔ not done | F-16 / C-130 (no brain, no combat block); the drawing (U-2, ui) |
 | ⚠ cross-lane | `CgfLogicPack` (the executor list), `EditorCapabilitiesTests` (+`EjectionSystem` in both lists), `EntityTypeCatalogTests` (+206) |
 
-## 3e. CE-2200 / CE-2201 (`2026-10-16`, behaviors' [Javelin handoff](HANDOFF_Behaviors_To_Backend_Javelin_Lock.md)) — folded into [Missiles & Ammo §3a](../../designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md)
+## 3e. CE-2200 / CE-2201 (`2026-10-16`, behaviors' Javelin handoff) — folded into [Missiles & Ammo §3a](../../designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md)
 
 | | |
 |---|---|
@@ -106,7 +106,7 @@ The deviations from the design, each argued, are in [design §7a](../../designs/
 | red-proofs | 2 / 2 red: the deploy fraction pinned at 1 (the stowed rail), `IsBroken` without the wound (the firepower rail); the skip's own red is the rail's `VehicleParts = false` row |
 | ⚠ estimated | the zones' multipliers and thresholds (Mount ×0.5; Traverse at 128; Weapon at 64) — starter numbers |
 
-## 3g. CE-2203 / CE-2204 (`2026-10-16`, behaviors' [tank rounds handoff](HANDOFF_Behaviors_To_Backend_Tank_Rounds.md)) — folded into [Building Interiors §3d](../../DESIGN_Building_Interiors.md)
+## 3g. CE-2203 / CE-2204 (`2026-10-16`, behaviors' tank rounds handoff) — folded into [Building Interiors §3d](../../DESIGN_Building_Interiors.md)
 
 | | |
 |---|---|
@@ -136,7 +136,7 @@ The deviations from the design, each argued, are in [design §7a](../../designs/
 | `ua-tank-ammo` | ✅ **PASS 2 / 2** | ⭐ CE-2203 live: the M1's HE round **hit the technical** (Engine, Side — S2's parts) and killed it; the riflemen died. ⭐ CE-2204 live: the M1 ended at **3000 / 3000** — no self-hit; the rifle hits on it arrive at 5 mm and do nothing |
 | `ua-javelin-lock` | ② ✅ · ① 2 / 4 ✗ (behaviors' WIP) | ⭐ CE-2201: Javelin B's 230 m launches flew DIRECT and hit (Side), 2 / 2, the open tank killed. ⭐ CE-2200: Javelin A launched **0** rounds (it fired a blind round before). ⛔ "the cycling tank fights" / "Javelin A aimed" fail on behaviors' newest WIP vignette (`186e3d6ca`: the tank sat in its hide at (250, 101), Javelin A "not seen" throughout) — their scenario geometry, in progress; not a backend finding |
 
-## 3j. CE-2206 (`2026-10-16`, behaviors' [orbit handoff](HANDOFF_Behaviors_To_Backend_Vehicle_Orbit.md)) — folded into [Motion Domains §5c](../../designs/motion-models/DESIGN_Motion_Domains.md)
+## 3j. CE-2206 (`2026-10-16`, behaviors' orbit handoff) — folded into [Motion Domains §5c](../../designs/motion-models/DESIGN_Motion_Domains.md)
 
 | | |
 |---|---|

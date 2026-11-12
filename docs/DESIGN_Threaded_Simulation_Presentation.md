@@ -482,7 +482,7 @@ experiment's D-7) carries the tools, the camera, the selection and four editor o
 | ⚠ **not measured** | per tick: rebuilding `NetworkEntityMap`, copying the traffic lists, publishing `ClusterUiCache`; the per-rule gizmo cost at 1 000 men |
 | ⚠ **not traced** | `TimelineLaneCatalog` (UI lane edits vs `Step`), `OrchestratorCore.ScenarioPanel`, `GizmoUiStateHub`, the mission service's async acks; the 170 static collections triaged by mutation count, not read one by one; ⛔ `check_index_coverage` is not in the CLI |
 
-⭐ **Next — evidence, not a build:** [CE-4436](blueprints/batches/HANDOFF_Coordinator_To_Backend_Threaded_Analysis_Instruments.md) — a runtime access tracer, a static reachability analysis, the treatments' costs, the out-of-the-tick dependencies; its verdict is folded back into this section.
+⭐ **Next — evidence, not a build:** CE-4436 — a runtime access tracer, a static reachability analysis, the treatments' costs, the out-of-the-tick dependencies; its verdict is folded back into this section.
 
 ## 14. ⭐ The whole picture — threads, worlds, copies, locks by host mode *(coordinator, `2026-11-12`; 🔒 user: "looks good at least for next version of the POC to verify it" — ⭐ the TARGET SHAPE the next proof of concept verifies; not ruled)*
 

@@ -1,5 +1,5 @@
 <!--STATUS state: DONE (U-5, U-2, U-10 partly: remainders CE-1477, CE-1478, CE-1476; U-12 Windows reproduction pending) · updated: 2026-11-11 · current-answer: the table -->
-# STATUS — ui, the user's findings overnight ([HANDOFF](HANDOFF_Coordinator_To_Ui_User_Findings_Overnight.md), dispatched at `00d67d6ac`)
+# STATUS — ui, the user's findings overnight (HANDOFF, dispatched at `00d67d6ac`)
 
 ⚠ Run in the ui lane's **Linux cloud session** (not the Windows machine the handoff names): every item that reproduces here is built here; an item
 that needs Windows (U-12's netconvert exit 1) is marked so. Display rails under `xvfb-run -a`.

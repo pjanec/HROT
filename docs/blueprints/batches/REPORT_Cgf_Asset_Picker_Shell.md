@@ -8,7 +8,7 @@ current-answer: this file is a REPORT — ephemeral. ⭐ The durable record is
 # REPORT — **CGF asset-picker / new-asset shell** *(Axis-C E2)*
 
 📄 **Design (durable, UML + as-built):** [`docs/DESIGN_Cgf_Asset_Picker_Shell_Slice.md`](../../DESIGN_Cgf_Asset_Picker_Shell_Slice.md)
-📄 **Handoff:** [`HANDOFF_Cgf_Asset_Picker_Shell.md`](HANDOFF_Cgf_Asset_Picker_Shell.md) · **Dispatched at `bdd71821e`**
+📄 **Handoff:** `HANDOFF_Cgf_Asset_Picker_Shell.md` · **Dispatched at `bdd71821e`**
 ⭐ **IDs allocated (rule 5): `CE-049` *(the slice)* · `CE-050` *(one finding, filed open)*.**
 ⭐ **Started-marker: `d5efcf7ca`** *(pushed before any code — rule 1b)*. **Base for every Δ below.**
 

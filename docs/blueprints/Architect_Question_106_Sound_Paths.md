@@ -135,5 +135,5 @@ red box: the brain never calls it (Node Roles §3.0a).
 |---|---|
 | ① one verdict | `AcousticSensorGenerator.Judge(ears, where, carry, class, waypoints?)` — the sensor's `Sound` and the explain BOTH call it; `TryEars` builds the ears both use |
 | ② explain + HTTP | `HearingExplain.TryExplain(view, unit, seconds, list, out why)` → `HeardSoundExplanation` (source, kind / voice, class, at, carry, age, verdict, waypoints): the ring's short sounds of the window + the bodies moving or shouting near him now; own side listed as `HisOwnSide`. `GET /perception/hearing?listener=&seconds=` (MCP `explain_hearing`; catalog + SKILL regenerated in the same commit, R-1030 — purely additive, 42 lines) |
-| ③ the layer | ⏳ ui — [HANDOFF_Backend_To_Ui_Hearing_Routes](batches/HANDOFF_Backend_To_Ui_Hearing_Routes.md) |
+| ③ the layer | ⏳ ui — HANDOFF_Backend_To_Ui_Hearing_Routes |
 | rail | `AcousticHearingTests.AQ106L_ExplainHearing_GivesEachSoundsVerdict_AsTheSensorHeardIt` — heard via the hall door (waypoints through it), a shot beyond its carry, a friend's steps his own side, and the heard count equals what the sensor answered |

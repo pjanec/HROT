@@ -259,7 +259,7 @@ or in a `ComponentEditWindow` for the whole component, writing back through the 
 
 ## 10. ⭐⭐ Extended for the overnight build — sequences, zero allocation, the input chain, undo per host, the measured gates *(backend, `2026-11-07`, coordinator note G1–G6)*
 
-📄 Asked by [`NOTE_Coordinator_To_Backend_Struct_Editor_Design_Gaps.md`](blueprints/batches/NOTE_Coordinator_To_Backend_Struct_Editor_Design_Gaps.md) — 🔒 user:
+📄 Asked by `NOTE_Coordinator_To_Backend_Struct_Editor_Design_Gaps.md` — 🔒 user:
 *"Later I would like to give that to one of the lanes for an overnight autonomous batch, including replacing all the forms and many places in
 the current UI where we can benefit from reusing the new library for editing forms."* G2 (the adoption table) is §11.
 

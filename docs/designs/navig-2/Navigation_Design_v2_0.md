@@ -435,7 +435,7 @@ Brain BTree (only at hard failure):
 
 Critically: Brain **never publishes a path request**. It writes `NavigationIntent` and observes `NavigationStatus`. The Solver is Muscle's tool.
 
-### 3.4a A walker in a crowded house — `CE-2304` *(backend, `2026-10-19`; `build-state: BUILT`; behaviors' [note](../../blueprints/batches/NOTE_Behaviors_To_Backend_Interior_Move_Stall.md), answer [here](../../blueprints/batches/NOTE_Backend_To_Behaviors_Interior_Move_Stall_Answer.md))*
+### 3.4a A walker in a crowded house — `CE-2304` *(backend, `2026-10-19`; `build-state: BUILT`; behaviors' note, answer here)*
 
 ⚠ **`2026-10-22`, CE-4040 — the no-progress watchdog meets a crowded DOOR:** four civilians at one doorway jostled with no progress and every move failed. The watchdog is unchanged; the door now takes TURNS and leads the walker through (a funnel onto the doorway's axis, the walker whose turn it is does not give way) — 📄 [Building Interiors §3j 5d-5](../../DESIGN_Building_Interiors.md).
 

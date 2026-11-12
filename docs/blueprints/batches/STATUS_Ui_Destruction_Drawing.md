@@ -9,7 +9,7 @@ related-designs:
 
 # STATUS — building destruction drawn on the maps (ui; CE-4392)
 
-Handoff [HANDOFF_Coordinator_To_Ui_Destruction_Drawing.md](HANDOFF_Coordinator_To_Ui_Destruction_Drawing.md), dispatched at `2011edb28`; started at `05862bbce`
+Handoff HANDOFF_Coordinator_To_Ui_Destruction_Drawing.md, dispatched at `2011edb28`; started at `05862bbce`
 (coordinator merged into ui at `df49e6920`). Taken over from the other ui session at the user's ask. Cross-lane edits, stated in the commits: `Fdp.Toolkits` terrain / world
 (the coordinator's — `WithGaps` made internal, the render seam's opaque damage), `Fdp.Presentation` Vis3D.
 

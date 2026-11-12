@@ -8,7 +8,7 @@ current-answer: this file is a REPORT — ephemeral. ⭐ The durable record is
 # REPORT — **CGF tool / selection / camera / rename** *(Axis-C E3)*
 
 📄 **Design (durable, UML + as-built):** [`docs/DESIGN_Cgf_Tool_Selection_Camera_Slice.md`](../../DESIGN_Cgf_Tool_Selection_Camera_Slice.md)
-📄 **Handoff:** [`HANDOFF_Cgf_Tool_Selection_Camera.md`](HANDOFF_Cgf_Tool_Selection_Camera.md) · **Dispatched at `4a48e3375`**
+📄 **Handoff:** `HANDOFF_Cgf_Tool_Selection_Camera.md` · **Dispatched at `4a48e3375`**
 ⭐ **IDs allocated (rule 5): `CE-051`.** ⚠ No new findings filed — the two defects found are *fixed* by this
 batch, not deferred.
 ⭐ **Started-marker: `71f5b9996`** *(pushed before any code — rule 1b)*. **Base for every Δ below.**

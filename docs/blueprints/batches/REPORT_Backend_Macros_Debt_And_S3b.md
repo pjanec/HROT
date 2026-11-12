@@ -11,7 +11,7 @@ related-designs:
 
 # Report — backend → coordinator: Macros debt (Part A) and S3b (Part B)
 
-Dispatch: [`HANDOFF_Coordinator_To_Backend_Macros_Debt_And_S3b.md`](HANDOFF_Coordinator_To_Backend_Macros_Debt_And_S3b.md), scope frozen at
+Dispatch: `HANDOFF_Coordinator_To_Backend_Macros_Debt_And_S3b.md`, scope frozen at
 `0a4ab2f42`; started at `f4ca03f54` (merged `coordinator`). Branch `backend`. The as-built is in
 [`DESIGN_Scenario_Macros.md`](../../DESIGN_Scenario_Macros.md) §15.4; this report points there.
 

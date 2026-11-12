@@ -107,12 +107,12 @@ the ACTIVE perspective draws *(measured ~11 of 47 captured at once)*. Protocol: 
 > editor-mode regression net. ⭐ **The running order is now the charter's §3: Stride → perspective naming +
 > absent-capability tolerance → harness → baseline/goldens → decide what to port.**
 > 📄 The withdrawn dispatch, with its ten still-valid measured findings:
-> [`HANDOFF_Batch_A_Conformance_Prerequisites.md`](batches/HANDOFF_Batch_A_Conformance_Prerequisites.md).
+> `HANDOFF_Batch_A_Conformance_Prerequisites.md`.
 
 ### ⛔ HISTORY — the pre-charter framing
 
 ⭐ **User chose A first (`2026-08-23`).** 📄 **Dispatched at `80a98f627`:**
-[`HANDOFF_Batch_A_Conformance_Prerequisites.md`](batches/HANDOFF_Batch_A_Conformance_Prerequisites.md)
+`HANDOFF_Batch_A_Conformance_Prerequisites.md`
 — ⛔ **never amend it** *(rule 1)*; new findings go in the NEXT handoff.
 
 ⚠⚠ **The pre-dispatch review changed Batch A's shape — the table below is the ORIGINAL framing, kept for

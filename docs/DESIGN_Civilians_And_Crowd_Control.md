@@ -338,8 +338,8 @@ NOT the movement host here (CV-10). And everything that decides runs on CGF; Sim
 
 ## 5. Slice plan *(backend + ui halves handed off as frames 2026-10-16; behaviors half recorded, not started)*
 
-⭐ Handoffs: [backend B-1…B-5](blueprints/batches/HANDOFF_Behaviors_To_Backend_Civilians.md) ·
-[ui U-1…U-5](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md). Behaviors rows: `CE-2233`…`CE-2239` in the
+⭐ Handoffs: backend B-1…B-5 ·
+ui U-1…U-5. Behaviors rows: `CE-2233`…`CE-2239` in the
 [tracker](blueprints/Blueprint_Issues_Tracker.md).
 
 | slice | content | owner | acceptance |
@@ -819,7 +819,7 @@ within 8 + 2 × 3 = 14 m < 15 m — a crowd standing in the street, which is wha
 one crowd is CV-5's, and a crowd that walks apart SHOULD stop passing fear. The check now sweeps all 15 under one perspective switch
 (~1.7 s) and prints the same per-second trace as the twin. Live after the fix: PASS 3 of 3 in a row (4 of 6 who heard nothing caught it in the first).
 
-#### 5f.1 AS-BUILT — the spatial grid *(behaviors, 2026-10-17; backend's [scaling note](blueprints/batches/NOTE_Backend_To_Behaviors_CrowdSystem_Scaling.md))*
+#### 5f.1 AS-BUILT — the spatial grid *(behaviors, 2026-10-17; backend's scaling note)*
 
 ⭐ **Measured cause:** `Link` compared every pair of civilians, and `Spread` / `Rouse` every pair INSIDE a crowd with a component read per
 pair — at 500 the town links into one crowd, so both became ~250 k reads a frame (×33 for ×1.7). ⭐ **Fix:** a 20 m cell grid
@@ -1131,7 +1131,7 @@ intents, posture, entity creation); and every node can answer `IsArmed` itself, 
 | **AW-24** *(R-2029)* | **THE SIMPLE PATH STAYS SIMPLE.** A soldier against an enemy combatant pays ONE class-and-side lookup (AW-21) and an empty neutral-in-line check (AW-20); identification, intent and the ladder are never reached, and the ladder runs only for a unit with a graded force level (security forces). Gated, not hoped: ① `ua-armed-status` (§5c) stays green from the first armed-people commit on, with every soldier rail's expectations unchanged (backend note 2); ② a COUNTER rail — in a scenario with no `Civilian`-class entity the conduct path is entered ZERO times. Three military touches, each bounded: the **pistol** only on the types that should carry it, accepted by re-running the soldier rails (`ua-threat-ranking`, `ua-posture`, `ua-universal-soldier`, `bt-window-duel`); the **hands mount** never chosen as a weapon while empty or non-lethal (a rail); the **neutral-in-line hold** is the one new rule a soldier obeys, and only near neutrals. An item's **appearance defaults from its weapon category** — only odd items (a toy gun, a phone, a disguised weapon) set it by hand | one rule for everyone: a pure military fight pays for civilian judgement it never needs, and a future change could route soldiers through it unnoticed |
 | **AW-14** | **the hands hold everyday things too**: a replicated HELD-ITEM byte (None, Weapon, Throwable, Phone, Binoculars; "Weapon" means `WeaponPosture.ActiveMount`, never a copy); phone and binoculars are POCKET ITEMS, type data, never entities; binoculars lengthen vision and narrow it while held; a phone is a D4 cue and an IED's remote trigger | phones and binoculars as entities: the pistol's cost times every civilian |
 
-⭐ **Owners and order.** Backend (frame [HANDOFF_Behaviors_To_Backend_Armed_People.md](blueprints/batches/HANDOFF_Behaviors_To_Backend_Armed_People.md)):
+⭐ **Owners and order.** Backend (frame HANDOFF_Behaviors_To_Backend_Armed_People.md):
 `Armament` + the 27 readers routed (AW-1/2), `LaidDown` (AW-5), stations per person (AW-13), `HeldItem` + its wire (AW-14), the hands and
 pistol mounts and pocket items on person types (AW-4/7/14), pick-up rifle/pistol and the charge types (AW-6/12), `Indirect` on 6037/6038,
 RoundPickUp on SimHost + stone sources + landed stones lingering (AW-8), the cloud's source (AW-9). Behaviors: `CE-2238` (draw / stow /
@@ -1139,8 +1139,8 @@ conceal / pick up / throw / detonate, the covert trigger, riot), `CE-2239` (the 
 item, the laid-down weapon and the bending pose on the figure.
 
 ⭐ **R-2026 / R-2027 owners:** backend — `Appearance` on every item's TKB data, `Armament.Judge` per observer with the identification range,
-and the status rule for combatants in front of it (B-7 is amended, [NOTE](blueprints/batches/NOTE_Behaviors_To_Backend_Armed_People_Amended.md),
-[NOTE 2](blueprints/batches/NOTE_Behaviors_To_Backend_Armed_People_Status.md)); behaviors — the intent rows, self-defence and the
+and the status rule for combatants in front of it (B-7 is amended, NOTE,
+NOTE 2); behaviors — the intent rows, self-defence and the
 neutral-in-line hold in the ladder and the weapon brain's hold (`CE-2239`), the hostile act moved from the draw to the aim/fire/attack
 (`CE-2238`).
 
@@ -1851,7 +1851,7 @@ stone never hits a neutral on purpose — the executor's neutral exemption for a
 |---|---|
 | where | `Stones.InHand` / `Stones.Throw` (`Fdp.Toolkits/Civilians/Stones.cs`) · the bend and the throw arm at the top of `CivilianBehavior.Riot`, `CanFill`, `RiotState { NextThrowAt, BendUntil }`, constants `ThrowMinMetres` 4 · `ThrowMaxMetres` 20 · `ThrowCooldownSeconds` 3 · `BendSeconds` 1.5; `Deactivate_Riot` stands him up when he leaves mid-bend |
 | the throw | ONE `FireAtPoint` round (`Rounds = 1`, the executor's own cooldown 0.5 s) on the hands mount at the target's position; the behaviour paces the stones |
-| ⛔→✅ civilians could not throw | 📌 **measured live, `2026-10-17`:** the rioter filled his hands and issued the throw, but no stone left his hand in 102 s (weapon status `None`). `WeaponDispatcherSystem` fails every weapon-channel action without `CanShoot` (`WeaponDispatcherSystem.cs:92`), and the civilian types carried only `CanMove | CanInteract`. ⇒ **`CivilianTkbCatalog.Civilian` now sets `CanShoot`** (cross-lane, backend's file — [note](blueprints/batches/NOTE_Behaviors_To_Backend_Hands_CanShoot.md)); it gives no weapon (H-3 reads the hands). Rail `NonLethalMunitionTests.CE2238_EveryBuiltInPersonWithABrain_…`, red without the flag. 📌 The twin had passed before the fix because it counted throw REQUESTS — it now asserts a stone is SPENT |
+| ⛔→✅ civilians could not throw | 📌 **measured live, `2026-10-17`:** the rioter filled his hands and issued the throw, but no stone left his hand in 102 s (weapon status `None`). `WeaponDispatcherSystem` fails every weapon-channel action without `CanShoot` (`WeaponDispatcherSystem.cs:92`), and the civilian types carried only `CanMove | CanInteract`. ⇒ **`CivilianTkbCatalog.Civilian` now sets `CanShoot`** (cross-lane, backend's file — note); it gives no weapon (H-3 reads the hands). Rail `NonLethalMunitionTests.CE2238_EveryBuiltInPersonWithABrain_…`, red without the flag. 📌 The twin had passed before the fix because it counted throw REQUESTS — it now asserts a stone is SPENT |
 | a test world needs HANDS | 📌 `PersonHands.MountIndex` reads the TKB type — a bare HSM world has none, so the rail builds the production path in miniature: a pedestrian type through `EnsureOnPersons`, injected by `CombatTkbTranslator` |
 
 **Proof.** Rails `CivilianHsmTests.CE2238_ARioterWithStones_…` (throws at 12 m from the hands mount, `Rounds` 1, at the policeman; the
@@ -2262,7 +2262,7 @@ Failure with no charge. No deviation.
 | rails `DetonateChargeBehaviorTests` ×2 (in `StationWeaponBehaviorTests.cs`, its `World` shared) | ✅; **mutants 3/3 killed** — the `Seconds` hold · `by` himself · Failure with no charge |
 | twin `PostureScenarioTests.CE2238_Bomber_…` | ✅ green (47 s): never judged armed by the rifleman or a civilian, 0 rounds, every civilian within 5 m dead, one at 10.4 m wounded, nobody beyond the radii hurt |
 | live `ua-armed-bomber` | ✅ 5/5 — Neutral and 0 rounds until the blast; the vest bursts at 37.7 s, he is dead; everyone within 3 m hurt; the rifleman at 31 m unhurt |
-| ⛔ finding `CE-2247` (backend) | 2 s after the burst the position owner (SimHost) has the spent vest GONE, but CGF and IG still hold it as a LIVE charge — `Charges.End` promises every replica goes. Rail `CE2247_Bomber_TheSpentVest_LeavesEveryNode`, skipped until fixed; [note](blueprints/batches/NOTE_Behaviors_To_Backend_SpentChargeReplicas.md) |
+| ⛔ finding `CE-2247` (backend) | 2 s after the burst the position owner (SimHost) has the spent vest GONE, but CGF and IG still hold it as a LIVE charge — `Charges.End` promises every replica goes. Rail `CE2247_Bomber_TheSpentVest_LeavesEveryNode`, skipped until fixed; note |
 
 ## 5m. B7 — CV-14, the security forces provoke a crowd *(behaviors, `CE-2241` ② / handoff B7, 2026-10-18; build-state: READY-TO-BUILD)*
 
@@ -2368,7 +2368,7 @@ graph TD
 
 ## 5n. G7 — the civilian brain sets what a man holds *(behaviors, `CE-2248`, ui finding G7, 2026-10-18; build-state: READY-TO-BUILD)*
 
-⭐ **Scope.** ui's finding G7 ([handoff](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md)): `HeldItems.Set`
+⭐ **Scope.** ui's finding G7 (handoff): `HeldItems.Set`
 (backend HI-2, `Combat/HeldItems.cs:30`) has no production caller, so the display never shows a phone or a stone in hand. ⏳ Not here:
 binoculars (no lookout behaviour exists to raise them — a later role), speech (G1) and the replicated mood (G2) — both need backend's
 component first.
@@ -2416,7 +2416,7 @@ asks; taking a phone out sets nothing off.
 
 ## 5o. The people display's gaps — the BEHAVIOUR halves *(behaviors, 2026-10-18; build-state: DESIGN — frames with leans, for review)*
 
-⭐ **Scope.** ui's [DESIGN_People_Display.md](DESIGN_People_Display.md) §8 (findings [G1–G8](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))
+⭐ **Scope.** ui's [DESIGN_People_Display.md](DESIGN_People_Display.md) §8 (findings G1–G8)
 needs data that nothing writes. Backend owns the components and the wire; **this section owns WHO writes them, WHEN**. G7 is built in §5n.
 ⏳ Each row designs fully (UML) when backend's component lands; until then it is a frame with a lean.
 
@@ -2879,7 +2879,7 @@ replicates (the danger-area result, `EffectState`). No navmesh change.
 | the footprint | the cloud now ∪ its centre moved by `WindAt × T` (T ≈ 15 s), radius + a margin | the current cylinder only: the cloud drifts onto the chosen cover |
 | a gassed man | no cover search; escape blind | a normal cover search: he cannot see (user) |
 
-⏳ Backend half (`CE-3227`): the kind, the predicted footprint, the classifier. Behaviors half: the reactions — 📨 [frame](blueprints/batches/HANDOFF_Backend_To_Behaviors_Gas_Reactions.md).
+⏳ Backend half (`CE-3227`): the kind, the predicted footprint, the classifier. Behaviors half: the reactions — 📨 frame.
 
 ##### 7.3d-B The backend build (`CE-3227`; backend, `2026-10-17`; build-state: BUILT — as-built §7.3d-C)
 
@@ -3023,7 +3023,7 @@ node (D5) whose hit goes through B-1-a's event — backend adds only the warhead
 its fire is the same kind of lasting area, with a burn effect no cloud has yet. The stone has no thrower yet: a civilian picks one up through `PersonCarrier`, which is
 behaviors' CE-2236. The baton blow is behaviors' melee node (D5).
 
-### 7.7 B-6 — the gesture *(CV-13, R-2024; `CE-3224`; [frame](blueprints/batches/HANDOFF_Behaviors_To_Backend_Civilians_Gestures.md))* — ✅ BUILT `2026-10-17`
+### 7.7 B-6 — the gesture *(CV-13, R-2024; `CE-3224`; frame)* — ✅ BUILT `2026-10-17`
 
 ```mermaid
 classDiagram
@@ -3140,7 +3140,7 @@ straight" are now the SAME round — before, a loadout thrown at a point flew it
 his hands even when he also carries a weapon system (B-11): the throw names the hands' index, a carried weapon its controlled index — B-11
 decides whether a carried weapon should take mount 0 first. ③ `Give` is the only writer: the pick-up grant (B-13) calls it.
 
-### 7.6 ui's findings F-1…F-4 — backend's answers *(2026-10-16; [findings](blueprints/batches/HANDOFF_Ui_To_Backend_Civilians_Findings.md))*
+### 7.6 ui's findings F-1…F-4 — backend's answers *(2026-10-16; findings)*
 
 | # | finding | answer |
 |---|---|---|
@@ -4122,13 +4122,13 @@ and, missing, lies where it lands for its lying time and is picked up (`RoundPic
 |---|---|---|
 | the munitions | `MunitionTkbCatalog` 6044 hatchet · 6045 spear · 6046 star — `Kinetic`, `Indirect`, 1.5 mm (≤ the 9 mm's 2 mm: a vest stops them), damage 35 / 45 / 8, cost 1 / 1 / 0.5 | a `WarheadKind.Edged` (TC-2's own rejection: no reader tells it from `Kinetic`) |
 | lying | `HandItemDto { LiesSeconds = 300 }` — five minutes (a stone lies one) | the stone's minute: a blade is worth walking back for |
-| the look | `MunitionShape` **Axe 6 · Spear 7 · Star 8** (appended) | the `Grenade` lump (TC-3) — ⚠ ui's `ProjectileLayer` has no case for them yet, so they draw NOTHING until ui adds one ([note](blueprints/batches/NOTE_Backend_To_Ui_Thrown_Blade_Shapes.md)) |
+| the look | `MunitionShape` **Axe 6 · Spear 7 · Star 8** (appended) | the `Grenade` lump (TC-3) — ⚠ ui's `ProjectileLayer` has no case for them yet, so they draw NOTHING until ui adds one (note) |
 | a knife | ⛔ none (R-3016) — a rail pins that no built-in munition is a knife | — |
 
 Rails: `RoundPickUpTests.CE3247_…` (a hatchet strikes the man on its line, 8 m off, with its damage and thrower; one that misses lies and is
 picked up), `ThrownColdWeaponTests` (the three on the built-in catalogue: kind, arc, lingering, damage, armour, shape, lethal; no knife).
 
-### 7.18 G1 / G2 / G3 — speech, mood and the blow on the wire *(backend halves of ui's [people-display gaps](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md); `CE-3264` `CE-3265` `CE-3266`; backend, `2026-10-19`; leans under the overnight mandate; build-state: BUILT)*
+### 7.18 G1 / G2 / G3 — speech, mood and the blow on the wire *(backend halves of ui's people-display gaps; `CE-3264` `CE-3265` `CE-3266`; backend, `2026-10-19`; leans under the overnight mandate; build-state: BUILT)*
 
 The behaviour halves are §5o (behaviors' `CE-2249` speech writers, `CE-2250` the mood writer, `CE-2251` which weapon struck); this
 section is only what crosses the wire and the one helper each reads and writes through.
@@ -4186,7 +4186,7 @@ sequenceDiagram
 field (the target as a network id); `UtteranceTests` / `DemeanourTests` (Toolkits) — expiry, "addressed to me", quarters, write-only-on-change;
 `MeleeTests`-style rail — a strike raises its notification with the weapon.
 
-## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
+## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the ui handoff; ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 
 ⭐ **`2026-10-18` — the next ui designs (U7…U18: armed people, police look, speech and mood marks) live in [`DESIGN_People_Display.md`](DESIGN_People_Display.md)**, not here — this section stays U-1…U-6 and the cloud.
 
@@ -4323,7 +4323,7 @@ and the dashed B-1 edge is the one path where a backend change would draw wrongl
 
 U-5 (crowd overlay) stays LATER as the handoff leans, with no id until behaviors' `CE-2237` exists.
 ⚠ **Findings for the backend lane** (U1-b, U3-b, U4-b, U4-c) are sent in
-[`HANDOFF_Ui_To_Backend_Civilians_Findings.md`](blueprints/batches/HANDOFF_Ui_To_Backend_Civilians_Findings.md).
+`HANDOFF_Ui_To_Backend_Civilians_Findings.md`.
 
 ### 8.6 AS-BUILT — U-1 and U-2 (`CE-1162`, `CE-1163`, `2026-10-16`, ui; elderly + cower + B-5 arming `2026-10-17`)
 
@@ -4358,7 +4358,7 @@ Today's see-through materials (glass, hedge, chain-link) all block movement ⇒ 
 `TerrainWorldTests.CE1165_…`, red-proved. ⏳ U4-a (the cloud drawn in `EffectLayer`) waits on `AreaEffectCloud`.
 
 
-### 8.7 U-6 — gestures and the placard *(ui, `2026-10-17`; frame [HANDOFF_Behaviors_To_Ui_Civilians_Gestures.md](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians_Gestures.md), CV-13 R-2024; item `CE-1166`)*
+### 8.7 U-6 — gestures and the placard *(ui, `2026-10-17`; frame HANDOFF_Behaviors_To_Ui_Civilians_Gestures.md, CV-13 R-2024; item `CE-1166`)*
 
 **INVENTORY** *(2026-10-17; codebase-memory CLI `search_graph` `.*Gesture.*` (40 results) and `.*Placard.*|.*Sign.*Pole.*` (0) + grep
 `Arms(` in `ShapeKit.cs`; `check_index_coverage` NOT run — CLI only)*:
@@ -4452,7 +4452,7 @@ B-6: `CE1166_TheDrawingsGestures_AreBackendsGestures_ByteForByte` (red-proved by
 ⭐ `2026-10-18` (`CE-1180`): behaviors' `GestureKind.Warning` (= 6, the escalation ladder's EL-3) — `ArmGesture.Warning` (the right arm
 straight out, the palm forward) and WARNING in the line; the names rail caught the new member on the merge.
 
-### 8.8 U4-a — the cloud drawn *(ui, `2026-10-17`; on backend's [NOTE](blueprints/batches/NOTE_Backend_To_Ui_AreaEffectCloud.md), `CE-3219` part 3 as built in §7.3c; item `CE-1165`)*
+### 8.8 U4-a — the cloud drawn *(ui, `2026-10-17`; on backend's NOTE, `CE-3219` part 3 as built in §7.3c; item `CE-1165`)*
 
 ⛔ **SUPERSEDES §8.4 U4-a's "fading over `Lifespan`"** — the cloud carries no `Lifespan` (§7.3b: `LifespanSystem` would delete it on every
 node); it fades on `AreaEffectCloud.Fraction(now)` and its density is `TransmittanceAt(now)`.

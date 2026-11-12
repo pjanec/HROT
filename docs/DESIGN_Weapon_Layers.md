@@ -773,7 +773,7 @@ classDiagram
 
 > 🔒 **User, `2026-10-11`:** *"Other lanes are on hold. We should take the grenade scenario end to end."* ⇒ the backend lane builds
 > W-12a, W-12e, W-12f, the `TrackTarget` node and `ua-grenade-or-rifle` (handoff
-> [`HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md`](blueprints/batches/HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md)).
+> `HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md`).
 > W-12b/c (turret task per category, ATGM one round at a time) are not needed by the scenario — built next, §5g.
 
 #### INVENTORY *(graph CLI + grep, `2026-10-11`)*
@@ -894,7 +894,7 @@ never threw. ✅ Fixed by [AQ89](blueprints/Architect_Question_89_Suppress_And_C
   `CombatTemperament` (bravery / obedience, defaults 0.5 / 0.8) at or above 0.6.
 - The scenario authors the Grenadier brave (`"Temperament": {"riskAcceptance": 0.8}`).
 
-#### ⭐ `CE-3296` — a short throw is TOSSED, and a throw nothing clears is REFUSED *(backend, `2026-10-22`; behaviors' [note](blueprints/batches/NOTE_Behaviors_To_Backend_Thrown_Grenades_At_A_Doorway.md); build-state: BUILT)*
+#### ⭐ `CE-3296` — a short throw is TOSSED, and a throw nothing clears is REFUSED *(backend, `2026-10-22`; behaviors' note; build-state: BUILT)*
 
 📐 **Measured by behaviors** (`bc-room-clear`, AssaultRiflemen 2009 at a Suspected room): ① the drill's stun grenade, a 2–3 m throw into a
 doorway whose low arc was judged blocked, was lobbed at the full 15 m/s — apex ≈ 11 m, flight ≈ 3 s — and its 1.5 s fuze burst it 12 m up;

@@ -10,7 +10,7 @@ related-designs:
 
 # STATUS — where the editor's frame goes while a 1 000-man PREVIEW plays (ui; CE-4433)
 
-Handoff [HANDOFF_Coordinator_To_Ui_Windows_Preview_Frame.md](HANDOFF_Coordinator_To_Ui_Windows_Preview_Frame.md), dispatched at `bc0c93253`; started at `2e883738f`
+Handoff HANDOFF_Coordinator_To_Ui_Windows_Preview_Frame.md, dispatched at `bc0c93253`; started at `2e883738f`
 (merged `backend@8ccb92a32`, `coordinator@ee1c3ca80`). The user's Windows machine, Release, **every run hidden** (`HROT_HIDDEN_WINDOW=1`), **uncapped**
 (`--target-fps 0`), panel capture off (`HROT_PANEL_CAPTURE=0`, the user's path). The rig regenerated (`scale-rig.py --terrain scale-1 --men 1000 --vehicles 50
 --aircraft 10 --write-only`), opened for editing (28 s), **Play** (preview, continuous clock), 60 s to let the fight develop, then per view 30 s playing and 30 s

@@ -9,7 +9,7 @@ known-conflict: none.
 # ⭐⭐⭐ REPORT — **Details panel migration, `L0.4` + layer `L4`** *(the World, then float and pin)*
 
 > **Design:** 📄 [`DESIGN_Details_Panel_View_Switching.md`](../DESIGN_Details_Panel_View_Switching.md)
-> §2 · §2b · §6 `L0.4` · §6 `L4` · **dispatch:** [`HANDOFF_Details_Panel_Migration.md`](HANDOFF_Details_Panel_Migration.md)
+> §2 · §2b · §6 `L0.4` · §6 `L4` · **dispatch:** `HANDOFF_Details_Panel_Migration.md`
 > **started at** `55cc60e1` *(marker `2c75154f`)* · **branch** `claude/hrot-implementation-j1jvin`
 > ⭐ Re-synced from the coordinator at the start *(rule 7)*; re-pulled before the final commit *(rule 4)*.
 > ⛔ **No diagram in this report** — diagrams live in the design.

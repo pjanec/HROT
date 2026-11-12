@@ -111,7 +111,7 @@ the next item (`R-106`).
 | `2026-10-19` | 7 | ✅ a destroyed weapon system goes dark, it does not burn; Presentation 778 / 0 |
 | `2026-10-19` | 5 | ✅ every UH-60 drawn doors-off: the cabin seen through, riders and gunners in its openings; the sim's boxes regenerated; Presentation 778 / 0, parity 6 / 0, Toolkits bodies 46 / 0 |
 | `2026-10-19` | 8 | ✅ the roads stop flickering from afar: the 3-D camera's near clip 0.1 % → 0.5 % of its distance (the depth step from 2 km under the road's lift); Presentation 779 / 0, Fdp.Presentation 581 / 0 |
-| `2026-10-19` | 9 | 📨 `CE-1208` sent to backend as a [NOTE](batches/NOTE_Ui_To_Backend_Walk_And_Run_Speeds.md) — the walk / run speeds belong in the TKB |
+| `2026-10-19` | 9 | 📨 `CE-1208` sent to backend as a NOTE — the walk / run speeds belong in the TKB |
 | `2026-10-19` | 10 | ✅ a blow struck is drawn: the striker's 0.45 s fist punch / knife stab / baton swing, from `StrikeNotification`; Presentation 781 / 0 |
 | `2026-10-19` | 11 | ✅ hold RMB to zoom (the scope's field of view, else the iron sights' 30°; the mouse slowed alike); the lock cancel is X. No wire change: a possessed man is already Aimed. Found and filed `CE-1222` (backend — the operator's weapon choice never reaches `ActiveMount`); Presentation 782 / 0 |
 | `2026-10-19` | 12 | ✅ hold Q / E to lean (a level on the control frame, appended through the wire; the brain writes `dtLean` on a change; it goes with the possession); use moved E → F, the next round F → R; cross-lane: one line in behaviors' `OperatorControlBehavior`. Presentation 783 / 0, SimHost 1688 / 0 |

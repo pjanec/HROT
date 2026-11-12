@@ -1,5 +1,0 @@
-QUESTION — on a station that does not run a unit's brain, where does the Unit form's *Knows about* row (Initial state S5) read the unit's knowledge from? Lean: **read it on demand from the brain's node when the form opens, and show the station's own pending requests from `EditJournal` until it arrives**. Nothing skipped: the sending side (S3) does not depend on the answer.
-
-- Measured: `TargetMemory` (`FDP/Toolkits/Fdp.Toolkits/Perception/Components/PerceptionComponents.cs:47`) is saved but has NO translator under `Hrot/Network` ⇒ it lives ONLY on the brain's node; an asking station keeps only its request + outcome in `EditJournal`.
-- Rejected: replicate `TargetMemory` to every node — its entries' freshness changes every frame (constant wire load for a row looked at occasionally) · show the journal only — wrong as soon as the unit learns anything itself or another station seeds it.
-- Basis: R-1036 (the Brain tab is full only on the brain's node) predates the form row; `docs/UX/DESIGN_Initial_State.md` §3 ("Knows about") does not say where a non-brain station reads it. Raised by the user's question in chat, `2026-11-07`.

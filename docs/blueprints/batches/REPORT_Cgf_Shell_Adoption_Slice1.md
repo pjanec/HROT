@@ -144,7 +144,7 @@ committed; the verification run afterwards left the tree untouched.
 
 ## 4c. 🔒 THE MID-BATCH STEER *(rule 1c, `2026-08-25`)*
 
-📄 [`STEER_Cgf_Shell_Adoption_Slice1.md`](STEER_Cgf_Shell_Adoption_Slice1.md) — ⭐ found on the
+📄 `STEER_Cgf_Shell_Adoption_Slice1.md` — ⭐ found on the
 coordinator branch during the **rule-4 re-pull** before the final commit, and merged.
 ⭐⭐ **Outcome and evidence live in the DESIGN, §10** *(obligation ⑤ — ⛔ the report points, it does not
 restate)*. In one line each:

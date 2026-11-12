@@ -9,7 +9,7 @@ stale-below: nothing
 | | |
 |---|---|
 | **branch** | `claude/hrot-implementation-j1jvin` |
-| **handoff** | [`HANDOFF_Batch97_Editing_A_Scalar_For_Real.md`](HANDOFF_Batch97_Editing_A_Scalar_For_Real.md) |
+| **handoff** | `HANDOFF_Batch97_Editing_A_Scalar_For_Real.md` |
 | **scope frozen at** | ⭐ **`ea353f6`** *(re-stamped twice under rule 1a)* |
 | **base for every RED** | ⭐ **`d5f18e2b2`** |
 | **started-marker** *(rule 1b)* | `09b56b9` — `chore: started batch 97 at ea353f6` |
