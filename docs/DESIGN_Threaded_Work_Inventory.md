@@ -39,6 +39,13 @@ parallelism"* — and *"I can actually run 3 sessions in parallel"*. Four read-o
 | U-3 | gizmo commits read the write route back at once and snap back on `Refused` | `IEntityComponentWriter` / `EntityWriteRouter.For` | the snap-back moves to the ghost, driven by the outcome |
 | U-4 | editors write the world DIRECTLY when the scenario is not running | `EntityAiEditModel` (ingress `*Now`, `RoeSystem.Apply`, `ApplyParams`), `RepositoryAdapter`, `TerrainBlockOps`, `WeatherEdit`, `ParamUsage`, `MacroArgs`, `HeaderParams` | each needs a carrier |
 
+⭐ **The precedent for asynchronous edits already exists** (measured `Edits.cs:21-80`, `EditRequests.cs:11`): `Edits.Submit` returns an
+`EditTicket(RequestId, Route)`; when this node does NOT own the component the route is `Routed`, the edit travels to the owner, and the outcome
+arrives LATER through `EditOutcomes` / `EditJournal` keyed by the request id. ⇒ in the threaded editor the UI is simply a non-owner and S the
+owner: every UI edit takes the `Routed` path that cluster edits already take. ⚠ Not yet checked: that every caller handles `Routed` (the
+gizmo snap-back reads the route at once — U-3); undo (U-1) and the edit-mode direct writes (U-4) have no carrier and are design work, not
+mechanical — ⇒ a small POC before the overnight conversion (CE-4455).
+
 | kind | sites (file:line) | carrier today | undo | ghost |
 |---|---|---|---|---|
 | move / rotate | `EntityDragGizmo` commit 261, preview 278/284; `GroupTransform` 233, preview 260/266; `EntityRotatorGizmo` 250, preview 256 | `EntityWriteRouter` attribute writes | yes (`EditSteps`) | ⭐ YES — previews into a ghost in A, the drop one command |
