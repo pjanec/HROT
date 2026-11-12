@@ -78,6 +78,18 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Step(EntityRepository world, Entity e, double now)
         {
             if (!Ensure(world, e, now)) return;
+            StepCore(world, e, now);
+        }
+
+        /// <summary>⭐ P-1 — <see cref="Step"/> for a man who already HAS Stress (the parallel body: no lazy add — the pre-pass added it).</summary>
+        public static void StepExisting(EntityRepository world, Entity e, double now)
+        {
+            if (!world.HasComponent<Stress>(e) || !world.HasComponent<SimTransform>(e) || !Feels(world, e)) return;
+            StepCore(world, e, now);
+        }
+
+        private static void StepCore(EntityRepository world, Entity e, double now)
+        {
             ref var s = ref world.GetComponentRW<Stress>(e);
             double dt = Math.Clamp(now - s.LastStepAt, 0.0, MaxStepSeconds);
             s.LastStepAt = (SimInstant)now;
@@ -177,13 +189,21 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         public static void Judge(EntityRepository world, Entity e, double now)
         {
-            if (!world.HasComponent<Stress>(e) || !Feels(world, e)) return;   // a man down (or no longer a combatant) breaks no more
+            if (!JudgeCompute(world, e, now, out var edge, out bool broken)) return;
+            JudgeApply(world, e, edge, broken);
+        }
+
+        /// <summary>⭐ P-1 (the parallel experiment) — the part of <see cref="Judge"/> that writes only <paramref name="e"/>'s own Stress: the
+        /// break / recovery decision. False when there is nothing to judge. Safe in a parallel batch.</summary>
+        public static bool JudgeCompute(EntityRepository world, Entity e, double now, out SensorChange? edge, out bool broken)
+        {
+            edge = null; broken = false;
+            if (!world.HasComponent<Stress>(e) || !Feels(world, e)) return false;   // a man down (or no longer a combatant) breaks no more
             float breakAt = BreakLevel(world, e);
             var s = world.GetComponentRO<Stress>(e);
-            SensorChange? edge = null;
             if (s.Broken == 0)
             {
-                if (s.Level < breakAt) return;
+                if (s.Level < breakAt) return false;
                 s.Broken = 1;
                 s.CalmSince = (SimInstant)0;
                 edge = SensorChange.StressBreak;
@@ -195,13 +215,18 @@ namespace Hrot.AI.Behaviors.Brains
             }
             else s.CalmSince = (SimInstant)0;
             world.SetComponent(e, s);
-            if (edge is { } what && world.Bus.IsRegistered<SensorChangedEvent>())
-                world.Bus.Publish(new SensorChangedEvent { Unit = e, What = what });
-            if (s.Broken != 0) StartBreak(world, e);
+            broken = s.Broken != 0;
+            return true;
         }
 
-        /// <summary>Starts his break unless it (or his surrender, or a grenade's reflex) already runs: he surrenders when his resolve is low
-        /// and an enemy covers him, else he runs to a retreat point when he has one, else he goes to ground.</summary>
+        /// <summary>⭐ P-1 — the part of <see cref="Judge"/> that touches the bus and another system's state (the reaction): SERIAL.</summary>
+        public static void JudgeApply(EntityRepository world, Entity e, SensorChange? edge, bool broken)
+        {
+            if (edge is { } what && world.Bus.IsRegistered<SensorChangedEvent>())
+                world.Bus.Publish(new SensorChangedEvent { Unit = e, What = what });
+            if (broken) StartBreak(world, e);
+        }
+
         public static void StartBreak(EntityRepository world, Entity e)
         {
             if (!world.HasComponent<BehaviorState>(e)) return;
@@ -289,7 +314,7 @@ namespace Hrot.AI.Behaviors.Brains
             return false;
         }
 
-        private static bool Ensure(EntityRepository world, Entity e, double now)
+        internal static bool Ensure(EntityRepository world, Entity e, double now)
         {
             if (!world.IsComponentTypeRegistered<Stress>() || !world.HasComponent<SimTransform>(e)) return false;
             if (!Feels(world, e)) return false;
@@ -318,6 +343,14 @@ namespace Hrot.AI.Behaviors.Brains
 
         public StressSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
 
+        /// <summary>⭐ P-5 (the parallel experiment, E-4) — each man's CONTINUOUS step (the drift, the calming) runs once per this many sim
+        /// seconds on his phase (<see cref="CadenceGate.DueOnGrid"/>); 0 = every frame (the default). Stimuli still land at once. ✅ The step
+        /// already integrates the time since his last step (<c>Stress.LastStepAt</c>), so a slower step loses no time. Experiment knob:
+        /// <c>HROT_STRESS_PERIOD</c>.</summary>
+        public double StepPeriod { get; set; } = double.TryParse(Environment.GetEnvironmentVariable("HROT_STRESS_PERIOD"),
+            System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var p) ? p : 0.0;
+        private double _prevNow = double.NegativeInfinity;
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<Stress>() || !repo.IsComponentTypeRegistered<StanceIntent>()) return;
@@ -334,12 +367,48 @@ namespace Hrot.AI.Behaviors.Brains
             }
 
             _people ??= repo.Query().With<StanceIntent>().With<BehaviorState>().With<Health>().With<SimTransform>().Build();
+            double prev = _prevNow; _prevNow = now;
+            double period = StepPeriod;
+            if (Fdp.Core.Jobs.ParallelEntities.Enabled)
+            {
+                // ⭐ P-1 (DESIGN_Parallel_Simulation §5; the parallel experiment E-3) — ① SERIAL: the men we own, and Stress ADDED where it is
+                //   missing (a structural change is not thread-safe); ② PARALLEL: each man steps and judges his OWN Stress; ③ SERIAL, in batch
+                //   order: the edges published and the breaks started. Same order as the serial loop below.
+                int n = 0;
+                foreach (var e in _people)
+                {
+                    if (!Owned(repo, e)) continue;
+                    if (!CadenceGate.DueOnGrid(prev, now, period, e.Index) && repo.HasComponent<Stress>(e)) continue;   // ⭐ P-5
+                    StressModel.Ensure(repo, e, now);
+                    if (n == _list.Length) Array.Resize(ref _list, Math.Max(64, _list.Length * 2));
+                    _list[n++] = e;
+                }
+                Fdp.Core.Jobs.ParallelEntities.Run(repo, _list, n, new StressJob { Repo = repo, Now = now });
+                return;
+            }
             foreach (var e in _people)
             {
                 if (!Owned(repo, e)) continue;
+                if (!CadenceGate.DueOnGrid(prev, now, period, e.Index) && repo.HasComponent<Stress>(e)) continue;   // ⭐ P-5
                 StressModel.Step(repo, e, now);
                 StressModel.Judge(repo, e, now);   // ⭐ CE-2272 (TS-6) — the break and the recovery
             }
+        }
+
+        private Entity[] _list = new Entity[64];
+
+        private struct StressJob : Fdp.Core.Jobs.IEntityBatchJob
+        {
+            public EntityRepository Repo;
+            public double Now;
+            public void Execute(Entity e, int index, Fdp.Core.Jobs.BatchContext ctx)
+            {
+                StressModel.StepExisting(Repo, e, Now);
+                if (!StressModel.JudgeCompute(Repo, e, Now, out var edge, out bool broken)) return;
+                if (edge != null || broken) ctx.Defer(e, edge is { } w ? (int)w : -1, broken ? 1f : 0f);
+            }
+            public void ApplyDeferred(EntityRepository repo, in Fdp.Core.Jobs.Deferred d)
+                => StressModel.JudgeApply(repo, d.Entity, d.Code >= 0 ? (SensorChange)d.Code : null, d.Value != 0f);
         }
 
         private bool Owned(EntityRepository repo, Entity e)

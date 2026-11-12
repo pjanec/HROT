@@ -191,6 +191,7 @@ namespace Fdp.Core
             
             // Update version
             _chunkVersions[chunkIndex] = version;
+            if (StampTrace.On) StampTrace.Note(typeof(T));   // ⭐ CE-4445 M-4 — who stamps (opt-in)
             
             return ref _chunks[chunkIndex][localIndex];
         }
@@ -249,6 +250,7 @@ namespace Fdp.Core
             if (version != 0)
             {
                 _chunkVersions[chunkIndex] = version;
+                if (StampTrace.On) StampTrace.Note(typeof(T));   // ⭐ CE-4445 M-4 — who stamps (opt-in)
             }
         }
 

@@ -7,7 +7,7 @@ using Xunit;
 namespace Fdp.Core.Tests
 {
     /// <summary>
-    /// POC 2 / P-1 — a read is a read. The pure read path (<see cref="ThreadedReads.PureReads"/>, <c>HROT_PURE_READS=1</c>) stamps no chunk version
+    /// POC 2 / P-1 — a read is a read. The pure read path (<see cref="ThreadedReads.PureReads"/>, the DEFAULT since CE-4445; <c>HROT_MANAGED_READ_STAMP=1</c> restores the stamping read) stamps no chunk version
     /// and allocates nothing; the legacy path stamps. The rails call the pure methods DIRECTLY (a <c>static readonly</c> switch cannot flip inside
     /// one test process); the counter-proofs show the legacy path really does stamp, so "unchanged" means something.
     /// 📄 docs/blueprints/batches/HANDOFF_Coordinator_To_Backend_Threaded_POC_2.md
@@ -74,7 +74,7 @@ namespace Fdp.Core.Tests
         [Fact]
         public void LegacyGetComponent_WhenSwitchOff_Stamps()
         {
-            if (ThreadedReads.PureReads) return;   // switch ON: GetComponent IS the pure path (covered by the full suite run under HROT_PURE_READS=1)
+            if (ThreadedReads.PureReads) return;   // switch ON: GetComponent IS the pure path (the legacy rails run under the diagnostic HROT_MANAGED_READ_STAMP=1)
             var (repo, e, baseline) = Make();
             using (repo)
             {

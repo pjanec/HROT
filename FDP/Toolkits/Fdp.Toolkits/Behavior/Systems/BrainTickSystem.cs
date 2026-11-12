@@ -172,6 +172,9 @@ namespace Fdp.Toolkit.Behavior.Systems
             // ⭐ CE-446: a blueprint behaviour's tick takes the frame's command buffer, like an Instance tick.
             _ecb = view.GetCommandBuffer();
 
+            // ⭐ POC 2 Q-4 (opt-in HROT_BRAIN_PRESCORE=1, Throughput mode) — the brains' utility scoring, ahead of the serial walk, in parallel
+            if (Fdp.Toolkit.Utility.UtilityPrescore.Active) Fdp.Toolkit.Utility.UtilityPrescore.Of(repo).Run(repo);
+
             // Prune the dedup cache using reliable lifecycle events.
             foreach (var evt in repo.ReadEvents<DestructionOrder>())
             {

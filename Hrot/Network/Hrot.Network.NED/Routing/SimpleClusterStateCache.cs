@@ -80,9 +80,14 @@ namespace Hrot.Network.Routing
         {
             lock (_lock)
             {
-                return _nodes.Keys.ToList();
+                // ⭐ POC 3 (the parallel-simulation experiment; POC 2 trace): this was 55 % of the CGF's EqsSensorConfig egress — a new
+                //   list under the lock for EVERY sensor EVERY frame (SolverFor). One immutable snapshot of the ids, rebuilt only when the
+                //   SET of nodes changes (a heartbeat that only refreshes a known node keeps it). Same ids, same order.
+                return _idsSnapshot ??= _nodes.Keys.ToArray();
             }
         }
+
+        private int[]? _idsSnapshot;   // null ⇒ rebuilt on the next AllNodeIds
 
         /// <inheritdoc/>
         public bool HasRole(int nodeId, NodeRole role)
@@ -126,6 +131,7 @@ namespace Hrot.Network.Routing
             if (capability == null) throw new ArgumentNullException(nameof(capability));
             lock (_lock)
             {
+                if (!_nodes.ContainsKey(capability.NodeId)) _idsSnapshot = null;   // a NEW node changes the set
                 _nodes[capability.NodeId] = capability;
             }
         }
@@ -141,7 +147,9 @@ namespace Hrot.Network.Routing
             lock (_lock)
             {
                 _unsupportedOverrides.RemoveWhere(o => o.NodeId == nodeId);   // ⭐ J4 — a departure clears the mark too
-                return _nodes.Remove(nodeId);
+                bool removed = _nodes.Remove(nodeId);
+                if (removed) _idsSnapshot = null;
+                return removed;
             }
         }
 
@@ -155,6 +163,7 @@ namespace Hrot.Network.Routing
                     .ToList();
                 foreach (var id in stale)
                     _nodes.Remove(id);
+                if (stale.Count > 0) _idsSnapshot = null;
             }
         }
     }

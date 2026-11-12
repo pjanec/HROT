@@ -196,6 +196,31 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.False(CadenceDrain.TakeDrained(f.World));  // consumed
         }
 
+        /// <summary>⭐ P-5 (the parallel experiment) — the interleave grid: over one second at 60 frames, every entity is due exactly
+        /// 1 / period times, and the entities are spread over the frames (no frame carries them all). 🔴 Red-proof: the phase dropped ⇒ every
+        /// entity due in the same frame.</summary>
+        [Fact]
+        public void P5_DueOnGrid_EachEntityOncePerPeriod_SpreadOverTheFrames()
+        {
+            const double dt = 1.0 / 60.0, period = 0.2;
+            var perEntity = new int[20];
+            int busiest = 0;
+            double prev = 10.0;
+            for (int f = 1; f <= 60; f++)
+            {
+                double now = 10.0 + f * dt;
+                int inFrame = 0;
+                for (int i = 0; i < perEntity.Length; i++)
+                    if (CadenceGate.DueOnGrid(prev, now, period, i)) { perEntity[i]++; inFrame++; }
+                busiest = System.Math.Max(busiest, inFrame);
+                prev = now;
+            }
+            foreach (int n in perEntity) Assert.Equal(5, n);
+            Assert.True(busiest <= 4, $"busiest frame {busiest}");   // 20 entities on 10 phases over 12 frames per period
+            Assert.True(CadenceGate.DueOnGrid(5.0, 5.0, period, 3));    // time did not advance (paused, a seek): every frame
+            Assert.True(CadenceGate.DueOnGrid(5.0, 5.1, 0.0, 3));       // no period: every frame
+        }
+
         [Fact]
         public void CE2382_TheStagger_SpreadsSlotsOverTheFrames()
         {

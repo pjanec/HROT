@@ -13,6 +13,47 @@ namespace Fdp.Toolkits.Tests.Diagnostics
     [Collection("QueryTimings")]   // process-wide counters: never two of these at once
     public class QueryTimingsTests
     {
+        /// <summary>
+        /// ⭐ R-4209 (POC 3 T-1) — the SAMPLED timer: every call still counted exactly; the total time, measured on 1 call in 16 and scaled,
+        /// within 30 % of timing every call (8 000 calls of a ~5 µs busy wait — ~500 samples); a steady sampled call allocates nothing.
+        /// 🔴 Red-proof: the scale-up dropped ⇒ the sampled total is ~1/16 of the full one.
+        /// </summary>
+        [Fact]
+        public void R4209_TheSampledTimer_CountsEveryCall_AndItsTimeIsWithinItsErrorOfTimingEveryCall()
+        {
+            int was = QueryTimings.SampleOneIn;
+            try
+            {
+                double Run(int oneIn, string name)
+                {
+                    QueryTimings.SampleOneIn = oneIn;
+                    int slot = QueryTimings.Slot(name);
+                    QueryTimings.Reset();
+                    for (int i = 0; i < 8000; i++)
+                    {
+                        long t = QueryTimings.Begin();
+                        long until = System.Diagnostics.Stopwatch.GetTimestamp() + System.Diagnostics.Stopwatch.Frequency / 200_000;   // ~5 µs
+                        while (System.Diagnostics.Stopwatch.GetTimestamp() < until) { }
+                        QueryTimings.End(slot, t);
+                    }
+                    var row = QueryTimings.Snapshot().Rows.Single(r => r.Name == name);
+                    Assert.Equal(8000, row.Calls);   // exact, sampled or not
+                    return row.TotalMs;
+                }
+                double full = Run(1, "test.sampling.full");
+                double sampled = Run(16, "test.sampling.sampled");
+                Assert.InRange(sampled / full, 0.7, 1.3);
+
+                QueryTimings.SampleOneIn = 16;
+                int s2 = QueryTimings.Slot("test.sampling.alloc");
+                for (int i = 0; i < 100; i++) QueryTimings.End(s2, QueryTimings.Begin(), QueryTimings.Bytes());   // warm
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                for (int i = 0; i < 1000; i++) QueryTimings.End(s2, QueryTimings.Begin(), QueryTimings.Bytes());
+                Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            }
+            finally { QueryTimings.SampleOneIn = was; }
+        }
+
         [Fact]
         public void CE3427_CallsFromManyThreads_AreAllCounted_OnTheirSlot()
         {

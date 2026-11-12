@@ -75,6 +75,7 @@ namespace Fdp.ModuleHost
         /// background monitors. Only accessed on the main thread; no locking required.
         /// </summary>
         private readonly List<ModuleEntry> _drainingModules = new();
+        private readonly List<Task> _tasksToWait = new();   // ⭐ POC 4 J-2 — the frame-synced runs this frame waits on
 
         /// <summary>
         /// Serializes topology compilation tasks so at most one background compile
@@ -563,7 +564,14 @@ namespace Fdp.ModuleHost
             long whole = KernelFrameTimings.Start();   // ⭐ CE-4433
             using var traceFrame = Fdp.Core.AccessTrace.Scope("kernel:frame (outside systems)", Fdp.Core.TraceContext.Tick);   // ⭐ A-1 — the node frame's own steps (swap, time push, dispatch); each system pushes its own scope
             try { UpdateInternalCore(deltaTime, globalTime); }
-            finally { KernelFrameTimings.Stop("(kernel Update, whole)", whole); }
+            finally
+            {
+                KernelFrameTimings.Stop("(kernel Update, whole)", whole);
+                if (Fdp.Core.ManagedMutationCheck.On) Fdp.Core.ManagedMutationCheck.EndFrame();
+                if (Fdp.Core.StampTrace.On) Fdp.Core.StampTrace.EndFrame();   // ⭐ CE-4445 M-4   // ⭐ CE-4445 M-2 — the frame's managed reads vs their baseline
+            }
+            if (Fdp.Core.Diagnostics.ContentVersioning.On) Fdp.Core.Diagnostics.ContentVersioning.EndFrame(_liveWorld);   // ⭐ D-5 — before the sample
+            if (Fdp.Core.Diagnostics.TableWriteStats.On) Fdp.Core.Diagnostics.TableWriteStats.EndFrame(_liveWorld);   // ⭐ M-1 — the write instrument
         }
 
         private void UpdateInternalCore(float deltaTime, GlobalTime globalTime)
@@ -784,7 +792,7 @@ namespace Fdp.ModuleHost
             }
             
             // ═══════════ DISPATCH PHASE ═══════════
-            var tasksToWait = new List<Task>();
+            var tasksToWait = _tasksToWait; tasksToWait.Clear();   // ⭐ POC 4 J-2 — a field reused every frame (⛔ was a new List per frame, R-2084)
             
             foreach (var entry in topology.Modules)
             {
@@ -927,7 +935,14 @@ namespace Fdp.ModuleHost
             if (tasksToWait.Count > 0)
             {
                 kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
-                Task.WaitAll(tasksToWait.ToArray());
+                // ⭐ POC 4 J-2 — WaitAll without the array per frame: every run is waited for, then the faults (a fail-fast report) are thrown together
+                List<Exception>? waitFaults = null;
+                for (int w = 0; w < tasksToWait.Count; w++)
+                {
+                    try { tasksToWait[w].Wait(); }
+                    catch (AggregateException ex) { (waitFaults ??= new List<Exception>()).AddRange(ex.InnerExceptions); }
+                }
+                if (waitFaults != null) throw new AggregateException(waitFaults);
                 KernelFrameTimings.Stop("frame-synced wait", kt, kb);
                 
                 // Harvest immediately

@@ -236,7 +236,7 @@ public static unsafe class OccurrenceStoreAccess
         if (v.Active) return default;
 
         int bits = PresentTiers(world, entity);
-        v.World = world; v.Entity = entity; v.Count = 0; v.Stamped = 0; v.Active = true;
+        v.World = world; v.Entity = entity; v.Count = 0; v.Stamped = 0; v.Deferred = 0; v.Active = true;
         var d = BlueprintTierTable.Descending;
         for (int i = 0; bits != 0; i++, bits >>= 1)
             if ((bits & 1) != 0) v.Append(i, d[i].MemoryReadOnly(world, entity), stamped: false);
@@ -250,7 +250,11 @@ public static unsafe class OccurrenceStoreAccess
         internal TickViewScope(bool owns) => _owns = owns;
         public void Dispose()
         {
-            if (_owns && t_view is { } v) { v.Active = false; v.World = null; }
+            if (_owns && t_view is { } v)
+            {
+                if (v.Deferred != 0) v.StampChanged();   // ⭐ Q-1 (POC 2) — the blocks this tick took writable, stamped only if their bytes moved
+                v.Active = false; v.World = null;
+            }
         }
     }
 
@@ -265,6 +269,57 @@ public static unsafe class OccurrenceStoreAccess
         public int Stamped;                                   // bit k: block k already fetched RW in this scope
         public readonly long[] Memory = new long[StoreBlocks.Max];
         public readonly int[] Tier = new int[StoreBlocks.Max]; // BlueprintTierTable.Descending index
+
+        // ⭐ Q-1 (POC 2 of the parallel simulation; DESIGN_Parallel_Simulation §10.2 ③) — with BlueprintTickSystem.StampOnChange the first
+        //   writable use of a block COPIES it instead of stamping; the scope's end stamps only a block whose bytes changed. 📐 M-1 measured
+        //   the 4 KB tier ~48 % "dirty, unchanged" — BTree / HSM ticks take the block writable every tick and mostly write the same bytes.
+        public int Deferred;                                  // bit k: block k taken writable, its stamp decided at Dispose
+        public readonly byte[]?[] Before = new byte[]?[StoreBlocks.Max];
+
+        public void Defer(int k)
+        {
+            int size = BlueprintTierTable.Descending[Tier[k]].TotalSize;
+            var buf = Before[k];
+            if (buf == null || buf.Length < size) Before[k] = buf = new byte[size];   // grown once per thread and block position
+            new ReadOnlySpan<byte>((byte*)Memory[k], size).CopyTo(buf);
+            Deferred |= 1 << k;
+        }
+
+        public void StampChanged()
+        {
+            for (int k = 0; k < Count; k++)
+            {
+                if ((Deferred & (1 << k)) == 0) continue;
+                var spec = BlueprintTierTable.Descending[Tier[k]];
+                var nowBytes = new ReadOnlySpan<byte>((byte*)Memory[k], spec.TotalSize);
+                var wasBytes = new ReadOnlySpan<byte>(Before[k], 0, spec.TotalSize);
+                if (!nowBytes.SequenceEqual(wasBytes))
+                {
+                    spec.Memory(World!, Entity);   // changed: stamp now (same frame, after the write)
+                    if (Fdp.Core.Diagnostics.TableWriteStats.On && s_noteWrites) NoteWhere((byte*)Memory[k], nowBytes.CommonPrefixLength(wasBytes));
+                }
+            }
+            Deferred = 0;
+        }
+
+        // ⭐ POC 3 T-4 — HROT_WRITE_STATS=1 + HROT_WRITE_STATS_NOTES=1: name the slot (kind, key) and the offset of a tick's first changed byte
+        private static readonly bool s_noteWrites = Environment.GetEnvironmentVariable("HROT_WRITE_STATS_NOTES") == "1";
+        private static void NoteWhere(byte* memory, int offset)
+        {
+            ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
+            int headerAndTable = sizeof(BlueprintBlackboardHeader) + header.SlotCount * BlueprintBlackboardPartitions.SlotEntrySize;
+            if (offset < headerAndTable) { Fdp.Core.Diagnostics.TableWriteStats.Note($"T-4 header/slot-table +{offset}"); return; }
+            byte* table = memory + sizeof(BlueprintBlackboardHeader);
+            for (int i = 0; i < header.SlotCount; i++)
+            {
+                ref var slot = ref Unsafe.AsRef<BlueprintSlotEntry>(table + i * BlueprintBlackboardPartitions.SlotEntrySize);
+                if (offset < slot.PayloadOffset || offset >= slot.PayloadOffset + slot.PayloadSize) continue;
+                Fdp.Core.Diagnostics.TableWriteStats.Note(
+                    $"T-4 {BlueprintBlackboardPartitions.GetSlotKind(memory, i)} slot {slot.BlueprintId:x8} size {slot.PayloadSize} +{offset - slot.PayloadOffset}");
+                return;
+            }
+            Fdp.Core.Diagnostics.TableWriteStats.Note($"T-4 unslotted +{offset}");
+        }
 
         public void Append(int tier, byte* memory, bool stamped)
         {
@@ -294,7 +349,8 @@ public static unsafe class OccurrenceStoreAccess
     {
         if ((v.Stamped & (1 << k)) == 0)
         {
-            BlueprintTierTable.Descending[v.Tier[k]].Memory(v.World!, v.Entity);
+            if (Fdp.Toolkit.Blueprints.Systems.BlueprintTickSystem.StampOnChange) v.Defer(k);   // ⭐ Q-1 — decided at the scope's end
+            else BlueprintTierTable.Descending[v.Tier[k]].Memory(v.World!, v.Entity);
             v.Stamped |= 1 << k;
         }
         return (byte*)v.Memory[k];
