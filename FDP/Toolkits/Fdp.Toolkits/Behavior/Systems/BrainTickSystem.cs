@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fdp.Core;
+using Fdp.Core.Jobs;
 using Fdp.ModuleHost.Abstractions;
 using Fbt;
 using Fhsm.Kernel;
@@ -173,7 +174,8 @@ namespace Fdp.Toolkit.Behavior.Systems
             _ecb = view.GetCommandBuffer();
 
             // ⭐ POC 2 Q-4 (opt-in HROT_BRAIN_PRESCORE=1, Throughput mode) — the brains' utility scoring, ahead of the serial walk, in parallel
-            if (Fdp.Toolkit.Utility.UtilityPrescore.Active) Fdp.Toolkit.Utility.UtilityPrescore.Of(repo).Run(repo);
+            // ⭐ N-11 — with the brains a parallel phase the scoring already runs on every core, inside each unit's own tick: no pre-score
+            if (Fdp.Toolkit.Utility.UtilityPrescore.Active && !Parallel) Fdp.Toolkit.Utility.UtilityPrescore.Of(repo).Run(repo);
 
             // Prune the dedup cache using reliable lifecycle events.
             foreach (var evt in repo.ReadEvents<DestructionOrder>())
@@ -204,6 +206,8 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             // ⭐ S4 — the MobilityLost interrupt (CE-324) moved into HsmRunner with the rest of the HSM tier's quirks.
 
+            if (Parallel) RunParallel(repo, tiers, deltaTime, now, drain);
+            else
             for (int t = 0; t < tiers.Count; t++)
             {
                 var q = _tierQueries![t];
@@ -269,6 +273,142 @@ namespace Fdp.Toolkit.Behavior.Systems
             long tSops = Fdp.Toolkit.Diagnostics.QueryTimings.Begin(), bSops = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();
             TickSopSlots(repo, deltaTime, now);   // ⭐ CE-3035 — the SOP slot, after every task has ticked
             if (tSops != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Sops, tSops, bSops);
+        }
+
+        // ════ ⭐⭐⭐ N-11 (CE-4473; R-4212, docs/DESIGN_Parallel_Simulation.md §18) — THE BRAINS AS A PER-ENTITY PARALLEL PHASE ════════════
+        //   The same steps as the serial walk above, split by what they touch:
+        //   ① SERIAL pre-pass, tier order — everything that reads or writes this system's own records (the dedup, the relayout record, the
+        //      cadence readers) or another entity: who is due, the already-finished guard, a relayout restart, the cadence reader;
+        //   ② the PHASE (ParallelEntities, batch by index — deterministic at any thread count): each due unit's tree / HSM / blueprint ticks
+        //      on its batch thread — its own entity and parts written directly, other units read from the last tick, structural changes,
+        //      publishes and its commands into the batch's buffer (EntityRepository's per-entity rule, N-10), its cadence window per thread;
+        //   ③ SERIAL post-pass, batch order — the finish, the cadence bookkeeping, the fault finish (exactly the serial walk's order).
+        //   ⛔ Off (the default): the serial walk, unchanged.
+
+        /// <summary>⭐ N-11 — the brains run as a per-entity parallel phase: with the engine's parallel simulation (<c>HROT_PARALLEL_SIM=1</c>,
+        /// <see cref="ParallelEntities.Enabled"/> — the switch every converted per-entity system follows) or the threaded node
+        /// (<c>HROT_THREADED_KERNEL=3</c>). Off by default; tests set it.</summary>
+        public static bool Parallel = ParallelEntities.Enabled || Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds;
+
+        private struct Due
+        {
+            public Entity Entity;
+            public BehaviorDefinition Definition;
+            public IBehaviorRunner Runner;
+            public BehaviorState Behavior;
+            public int Reader;   // the cadence reader (-1: an every-frame brain, no window)
+        }
+
+        private Due[] _due = new Due[64];
+        private Entity[] _dueEntities = new Entity[64];
+
+        private const int StatusShift = 2;   // Deferred.Code = due index << 2 | status (0 running, 1 success, 2 failure)
+
+        private void RunParallel(EntityRepository repo, IReadOnlyList<BlueprintTierSpec> tiers, float deltaTime, double now, bool drain)
+        {
+            BrainPhase.Prepare(repo);   // registrations (structural) and the per-frame indexes brain code reads — never built inside the phase
+            // the kernel takes the last-tick view before every Simulation dispatch once anything is declared; the first parallel tick (the
+            // declarations were just made) takes it here — a host with no kernel (a rail) takes it before each tick itself
+            if (!repo.HasLastTickView) repo.CaptureLastTick();
+            int n = 0;
+            for (int t = 0; t < tiers.Count; t++)
+            {
+                var q = _tierQueries![t];
+                if (q is null) continue;
+                foreach (var entity in q)
+                {
+                    if (!Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.IsFirstVisit(repo, entity, t)) continue;
+                    var behavior = repo.GetComponent<BehaviorState>(entity);
+                    if (ExperimentalSoldierCadence > 0f && _history != null && behavior.CadencePolicy == 0 && behavior.Cadence == CadenceMode.EveryFrame)
+                    {
+                        ref var w = ref repo.GetComponentRW<BehaviorState>(entity);
+                        w.Cadence = CadenceMode.Periodic; w.CadencePeriod = ExperimentalSoldierCadence; w.CadenceNextTick = now;
+                        behavior = w;
+                    }
+                    bool cadenced = _history != null && behavior.Cadence != CadenceMode.EveryFrame;
+                    if (cadenced && !drain && !CadenceGate.Due(behavior.Cadence, behavior.CadenceNextTick, behavior.CadenceWake, now)) continue;
+                    if (!_registry.TryGetDefinition(behavior.ActiveBehaviorHash, out var def)) continue;
+                    if (BehaviorRunners.For(behavior.BrainTier) is not { } runner) continue;
+
+                    // Run's own serial half: the already-finished guard and the relayout restart (both this system's records)
+                    bool tick = !(_publishedTerminalForInstanceId.TryGetValue(entity.Index, out uint doneFor) && doneFor == behavior.InstanceId);
+                    if (tick)
+                    {
+                        int blockBytes = RootParamsAccess.RootParamsBytes(def);
+                        if (blockBytes > 0)
+                        {
+                            using var storeView = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.BeginTickView(repo, entity);
+                            tick = RestartIfRelaidOut(repo, entity, behavior, def, blockBytes);
+                        }
+                    }
+
+                    if (n == _due.Length) { Array.Resize(ref _due, n * 2); Array.Resize(ref _dueEntities, n * 2); }
+                    _due[n] = new Due { Entity = entity, Definition = def, Runner = runner, Behavior = behavior, Reader = cadenced ? ReaderOf(entity) : NoWindow };
+                    _dueEntities[n] = entity;
+                    if (!tick) _due[n].Runner = null!;   // skipped this tick (finished, or restarting) — the post-pass still runs for it
+                    n++;
+                }
+            }
+            if (n == 0) return;
+
+            _phaseRepo = repo; _phaseDelta = deltaTime; _phaseNow = now;
+            try { ParallelEntities.Run(repo, _dueEntities, n, new BrainJob { System = this }); }
+            finally
+            {
+                _phaseRepo = null;
+                Array.Clear(_due, 0, n);   // no definition / runner held past the tick
+            }
+        }
+
+        private EntityRepository? _phaseRepo;
+        private float _phaseDelta;
+        private double _phaseNow;
+
+        /// <summary>② — one unit's tick on its batch thread (Run's parallel half).</summary>
+        private int TickInPhase(int index, BatchContext batch)
+        {
+            ref readonly var due = ref _due[index];
+            if (due.Runner is null) return 0;
+            var repo = _phaseRepo!;
+            var entity = due.Entity;
+            int previousWindow = due.Reader != NoWindow ? repo.OpenStepWindow(due.Reader) : NoWindow;
+            try
+            {
+                using var storeView = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.BeginTickView(repo, entity);
+                if (!due.Runner.TryGetRootBrain(repo, entity, due.Definition, out byte* brain, out int brainBytes)) return 0;
+                ref byte block = ref BehaviorBlock.None;
+                if (RootParamsAccess.RootParamsBytes(due.Definition) > 0) block = ref RootParamsAccess.RootRef(repo, entity);
+                var ctx = new BehaviorRunContext
+                {
+                    World = repo, Self = entity, Definition = due.Definition, InstanceId = due.Behavior.InstanceId,
+                    Ecb = batch.Commands, DeltaTime = _phaseDelta,
+                };
+                var status = due.Runner.Tick(ref ctx, brain, brainBytes, ref block);
+                return status == NodeStatus.Success ? 1 : status == NodeStatus.Failure ? 2 : 0;
+            }
+            finally
+            {
+                if (due.Reader != NoWindow) repo.CloseStepWindow(previousWindow);
+            }
+        }
+
+        /// <summary>③ — the serial walk's follow-ups for one unit, in batch order.</summary>
+        private void AfterPhase(EntityRepository repo, in Deferred d)
+        {
+            int index = d.Code >> StatusShift, status = d.Code & ((1 << StatusShift) - 1);
+            ref readonly var due = ref _due[index];
+            var entity = due.Entity;
+            if (status != 0) Finish(repo, entity, due.Behavior, status == 1 ? NodeStatus.Success : NodeStatus.Failure);
+            if (_history != null) AfterCadencedTick(repo, entity, _phaseNow);
+            if (BehaviorFault.IsPending(repo, entity, due.Behavior.InstanceId)) Finish(repo, entity, due.Behavior, NodeStatus.Failure);
+        }
+
+        private struct BrainJob : IEntityBatchJob
+        {
+            public BrainTickSystem System;
+            public void Execute(Entity e, int index, BatchContext ctx)
+                => ctx.Defer(e, (index << StatusShift) | System.TickInPhase(index, ctx));
+            public void ApplyDeferred(EntityRepository repo, in Deferred d) => System.AfterPhase(repo, in d);
         }
 
         // ════ ⭐⭐ CE-2382 — THE TASK SLOT'S CADENCE: each cadenced slot reads the bus through ITS OWN EventAccumulator window ═══════════

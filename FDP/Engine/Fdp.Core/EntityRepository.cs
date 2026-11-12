@@ -1331,7 +1331,7 @@ namespace Fdp.Core
         internal ref T GetUnmanagedComponentRW<T>(Entity entity) where T : unmanaged
         {
             if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Write, TraceId, entity.Index);
-            if (ParallelReadCheck.Compiled && ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) throw ParallelReadCheck.OtherWrite(typeof(T), entity);   // ⭐ N-10 / F-5 — another entity's value only by a command
+            if (ParallelReadCheck.Compiled && ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) ParallelReadCheck.CheckOtherWrite(this, typeof(T), entity);   // ⭐ N-10 / F-5 — another entity's value only by a command (its own parts excepted)
             ValidateWriteAccess<T>(entity);
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1501,6 +1501,7 @@ namespace Fdp.Core
             Type type = typeof(T);
             if (_componentTables.ContainsKey(type))
                 return;
+            AssertNotRegisteringInPhase(type);
             
             var table = new ManagedComponentTable<T>();
             _componentTables[type] = table;
@@ -1569,7 +1570,7 @@ namespace Fdp.Core
         internal ref T GetManagedComponentRW<T>(Entity entity) where T : class
         {
             if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Write, TraceId, entity.Index);
-            if (ParallelReadCheck.Compiled && ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) throw ParallelReadCheck.OtherWrite(typeof(T), entity);   // ⭐ N-10 / F-5 — another entity's value only by a command
+            if (ParallelReadCheck.Compiled && ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) ParallelReadCheck.CheckOtherWrite(this, typeof(T), entity);   // ⭐ N-10 / F-5 — another entity's value only by a command (its own parts excepted)
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1695,6 +1696,7 @@ namespace Fdp.Core
             {
                 if (!allowCreate)
                     throw new InvalidOperationException($"Managed component {type.Name} has not been registered. Call RegisterManagedComponent<{type.Name}>() first.");
+                AssertNotRegisteringInPhase(type);
                 
                 var newTable = new ManagedComponentTable<T>();
                 _componentTables[type] = newTable;
@@ -1749,6 +1751,7 @@ namespace Fdp.Core
                 throw new InvalidOperationException($"Component {type.Name} is not registered. Call RegisterComponent<{type.Name}>() first.");
             }
             
+            AssertNotRegisteringInPhase(type);
             // Slow path: create new table (thread-safe)
             lock (_tableLock)
             {
@@ -1839,6 +1842,9 @@ namespace Fdp.Core
         /// <summary>The last-tick view (null until <see cref="CaptureLastTick"/>).</summary>
         internal EntityRepository? LastTickWorld => _lastTick;
 
+        /// <summary>Has a last-tick view been taken (the kernel takes it every tick once anything is declared)?</summary>
+        public bool HasLastTickView => _lastTick != null;
+
         /// <summary>
         /// ⭐ N-10 (R-4214 ④) — takes the LAST-TICK view: a shadow world holding this world's rows of every DECLARED type
         /// (<see cref="ParallelReadCheck.DeclaredMask"/> — the types some per-entity system writes in the phase and another reads), copied by changed
@@ -1862,24 +1868,46 @@ namespace Fdp.Core
         internal bool HasUnmanagedComponentUntraced<T>(Entity entity) where T : unmanaged
             => entity.Index >= 0 && entity.Index <= _entityIndex.MaxIssuedIndex && _entityIndex.GetComponentMask(entity.Index).IsSet(ComponentType<T>.ID);
 
+        /// <summary>⭐ N-11 — a component table is created only OUTSIDE a per-entity phase: the type tables are read by every batch thread
+        /// without a lock, so registration is structural and belongs before the phase (<c>BrainPhaseTypes</c>). Checks on: a defect, thrown.</summary>
+        private void AssertNotRegisteringInPhase(Type type)
+        {
+            if (ParallelReadCheck.Compiled && ParallelReadCheck.Defers(this))
+                if (ParallelReadCheck.Survey) ParallelReadCheck.Note("register-in-phase", type); else throw new InvalidOperationException($"ParallelReadCheck: component type {type.Name} registered inside a per-entity phase — register it before the phase (BrainPhaseTypes)");
+        }
+
+        /// <summary>
+        /// ⭐ N-11 (CE-4473; §18.1a "own-part") — is <paramref name="index"/> a PART of the entity this thread is processing
+        /// (<c>PartMetadata.ParentEntity</c>: a brain's child sensors)? Its parts are its own under the per-entity rule: read and written
+        /// directly, never served from the last tick.
+        /// </summary>
+        internal unsafe bool IsOwnPartOfCurrent(int index)
+        {
+            int current = ParallelReadCheck.Current;
+            if (current < 0 || index < 0 || index > _entityIndex.MaxIssuedIndex) return false;
+            if (!_entityIndex.GetComponentMask(index).IsSet(GlobalComponentIds.PartMetadata)) return false;
+            var table = _tableCache[GlobalComponentIds.PartMetadata];
+            return table != null && ((Entity*)table.GetRawPointer(index))->Index == current;
+        }
+
         // F-5 / F-6 — in a phase: a value write on the processed entity's EXISTING component stays direct; a structural change (an add, or anything
         // on a placeholder) and, with the checks off, a write to another entity are deferred into the batch's buffer (merged in batch order).
         private bool DeferUnmanaged<T>(Entity entity, in T component) where T : unmanaged
         {
-            bool other = ParallelReadCheck.IsOther(entity.Index);
+            bool other = ParallelReadCheck.IsOther(entity.Index) && !IsOwnPartOfCurrent(entity.Index);
             bool has = HasUnmanagedComponentUntraced<T>(entity);
             if (!other && has) return false;
-            if (other && has && ParallelReadCheck.Compiled) throw ParallelReadCheck.OtherWrite(typeof(T), entity);
+            if (other && has && ParallelReadCheck.Compiled) ParallelReadCheck.CheckOtherWrite(this, typeof(T), entity);
             ParallelReadCheck.CurrentBatch!.Commands.AddComponent(entity, in component);
             return true;
         }
 
         private bool DeferManaged<T>(Entity entity, T value) where T : class
         {
-            bool other = ParallelReadCheck.IsOther(entity.Index);
+            bool other = ParallelReadCheck.IsOther(entity.Index) && !IsOwnPartOfCurrent(entity.Index);
             bool has = entity.Index >= 0 && entity.Index <= _entityIndex.MaxIssuedIndex && _entityIndex.GetComponentMask(entity.Index).IsSet(ManagedComponentType<T>.ID);
             if (!other && has) return false;
-            if (other && has && ParallelReadCheck.Compiled) throw ParallelReadCheck.OtherWrite(typeof(T), entity);
+            if (other && has && ParallelReadCheck.Compiled) ParallelReadCheck.CheckOtherWrite(this, typeof(T), entity);
             ParallelReadCheck.CurrentBatch!.Commands.SetManagedComponent(entity, value);
             return true;
         }

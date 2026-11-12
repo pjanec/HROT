@@ -61,7 +61,9 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         /// <summary>⭐ S7 P-3 — a hostile that goes down within this many seconds of a man's last harm, another having taken the credit, is that man's assist.</summary>
         public const double AssistSeconds = 10.0;
 
-        private static readonly List<Entity> s_men = new(), s_roster = new();
+        [System.ThreadStatic] private static List<Entity>? t_men, t_roster;
+        private static List<Entity> s_men => t_men ??= new();   // ⭐ N-11 (CE-4473) — per THREAD: the brains tick in parallel; scratch is never shared
+        private static List<Entity> s_roster => t_roster ??= new();
 
         /// <summary>Reads this frame's events into <paramref name="t"/> for <paramref name="subject"/>'s men (a missing subject has none). <paramref name="now"/> = the sim time (<c>ObjectiveHost.Frame.Now</c>).</summary>
         public static void Update(EntityRepository world, Entity subject, HarmAttribute attribute, double now, ref FireTally t, double assistSeconds = AssistSeconds)

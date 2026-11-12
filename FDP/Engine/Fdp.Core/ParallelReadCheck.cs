@@ -21,7 +21,32 @@ namespace Fdp.Core
     public static class ParallelReadCheck
     {
         /// <summary>The switch: <c>HROT_READ_CHECK=1</c>. Read once — off, the JIT removes every hook.</summary>
-        public static readonly bool Compiled = Environment.GetEnvironmentVariable("HROT_READ_CHECK") == "1";
+        public static readonly bool Compiled = Environment.GetEnvironmentVariable("HROT_READ_CHECK") is "1" or "2";
+
+        /// <summary>⭐ N-11 — <c>HROT_READ_CHECK=2</c>: the SURVEY — every check RECORDS its finding (kind, type, first call site) instead of throwing,
+        /// and the access proceeds as with the checks off; <see cref="SurveyReport"/> lists them. One run names every undeclared read and every
+        /// direct cross write of a content set, where the throwing mode stops at the first.</summary>
+        public static readonly bool Survey = Environment.GetEnvironmentVariable("HROT_READ_CHECK") == "2";
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> s_survey = new();
+
+        /// <summary>Records a finding (survey mode): its first call site, outside the engine core.</summary>
+        public static void Note(string kind, Type t)
+        {
+            string key = kind + " " + t.FullName;
+            if (s_survey.ContainsKey(key)) return;
+            string site = new System.Diagnostics.StackTrace(2, false).ToString();
+            if (!s_survey.TryAdd(key, site) || s_surveyOut == null) return;
+            lock (s_survey) System.IO.File.AppendAllText(s_surveyOut, "SURVEY " + key + "\n" + site + "\n");   // a headless node: one line per new finding
+        }
+
+        private static readonly string? s_surveyOut = Environment.GetEnvironmentVariable("HROT_READ_CHECK_OUT");
+
+        /// <summary>Every finding so far, "kind type" → first call site (survey mode).</summary>
+        public static System.Collections.Generic.IReadOnlyDictionary<string, string> SurveyReport() => s_survey;
+
+        /// <summary>Forget the findings (tests).</summary>
+        public static void ClearSurvey() => s_survey.Clear();
 
         // ⭐⭐ N-10 (CE-4472; R-4212 / R-4214 ④⑤, docs/DESIGN_Parallel_Simulation.md §18–§18.2) — the per-entity rule IN THE REPOSITORY, always on
         //   (no longer a measuring prototype): while a per-entity parallel phase runs anywhere in the process (AnyPhase — one static load, so serial
@@ -38,7 +63,7 @@ namespace Fdp.Core
         }
 
         /// <summary>A per-entity phase starts (the caller, before its batches are handed out — the pool's start orders it).</summary>
-        public static void EnterPhase() => System.Threading.Interlocked.Increment(ref s_phases);
+        public static void EnterPhase() { System.Threading.Interlocked.Increment(ref s_phaseSeq); System.Threading.Interlocked.Increment(ref s_phases); }
 
         /// <summary>The phase ended (after every batch is done).</summary>
         public static void ExitPhase() => System.Threading.Interlocked.Decrement(ref s_phases);
@@ -132,10 +157,11 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static ref readonly T OtherUnmanagedRO<T>(EntityRepository repo, Entity e) where T : unmanaged
         {
-            if (t_current == 0 && Compiled) throw NoCurrent(typeof(T), e);
+            if (t_current == 0 && Compiled) { if (Survey) Note("no-current", typeof(T)); else throw NoCurrent(typeof(T), e); }
+            if (repo.IsOwnPartOfCurrent(e.Index)) return ref repo.LiveUnmanagedRO<T>(e);   // N-11 — its own part: live
             if (IsSet(s_unmanaged, ComponentType<T>.ID) && repo.LastTickWorld is { } last && last.HasUnmanagedComponentUntraced<T>(e))
                 return ref last.LiveUnmanagedRO<T>(e);
-            if (Compiled) throw Undeclared(typeof(T), e);
+            if (Compiled) { if (Survey) Note("undeclared-read", typeof(T)); else throw Undeclared(typeof(T), e); }
             return ref repo.LiveUnmanagedRO<T>(e);
         }
 
@@ -144,11 +170,27 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static ref readonly T OtherManagedRO<T>(EntityRepository repo, Entity e) where T : class
         {
-            if (t_current == 0 && Compiled) throw NoCurrent(typeof(T), e);
+            if (t_current == 0 && Compiled) { if (Survey) Note("no-current", typeof(T)); else throw NoCurrent(typeof(T), e); }
+            if (repo.IsOwnPartOfCurrent(e.Index)) return ref repo.LiveManagedRefRO<T>(e);   // N-11 — its own part: live
             if (IsSet(s_managed, ManagedComponentType<T>.ID) && repo.LastTickWorld is { } last) return ref last.LiveManagedRefRO<T>(e);
-            if (Compiled) throw Undeclared(typeof(T), e);
+            if (Compiled) { if (Survey) Note("undeclared-read", typeof(T)); else throw Undeclared(typeof(T), e); }
             return ref repo.LiveManagedRefRO<T>(e);
         }
+
+        /// <summary>⭐ N-11 — a direct write to another entity during a phase (checks on): allowed on the processed entity's own part, else
+        /// a defect (another entity's value changes only by a command).</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void CheckOtherWrite(EntityRepository repo, Type t, Entity e)
+        {
+            if (t_current != 0 && repo.IsOwnPartOfCurrent(e.Index)) return;
+            if (Survey) { Note("cross-write", t); return; }
+            throw OtherWrite(t, e);
+        }
+
+        private static int s_phaseSeq;
+
+        /// <summary>⭐ N-11 — changes at every phase start: "pending this phase" records (a deferred child creation) compare against it.</summary>
+        public static int PhaseSequence => System.Threading.Volatile.Read(ref s_phaseSeq);
 
         /// <summary>A cross-entity write during the phase (the design: a command; this prototype: a throw).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]

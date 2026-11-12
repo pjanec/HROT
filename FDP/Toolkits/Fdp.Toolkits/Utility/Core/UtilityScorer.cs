@@ -206,7 +206,7 @@ namespace Fdp.Toolkit.Utility
             byte winner;
             // ⭐ POC 2 Q-4 — the parallel pre-score (Throughput mode, opt-in): this frame's step 1 was computed before the brain walk, from the
             //   world as it stood then; only the hysteresis is applied here. A traced unit always scores fresh.
-            var prescore = UtilityPrescore.Active ? UtilityPrescore.Of(repo) : null;
+            var prescore = UtilityPrescore.Active && !ParallelReadCheck.Defers(repo) ? UtilityPrescore.Of(repo) : null;   // N-11 — the pre-score serves the SERIAL walk only
             if (prescore != null && trace == null && prescore.TryTake(self, decisionId, ref output))
                 winner = RankWithHysteresis(in def, lastWinner, lastWinner == 0 ? 0f : hysteresis, ref output, null, tick);
             else
@@ -266,7 +266,7 @@ namespace Fdp.Toolkit.Utility
             }
             // ⭐ POC 3 T-3 — a candidate ranking (threat ranking) pre-scored in parallel this frame, as POC 2 did the posture (UtilityPrescore)
             var trace = TraceOf(repo, self);
-            var prescore = UtilityPrescore.Active ? UtilityPrescore.Of(repo) : null;
+            var prescore = UtilityPrescore.Active && !ParallelReadCheck.Defers(repo) ? UtilityPrescore.Of(repo) : null;   // N-11 — the pre-score serves the SERIAL walk only
             if (!(prescore != null && trace == null && prescore.TryTake(self, decisionId, ref output)))
                 EvaluateCandidates(repo, self, in def, default, ref output, trace, tick);
             prescore?.Demand(self, decisionId, this);

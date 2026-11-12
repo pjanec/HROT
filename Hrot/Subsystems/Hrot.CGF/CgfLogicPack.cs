@@ -260,6 +260,10 @@ namespace Hrot.CGF
             // ⭐ rules ② (§00.11a, R2) — a live edit of a rule's params, applied BEFORE the brain tick (the edited rule ticks with its new params this frame); the module's one ingress does the work.
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleWakeSystem());   // ⭐ CE-2383 — operator requests / the exercise closing wake cadenced rules, before the brain tick
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleEditSystem(_missionControlModule.Ingress));
+            // ⭐ N-11 (CE-4473) — the rules' tree is an index the rule brains read: with the brains a parallel phase it is refreshed serially
+            //   before the phase (BrainPhase), never rebuilt inside it
+            Fdp.Toolkit.Behavior.BrainPhase.Contribute("Hrot.AI.Behaviors.Rules", registerTypes: null,
+                prepareFrame: Hrot.AI.Behaviors.Brains.Objectives.RuleTree.PrepareFrame);
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
             // ⭐ rules S2 ⑨ (SR-116) — the exercise ended ⇒ ask the cluster to pause, once; after the brain tick that ran EndExercise. [NodeFeature("exercise.pause-on-end")], default ON.
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.ExercisePauseOnEndSystem(nodeBus));   // ⭐ the NODE bus — a production host passes HrotNodeContext.EventBus

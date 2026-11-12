@@ -18,9 +18,17 @@ Started marker `1cd3c2dbc`.
 
 | item | state | commit |
 |---|---|---|
-| N-1 `CE-4463` the one sim job queue | 🔄 seam built + rails (`SimJobQueue`, `SimJobs.Run`, `SimLink`); editor wiring next | `5ff4efba2` |
-| N-3 `CE-4465` two staging buffers + publish queue | 🔄 seam built + rails (`StagingWorlds`); editor wiring next | `5ff4efba2` |
-| N-2 `CE-4464` tick context + current entity on every pool batch | ✅ `AccessTrace.CaptureFlow/SwapFlow` restored per batch on a worker (both lanes); `ParallelEntities` + `ForEachParallel` set `ParallelReadCheck.Current`; the phase flag per thread; no current entity ⇒ throw | (this commit) |
+| N-1 `CE-4463` the one sim job queue | ✅ `SimJobQueue` + `SimLink` + `SimJobs.Run`; drained by the editor's sim loop between ticks | `5ff4efba2` · `73cf90133` |
+| N-2 `CE-4464` tick context + current entity on every pool batch | ✅ | `0434820c2` |
+| N-3 `CE-4465` two staging buffers + publish queue, no lock | ✅ `StagingWorlds` (bus pairs, packets, rows outside the mask); the editor's mode-3 loop runs with no lock | `5ff4efba2` · `73cf90133` · `b29005891` |
+| N-4 `CE-4466` the orchestration bus | ✅ a sim / UI pair: the UI's `ClusterView`, transport and door over its mirror (D-9) | `b29005891` |
+| N-5 `CE-4467` run controls | ✅ one transport / run choice / door per thread-owner; Run-to as `IRunTo` + `ThreadedRunTo` (readout) | `0af7681c0` |
+| N-6 `CE-4468` UI writes through N-1 | 🔄 the editor verbs, gizmo commits (the shared write router), the camera, HTTP select; ⚠ OPEN: the film director, the review source (§5) | `73cf90133` · `0af7681c0` · `53db71fbf` |
+| N-7 `CE-4469` undo / redo on S | ✅ the recorder on S, the ONE history on the UI (`ThreadedUndoSink`, D-19) | `53db71fbf` |
+| N-8 `CE-4470` the HTTP routes | ✅ two queues by side (`DebugApiRouteSides`, D-8); UI-side routes read the SHOWN world | `73cf90133` · `0af7681c0` |
+| N-10 `CE-4472` the per-entity rule in the repository | ✅ last-tick view (kernel, before the Simulation dispatch), structural changes + publishes deferred to the batch, cross writes checked | `826d715c5` |
+| N-11 `CE-4473` the brains per-entity parallel | 🔄 the brain's parallel arm + its shared state (D-21…D-30); gate rail GREEN at 1/2/4/8 and across runs; ⚠ the rail's content does not reach the deferral paths — the full CGF content next (survey) | (this commit) |
+| N-14 `CE-4476` the Windows EcoQoS opt-out | ✅ `WindowsScheduling` (process + sim thread + pool, QuickEdit off) | `73cf90133` |
 
 ## 2. GATES
 
@@ -62,6 +70,16 @@ pull). The one `[FAIL]` is a correct refusal: the unsaved check is meaningful on
 | D-18 | UI-side routes (selection, view) used the service's world (S) | ⭐ the SHOWN world | the service's own doc says "on the shown world": `PresentationWorld` / `PresentationMap` for those routes | `DebugApiService` |
 | D-19 | undo / redo in mode 3 (N-7, U-1) — the ONE history also holds the header / AI-edit / take steps (UI state) | move the history to S · ⭐ the history stays the UI's; the recorder runs on S | the recorder is installed on S (the before-snapshot taken on the sim thread, where every write now happens) and hands each step to the UI history through the publish queue (`ThreadedUndoSink`); the step's undo / redo are sim jobs restoring S; availability is a UI-side token cleared by the ring's new `Evicted` event through the same queue; Saved / Opened (raised on the sim thread) reach the history the same way | one history the user sees, one writer of S | `ThreadedUndoSink`, `WorldSnapshotRing.Evicted`, `IUndoStepSink` |
 | D-20 | the map camera's settled pose (the last guard hit) | a per-frame mailbox · ⭐ a sim job | it commits only once the view SETTLED (a user-action rate) ⇒ `SimJobs.Run` with the ownership checks on the world it writes; single-world hosts unchanged | `MapCameraLayer.Commit` |
+| D-21 | ⭐ the brains as a parallel phase (N-11) | everything inside the per-entity job · ⭐ split by what each step touches | ① SERIAL pre-pass in tier order: who is due, the finished guard, the relayout restart, the cadence reader (this system's own records) · ② the PHASE: each unit's tree / HSM / blueprint on its batch thread · ③ SERIAL post-pass in batch order: finish, cadence bookkeeping, fault finish — the serial walk's own order | the system's dictionaries stay single-threaded by construction; the result is independent of the thread count | `BrainTickSystem.RunParallel` |
+| D-22 | a cadenced brain reads its events through ITS window — one field on the world | lock · ⭐ per thread | inside a phase `OpenStepWindow` is per batch thread; the history's window buffers are per LANE (lane 0 serial, one per batch thread) | two threads filling one shared window buffer would hand each other's events back | `EntityRepository.View.cs`, `EventStreamHistory` |
+| D-23 | a brain writes its OWN child sensors (other entities) | commands · ⭐ its parts are its own | `PartMetadata.ParentEntity == current` ⇒ own under the rule (read live, written directly) — the census's own-part class (§18.1a) | `EntityRepository.IsOwnPartOfCurrent` |
+| D-24 | brain code records into `view.GetCommandBuffer()` (the frame's shared buffer) | pass a buffer everywhere · ⭐ the world answers with the batch's | inside a phase over a world, its command buffer IS the batch's (merged in batch order) | `ISimulationView.GetCommandBuffer` |
+| D-25 | a child sensor created in a phase | create + return the placeholder (callers write it ⇒ crash) · ⭐ the existing deferred path | `EqsChildSensor.Ensure` defers in a phase and returns Null (every caller retries next tick — the path non-repository views always had), IDEMPOTENT while pending (per-thread pending list; pending part ids reserved); its lifetime counter a concurrent map | F-8 | `EqsChildSensor` |
+| D-26 | brain code registers types LAZILY mid-tick ("a world that never faults pays nothing") and builds per-world indexes "on first use this frame" (the rule tree, the cadence wake table) | lock the type tables · ⭐ before the phase | `BrainPhase`: owners contribute their registrations (once per world), frame preparation (every phase) and their cross-read declarations; the pre-pass runs them. Registration inside a phase is a defect (checks on: thrown) | the type tables are read lock-free by every batch thread | `BrainPhase`, `RuleTree.PrepareFrame`, `DecisionCadence.PrepareFrame` |
+| D-27 | the audit's shared scratch / caches (Explore audit) | — | static scratch lists → `[ThreadStatic]` (MemberEvaluation, ObjectiveCensus, MeasuresEvidence, HoldArea); `DecisionCadence` store concurrent (each key touched only by its unit's thread); `Melee.Strikes` atomic; the utility PRE-score serves the serial walk only (in the phase the scoring already runs on every core) | | listed files |
+| D-28 | which types the last-tick view copies | the census list by hand · ⭐ measured per content | `HROT_READ_CHECK=2` — the SURVEY: every check records (kind, type, first site) instead of throwing; `HROT_READ_CHECK_OUT=<file>` for a headless node; `BrainReads.Declare` holds the result (Health, EntityInfo, PartMetadata so far). ⚠ The design's target is the generator emitting each asset's set (§18.2) | | `ParallelReadCheck.Survey`, `BrainReads` |
+| D-29 | the brains' switch | its own · ⭐ the engine's parallel-simulation switch | `HROT_PARALLEL_SIM=1` (`ParallelEntities.Enabled`, which every converted per-entity system follows) or mode 3 | one switch for "the simulation runs per-entity parallel" | `BrainTickSystem.Parallel` |
+| D-30 | the determinism gate's measure | compare a few fields · ⭐ the whole world | `EntityRepository.ContentHash` (+ a per-row breakdown that names the first differing entity / component) | | `EntityRepository.ContentHash.cs` |
 | D-5 | `SimLink` needs a component id | — | `GlobalComponentIds.SimLink = 475` (free in every lane and in every test) | — | `GlobalComponentIds.cs` |
 
 ## 4. BUGS FIXED
@@ -76,6 +94,8 @@ pull). The one `[FAIL]` is a correct refusal: the unsaved check is meaningful on
 |---|---|---|
 | the film director in mode 3 | it ticks on the UI thread but writes checkpoints / restores / steps on the world and the kernel directly (`EditorSubsystem` director host) | a split: its run-control half as sim jobs with a pending state, its camera / capture half on the UI |
 | the review source (`ReviewSourceOf`) in mode 3 | it clears and reads the world it is given (A) | the same split |
+| the rule-message id (`ScenarioVerbs.s_messageSeq`) with parallel rule brains | a process-wide atomic counter: two messages published in one tick by rules on different threads may swap ids (the event content, not the world, differs) | a per-world counter advanced in the post-pass, or the id from (rule entity, tick) |
+| the generator emitting each asset's cross reads (§18.2) | `BrainReads` is a hand list (from the survey) | the blueprint / BTree / HSM generators emit, per asset, the types read on other entities; `BrainPhase` unions them |
 
 ## 6. NUMBERS
 (N-16, later)
