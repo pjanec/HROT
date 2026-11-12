@@ -1,7 +1,7 @@
 <!--STATUS
-state: LIVE — the overnight experiment, running
+state: LIVE — the overnight experiment; VERDICT at the top
 updated: 2026-11-12
-current-answer: the whole file — the VERDICT goes at the top when Q-6 is written
+current-answer: the Q-6 VERDICT at the top; the item table; D-1…D-12 hold the evidence
 related-designs:
   - ../../DESIGN_Parallel_Simulation.md — OWNS this (§10 R-4208 + the emitter fix, §11 the aggregate)
   - HANDOFF_Coordinator_To_Backend_Parallel_Sim_POC_2.md — the handoff (dispatched at a89010765)
@@ -13,16 +13,33 @@ related-designs:
 **Branch:** `exp/parallel-sim-2` from `exp/parallel-sim@9b9f6d04d` (POC 1 + the Windows run) with `coordinator@5f0761334` merged. **Machine:** the
 cloud VM, 4 cores (correctness and trends); the Windows command is `scripts/parallel-sim-measure.py` (extended per item, below).
 
+## ⭐ Q-6 VERDICT — **GO on the brain pre-score; CHANGE the plan for the rest** *(VM 4 cores / 2 worker threads, ±15 % noise; the Windows command at the end)*
+
+| item | VM result | verdict |
+|---|---|---|
+| ⭐ **Q-4 the brains' posture scoring, pre-scored in parallel** (Throughput) | **BrainTick 92.4 → 57.4 ms (−38 %)**, CGF frame 212 → 160 ms, 11.0 → 13.6 fps; rail equal at 1/2/4/8 threads; a Debug guard proves the scoring takes nothing writable | ⭐ **GO** — the first step that moved the serial 70 %. Next: the same shape for the other decisions (threat ranking, attack approach, weapon choice) and the posture SENSORS (`TopThreat` / `KeepPair`, 15 %) |
+| Q-0 the per-query timer (ON by default) | ~13 ms of the brain (82.9 → 70.1 with it off) | **CHANGE**: make it opt-in for production / sample it — one line, needs the user's call (the rig reads it) |
+| Q-5 the turret lookup | 12 % of the dispatcher was scanning every turret per soldier per tick; fixed via the shared parts index (538 / 538 green) | **GO** (a fix, not parallelism). The executor's decide/fire split: ~2 days, after the brains |
+| Q-1 stamp only on a real change | built in both tick paths, rails + red-proofs green — but the 4 KB tier is still ~50 % unchanged-dirty: real in-tick changes that are reverted within the frame (D-11) | **CHANGE**: keep the tick-path compare (it is precise and 0 B); find the write-back pair (D-11's next measurement); D-5 commit-by-content is the catch-all if a recorder / sync consumer needs it |
+| Q-2 off-frame state egress on the CGF | a wash: 39 → 37 ms on the frame, because the replica SYNC (11.8 ms) runs on the main thread and the biggest translator (`EqsSensorConfigTopic`, 17 ms) is not off-frame (D-4, D-7); replication gate: no ON-only red in 44 shared tests | **CHANGE**: first a change gate in `EqsSensorConfigEgressTranslator` (it builds every sensor's topic every frame, then compares); then Q-3 makes the sync pay for two consumers |
+| Q-3 recorder capture off the frame | not built (D-12) | **GO as a design**: one replica sync, egress scan + recorder delta both off the frame (~2 days) |
+
+**What was hard:** the profile, not the code — every first assumption was off by a layer: the brain's cost was the SCORING not the tree; the no-op writes were BTree / HSM not blueprints, and then not even "no-op" but written-back; the CGF egress was one translator; the off-frame sync sits on the main thread. Each was found by measuring before building (the handoff's Q-0 rule paid four times).
+
+**Cost to finish (rough engineering days):** pre-score the other decisions + sensors ½–1 · the D-11 write-back hunt ½ · the `EqsSensorConfig` change gate ½ · Q-3 replica-shared recorder 2 · the dispatcher decide/fire split 2 · a parallel tree walk (R-4208 claims, per-batch ECB, deferred finish) 4+, only if the pre-score's floor demands it.
+
+⭐ **The Windows command** (8 cores, every node hidden): `git checkout exp/parallel-sim-2 && dotnet build Hrot/Runner/Hrot.ClusterRunner/Hrot.ClusterRunner.csproj -c Release && python scripts/parallel-sim-measure.py --pin --poc2` (recorded serial · timer off · Q-1 · Q-2 · Throughput · Throughput + pre-score · all together), and `--pin --threads 1 2 4 8 --mode throughput` with `HROT_BRAIN_PRESCORE=1` set for the thread curve.
+
 | item | state | sha | result |
 |---|---|---|---|
 | measurement blind spot | ✅ | `exp/parallel-sim-2` | the rig reports EVERY system (`all_ms`); the script sums it — a system under the top-8 cut no longer reads 0.00 |
 | Q-0 profile | ✅ | — | §Q-0 — ⭐ + the per-query timer costs ~13 ms of the brain on the VM (D-1) |
-| Q-1 writes stamp only on change | 🔨 | `exp/parallel-sim-2` | D-2: done in the TICK SYSTEMS, not the emitter; the false writes are BTree / HSM, not blueprints (D-3) — measuring |
+| Q-1 writes stamp only on change | ⚠ built, not effective | `exp/parallel-sim-2` | the tick systems stamp only on a byte change (D-2, D-3), rails + red-proofs green — ⛔ yet the 4 KB tier stays ~50 % unchanged-dirty: the stamps that remain are REAL in-tick changes that end the frame reverted (D-11, open) |
 | Q-2 off-frame state egress | ✅ measured | — | ⛔ **no gain on the CGF**: egress 39 → 37 ms incl. the launch's 11.8 ms replica SYNC on the main thread (D-7); its biggest translator stays on the frame (D-4); replication suites OFF vs ON: no ON-only red in the 44 tests both runs reached (D-10) |
-| Q-3 recorder capture off the frame | | | |
+| Q-3 recorder capture off the frame | ⛔ not built | — | D-12: the design point — the recorder's capture belongs on the egress replica the launch ALREADY syncs (its 52 % memmove disappears into a sync already paid); measured cost / order below |
 | Q-4 brains in parallel (Throughput) | ✅ | `exp/parallel-sim-2` | ⭐ **BrainTick 92.4 → 57.4 ms (−38 %)**, CGF frame 212 → 160 ms, 11.0 → 13.6 fps on the VM's 2 threads (D-8); rail green at 1/2/4/8, red-proven |
 | Q-5 weapon dispatcher | 🔨 partial | `exp/parallel-sim-2` | D-6: the 12 % turret-lookup waste removed (shared parts index); the executor itself NOT parallelised (D-6) |
-| Q-6 verdict | | | |
+| Q-6 verdict | ✅ | — | top of this file |
 
 ## Q-0 — the profile (CGF, 1 000 men, serial, recording; `dotnet-trace` sampled thread time 15 s inside the measured window + the rig's query timings)
 
@@ -152,3 +169,23 @@ scoring). Q-5's cheapest win is not parallelism: 12 % of the dispatcher looks up
 | the crash | `[EqsSensorConfig][REFUSED] … malformed sensor config` | `CycloneDDS … ReturnCode: BadParameter` (a write after shutdown) |
 | tests that ran in BOTH | 44 — ⭐ **no ON-only red**; 1 OFF-red passed ON (`SplitAuthoritySpawnTests.BrainSpawn_WithWorldPosDelegation…`, a flake); 2 red in both (`AllSubsystemsSpawnMovingVehicle…`, `SpawnMovingVehicleWithGateway…`) |
 ⚠ Both crash causes are the PRE-EXISTING ones resume B-9 names ("the host crashes at random"). ⇒ "no regression found in 44 tests", not "proven" — the same state B-9 left it in.
+
+### D-11 — Q-1: who still takes the 4 KB blackboard writable (M-1 caller sampling, `HROT_WRITE_STATS_STACKS=BlueprintBlackboard4096`, Q-1 ON)
+| sampled 1 in 32, one 300-frame window | refs |
+|---|---|
+| `TickViewState.StampChanged` (the view's end, the block's bytes CHANGED during the tick) | 859 + 158 + 76 + 8 |
+| the tier's `Memory` accessor from other systems (`<For>b__31_1` → `GetComponentRW`) | 290 |
+| `BehaviorIngressSystem` start / clear / detach (`TryFindSlot` RW) | 124 + 69 + 59 + 40 + 15 + 11 + 3 |
+| `PeekAndFire` attaching its slot, `AddBlock` | 5 + 4 + 1 |
+⇒ ⭐ the per-tick stamps that remain are REAL byte changes within the tick — and still ~50 % of the dirty chunks end the frame byte-identical to the last ⇒ some bytes are written and written BACK within the same frame (a pair of writers, or a transient the tick leaves and another system resets). ⛔ Not found tonight. Next measurement: in `StampChanged`, record the first differing slot / offset of a changed block, and at frame end which of those blocks reverted.
+⇒ For the recorder and the replica sync this means **D-5 (commit by content) is the tool that actually removes them** — it compares at frame end, where the revert is already done. Its cost (a compare + copy per stamped chunk) is now the open trade (Windows W-3: no measurable effect on the recorder ms).
+
+### D-12 — Q-3 not built: the recorder's capture belongs on the egress replica
+| claim | basis |
+|---|---|
+| 52 % of `RecorderTickSystem` is copying dirty chunks (`Buffer.Memmove` in `RecordDeltaFrame`), + 32 % the block delta | Q-0 |
+| the egress launch ALREADY copies every changed chunk into a replica each frame (`EgressPipeline.Launch` → `SyncFrom`, 11.8 ms on the main thread) | D-7 |
+| the recorder's capture could read that replica on the scan thread — the delta + serialize off the frame, the copy paid once for both | `EgressPipeline.Loop` runs the off-frame scan on a background thread (`EgressPipeline.cs:216`) |
+| ⚠ the recorder needs EVERY recorded table and the managed tables (18 %), the replica may carry only what egress needs; keyframes; ordering vs the async file writer | not measured |
+⇒ ⭐ Q-3 = "one replica sync per frame, two consumers off the frame (egress scan + recorder delta)". Cost: ~2 days (the replica's table set, the recorder reading a view, a recorded-replay identity rail). It turns Q-2's wash into a win on a recording node.
+

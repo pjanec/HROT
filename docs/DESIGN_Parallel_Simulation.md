@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — options analysed, lean stated; NOT ruled
 updated: 2026-11-12
-current-answer: ⭐ §11 the aggregate (where the time is) · §10 after the experiment (R-4208, the emitter fix) · §9 the AS-BUILT of the overnight experiment (exp/parallel-sim) · §8 interleaving and quantizing (do less per frame) · §7 determinism is a switchable MODE (R-4207) and what per-batch buffers cost · §2 the lean · §1 what exists (measured) · §3 the options · §4 the hazards · §5 the staged plan · §6 open
+current-answer: ⭐ §12 POC 2 as built (the brain pre-score) · §11 the aggregate (where the time is) · §10 after the experiment (R-4208, the emitter fix) · §9 the AS-BUILT of the overnight experiment (exp/parallel-sim) · §8 interleaving and quantizing (do less per frame) · §7 determinism is a switchable MODE (R-4207) and what per-batch buffers cost · §2 the lean · §1 what exists (measured) · §3 the options · §4 the hazards · §5 the staged plan · §6 open
 stale-below: nothing
 related-designs:
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Parallel_Sim_POC_2.md — CE-4440, POC 2: the serial 70 % on exp/parallel-sim-2
@@ -333,3 +333,31 @@ threaded design's §13.8, on `exp/threaded-analysis`).
 
 ⇒ ⭐ **Converting more small systems cannot move the frame much: the serial 70 % is brains + egress + weapons + recorder.** The next evidence is a
 PROFILE of those four (what inside them costs, how much is false change), before any more parallel work.
+
+## 12. ⭐ As-built on `exp/parallel-sim-2` — POC 2, the serial 70 % *(not merged; status: [`STATUS_Parallel_Sim_POC_2.md`](blueprints/batches/STATUS_Parallel_Sim_POC_2.md) on that branch)*
+
+```mermaid
+sequenceDiagram
+    participant B as BrainTickSystem (main thread)
+    participant P as UtilityPrescore
+    participant W as FdpWorkerPool
+    participant C as UtilityScorer.ChooseOption (serial walk)
+    B->>P: Run(repo) — last frame's demand minus what the decision cadence reuses
+    P->>W: ParallelEntities.Run(pairs) — ParallelGuard.ReadOnly set per body
+    W->>W: UtilityScorer.Evaluate per (unit, decision) into the unit's pre-score buffer
+    W-->>P: done
+    B->>C: the tree walk, unchanged, serial
+    C->>P: TryTake(unit, decision) — a buffer stamped by THIS run
+    C->>C: RankWithHysteresis only (steps 2–5 of SelectPosture)
+    C->>P: Demand(unit, decision) — next frame's work
+```
+*What the picture shows that prose hid: the tree walk is untouched — only its most expensive leaf (67 % of the brain, Q-0) is computed ahead, in
+parallel, from the world as it stood at the start of the brain phase; so no claim, assignment or reaction ever runs off the main thread.*
+
+| deviation from §10 / the POC 2 handoff | why (measured) |
+|---|---|
+| ⭐ Q-4 is a parallel PRE-SCORE, not a parallel tree walk | the walk is tangled with shared state (§9, E-5); the scoring is pure reads (audited; `ParallelGuard` proves it in Debug) and is 67 % of the brain. ⇒ BrainTick −38 % on 2 threads. R-4208's cover claims stay serial — the rule waits for a walk that needs it |
+| ⭐ §10.2's "emitter writes only on change" became a byte compare in the TICK PATHS (blueprint tick + the brain's per-tick store view) | no tick-contract change, no golden regeneration, 0 B; and the no-op writes were BTree / HSM, not blueprints |
+| ⚠ even then the 4 KB tier stays ~50 % unchanged-dirty | the remaining stamps are real in-tick changes WRITTEN BACK within the frame (caller sampling, status D-11) — not yet found; D-5 (frame-end compare) is the only tool that catches them today |
+| ⚠ off-frame egress (Egress §7) is a wash on the CGF | its replica sync is ON the main thread (11.8 ms) and the CGF's biggest translator (`EqsSensorConfigTopic`, 17 ms) builds every topic every frame before comparing (status D-4, D-7) ⇒ a change gate there first; then the recorder shares the replica (Q-3, D-12) |
+| the per-query timer (`QueryTimings`, on by default) costs ~13 ms of the brain at 1 000 men | status D-1 |
