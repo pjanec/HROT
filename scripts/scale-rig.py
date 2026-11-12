@@ -343,6 +343,9 @@ def main():
     ap.add_argument("--runner-dll", help="Hrot.ClusterRunner.dll to run (default: HROT_RUNNER_DLL, else the repo's Release, else Debug build)")
     ap.add_argument("--pin", action="store_true",
                     help="pin each node to its own logical CPUs (orchestrator 2, cgf and simhost half the rest each) — one node per machine, approximated")
+    ap.add_argument("--cgf-cpus", type=int, default=0, metavar="N",
+                    help="Windows: give the cgf node the TOP N logical CPUs alone; the orchestrator and simhost share the rest "
+                         "(the 'CGF alone' scaling run, CE-4451 S-3). Exclusive with --pin")
     ap.add_argument("--windowed", action="store_true",
                     help="start the nodes with their window (default --headless: a windowed node's software-GL draw on Xvfb took 3 cores idle)")
     a = ap.parse_args()
@@ -369,6 +372,16 @@ def main():
         report["pinned"] = {m: bin(ps.cluster_launch.AFFINITY[p]).count("1") for m, p in NODES}
         if not ps.cluster_launch.WINDOWS:
             raise SystemExit("--pin: Windows only (the Linux nodes start through cluster-node.sh)")
+    elif a.cgf_cpus:
+        n = os.cpu_count() or 1
+        if not 0 < a.cgf_cpus < n:
+            raise SystemExit(f"--cgf-cpus: 1..{n - 1}")
+        rest = (1 << (n - a.cgf_cpus)) - 1                         # the low CPUs: orchestrator + simhost share them
+        cgf = ((1 << a.cgf_cpus) - 1) << (n - a.cgf_cpus)          # the top N: cgf alone
+        ps.cluster_launch.AFFINITY.update({p: (cgf if m == "cgf" else rest) for m, p in NODES})
+        report["pinned"] = {m: bin(ps.cluster_launch.AFFINITY[p]).count("1") for m, p in NODES}
+        if not ps.cluster_launch.WINDOWS:
+            raise SystemExit("--cgf-cpus: Windows only")
     ps.node("stop-all")
     try:
         for mode, port in NODES:

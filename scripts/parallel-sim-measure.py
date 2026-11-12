@@ -85,6 +85,8 @@ def main():
     ap.add_argument("--mode", choices=["deterministic", "throughput"], default="deterministic")
     ap.add_argument("--out", default="parallel-sim-results")
     ap.add_argument("--pin", action="store_true", help="pass --pin to the rig (Windows)")
+    ap.add_argument("--cgf-cpus", type=int, default=0, metavar="N",
+                    help="pass --cgf-cpus N to the rig (Windows): cgf alone on the top N logical CPUs, the other nodes on the rest (CE-4451 S-3)")
     ap.add_argument("--content", action="store_true",
                     help="also run the largest thread count with HROT_CONTENT_VERSION=1 (D-5 commit by content), and a RECORDED pair with/without it")
     ap.add_argument("--poc2", action="store_true",
@@ -95,7 +97,7 @@ def main():
                     help="POC 4: RECORDED serial vs everything on (the one worker pool) at its budget and at one thread; threads per node")
     a = ap.parse_args()
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
-    rig_args = ["--pin"] if a.pin else []
+    rig_args = ["--pin"] if a.pin else (["--cgf-cpus", str(a.cgf_cpus)] if a.cgf_cpus else [])
     if a.poc4:
         runs = {name: run(name, env, out, rig_args + ["--record"]) for name, env in POC4}
         report(runs, out, nodes=True)
