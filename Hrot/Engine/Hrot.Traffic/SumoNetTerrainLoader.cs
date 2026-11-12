@@ -44,13 +44,17 @@ public sealed class SumoNetTerrainLoader : ITerrainContentLoader
           + $"{model.Junctions.Count} junctions, {model.TlLogicsById.Count} traffic lights, hash {hash}, placed "
           + (placement.IsGeoreferenced ? "through its UTM projection and the terrain's geo frame." : $"by the anchor ({declared.AnchorX}, {declared.AnchorY})."));
         sw.Restart();
-        var roads = TrafficRoadScene.Build(model, placement, world.BoundsMin, world.BoundsMax);
+        // ⭐ R-4030 (E2b) — a FLAT net (no lane z) is laid on OUR ground: roads, cars and pedestrians all take the terrain's own
+        // GroundHeightAt (one function, here, for every host). The ground beyond our footprint is attached FIRST so the roads and the ambient
+        // ground out there are laid on the ground that is drawn there. A net with z is used as-is (R-4025).
+        bool flat = TrafficDrape.IsFlat(model);
+        Func<float, float, float>? drape = flat ? world.GroundHeightAt : null;
+        AttachBeyond(world, model, placement, flat);
+        var roads = TrafficRoadScene.Build(model, placement, world.BoundsMin, world.BoundsMax, drape);
         FdpLog<SumoNetTerrainLoader>.Info($"[Traffic] '{terrainName}': road scene built in {sw.ElapsedMilliseconds} ms — {roads.TriangleCount} triangles, "
-          + $"{roads.Signals.Count} signal heads.");
+          + $"{roads.Signals.Count} signal heads{(flat ? ", flat net laid on the terrain's ground (R-4030)" : "")}.");
         Fdp.Core.LoadProgress.Report();
-        AttachBeyond(world, model, placement);
-        Fdp.Core.LoadProgress.Report();
-        return new TrafficNetCache(declared.File, System.IO.Path.GetFullPath(path), model, hash, placement, roads);
+        return new TrafficNetCache(declared.File, System.IO.Path.GetFullPath(path), model, hash, placement, roads, drape);
     }
 
     /// <summary>
@@ -59,15 +63,22 @@ public sealed class SumoNetTerrainLoader : ITerrainContentLoader
     /// placement may rotate). ⭐ Runs in <see cref="Prepare"/> — before the world is published — so the world is immutable by the time anyone reads it
     /// (and the render geometry's identity, the world object, is new for the load). A world with no rectangle (no world file) has no "beyond".
     /// </summary>
-    private static void AttachBeyond(TerrainWorld world, NetworkModel model, SumoNetPlacement placement)
+    /// <remarks>⭐ R-4030 / AQ93 §8.8 H2 — a FLAT net has no height field (<c>TerrainField.FromNetwork</c> would be 0 m, a cliff beside a 350 m terrain): its
+    /// field is the terrain ORIGIN's altitude — the ground at the origin (clamped into our footprint) — which <see cref="BeyondGround"/> blends
+    /// from the terrain's edge height over its ramp, so the ground beyond meets our terrain instead of dropping to 0.</remarks>
+    private static void AttachBeyond(TerrainWorld world, NetworkModel model, SumoNetPlacement placement, bool flat)
     {
         if (!(world.BoundsMax.X > world.BoundsMin.X && world.BoundsMax.Y > world.BoundsMin.Y) || world.Beyond != null) return;
-        var field = Sim.Scene.TerrainField.FromNetwork(model);
+        var field = flat ? null : Sim.Scene.TerrainField.FromNetwork(model);
+        float originAlt = flat
+            ? world.GroundHeightAt(Math.Clamp(0f, world.BoundsMin.X, world.BoundsMax.X), Math.Clamp(0f, world.BoundsMin.Y, world.BoundsMax.Y))
+            : 0f;
         var (minX, minY, maxX, maxY) = TrafficRoadScene.NetBounds(model);
         System.Numerics.Vector2 Corner(double nx, double ny) { var (lx, ly) = placement.ToLocal(nx, ny); return new System.Numerics.Vector2((float)lx, (float)ly); }
         var quad = new[] { Corner(minX, minY), Corner(maxX, minY), Corner(maxX, maxY), Corner(minX, maxY) };
         world.AttachBeyond(new BeyondGround((lx, ly) =>
         {
+            if (field is null) return originAlt;
             var (nx, ny) = placement.ToNet(lx, ly);
             return (float)field.HeightAt(nx, ny);
         }, quad));

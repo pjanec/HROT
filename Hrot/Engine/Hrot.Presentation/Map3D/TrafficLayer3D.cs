@@ -17,7 +17,8 @@ namespace Hrot.UI.Common.Map3D;
 /// <see cref="TrafficAmbientBodies"/>): our figures and car kits, never boxes. Nothing in 2-D (the 2-D map draws <c>TrafficRoadGizmo</c>).
 /// </summary>
 /// <remarks>
-/// ⭐ A flat net and our ground are both at Z 0, so each kind is LIFTED a few centimetres (paint over asphalt over junction over our
+/// ⭐ The roads lie ON our ground (a flat net is laid on <c>GroundHeightAt</c> when the scene is built — R-4030 / E2b, <see cref="TrafficDrape"/>; a net with z
+/// keeps its own heights, R-4025), so each kind is LIFTED a few centimetres (paint over asphalt over junction over our
 /// ground; the ambient ground just under it) — a render offset, never a height the simulation reads.
 /// ⭐ <c>CE-1196</c> (docs/DESIGN_Map_3D_Mode.md §6z CA-4) — and the ROADS are drawn <see cref="MapCamera3D.GroundBiasSteps"/> depth steps
 /// toward the eye (<see cref="LitShader.SetDepthBias"/>): from afar a few centimetres are less than one depth step, so they fought our

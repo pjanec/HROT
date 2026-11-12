@@ -27,7 +27,7 @@ public readonly record struct TrafficSignal(int LaneHandle, Vector3 Pole, Vector
 /// <para>⭐ Placement is per VERTEX through <see cref="SumoNetPlacement.ToLocal"/> in double precision: the scene is built in a frame
 /// centred on the net (small floats, Sim.Scene's own precision rule) and every vertex goes frame → net → terrain-local, so a UTM net
 /// placed through WGS84 (E1) lands exactly where the cars do — never a translation-only approximation.</para>
-/// <para>⭐ Heights are SUMO's (R-4025). ⚠ The seam blend between the ambient ground and our terrain (V8 "blended") is not built: the
+/// <para>⭐ Heights are SUMO's (R-4025) — ⭐ EXCEPT a FLAT net (no lane z), which is laid on OUR ground (R-4030 / E2b, <see cref="TrafficDrape"/>). ⚠ The seam blend between the ambient ground and our terrain (V8 "blended") is not built: the
 /// ground simply stops at our footprint.</para>
 /// </remarks>
 public sealed class TrafficRoadScene
@@ -53,7 +53,11 @@ public sealed class TrafficRoadScene
     public int TriangleCount => Meshes.Sum(m => m.TriangleCount);
 
     /// <param name="terrainMin">Our terrain's footprint (local metres); a degenerate box ⇒ no footprint, the ground is everywhere.</param>
-    public static TrafficRoadScene Build(NetworkModel net, SumoNetPlacement placement, Vector2 terrainMin, Vector2 terrainMax)
+    /// <param name="ground">⭐ R-4030 (E2b) — our ground at a terrain-local (x, y), e.g. <c>TerrainWorld.GroundHeightAt</c>. Used ONLY when the net is flat
+    /// (<see cref="TrafficDrape.IsFlat"/>): every vertex is then laid on it (long triangles subdivided so they follow the hills). A net
+    /// with z, or no function, is placed exactly as the net says (R-4025).</param>
+    public static TrafficRoadScene Build(NetworkModel net, SumoNetPlacement placement, Vector2 terrainMin, Vector2 terrainMax,
+                                         Func<float, float, float>? ground = null)
     {
         if (net is null) throw new ArgumentNullException(nameof(net));
         if (placement is null) throw new ArgumentNullException(nameof(placement));
@@ -61,6 +65,7 @@ public sealed class TrafficRoadScene
         var (minX, minY, maxX, maxY) = Bounds(net);
         var frame = new SceneFrame((minX + maxX) / 2.0, (minY + maxY) / 2.0);
         var scene = RoadSceneBuilder.Build(net, frame);
+        var drape = ground is not null && TrafficDrape.IsFlat(net) ? ground : null;
 
         var meshes = new List<TrafficRoadMesh>(scene.Meshes.Count + 2);
         foreach (var (kind, mesh) in scene.Meshes)
@@ -86,7 +91,7 @@ public sealed class TrafficRoadScene
         }
 
         bool hasFootprint = terrainMax.X > terrainMin.X && terrainMax.Y > terrainMin.Y;
-        var ground = AmbientGroundBuilder.Build(frame, minX, minY, maxX, maxY,
+        var floor = AmbientGroundBuilder.Build(frame, minX, minY, maxX, maxY,
             excludeCell: hasFootprint
                 ? (cx, cy) =>
                 {
@@ -94,13 +99,20 @@ public sealed class TrafficRoadScene
                     return lx >= terrainMin.X && lx <= terrainMax.X && ly >= terrainMin.Y && ly <= terrainMax.Y;
                 }
                 : null);
-        if (!ground.IsEmpty) meshes.Add(ToLocal(SceneKind.AmbientGround, ground, frame, placement));
+        if (!floor.IsEmpty) meshes.Add(ToLocal(SceneKind.AmbientGround, floor, frame, placement));
+
+        if (drape is not null)
+            for (int i = 0; i < meshes.Count; i++)
+                meshes[i] = TrafficDrape.Mesh(meshes[i], drape, meshes[i].Kind == SceneKind.AmbientGround ? TrafficDrape.GroundStep : TrafficDrape.RoadStep);
 
         var signals = new List<TrafficSignal>(scene.SignalHeads.Count);
         foreach (var h in scene.SignalHeads)
-            signals.Add(new TrafficSignal(h.LaneHandle,
-                Local(frame, placement, h.PoleX, h.PoleY, h.PoleZ),
-                Local(frame, placement, h.HeadX, h.HeadY, h.HeadZ)));
+        {
+            var pole = Local(frame, placement, h.PoleX, h.PoleY, h.PoleZ);
+            var head = Local(frame, placement, h.HeadX, h.HeadY, h.HeadZ);
+            if (drape is not null) { pole = TrafficDrape.Point(pole, drape); head = TrafficDrape.Point(head, drape); }   // ⭐ R-4030 — poles and heads stand on the ground
+            signals.Add(new TrafficSignal(h.LaneHandle, pole, head));
+        }
 
         return new TrafficRoadScene(meshes, signals, TrafficRoadPlan.For(net, placement, signals.Count));
     }
