@@ -146,6 +146,18 @@ namespace Fdp.Core.Jobs
             {
                 int from = batch * _batchSize, to = Math.Min(_count, from + _batchSize);
                 var ctx = _contexts[batch];
+                if (ParallelReadCheck.Compiled)
+                {   // ⭐ N-2 (CE-4464, F-1) — the batch is a parallel phase on THIS thread, and each entity is the current one (one per-thread
+                    //   current entity, read by the read check; the census keeps its own walk stack below)
+                    bool was = ParallelReadCheck.Active;
+                    ParallelReadCheck.Active = true;
+                    try
+                    {
+                        for (int i = from; i < to; i++) { ParallelReadCheck.Current = _entities[i].Index; _job.Execute(_entities[i], i, ctx); }
+                    }
+                    finally { ParallelReadCheck.Current = -1; ParallelReadCheck.Active = was; }
+                    return;
+                }
                 if (EntityCensus.On)
                 {   // ⭐ N-1 — each entity of the batch is the one being processed (serial runs; a pool worker has no system reader)
                     int slot = EntityCensus.Push();

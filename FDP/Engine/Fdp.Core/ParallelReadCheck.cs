@@ -23,8 +23,15 @@ namespace Fdp.Core
         /// <summary>The switch: <c>HROT_READ_CHECK=1</c>. Read once — off, the JIT removes every hook.</summary>
         public static readonly bool Compiled = Environment.GetEnvironmentVariable("HROT_READ_CHECK") == "1";
 
-        /// <summary>A parallel per-entity phase is running.</summary>
-        public static bool Active;
+        /// <summary>A parallel per-entity phase is running ON THIS THREAD. ⭐ N-2 (CE-4464): per thread, not process-wide — the UI thread reading
+        /// world A while the sim thread runs a parallel phase is not in that phase (a process-wide flag would make every A read a "cross-entity" one).
+        /// <see cref="Jobs.ParallelEntities"/> sets it around each batch it runs.</summary>
+        public static bool Active
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)] get => t_active;
+            set => t_active = value;
+        }
+        [ThreadStatic] private static bool t_active;
 
         [ThreadStatic] private static int t_current;   // entity index + 1 (0 = none: [ThreadStatic] starts at 0 on every thread)
 
@@ -89,6 +96,7 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static ref readonly T OtherUnmanagedRO<T>(Entity e) where T : unmanaged
         {
+            if (t_current == 0) throw NoCurrent(typeof(T), e);
             if (!IsSet(s_unmanaged, ComponentType<T>.ID)) throw Undeclared(typeof(T), e);
             return ref LastTickUnmanaged<T>.Rows[e.Index];
         }
@@ -97,14 +105,20 @@ namespace Fdp.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static ref readonly T OtherManagedRO<T>(Entity e) where T : class
         {
+            if (t_current == 0) throw NoCurrent(typeof(T), e);
             if (!IsSet(s_managed, ManagedComponentType<T>.ID)) throw Undeclared(typeof(T), e);
             return ref Unsafe.As<T?, T>(ref LastTickManaged<T>.Rows[e.Index]);
         }
 
         /// <summary>A cross-entity write during the phase (the design: a command; this prototype: a throw).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static Exception OtherWrite(Type t, Entity e) =>
+        public static Exception OtherWrite(Type t, Entity e) => t_current == 0 ? NoCurrent(t, e) :
             new InvalidOperationException($"ParallelReadCheck: a write of {t.Name} to entity {e.Index} while processing {Current} — a cross-entity write is a command (§18)");
+
+        /// <summary>⭐ N-2 (CE-4464) — an access inside a parallel phase with NO current entity: the work is not attributed to an entity, so the
+        /// per-entity rule cannot decide own vs other — always a defect of the job (F-1).</summary>
+        private static Exception NoCurrent(Type t, Entity e) =>
+            new InvalidOperationException($"ParallelReadCheck: an access to {t.Name} on entity {e.Index} inside a parallel phase with NO current entity — a pool batch must set the entity it processes (N-2, F-1)");
 
         private static Exception Undeclared(Type t, Entity e) =>
             new InvalidOperationException($"ParallelReadCheck: a read of {t.Name} on entity {e.Index} while processing {Current} — the type is not in the declared last-tick mask (§18.2)");

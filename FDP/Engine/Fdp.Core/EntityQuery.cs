@@ -570,8 +570,14 @@ namespace Fdp.Core
                     if (BitMask512.HasAny(compMask, q._excludeMask))  continue;
                     ref readonly var meta = ref index.GetMetadataUnsafe(i);
                     if (!meta.IsActive) continue;
-                    if (q.Matches(in compMask, in meta)) { if (slot >= 0) EntityCensus.Set(slot, i); action(new Entity(i, meta.Generation)); }
+                    if (q.Matches(in compMask, in meta))
+                    {
+                        if (slot >= 0) EntityCensus.Set(slot, i);
+                        if (ParallelReadCheck.Compiled) ParallelReadCheck.Current = i;   // ⭐ N-2 (CE-4464, F-1) — the one per-thread current entity
+                        action(new Entity(i, meta.Generation));
+                    }
                 }
+                if (ParallelReadCheck.Compiled) ParallelReadCheck.Current = -1;
                 if (slot >= 0) EntityCensus.Pop(slot);
             }
         }

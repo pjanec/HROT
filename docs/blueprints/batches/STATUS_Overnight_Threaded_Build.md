@@ -18,15 +18,18 @@ Started marker `1cd3c2dbc`.
 
 | item | state | commit |
 |---|---|---|
-| N-1 `CE-4463` the one sim job queue | 🔄 seam built + rails (`SimJobQueue`, `SimJobs.Run`, `SimLink`); editor wiring next | (this commit) |
-| N-3 `CE-4465` two staging buffers + publish queue | 🔄 seam built + rails (`StagingWorlds`); editor wiring next | (this commit) |
+| N-1 `CE-4463` the one sim job queue | 🔄 seam built + rails (`SimJobQueue`, `SimJobs.Run`, `SimLink`); editor wiring next | `5ff4efba2` |
+| N-3 `CE-4465` two staging buffers + publish queue | 🔄 seam built + rails (`StagingWorlds`); editor wiring next | `5ff4efba2` |
+| N-2 `CE-4464` tick context + current entity on every pool batch | ✅ `AccessTrace.CaptureFlow/SwapFlow` restored per batch on a worker (both lanes); `ParallelEntities` + `ForEachParallel` set `ParallelReadCheck.Current`; the phase flag per thread; no current entity ⇒ throw | (this commit) |
 
 ## 2. GATES
 
 | gate | command | result |
 |---|---|---|
 | N-1 + N-3 rails + TwoWorlds | `dotnet test FDP/Engine/Fdp.Core.Tests --no-build --filter "FullyQualifiedName~SimJobQueueTests\|FullyQualifiedName~StagingWorldsTests\|FullyQualifiedName~TwoWorldsTests"` | 14 / 0 / 0 |
-| red-proofs (each a compiling mutation, reverted) | `scratchpad/redproof.sh` | ① torn tick: publish into the pulled buffer, no claim ⇒ red · ② drain only the pulled tick's packet ⇒ red · ③ spin instead of skip ⇒ red · N-1 LIFO drain ⇒ red |
+| N-2 rail (switches on) | `HROT_ACCESS_TRACE=1 HROT_READ_CHECK=1 HROT_ACCESS_TRACE_OUT=<f> dotnet test FDP/Engine/Fdp.Core.Tests --no-build --filter FullyQualifiedName~PoolTickContextTests` | 1 / 0 / 0 |
+| switch-off neighbours (0 B tracer, census, parallel, sync) | `… --filter "…PoolTickContextTests\|…ParallelEntitiesTests\|…AccessTraceOffTests\|…EntityCensusTests\|…ParallelSyncTests\|…ChunkIterationTests\|…PureReadsTests"` | 31 / 0 / 2 (the two env-gated rails skip) |
+| red-proofs (each a compiling mutation, reverted) | `scratchpad/redproof.sh` | ① torn tick: publish into the pulled buffer, no claim ⇒ red · ② drain only the pulled tick's packet ⇒ red · ③ spin instead of skip ⇒ red · N-1 LIFO drain ⇒ red · N-2 the worker's flow restore removed ⇒ red |
 
 ## 3. DECISIONS
 
@@ -36,6 +39,7 @@ Started marker `1cd3c2dbc`.
 | D-2 | how a UI write site reaches the queue with no new plumbing | pass the queue to 133 sites · a static · ⭐ a link on world A | ⭐ `SimLink` — a node-local managed singleton on A; `SimJobs.Run(world, job)` posts when A carries it, runs at once otherwise | a call site already holds A; switch OFF ⇒ no link ⇒ today's code path, unchanged | `SimJobQueue.cs` |
 | D-3 | events / replies of a publish the UI never pulls (it pulls only the LATEST buffer) | keep them in the buffer (lost when skipped over — the first cut did, found while writing the rail) · ⭐ tick-tagged packets in their own FIFO | ⭐ packets: the UI drains every packet up to the tick it pulls | "every event once, in order, skipped ticks included" (handoff N-3) | `StagingWorlds.Pull` |
 | D-4 | a row copy stamps the destination chunk with ITS OWN version — with two alternating sources an equal version from the other source would make the table sync skip a stale chunk | force-copy chunks · a sentinel version · ⭐ rows copy only types OUTSIDE the table mask | masked types arrive whole with the table sync; out-of-mask types are never table-synced, so their versions decide nothing | `EntityRepository.SyncRowsFrom(…, skipTypes)` |
+| D-6 | the read check's "parallel phase" flag was process-wide | keep global · ⭐ per thread | the UI thread reading A while the sim runs a phase would have every A read treated as cross-entity; ParallelEntities sets it per batch | `ParallelReadCheck.Active` |
 | D-5 | `SimLink` needs a component id | — | `GlobalComponentIds.SimLink = 475` (free in every lane and in every test) | — | `GlobalComponentIds.cs` |
 
 ## 4. BUGS FIXED
@@ -51,5 +55,5 @@ Started marker `1cd3c2dbc`.
 (N-16, later)
 
 ## NEXT (the resume point)
-N-2 (tick context + current entity on pool batches) → wire N-1 + N-3 into the editor's mode-3 worker loop (drain jobs between ticks, publish after
+wire N-1 + N-3 into the editor's mode-3 worker loop (drain jobs between ticks, publish after
 each tick, pull at the UI frame start, remove `ThreadedKernelGate`'s world lock from that path) → N-4 orchestration bus → N-5 run controls → N-6 …

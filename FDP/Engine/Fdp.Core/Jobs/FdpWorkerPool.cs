@@ -56,6 +56,7 @@ namespace Fdp.Core.Jobs
         private long _frameCursor;          // (generation << 32) | next batch
         private int _frameBatches, _frameFinished, _frameGeneration, _frameRunning;
         private Exception? _frameFault;
+        private object? _frameFlow;          // ⭐ N-2 — the caller's tracer reader / context, restored on a worker for each of its batches
 
         // ── the BACKGROUND lane ──
         private readonly object _bgGate = new();
@@ -65,6 +66,7 @@ namespace Fdp.Core.Jobs
         private long _bgCursor;             // (generation << 32) | next item
         private int _bgCount, _bgFinished, _bgGeneration;
         private Exception? _bgFault;
+        private object? _bgFlow;
 
         /// <summary>The threads that execute work, the caller included.</summary>
         public int Threads { get; }
@@ -103,6 +105,7 @@ namespace Fdp.Core.Jobs
             {
                 int gen = _frameGeneration + 1;
                 _frameWork = work; _frameBatches = batches; _frameFinished = 0; _frameFault = null;
+                _frameFlow = AccessTrace.CaptureFlow();
                 _frameDone.Reset();
                 Volatile.Write(ref _frameCursor, (long)gen << 32);
                 Volatile.Write(ref _frameGeneration, gen);
@@ -111,7 +114,7 @@ namespace Fdp.Core.Jobs
                 _frameDone.Wait();
                 if (_frameFault is { } f) throw new AggregateException("a parallel batch failed", f);
             }
-            finally { _frameWork = null; Volatile.Write(ref _frameRunning, 0); }
+            finally { _frameWork = null; _frameFlow = null; Volatile.Write(ref _frameRunning, 0); }
         }
 
         // true when it ran at least one batch
@@ -127,8 +130,10 @@ namespace Fdp.Core.Jobs
                 if (Interlocked.CompareExchange(ref _frameCursor, c + 1, c) != c) continue;
                 ran = true;
                 if (onWorker) Interlocked.Increment(ref _frameOnWorkers);
+                object? prevFlow = onWorker && AccessTrace.On ? AccessTrace.SwapFlow(_frameFlow) : null;   // ⭐ N-2 (F-1)
                 try { work.RunBatch(b); }
                 catch (Exception ex) { Interlocked.CompareExchange(ref _frameFault, ex, null); }
+                finally { if (onWorker && AccessTrace.On) AccessTrace.SwapFlow(prevFlow); }
                 if (Interlocked.Increment(ref _frameFinished) == _frameBatches) _frameDone.Set();
             }
         }
@@ -158,13 +163,14 @@ namespace Fdp.Core.Jobs
             {
                 int gen = _bgGeneration + 1;
                 _bgWork = work; _bgCount = count; _bgFinished = 0; _bgFault = null;
+                _bgFlow = AccessTrace.CaptureFlow();
                 _bgDone.Reset();
                 Volatile.Write(ref _bgCursor, (long)gen << 32);
                 Volatile.Write(ref _bgGeneration, gen);
                 _wake.Release(_threads.Length);
-                while (TakeBackground(gen, work)) { }   // the caller works its own window (it is not a frame worker)
+                while (TakeBackground(gen, work, onWorker: false)) { }   // the caller works its own window (it is not a frame worker)
                 _bgDone.Wait();
-                _bgWork = s_idle;   // ⭐ never keep the last caller's work: it roots the caller (a solver, an egress pipeline)
+                _bgWork = s_idle; _bgFlow = null;   // ⭐ never keep the last caller's work: it roots the caller (a solver, an egress pipeline)
                 var error = Interlocked.Exchange(ref _bgFault, null);
                 if (error != null) ExceptionDispatchInfo.Capture(error).Throw();
                 return true;
@@ -173,7 +179,7 @@ namespace Fdp.Core.Jobs
         }
 
         // ONE background item of the window `gen`; false when none is left
-        private bool TakeBackground(int gen, Action<int> work)
+        private bool TakeBackground(int gen, Action<int> work, bool onWorker)
         {
             while (true)
             {
@@ -182,8 +188,10 @@ namespace Fdp.Core.Jobs
                 int k = (int)(c & 0xFFFFFFFF);
                 if (k >= Volatile.Read(ref _bgCount)) return false;
                 if (Interlocked.CompareExchange(ref _bgCursor, c + 1, c) != c) continue;
+                object? prevFlow = onWorker && AccessTrace.On ? AccessTrace.SwapFlow(_bgFlow) : null;   // ⭐ N-2 (F-1)
                 try { work(k); }
                 catch (Exception e) { Interlocked.CompareExchange(ref _bgFault, e, null); }
+                finally { if (onWorker && AccessTrace.On) AccessTrace.SwapFlow(prevFlow); }
                 if (Interlocked.Increment(ref _bgFinished) == _bgCount) _bgDone.Set();
                 return true;
             }
@@ -193,7 +201,7 @@ namespace Fdp.Core.Jobs
         {
             int gen = Volatile.Read(ref _bgGeneration);
             var work = Volatile.Read(ref _bgWork);
-            return !ReferenceEquals(work, s_idle) && TakeBackground(gen, work);
+            return !ReferenceEquals(work, s_idle) && TakeBackground(gen, work, onWorker: true);
         }
 
         // ════ the workers ════

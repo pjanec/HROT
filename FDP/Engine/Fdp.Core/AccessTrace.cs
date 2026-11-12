@@ -145,6 +145,21 @@ namespace Fdp.Core
 
         private static int CurrentReader() => s_node.Value?.Reader ?? 0;
 
+        /// <summary>⭐ N-2 (CE-4464, F-1) — the reader / context of the CALLING thread, to hand to a pool worker: <see cref="AsyncLocal{T}"/> does not
+        /// flow into the one pool's dedicated threads, so without this the guard, the tracer and the census are blind exactly in the threaded +
+        /// parallel configuration. Null when the switch is off.</summary>
+        public static object? CaptureFlow() => On ? s_node.Value : null;
+
+        /// <summary>⭐ N-2 — makes <paramref name="flow"/> (from <see cref="CaptureFlow"/>) this thread's reader / context; returns the previous one
+        /// to restore in a <c>finally</c>.</summary>
+        public static object? SwapFlow(object? flow)
+        {
+            if (!On) return null;
+            var prev = s_node.Value;
+            s_node.Value = (Node?)flow;
+            return prev;
+        }
+
         private static string TypeName(Type t, string prefix) => s_typeNames.GetOrAdd((t, prefix), static k => k.Item1.Name);
 
         private static int Intern(string name)
