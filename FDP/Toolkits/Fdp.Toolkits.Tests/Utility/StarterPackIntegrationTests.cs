@@ -34,6 +34,71 @@ namespace Fdp.Toolkit.Tests
             _world.Dispose();
         }
 
+        // ── ⭐ POC 2 Q-4 — the parallel pre-score (UtilityPrescore) ─────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ POC 2 Q-4 (DESIGN_Parallel_Simulation §10–§11) — in a world that does not change between the pre-score and the walk, the
+        /// posture a unit takes from the PARALLEL pre-score is the posture the serial scorer gives, with the same ranked buffer, at 1 / 2 / 4 /
+        /// 8 threads: 200 agents of mixed health, ammo and contacts; frame 1 records the demand, frame 2 uses the pre-score. 🔴 Red-proof:
+        /// the job leaves its buffer unscored ⇒ every unit's posture and buffer differ.
+        /// </summary>
+        [Fact]
+        public void Q4_ThePrescoredPosture_IsTheSerialPosture_AtEveryThreadCount()
+        {
+            bool wasEnabled = UtilityPrescore.Enabled, wasPar = Fdp.Core.Jobs.ParallelEntities.Enabled;
+            var wasMode = Fdp.Core.Jobs.ParallelEntities.Mode;
+            try
+            {
+                string serial = PostureRun(prescore: false, threads: 1, out _);
+                foreach (int t in new[] { 1, 2, 4, 8 })
+                {
+                    Assert.Equal(serial, PostureRun(prescore: true, threads: t, out long taken));
+                    Assert.Equal(200, taken);
+                }
+            }
+            finally
+            {
+                UtilityPrescore.Enabled = wasEnabled;
+                Fdp.Core.Jobs.ParallelEntities.Enabled = wasPar;
+                Fdp.Core.Jobs.ParallelEntities.Mode = wasMode;
+                Fdp.Core.Jobs.FdpWorkerPool.Resize(Fdp.Core.Jobs.FdpWorkerPool.Budget());
+            }
+        }
+
+        private static unsafe string PostureRun(bool prescore, int threads, out long taken)
+        {
+            UtilityPrescore.Enabled = prescore;
+            Fdp.Core.Jobs.ParallelEntities.Enabled = prescore;
+            Fdp.Core.Jobs.ParallelEntities.Mode = Fdp.Core.Jobs.SimulationMode.Throughput;
+            Fdp.Core.Jobs.FdpWorkerPool.Resize(threads);
+            using var world = new UtilityTestWorld();
+            var rng = new Random(11);
+            var agents = new Entity[200];
+            for (int i = 0; i < agents.Length; i++)
+            {
+                agents[i] = world.SpawnAgent((float)rng.NextDouble(), (float)rng.NextDouble());
+                int contacts = rng.Next(0, 4);
+                for (int c = 0; c < contacts; c++)
+                    world.SeedContact(agents[i], world.Repo.CreateEntity(), 20f + 300f * (float)rng.NextDouble(), (float)rng.NextDouble(),
+                                      (float)rng.NextDouble(), hasLos: rng.Next(2) == 0);
+            }
+            var winners = new byte[agents.Length];
+            for (int i = 0; i < agents.Length; i++) winners[i] = world.Scorer.ChooseOption(world.Repo, agents[i], CombatPostureDecision.Id, 0);   // frame 1: the demand
+            if (prescore) UtilityPrescore.Of(world.Repo).Run(world.Repo);                                                                         // the brain tick's start
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < agents.Length; i++)
+            {
+                byte w = world.Scorer.ChooseOption(world.Repo, agents[i], CombatPostureDecision.Id, winners[i]);                       // frame 2
+                sb.Append(w).Append(':');
+                var buf = world.Repo.GetComponentRO<UtilityResultBuffer>(agents[i]);
+                var bytes = new ReadOnlySpan<byte>(&buf, sizeof(UtilityResultBuffer));
+                foreach (byte b in bytes) sb.Append(b.ToString("x2"));
+                sb.Append(' ');
+            }
+            taken = prescore ? UtilityPrescore.Of(world.Repo).Taken : 0;
+            return sb.ToString();
+        }
+
         // ── CombatPostureDecision ────────────────────────────────────────────────
 
         // SC-SP-01: Full health + live visual contact → AdvanceAndAttack.
