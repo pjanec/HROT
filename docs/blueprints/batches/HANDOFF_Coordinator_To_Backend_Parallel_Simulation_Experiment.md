@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: an OVERNIGHT EXPERIMENT — run the simulation on many cores, and do less per tick
 
-**For:** a backend session. **From:** coordinator. **Dispatched at `<sha>`**, scope frozen there. ⭐ **An EXPERIMENT** — 🔒 user, `2026-11-12`:
+**For:** a backend session. **From:** coordinator. **Dispatched at `fb1e5d07b`**, scope frozen there. ⭐ **An EXPERIMENT** — 🔒 user, `2026-11-12`:
 *"Can we do the independently on the overnight backend session, in another experimental branch? If it needs windows machine, we can (8 physical core
 machine)"* — and earlier: *"Single thread calculations of thousands of entities is ineffective … Many of those could be ok with writing stuff via command
 buffers, allowing parallel runs."* · *"If Determinism mode goes against performance mode … needs to be switchable."* · *"writing every frame and
