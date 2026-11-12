@@ -102,14 +102,20 @@ namespace Fdp.Core
 
         /// <summary>The ROW copy: for each entity in <paramref name="entities"/> (alive in both), every component <paramref name="source"/> has on it
         /// is copied into this repository's table row, and its mask bits set. Used for the selected / inspected entities — never widens the table mask.</summary>
-        public void SyncRowsFrom(EntityRepository source, ReadOnlySpan<Entity> entities)
+        public void SyncRowsFrom(EntityRepository source, ReadOnlySpan<Entity> entities) => SyncRowsFrom(source, entities, default);
+
+        /// <summary>⭐ N-3 (CE-4465) — the ROW copy of only the types OUTSIDE <paramref name="skipTypes"/> (the table mask): a masked type already
+        /// came whole with the table sync, and a row copy into it would stamp the chunk with THIS world's version — which can equal the
+        /// version a later table sync brings from another source (two alternating staging buffers) and make that sync skip a stale chunk.
+        /// Out-of-mask types are never table-synced, so their chunk versions decide nothing.</summary>
+        public void SyncRowsFrom(EntityRepository source, ReadOnlySpan<Entity> entities, in BitMask512 skipTypes)
         {
             if (AccessTrace.On) AccessTrace.Mute();
-            try { SyncRowsCore(source, entities); }
+            try { SyncRowsCore(source, entities, skipTypes); }
             finally { if (AccessTrace.On) AccessTrace.Unmute(); }
         }
 
-        private void SyncRowsCore(EntityRepository source, ReadOnlySpan<Entity> entities)
+        private void SyncRowsCore(EntityRepository source, ReadOnlySpan<Entity> entities, in BitMask512 skipTypes)
         {
             for (int k = 0; k < entities.Length; k++)
             {
@@ -121,8 +127,15 @@ namespace Fdp.Core
                 {
                     var st = kvp.Value;
                     int id = st.ComponentTypeId;
-                    if (!srcMask.IsSet(id)) continue;
-                    if (!_componentTables.TryGetValue(kvp.Key, out var mine)) continue;   // a type A never registered: the next table sync brings it
+                    if (!srcMask.IsSet(id) || skipTypes.IsSet(id)) continue;
+                    if (!_componentTables.TryGetValue(kvp.Key, out var mine))
+                    {   // ⭐ N-3 — a type this world never registered: register it now (once). An out-of-mask type is never table-synced, so
+                        //   "the next table sync brings it" never came — the rows were silently dropped (StagingWorldsTests)
+                        var reg = typeof(EntityRepository).GetMethod(nameof(RegisterComponent))?.MakeGenericMethod(kvp.Key);
+                        if (reg == null) continue;
+                        reg.Invoke(this, new object[] { null! });
+                        if (!_componentTables.TryGetValue(kvp.Key, out mine)) continue;
+                    }
                     mine.CopyRowFrom(st, e.Index, _globalVersion);
                     myMask.SetBit(id);
                 }

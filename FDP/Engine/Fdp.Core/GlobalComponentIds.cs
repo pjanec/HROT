@@ -1295,5 +1295,10 @@ namespace Fdp.Core
         /// <summary><c>LiveTerrainBakeInfo</c> — ⭐ terrain authoring U-3 / U-6 (docs/DESIGN_Terrain_Authoring.md §15a): the editor's live bake published to its views (the block outlines, the dirty rectangles). A node-local managed
         /// singleton, never saved, recorded or sent. ⚠ 496 measured free in backend, ui, behaviors and coordinator 2026-11-11 (the highest in use was 495).</summary>
         public const int LiveTerrainBakeInfo = 496;
+
+        /// <summary><c>SimLink</c> — ⭐ N-1 (CE-4463, docs/DESIGN_Threaded_Work_Inventory.md §8): a THREADED node's link on its presentation world A (the sim job
+        /// queue + the simulation world). A node-local managed singleton, never saved, recorded or sent; excluded from the staging pull (A owns it).
+        /// ⚠ 475 measured free in backend, ui, behaviors, coordinator, exp/integration and exp/perf 2026-11-12 (and in no test).</summary>
+        public const int SimLink = 475;
     }
 }
