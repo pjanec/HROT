@@ -70,7 +70,7 @@ namespace Fdp.Core.Jobs
         public static bool Enabled { get; set; } = Environment.GetEnvironmentVariable("HROT_PARALLEL_SIM") == "1";
 
         /// <summary>The mode the loops run in (set by whoever owns the run: the kernel from the time mode, the tests). Default Deterministic.</summary>
-        public static SimulationMode Mode { get; set; } = SimulationMode.Deterministic;
+        public static SimulationMode Mode { get; set; } = Environment.GetEnvironmentVariable("HROT_SIM_MODE") == "throughput" ? SimulationMode.Throughput : SimulationMode.Deterministic;
 
         /// <summary>Entities per batch in Deterministic mode — fixed, so a batch is the same set of entities whatever the thread count.</summary>
         public const int DeterministicBatchSize = 32;

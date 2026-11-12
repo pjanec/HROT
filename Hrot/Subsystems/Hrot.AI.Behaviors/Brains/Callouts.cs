@@ -153,6 +153,24 @@ namespace Hrot.AI.Behaviors.Brains
                     if (evt.What == SensorChange.SquadMemberDown) ManDown(world, evt.Unit, evt.Target);
 
             _men ??= world.Query().With<UnitSubordinate>().With<SimTransform>().With<BehaviorState>().Build();
+            if (Fdp.Core.Jobs.ParallelEntities.Enabled)
+            {
+                // ⭐ P-1 (the parallel experiment, E-3) — ① SERIAL: the men we own, CalloutState ADDED where missing (structural);
+                //   ② PARALLEL: each man DECIDES what to call, writing only his own watch fields (grenades, reload, contacts called);
+                //   ③ SERIAL, in batch order: he SAYS it. ⭐ Equivalent to the serial loop: Say writes LastAt / LastKind and his Utterance,
+                //   which no man's decision reads; SaidNearby (who spoke first) still runs in entity order.
+                int n = 0;
+                foreach (var man in _men)
+                {
+                    if (_gateOnAuthority && !world.HasAuthority<BehaviorState>(man)) continue;
+                    if (world.GetComponentRO<UnitSubordinate>(man).Commander.IsNull) continue;
+                    if (!world.HasComponent<CalloutState>(man)) world.AddComponent(man, new CalloutState { Grenades = -1 });
+                    if (n == _list.Length) { Array.Resize(ref _list, _list.Length * 2); Array.Resize(ref _about, _list.Length); }
+                    _list[n++] = man;
+                }
+                Fdp.Core.Jobs.ParallelEntities.Run(world, _list, n, new DecideJob { Owner = this, Repo = world });
+                return;
+            }
             foreach (var man in _men)
             {
                 if (_gateOnAuthority && !world.HasAuthority<BehaviorState>(man)) continue;
@@ -162,7 +180,33 @@ namespace Hrot.AI.Behaviors.Brains
             }
         }
 
-        private static unsafe void Watch(EntityRepository world, Entity man)
+        private Entity[] _list = new Entity[64];
+        private Entity[] _about = new Entity[64];   // the contact a deferred call is about, by the man's index in _list
+
+        private struct DecideJob : Fdp.Core.Jobs.IEntityBatchJob
+        {
+            public CalloutSystem Owner;
+            public EntityRepository Repo;
+            public void Execute(Entity man, int index, Fdp.Core.Jobs.BatchContext ctx)
+            {
+                var kind = Decide(Repo, man, out var contact);
+                if (kind == UtteranceKind.UtterNone) return;
+                Owner._about[index] = contact;
+                ctx.Defer(man, (int)kind, index);
+            }
+            public void ApplyDeferred(EntityRepository repo, in Fdp.Core.Jobs.Deferred d)
+                => Callouts.Say(repo, d.Entity, (UtteranceKind)d.Code, Owner._about[(int)d.Value]);
+        }
+
+        private static void Watch(EntityRepository world, Entity man)
+        {
+            var kind = Decide(world, man, out var contact);
+            if (kind != UtteranceKind.UtterNone) Callouts.Say(world, man, kind, contact);
+        }
+
+        /// <summary>⭐ P-1 — what he would call now (<see cref="UtteranceKind.UtterNone"/>: nothing), updating only his own watch fields. Safe in a
+        /// parallel batch.</summary>
+        private static unsafe UtteranceKind Decide(EntityRepository world, Entity man, out Entity contactOut)
         {
             ref var st = ref world.GetComponentRW<CalloutState>(man);
             int grenades = Grenades(world, man);
@@ -174,9 +218,10 @@ namespace Hrot.AI.Behaviors.Brains
             st.Grenades = grenades;
             st.WasReloading = reloading ? (byte)1 : (byte)0;
             st.Seeded = 1;
-            if (threw) Callouts.Say(world, man, UtteranceKind.CallFragOut);
-            else if (!contact.IsNull) Callouts.Say(world, man, UtteranceKind.CallContact, contact);
-            else if (startedReload) Callouts.Say(world, man, UtteranceKind.CallReloading);
+            contactOut = default;
+            if (threw) return UtteranceKind.CallFragOut;
+            if (!contact.IsNull) { contactOut = contact; return UtteranceKind.CallContact; }
+            return startedReload ? UtteranceKind.CallReloading : UtteranceKind.UtterNone;
         }
 
         /// <summary>The first identified, armed, non-neutral enemy in his memory (seen now) that he has not called yet; remembered either way.</summary>

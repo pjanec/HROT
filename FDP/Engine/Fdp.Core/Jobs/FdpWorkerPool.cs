@@ -16,8 +16,13 @@ namespace Fdp.Core.Jobs
         public static FdpWorkerPool Shared => _shared ??= new FdpWorkerPool(Budget());
         private static FdpWorkerPool? _shared;
 
-        /// <summary>The thread budget: <see cref="FdpConfig.MaxDegreeOfParallelism"/> when positive, else cores − 2 (at least 1).</summary>
-        public static int Budget() => FdpConfig.MaxDegreeOfParallelism > 0 ? FdpConfig.MaxDegreeOfParallelism : Math.Max(1, Environment.ProcessorCount - 2);
+        /// <summary>The thread budget: <c>HROT_SIM_THREADS</c> when set (the measurement sweep), else <see cref="FdpConfig.MaxDegreeOfParallelism"/>
+        /// when positive, else cores − 2 (at least 1).</summary>
+        public static int Budget()
+        {
+            if (int.TryParse(Environment.GetEnvironmentVariable("HROT_SIM_THREADS"), out int env) && env > 0) return env;
+            return FdpConfig.MaxDegreeOfParallelism > 0 ? FdpConfig.MaxDegreeOfParallelism : Math.Max(1, Environment.ProcessorCount - 2);
+        }
 
         /// <summary>Replaces the shared pool with one of <paramref name="threads"/> threads (the caller counts as one). Tests and the harness.</summary>
         public static void Resize(int threads)

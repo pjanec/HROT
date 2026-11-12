@@ -143,11 +143,12 @@ namespace Fdp.Toolkit.Squad.Command
                 sum += new Vector3(c.PositionX, c.PositionY, c.PositionZ);
                 if (c.EntityId > 0) equipment |= EquipmentOf(repo, new Entity((ulong)c.EntityId));   // ⭐ CE-2309 (HQ-2) — identified only
             }
-            ref var outbox = ref repo.GetComponentRW<ReportOutbox>(unit);
+            // ⭐ The parallel experiment, E-4 (M-1: ReportOutbox 94 % of its dirty chunks unchanged) — read first; writable only to send.
+            ref readonly var outbox = ref repo.GetComponentRO<ReportOutbox>(unit);
             if (n == 0)
             {
                 if (outbox.SpotSent == 0) return;
-                outbox.SpotSent = 0;   // the element is lost: say so (Count 0)
+                repo.GetComponentRW<ReportOutbox>(unit).SpotSent = 0;   // the element is lost: say so (Count 0)
                 ReportQueue.Enqueue(repo, unit, new CommandReport { Kind = ReportKind.Spot, At = outbox.SpotAt, ObservedAt = now }, now + ReportDelaySeconds);
                 return;
             }
@@ -161,11 +162,12 @@ namespace Fdp.Toolkit.Squad.Command
             var size = SizeOf(n);
             if (outbox.SpotSent != 0 && outbox.SpotSize == size && outbox.SpotEquipment == equipment && Vector3.Distance(outbox.SpotAt, centre) <= SpotMoveMetres
                 && now - outbox.SpotSentAt < SpotRefreshSeconds) return;
-            outbox.SpotSent = 1;
-            outbox.SpotSentAt = now;
-            outbox.SpotAt = centre;
-            outbox.SpotSize = size;
-            outbox.SpotEquipment = equipment;
+            ref var sent = ref repo.GetComponentRW<ReportOutbox>(unit);
+            sent.SpotSent = 1;
+            sent.SpotSentAt = now;
+            sent.SpotAt = centre;
+            sent.SpotSize = size;
+            sent.SpotEquipment = equipment;
             ReportQueue.Enqueue(repo, unit, new CommandReport
             {
                 Kind = ReportKind.Spot, At = centre, Radius = radius, Count = (byte)Math.Min(n, 255), Size = size, Equipment = equipment, ObservedAt = now,

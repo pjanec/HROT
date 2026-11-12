@@ -113,15 +113,19 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             foreach (var entity in query)
             {
-                ref var queue = ref repo.GetComponentRW<MissionPlanQueue>(entity);
-                var behavior  = repo.GetComponent<BehaviorState>(entity);
+                // ⭐ The parallel experiment, E-4 (M-1: MissionPlanQueue 99 % unchanged dirty chunks) — the early-outs read; the queue is taken
+                //   writable only for a plan that can advance.
+                ref readonly var peek = ref repo.GetComponentRO<MissionPlanQueue>(entity);
 
                 // Mission complete — nothing left to do.
-                if (queue.CurrentTask >= queue.TaskCount) continue;
+                if (peek.CurrentTask >= peek.TaskCount) continue;
 
                 // ⭐ CE-483 — a halted plan waits for an operator command (a jump or a new plan). 📄
                 //   DESIGN_Behaviour_Fault_And_Teardown.md §1 D3.
-                if (queue.Halted != 0) continue;
+                if (peek.Halted != 0) continue;
+
+                ref var queue = ref repo.GetComponentRW<MissionPlanQueue>(entity);
+                var behavior  = repo.GetComponent<BehaviorState>(entity);
 
                 // Safe access to the inline Phases buffer: cast to Span to avoid the
                 // C#/[InlineArray] defensive-copy trap when indexing a nested value-type.

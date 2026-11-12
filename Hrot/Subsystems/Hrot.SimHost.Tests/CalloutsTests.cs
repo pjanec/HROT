@@ -154,5 +154,79 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(a, about);
             Assert.Equal(UtteranceKind.UtterNone, Said(far));
         }
+
+        /// <summary>
+        /// ⭐ The parallel-simulation experiment, E-3 (P-1) — <see cref="CalloutSystem"/> on the worker pool says the SAME calls as the serial
+        /// loop, at 1 / 2 / 4 / 8 threads: 300 men in squads of ten, 4 m apart, reloads starting at random — so neighbours call in the same
+        /// frame and the no-echo rule (<see cref="Callouts.Say"/>: a friend 5 m off just called it) decides WHO speaks, by entity order.
+        /// 🔴 Red-proof: <c>Say</c> run from the worker (completion order) ⇒ another man of the pair speaks.
+        /// </summary>
+        [Fact]
+        public void P1_TheParallelCallouts_SayWhatTheSerialLoopSays_AtEveryThreadCount()
+        {
+            bool was = Fdp.Core.Jobs.ParallelEntities.Enabled;
+            try
+            {
+                string serial = RunCalloutWorld(parallel: false, threads: 1);
+                Assert.Contains(UtteranceKind.CallReloading.ToString(), serial);
+                foreach (int t in new[] { 1, 2, 4, 8 })
+                    Assert.Equal(serial, RunCalloutWorld(parallel: true, threads: t));
+            }
+            finally
+            {
+                Fdp.Core.Jobs.ParallelEntities.Enabled = was;
+                Fdp.Core.Jobs.FdpWorkerPool.Resize(Fdp.Core.Jobs.FdpWorkerPool.Budget());
+            }
+        }
+
+        private static string RunCalloutWorld(bool parallel, int threads)
+        {
+            Fdp.Core.Jobs.ParallelEntities.Enabled = parallel;
+            Fdp.Core.Jobs.FdpWorkerPool.Resize(threads);
+            using var w = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(w);
+            CognitiveComponentRegistry.RegisterAll(w);
+            if (!w.IsComponentTypeRegistered<Utterance>()) w.RegisterComponent<Utterance>();
+            double t = 10.0;
+            w.SetSingleton(new GlobalTime { TotalTime = t, DeltaTime = 0.016f, TimeScale = 1f, FrameNumber = (long)(t * 60) });
+            var men = new Entity[300];
+            for (int sq = 0; sq < 30; sq++)
+            {
+                var c = w.CreateEntity();
+                var roster = new UnitRoster();
+                for (int k = 0; k < 10; k++)
+                {
+                    var e = w.CreateEntity();
+                    w.AddComponent(e, new BehaviorState());
+                    w.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+                    w.AddComponent(e, new SimTransform { Position = new Vector3(sq * 100f + k * 4f, 0f, 0f), Rotation = Quaternion.Identity });
+                    w.AddComponent(e, new EntityInfo { Name = "m", ForceId = ForceId.Friend });
+                    w.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 1 });
+                    w.AddComponent(e, new UnitSubordinate { Commander = c });
+                    UnitRoster.Add(ref roster, e);
+                    men[sq * 10 + k] = e;
+                }
+                w.AddComponent(c, roster);
+                w.AddComponent(c, new SquadLeadership { Leader = men[sq * 10] });
+            }
+            var rng = new Random(7);
+            var system = new CalloutSystem();
+            var log = new System.Text.StringBuilder();
+            for (int f = 0; f < 8; f++)
+            {
+                foreach (var m in men)
+                    if (rng.Next(4) == 0) w.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponAmmo>(m).Busy = (byte)(1 - w.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponAmmo>(m).Busy);
+                system.Execute(w, 0.016f);
+                for (int i = 0; i < men.Length; i++)
+                {
+                    var k = Utterances.Of(w, men[i], t, out _);
+                    if (k != UtteranceKind.UtterNone) log.Append(i).Append(':').Append(k).Append(' ');
+                }
+                log.Append('|');
+                t += 1.0;
+                w.SetSingleton(new GlobalTime { TotalTime = t, DeltaTime = 0.016f, TimeScale = 1f, FrameNumber = (long)(t * 60) });
+            }
+            return log.ToString();
+        }
     }
 }

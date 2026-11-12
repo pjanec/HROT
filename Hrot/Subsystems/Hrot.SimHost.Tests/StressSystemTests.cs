@@ -117,6 +117,80 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0f, Level(down), 3);            // not himself
         }
 
+        /// <summary>
+        /// ⭐ The parallel-simulation experiment, E-3 (P-1, <c>DESIGN_Parallel_Simulation</c> §5) — <see cref="StressSystem"/> run on the worker
+        /// pool gives the SAME world and the SAME edges, in the same order, as the serial loop, at 1 / 2 / 4 / 8 threads: 400 men at seeded
+        /// levels (some past their break, some broken and calm), near misses each frame, five frames. 🔴 Red-proof: the deferred edges played
+        /// back in completion order instead of batch order ⇒ the edge string differs.
+        /// </summary>
+        [Fact]
+        public void P1_TheParallelStressStep_MatchesTheSerialStep_AtEveryThreadCount()
+        {
+            bool was = Fdp.Core.Jobs.ParallelEntities.Enabled;
+            try
+            {
+                string serial = RunStressWorld(parallel: false, threads: 1);
+                Assert.Contains("StressBreak", serial);
+                foreach (int t in new[] { 1, 2, 4, 8 })
+                    Assert.Equal(serial, RunStressWorld(parallel: true, threads: t));
+            }
+            finally
+            {
+                Fdp.Core.Jobs.ParallelEntities.Enabled = was;
+                Fdp.Core.Jobs.FdpWorkerPool.Resize(Fdp.Core.Jobs.FdpWorkerPool.Budget());
+            }
+        }
+
+        private static string RunStressWorld(bool parallel, int threads)
+        {
+            Fdp.Core.Jobs.ParallelEntities.Enabled = parallel;
+            Fdp.Core.Jobs.FdpWorkerPool.Resize(threads);
+            using var w = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(w);
+            CognitiveComponentRegistry.RegisterAll(w);
+            var rng = new Random(42);
+            var men = new Entity[400];
+            for (int i = 0; i < men.Length; i++)
+            {
+                var e = w.CreateEntity();
+                w.AddComponent(e, new BehaviorState());
+                w.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+                w.AddComponent(e, new StanceIntent());
+                w.AddComponent(e, new SimTransform { Position = new Vector3(rng.Next(0, 400), rng.Next(0, 400), 0f), Rotation = Quaternion.Identity });
+                w.AddComponent(e, new EntityInfo { ForceId = ForceId.Friend });
+                var t = new CombatTemperament { Nerve = (float)rng.NextDouble(), Set = CombatTemperament.NerveSet };
+                w.AddComponent(e, t);
+                if (i % 3 != 0)   // a third start with no Stress: the serial pre-pass adds it
+                    w.AddComponent(e, new Stress { Level = (float)rng.NextDouble(), Broken = (byte)(i % 7 == 0 ? 1 : 0), LastStepAt = (SimInstant)0.5 });
+                men[i] = e;
+            }
+            var sys = new StressSystem();
+            var log = new System.Text.StringBuilder();
+            for (int f = 0; f < 5; f++)
+            {
+                for (int k = 0; k < 40; k++)
+                    w.Bus.Publish(new SensorChangedEvent { Unit = men[rng.Next(men.Length)], What = k % 4 == 0 ? SensorChange.Hit : SensorChange.NearMiss });
+                w.Bus.SwapBuffers();
+                foreach (var ev in w.ReadEvents<SensorChangedEvent>())
+                    if (ev.What is SensorChange.StressBreak or SensorChange.StressRecovered) log.Append(ev.Unit.Index).Append(':').Append(ev.What).Append(' ');
+                w.SetSingleton(new GlobalTime { TotalTime = 1.0 + f * 3.0, DeltaTime = 0.016f, TimeScale = 1f });
+                sys.Execute(w, 0.016f);
+            }
+            w.Bus.SwapBuffers();
+            foreach (var ev in w.ReadEvents<SensorChangedEvent>())
+                if (ev.What is SensorChange.StressBreak or SensorChange.StressRecovered) log.Append(ev.Unit.Index).Append(':').Append(ev.What).Append(' ');
+            log.Append('|');
+            foreach (var e in men)
+            {
+                if (!w.HasComponent<Stress>(e)) { log.Append("- "); continue; }
+                var s = w.GetComponentRO<Stress>(e);
+                var b = w.GetComponentRO<BehaviorState>(e);
+                log.Append(s.Level.ToString("R")).Append(',').Append(s.Broken).Append(',').Append((double)s.CalmSince).Append(',')
+                   .Append((double)s.LastStepAt).Append(',').Append(b.ActiveBehaviorHash).Append(' ');
+            }
+            return log.ToString();
+        }
+
         /// <summary>TS-4 — time calms him 0.03 / s; ⭐ cover doubles it and his leader within 20 m doubles it again.</summary>
         [Fact]
         public void CE2270_TimeCalmsHim_CoverDoublesIt_HisLeaderNearDoublesItAgain()
