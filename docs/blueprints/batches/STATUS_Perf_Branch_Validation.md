@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — in progress (exp/perf)
+state: LIVE — PAUSED by the user 2026-11-12 (exp/perf); interim report at VERDICT
 updated: 2026-11-12
 current-answer: VERDICT (top), then V-1 … V-7
 stale-below: nothing yet
@@ -16,7 +16,23 @@ related-designs:
 
 ## VERDICT
 
-_(written at V-8)_
+⏸ **INTERIM — validation stopped by the user (`2026-11-12`) before V-7 and V-8 finished.** Not a merge verdict.
+
+| item | state | finding |
+|---|---|---|
+| V-1 build + 8 core suites | ✅ done | 0 build errors; every red is red at the base. Two census rails had new branch fields → **fixed** (`a1b074bdf` + `DESIGN_System_State_Inventory.md`) |
+| V-2 defaults unchanged | ✅ done | switches off ⇒ the base's world, entity for entity (only a per-process random `EntityGuid` differs, as it does base vs base) |
+| V-3 determinism | ✅ done | `DeterminismRails` 5/5 serial, at 1/2/4/8 threads, and Throughput |
+| V-4 scenario regression | ⛔ stopped by ruling | user: test features, not scenarios — see V-4 |
+| V-5 replication / recording | ✅ done | no new red; managed-read detector **0 hits** over 74 726 frames |
+| V-6 editor + frame rails (xvfb) | ✅ done | no branch red; 2 order-dependent tests (green alone) |
+| ⭐ all 54 test projects in `HROT.sln` | ⏸ **9 of the remaining 40 run** | green: CarKinem, UrbanCombat, EnvelopeStamper, four GizmoMap. ⚠ **NOT yet checked at the base:** `Fdp.Examples.Scenarios.Tests` 9 red, `Fdp.Presentation.Tests` 1 red. **31 suites not run** |
+| V-7 allocation | ⏸ partial | the 0 B rails inside the V-1 suites are green; the rig's garbage-per-frame vs base was **not measured** (the rig runs were killed) |
+| V-8 verdict | ⏸ not written | |
+
+⇒ **To finish:** run the 31 unrun suites; re-run the 10 reds above at the base (`/home/user/hrot-base` worktree at `786e99599`); the rig
+(`scale-rig.py --runner-dll`, from a SCRIPT FILE — `cluster-node.sh`'s `pkill -f ClusterRunner.dll` kills any shell whose command line
+contains that path); then the verdict. So far nothing found blocks a merge, but the coverage is incomplete.
 
 ## V-1 — the build and the suites
 
