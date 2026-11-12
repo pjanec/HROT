@@ -102,6 +102,11 @@
     "Hrot.ScenarioEditor.Systems.SelectionRequestSystem",
     "Hrot.ScenarioEditor.Systems.ToolActivationDrainSystem",
     "Hrot.UI.Common.Effects.EffectSpawnSystem",
-    "Hrot.UI.Common.Effects.WreckSpawnSystem"
+    "Hrot.UI.Common.Effects.WreckSpawnSystem",
+    "Hrot.ScenarioEditor.Systems.SelectionInteractionSystemAdapter"
+  ],
+  "noDispatch": [
+    "M:Fdp.ModuleHost.Abstractions.IEcsModuleSystem.Execute(Fdp.ModuleHost.Abstractions.ISimulationView,System.Single)",
+    "M:Fdp.ModuleHost.Abstractions.IEcsModule.Tick(Fdp.ModuleHost.Abstractions.ISimulationView,System.Single)"
   ]
 }

@@ -18,7 +18,7 @@ using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.CodeAnalysis.Operations;
 
 internal sealed record RootSpec(string Side, string Type, string[] Methods);
-internal sealed record RootsFile(RootSpec[] Roots, string[] WorldNamespaces, string[] SkipProjectsContaining, string[]? PresentationInTick = null);
+internal sealed record RootsFile(RootSpec[] Roots, string[] WorldNamespaces, string[] SkipProjectsContaining, string[]? PresentationInTick = null, string[]? NoDispatch = null);
 
 internal sealed class MethodNode
 {
@@ -55,6 +55,7 @@ internal static class Program
         Directory.CreateDirectory(outDir);
 
         PresentationInTick = new HashSet<string>(roots.PresentationInTick ?? Array.Empty<string>());
+        NoDispatch = new HashSet<string>(roots.NoDispatch ?? Array.Empty<string>());
         roots = roots with { Roots = roots.Roots.Concat(PresentationInTick.Select(t => new RootSpec("ui", t, new[] { "*" }))).ToArray() };
         MSBuildLocator.RegisterDefaults();
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -86,9 +87,16 @@ internal static class Program
         // ⭐ a root counts only if its type is CONSTRUCTED somewhere in non-test code (a `new T(...)`, or named as a generic argument / typeof —
         //   AddSystem<T>() composition); an unregistered implementation is not part of any host. ⚠ composition by reflection / string is missed:
         //   every dropped type is listed in rootsDropped.json for review.
+        var mains = Methods.Values.Where(n => n.Key.StartsWith("M:", StringComparison.Ordinal) && (n.Key.Contains(".Main(", StringComparison.Ordinal) || n.Key.EndsWith(".Main", StringComparison.Ordinal))).Select(n => n.Key).ToHashSet();
+        var composed = Reach("compose", mains);
         var constructed = new HashSet<string>();
-        foreach (var n in Methods.Values) foreach (var c in n.Callees) if (c.StartsWith("M:", StringComparison.Ordinal) && c.Contains(".#ctor", StringComparison.Ordinal)) constructed.Add(c[2..c.IndexOf(".#ctor", StringComparison.Ordinal)]);
-        foreach (var t in TypeMentions.Keys) constructed.Add(t);
+        foreach (var m in composed)
+        {
+            if (!Methods.TryGetValue(m, out var n)) continue;
+            foreach (var c in n.Callees) if (c.StartsWith("M:", StringComparison.Ordinal) && c.Contains(".#ctor", StringComparison.Ordinal)) constructed.Add(c[2..c.IndexOf(".#ctor", StringComparison.Ordinal)]);
+            if (Mentions.TryGetValue(m, out var ts)) constructed.UnionWith(ts);
+        }
+        Console.WriteLine($"[reach] composition: {mains.Count} entry points (Main) → {composed.Count} methods, {constructed.Count} types constructed");
         var dropped = new SortedSet<string>();
         var rootSets = new Dictionary<string, HashSet<string>>();
         var rootReport = new List<object>();
@@ -174,7 +182,7 @@ internal static class Program
             var m = q.Dequeue();
             if (Methods.TryGetValue(m, out var n))
                 foreach (var c in n.Callees) Visit(c, m);
-            if (Dispatch.TryGetValue(m, out var impls))
+            if (Dispatch.TryGetValue(m, out var impls) && !NoDispatch.Contains(m))
                 foreach (var c in impls) Visit(c, m + " ⇢dispatch");
         }
         Parents[side] = parent;
@@ -225,10 +233,13 @@ internal static class Program
     }
 
     private static HashSet<string> PresentationInTick = new();
+    private static HashSet<string> NoDispatch = new();   // member doc ids whose dispatch is NOT expanded (systems are roots of their own; a group's Execute would re-add every system)
 
     private static string DocName(INamedTypeSymbol t) => (t.OriginalDefinition.GetDocumentationCommentId() ?? "T:" + Full(t))[2..];
 
     private static readonly ConcurrentDictionary<string, bool> TypeMentions = new();   // types named in typeof(T) or as a generic type argument
+    private static readonly ConcurrentDictionary<string, HashSet<string>> Mentions = new();   // method → the types it names that way
+    private static void Mention(MethodNode node, INamedTypeSymbol t) { TypeMentions[DocName(t)] = true; var set = Mentions.GetOrAdd(node.Key, _ => new()); lock (set) set.Add(DocName(t)); }
 
     private static string Full(ITypeSymbol t) => t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat).Replace("global::", "");
 
@@ -280,6 +291,30 @@ internal static class Program
     {
         var model = comp.GetSemanticModel(tree);
         var root = tree.GetRoot();
+        // field / property initialisers run with the constructors: one synthetic node per type, called from each of its constructors
+        foreach (var tdecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
+        {
+            if (model.GetDeclaredSymbol(tdecl) is not INamedTypeSymbol tsym) continue;
+            var init = new MethodNode { Key = "INIT:" + Key(tsym), Display = tsym.Name + ".<init>", Location = Loc(tsym), IsConstructor = true };
+            foreach (var m in tdecl.Members)
+            {
+                EqualsValueClauseSyntax? ev = m switch
+                {
+                    FieldDeclarationSyntax f => null,
+                    PropertyDeclarationSyntax pd => pd.Initializer,
+                    _ => null,
+                };
+                var clauses = m is FieldDeclarationSyntax fd ? fd.Declaration.Variables.Select(v => v.Initializer).Where(i => i != null).ToList() : new List<EqualsValueClauseSyntax?> { ev };
+                foreach (var c in clauses)
+                {
+                    if (c == null) continue;
+                    IOperation? op = null;
+                    try { op = model.GetOperation(c.Value); } catch { }
+                    if (op != null) foreach (var o in op.DescendantsAndSelf()) Visit(o, init);
+                }
+            }
+            if (init.Callees.Count > 0 || init.Reads.Count > 0 || init.Writes.Count > 0) Methods.AddOrUpdate(init.Key, init, (_, old) => { old.Callees.UnionWith(init.Callees); old.Reads.UnionWith(init.Reads); return old; });
+        }
         foreach (var decl in root.DescendantNodes().Where(n => n is BaseMethodDeclarationSyntax or AccessorDeclarationSyntax or ArrowExpressionClauseSyntax { Parent: PropertyDeclarationSyntax or IndexerDeclarationSyntax }))
         {
             IMethodSymbol? sym = decl switch
@@ -293,6 +328,7 @@ internal static class Program
                 Key = Key(sym), Display = sym.ContainingType.Name + "." + (sym.AssociatedSymbol?.Name ?? sym.Name) + (sym.MethodKind == MethodKind.PropertySet ? ".set" : ""),
                 Location = Loc(sym), IsConstructor = sym.MethodKind is MethodKind.Constructor or MethodKind.StaticConstructor,
             };
+            if (node.IsConstructor) node.Callees.Add("INIT:" + Key(sym.ContainingType));
             SyntaxNode? body = decl switch
             {
                 BaseMethodDeclarationSyntax m => (SyntaxNode?)m.Body ?? m.ExpressionBody,
@@ -317,11 +353,11 @@ internal static class Program
         {
             case IInvocationOperation inv:
                 node.Callees.Add(Key(inv.TargetMethod));
-                foreach (var ta in inv.TargetMethod.TypeArguments) if (ta is INamedTypeSymbol nt && InSource(nt)) TypeMentions[DocName(nt)] = true;   // AddSystem<T>() / Register<T>()
+                foreach (var ta in inv.TargetMethod.TypeArguments) if (ta is INamedTypeSymbol nt && InSource(nt)) Mention(node, nt);   // AddSystem<T>() / Register<T>()
                 break;
             case IObjectCreationOperation oc when oc.Constructor != null: node.Callees.Add(Key(oc.Constructor)); break;
             case IMethodReferenceOperation mr: node.Callees.Add(Key(mr.Method)); break;   // a delegate: it may run — over-approximated
-            case ITypeOfOperation to when to.TypeOperand is INamedTypeSymbol tt && InSource(tt): TypeMentions[DocName(tt)] = true; break;
+            case ITypeOfOperation to when to.TypeOperand is INamedTypeSymbol tt && InSource(tt): Mention(node, tt); break;
             case IPropertyReferenceOperation pr:
                 {
                     var p = pr.Property;
