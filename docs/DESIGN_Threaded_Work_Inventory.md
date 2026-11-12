@@ -119,6 +119,12 @@ Build the TEST project, then `--no-build` (CLAUDE.md stale-binary traps); after 
 
 Measured build costs (CLAUDE.md): full solution ~115 s warm `--no-restore` (3 min on this VM for exp/perf), one project ~8 s, restore ~79 s.
 
+## 5a. ⭐ A board task, decided by the user (`2026-11-12`: "add both") — Windows scheduling for every HROT process (CE-4452, Parallel Simulation §19)
+
+| task | done when |
+|---|---|
+| at start-up every HROT process opts out of power throttling (`SetProcessInformation(ProcessPowerThrottling)`, execution speed + timer resolution), the sim thread and the pool threads per thread too; `timeBeginPeriod(1)` while a simulation runs; the sim thread AboveNormal, the pool's frame lane Normal, its background lane BelowNormal; console hosts clear `ENABLE_QUICK_EDIT_MODE`; the pool sizes its FRAME lane to the performance cores (`GetSystemCpuSetInformation`, `EfficiencyClass`) and lets the background lane use the efficiency cores | ⭐ one shared start-up helper every host calls (shared and unified — CLAUDE.md); a rail per setting where Windows APIs can be faked; Linux a no-op; the Windows throttling measurement (CE-4453) re-run with the code instead of `powercfg` |
+
 ## 6. Still to come
 - **Per-entity parallelism:** the census (CE-4449, `exp/entity-census`, running) — each system READY / CONVERTIBLE / GLOBAL, the last-tick set, the prize model. ⇒ track C's task list.
 - **The board:** written once D-1…D-5 are answered and the census lands.
