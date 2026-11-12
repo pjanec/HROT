@@ -214,3 +214,18 @@ all. Either everything is deterministic or not."*
 the census method and its short conversion list · the one pool's two lanes (no deadlock; the caller drains unclaimed batches) · the read check is free with its flag off (±1 ns) · the UI-write inventory and the HTTP split · the UI frame gain (97 → 15.6 ms) · the D-3 and D-5 withdrawals · the no-dependency-scheduler verdict · cluster time with the sim on a worker (the slave clock is wall-clock derived, barriers snap) · Run-to's fix · no target deconfliction to race (grep only) · room clearing, embarkation and possession go through single serial arbiters · orders already travel one frame late on the bus.
 
 ⚠ Doc rot found (concurrency m4): Parallel Simulation on `coordinator` cites "§16 J-3" and the one-pool section, which exist only on exp branches; its section order runs 14 → 11.1 → 18 → 19 → 18.2 — to be tidied when the branches merge.
+
+### 7.6 ⭐ The last measurements are in *(`2026-11-12`; status files on exp/measure-2, exp/integration, exp/perf)*
+
+| question (§7.4) | answer |
+|---|---|
+| the threaded 4.8 Hz tick | ⭐ CE-4450 K-1: the worker waits **150–175 ms / tick to acquire the world lock playing, 82–106 paused** — ≈ ONE drawing frame: the main thread holds the world for its WHOLE frame; a fair hand-over changed nothing. ⇒ the fix is SHAPE, not fairness: the main thread must not hold the world across its whole frame (copy from a published snapshot / a short lock only around the world-reading part) |
+| ⛔ new race | ⭐ K-1: the ORCHESTRATION bus (`_node.EventBus`) is published to and swapped by the worker OUTSIDE the world lock and read / published by the main thread ("Collection was modified", 3 of 3 runs once the hand-over was fair) ⇒ it becomes a command queue — a blocking item before any lock change |
+| hot-reload desync | ⭐ K-3: the reload DRAIN blocks the node frame **3.7–4.4 s** (threaded or not) against a 5 s heartbeat eject, and a node returning while the cluster operates is not re-admitted ⇒ NOT threading: build the staging off the frame, keep only the swap on it |
+| the query timer | ✅ K-4: off by default — BrainTick −8 % |
+| census on heavier combat | ✅ K-2: no change to the verdict; 21 last-tick types on the CGF, the masked copy **2.6–2.7 ms** (full 10.8–11.3 ms) |
+| ⭐⭐ Windows throttling | ⭐ CE-4453: **a node with no visible window runs at about HALF speed** — Windows puts windowless nodes in EcoQoS by default (clock ~2.6 vs ~3.8–4.1 GHz); hidden CGF 228 → **121 ms** opted out, SimHost 101 → **44 ms**; minimised = hidden; a visible console is not throttled. ⇒ ⚠ every earlier Windows number was throttled; ⭐ the opt-out (inventory §5a, CE-4452) is a ~1.9× win for every headless node TODAY, independent of threading |
+| the off-frame egress anomaly | ✅ CE-4457: did not reproduce (machine state, INFERENCE) |
+| memory per node | ✅ CE-4456 N-1: CGF 1.77–2.10 GB at 1 000 men, 2.94 GB at 3 000, ~3.8 GB at 5 000 (fits only with two fixes: chunk-version arrays sized for `MAX_ENTITIES`, 84–217 MB per world even when empty — `NativeChunkTable.cs:56,65`; the recording's ~0.5 GB of buffers). ⛔ the EDITOR is over 4 GB at 1 000 men (4.24–4.29 GB, threaded or not — A adds only ~106 MB; ~1.2 GB unattributed); `--mode all` 5.65 GB |
+| same-tick cover / contact | ✅ CE-4456 N-2: two units committing to the same point on one tick NEVER happened (0 in ~88 000 ticks) ⇒ cover recovery (F-9) is a rare tie-break; new contacts arrive in BURSTS (up to 96 units on one tick) ⇒ callout de-dup (F-10) must expect tens; a cover-thrashing unit found — CE-3444 (behaviors) |
+| the integration base | ✅ CE-4456: `exp/integration` built, 0 errors; one read path, one pool; a merge defect (test component ids colliding across branches) fixed |
