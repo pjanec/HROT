@@ -124,7 +124,9 @@ namespace Fdp.Toolkit.Utility
                 int i = e.Index;
                 st.Buf[i] = default;
                 // step 1 only, no trace (a traced unit is scored fresh by the serial walk) — reads the world, writes this unit's slot
-                UtilityScorer.Evaluate(Repo, e, in def, default, ref st.Buf[i], null, 0, writeWinnerRecord: false);
+                ParallelGuard.ReadOnly = true;   // ⭐ Debug: scoring may take nothing writable
+                try { UtilityScorer.Evaluate(Repo, e, in def, default, ref st.Buf[i], null, 0, writeWinnerRecord: false); }
+                finally { ParallelGuard.ReadOnly = false; }
                 st.Generation[i] = e.Generation;
                 st.Run[i] = RunId;
             }

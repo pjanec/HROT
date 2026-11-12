@@ -164,6 +164,11 @@ namespace Fdp.Core
             
             int chunkIndex = entityId / _chunkCapacity;
             int localIndex = entityId % _chunkCapacity;
+
+#if DEBUG
+            if (currentVersion != 0 && Jobs.ParallelGuard.ReadOnly)   // ⭐ POC 2 Q-4 — a read-only parallel body took a writable reference (version 0 = a read)
+                throw new InvalidOperationException($"a writable {typeof(T).Name} was taken inside a READ-ONLY parallel body (ParallelGuard)");
+#endif
             
             EnsureChunkAllocated(chunkIndex);
             

@@ -11,6 +11,18 @@ namespace Fdp.Core.Jobs
     /// </summary>
     public enum SimulationMode : byte { Deterministic = 0, Throughput = 1 }
 
+    /// <summary>
+    /// ⭐ POC 2 Q-4 — the Debug guard for a READ-ONLY parallel body (the brains' pre-score): while <see cref="ReadOnly"/> is set on a thread,
+    /// a Debug build throws on any writable component reference taken there (<c>NativeChunkTable.GetRefRW</c>). ⭐ It proves the premise the
+    /// parallel scoring rests on — "scoring only reads" — on every rail that runs it. Release: never checked.
+    /// </summary>
+    public static class ParallelGuard
+    {
+        [ThreadStatic] private static bool t_readOnly;
+        /// <summary>This thread is inside a read-only parallel body.</summary>
+        public static bool ReadOnly { get => t_readOnly; set => t_readOnly = value; }
+    }
+
     /// <summary>What a parallel body may not do itself and hands to the serial merge: a per-entity follow-up for the job's own serial step.</summary>
     public readonly struct Deferred
     {
