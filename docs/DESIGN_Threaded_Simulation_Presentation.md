@@ -530,7 +530,7 @@ worker paces itself (the lock / yield) or a tick costs more on the worker. ⭐ M
 
 🔒 User, `2026-11-12`, on the backend session's plan to split the gizmos: *"which i rejected as too big complication for the maintenance it and
 asked to put whole gizmo block to presentation thread"*. ⇒ all registered gizmos (overlays, tools, mixed, UI) run as ONE block on the main
-thread over world A, every frame; the S→A mask carries what every gizmo reads (A-1: map + 3-D + gizmos ≈ 57 types, tables ≈ 1.3 ms); tools write
+thread over world A, every frame; the S→A mask carries what the ACTIVE gizmos read — it follows the shown layers: nothing when no gizmo is shown, all ≈ 57 types (A-1, tables ≈ 1.3 ms) when every kind is on; most often only the entity labels (🔒 user, `2026-11-12`: "what gizmos read depends solely on what gizmos are active … this is accepted cost. Most often just entity labels are enabled."); a layer switched on gets its data at the next sync; tools write
 by ghost + command. The gizmo module's NON-gizmo world writers (action dispatch, effect / wreck spawn, lifespan) are simulation and stay in the
 tick. Headless nodes have no main-thread presentation: their gizmo stream is produced in their own tick and sent over the network, as today.
 §14.2's picture is redrawn to this (`scripts/gen-anti-race-svg.py`). ⛔ HISTORY: §13.4–13.5's 47 / 26 / 6 split by kind is superseded.

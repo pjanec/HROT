@@ -336,3 +336,9 @@ regression goldens are re-baselined once — and R-4208's "Throughput only" coul
 **The prize, bounded honestly:** the brains are one link of the measured chain (stress → threat → brain → callouts → weapons → squad, §16 J-3); the
 same rule applies to every per-entity system in it, and that — not the brains alone — is what lets 16 cores pay. ⇒ census the brains first; if the
 lists are short, the rule becomes the engine's rule for per-entity systems, enforced by `ParallelGuard`.
+
+🔒 User, `2026-11-12`: *"basically every system can be parallelized including the brains, there is nothing why brains should be handled differently,
+is it?"* — ✔ the RULE is the same for every per-entity system; the brains differ only in HOW MUCH they touch (42 written types, structural changes,
+state outside components). Systems that are not per-entity (a spatial-hash build, ingress / egress, command playback) need a parallel algorithm
+of their own (a partitioned build, a reduction), not the rule. ⇒ the census covers EVERY system of the phase, not only the brains
+([CE-4449](blueprints/batches/HANDOFF_Coordinator_To_Backend_Entity_Access_Census.md)).
