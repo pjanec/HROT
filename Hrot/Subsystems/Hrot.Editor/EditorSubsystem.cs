@@ -2740,6 +2740,104 @@ namespace Hrot.Editor
         private static bool MapOnlyLayer(Fdp.Toolkit.Vis2D.Abstractions.IMapLayer l)
             => l is Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer || l.GetType().Name is "GridMapLayer" or "TerrainLayer2D";
 
+        // ⭐⭐ EXPERIMENT — POC 2 (CE-4439, exp/threaded-poc-2, HROT_THREADED_KERNEL=2; 📄 DESIGN_Threaded_Simulation_Presentation.md §14): TWO worlds.
+        //   While a preview runs (playing or paused), the kernel ticks World S on the worker and the presentation keeps World A (= _world, the object
+        //   every binding is keyed by); after each tick A takes S's entity index + the presentation's TABLE mask + the ROWS of the selected entities, and
+        //   a NetworkEntityMap of its own rebuilt from them. Outside a preview the editor is single-world as today (loads, edits and saves write A).
+        private EntityRepository? _simWorld;                       // S
+        private Fdp.Core.BitMask512 _twTableMask, _twSingletonExcept;
+        private bool _twMaskAll;
+        private Fdp.Toolkit.Replication.Services.NetworkEntityMap? _twPresMap, _twSimMap;
+        private Fdp.Core.EntityQuery? _twSelQuery;
+        private readonly Entity[] _twRows = new Entity[64];
+        private double _twSyncSum, _twRowSum; private long _twSyncN;
+
+        private bool TwoWorldsStep()
+        {
+            bool want = _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview;
+            if (want && _simWorld == null) EngageTwoWorlds();
+            else if (!want && _simWorld != null) DisengageTwoWorlds();
+            return _simWorld != null;
+        }
+
+        private void EngageTwoWorlds()
+        {
+            var a = _world!;
+            Fdp.ModuleHost.ThreadedKernelGate.MainAdoptLock();   // this frame did its world work unlocked (the gate was idle at its start)
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            _twSimMap = a.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>() ? a.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>() : null;
+            var s = a.CloneForSimulation();
+            // the map the simulation keeps mutating stays S's (systems captured it); A reads its own, rebuilt from A's NetworkIdentity rows
+            _twSingletonExcept = default;
+            _twSingletonExcept.SetBit(Fdp.Core.ManagedComponentType<Fdp.Toolkit.Replication.Services.NetworkEntityMap>.ID);
+            _twPresMap = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            _twPresMap.RebuildFromWorld(a);
+            a.SetSingletonManaged(_twPresMap);
+            // the TABLE mask: a named mask of the A-1 masks file, or every type
+            string? maskPath = Environment.GetEnvironmentVariable("HROT_TWO_WORLDS_MASKS");
+            string maskName = Environment.GetEnvironmentVariable("HROT_TWO_WORLDS_MASK") is { Length: > 0 } mn ? mn : "ui-no-inspector";
+            var loaded = maskPath != null ? Fdp.ModuleHost.PublishProbe.LoadMask(maskPath, maskName) : null;
+            _twMaskAll = loaded == null;
+            _twTableMask = loaded?.Mask ?? a.GetSnapshotableMask(true);
+            // ⚠ SelectionState comes from S for now: the selection systems still run INSIDE the tick (on S) until P-3 moves them to the main thread;
+            //   then it leaves the mask and A keeps it by the "outside the mask" rule
+            _twTableMask.SetBit(Fdp.Core.ComponentType<Hrot.Map.Common.Components.SelectionState>.ID);
+            _twSelQuery = s.Query().With<Hrot.Map.Common.Components.SelectionState>().Build();
+            _simWorld = s;
+            _kernel!.RetargetLiveWorld(s);
+            Console.WriteLine($"[POC2] two worlds ENGAGED in {sw.Elapsed.TotalMilliseconds:F0} ms — S cloned from A ({_twPresMap.Entries.Count} networked entities); table mask "
+                + (_twMaskAll ? "ALL types" : $"'{maskName}' ({loaded!.Value.Types} types, {loaded.Value.Missing} not registered)")
+                + $"; lock whole tick: {Fdp.ModuleHost.ThreadedKernelGate.LockWholeTick}; guard: {Fdp.Core.WorldGuard.On}");
+            Fdp.ModuleHost.ThreadedKernelGate.Engaged = true;
+        }
+
+        private void DisengageTwoWorlds()
+        {
+            _kernelWorkerStop = true;
+            Fdp.ModuleHost.ThreadedKernelGate.MainReleaseForStop();   // the worker may be waiting for the lock this frame holds
+            _kernelWorker?.Join(5000);
+            Fdp.ModuleHost.ThreadedKernelGate.MainAdoptLock();
+            _kernelWorker = null; _kernelWorkerStop = false;
+            Fdp.ModuleHost.ThreadedKernelGate.Engaged = false;
+            Fdp.Core.WorldGuard.Disarm();
+            if (_gizmoBuffer != null) _gizmoBuffer.ReaderUsesPublished = false;
+            var a = _world!; var s = _simWorld!;
+            // A takes ALL of S once (the editor is single-world again), and the simulation's own NetworkEntityMap back
+            a.SyncPresentationFrom(s, a.GetSnapshotableMask(true), default);
+            if (_twSimMap != null) a.SetSingletonManaged(_twSimMap);
+            _kernel!.RetargetLiveWorld(a);
+            _simWorld = null;
+            Console.WriteLine($"[POC2] two worlds DISENGAGED — A took all of S; syncs {_twSyncN}, mean {(_twSyncN > 0 ? _twSyncSum / _twSyncN : 0):F2} ms, rows mean {(_twSyncN > 0 ? _twRowSum / _twSyncN : 0):F3} ms; guard hits {Fdp.Core.WorldGuard.DistinctHits}");
+            _twSyncSum = _twRowSum = 0; _twSyncN = 0;
+        }
+
+        /// <summary>POC 2 — the S→A sync of one tick (the caller holds the world lock).</summary>
+        private void SyncPresentationWorld()
+        {
+            var a = _world!; var s = _simWorld!;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            a.SyncPresentationFrom(s, _twTableMask, _twSingletonExcept);
+            double tables = sw.Elapsed.TotalMilliseconds;
+            int n = 0;
+            if (!_twMaskAll && _twSelQuery != null)
+                foreach (var e in _twSelQuery)
+                {
+                    if (!s.GetComponentRO<Hrot.Map.Common.Components.SelectionState>(e).IsSelected) continue;
+                    _twRows[n++] = e;
+                    if (n == _twRows.Length) break;
+                }
+            a.SyncRowsFrom(s, new ReadOnlySpan<Entity>(_twRows, 0, n));
+            _twPresMap!.RebuildFromWorld(a);
+            // events, both ways (§14.1 "logs and events forwarded"): what the UI published on A's bus since the last sync reaches S's systems after S's
+            // next swap (the baseline COMMAND path: a forwarded request, one tick late); what S made readable this tick becomes readable on A
+            var ab = a.Bus; var sbus = s.Bus;
+            ab.SwapBuffers();                                   // A: the UI's publishes → current
+            sbus.PublishCurrentOf(ab, addMissingStreams: true); // → S pending
+            ab.PublishCurrentOf(sbus, addMissingStreams: true); // S's readable events → A pending
+            ab.SwapBuffers();                                   // → A current, for the UI's readers
+            _twSyncSum += tables; _twRowSum += sw.Elapsed.TotalMilliseconds - tables; _twSyncN++;
+        }
+
         private void EnsureKernelWorker()
         {
             if (_kernelWorker != null) return;
@@ -2752,6 +2850,7 @@ namespace Hrot.Editor
 
         private void KernelWorkerLoop()
         {
+            if (_simWorld != null) Fdp.Core.WorldGuard.Arm(_simWorld, _world!, Environment.CurrentManagedThreadId);   // ⭐ POC 2
             var tickWatch = new System.Diagnostics.Stopwatch();
             double tickSum = 0; long tickN = 0, lastReport = Environment.TickCount64;
             while (!_kernelWorkerStop)
@@ -2764,6 +2863,25 @@ namespace Hrot.Editor
                     _workerPendingDt = _workerPendingDt - dt > 0.25 ? 0 : _workerPendingDt - dt;   // never more than one quarter second behind
                 }
                 if (dt <= 0f) { System.Threading.Thread.Sleep(1); continue; }
+                if (_simWorld != null && !Fdp.ModuleHost.ThreadedKernelGate.LockWholeTick)
+                {   // ⭐ POC 2 — the tick runs on S beside the drawing thread; the lock is taken for the S→A sync only
+                    tickWatch.Restart();
+                    try
+                    {
+                        if (_gizmoBuffer != null) Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(_gizmoBuffer, GizmoFeedAddress);
+                        _gizmoBuffer?.EndFrame(dt);
+                        TickNodeFrame(dt);
+                        _gizmoBuffer?.PublishFrame();
+                        lock (Fdp.ModuleHost.ThreadedKernelGate.WorldLock) SyncPresentationWorld();
+                    }
+                    catch (Exception ex)
+                    {
+                        if (System.Threading.Interlocked.Increment(ref _kernelWorkerFaults) <= 20) Console.WriteLine("[X-4] worker fault: " + ex);
+                    }
+                    tickSum += tickWatch.Elapsed.TotalMilliseconds; tickN++;
+                    Fdp.ModuleHost.ThreadedKernelGate.Ticks++;
+                    goto report;
+                }
                 lock (Fdp.ModuleHost.ThreadedKernelGate.WorldLock)
                 {
                     tickWatch.Restart();
@@ -2773,7 +2891,8 @@ namespace Hrot.Editor
                             Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(_gizmoBuffer, GizmoFeedAddress);
                         _gizmoBuffer?.EndFrame(dt);
                         TickNodeFrame(dt);
-                        Fdp.ModuleHost.PublishProbe.AfterFrame(_world);
+                        if (_simWorld != null) SyncPresentationWorld();   // ⭐ POC 2, the whole tick under the lock (HROT_TWO_WORLDS_LOCK_TICK=1)
+                        else Fdp.ModuleHost.PublishProbe.AfterFrame(_world);
                         _gizmoBuffer?.PublishFrame();
                     }
                     catch (Exception ex)
@@ -2783,8 +2902,11 @@ namespace Hrot.Editor
                     tickSum += tickWatch.Elapsed.TotalMilliseconds; tickN++;
                     Fdp.ModuleHost.ThreadedKernelGate.Ticks++;
                 }
+                report:
                 if (Environment.TickCount64 - lastReport > 5000 && tickN > 0)
                 {
+                    if (_simWorld != null && _twSyncN > 0)
+                        Console.WriteLine($"[POC2] syncs {_twSyncN}: tables mean {_twSyncSum / _twSyncN:F2} ms, rows+map mean {_twRowSum / _twSyncN:F3} ms · guard hits {Fdp.Core.WorldGuard.DistinctHits}");
                     var g = Fdp.ModuleHost.ThreadedKernelGate.WorldFrames; var m = Fdp.ModuleHost.ThreadedKernelGate.MapOnlyFrames;
                     var f = Fdp.ModuleHost.ThreadedKernelGate.TakeFrameStats();
                     Console.WriteLine($"[X-4] {tickN} ticks, node frame mean {tickSum / tickN:F1} ms · drawing frames: {g} with the world, {m} map-only (cumulative) · yields {Fdp.ModuleHost.ThreadedKernelGate.YieldWaits} · faults {_kernelWorkerFaults}");
@@ -2799,6 +2921,7 @@ namespace Hrot.Editor
             // ⭐ EXPERIMENT (threaded kernel X-4) — HROT_THREADED_KERNEL=1: the node frame runs on a worker (KernelWorkerLoop); this frame does the
             //   world work only when the drawing thread holds the world (ThreadedKernelGate); otherwise it moves the camera and returns.
             bool threaded = Fdp.ModuleHost.ThreadedKernelGate.Enabled && _node != null && !_headless;
+            if (threaded && Fdp.ModuleHost.ThreadedKernelGate.TwoWorlds) threaded = TwoWorldsStep();   // ⭐ POC 2 — only while a preview runs
             if (threaded)
             {
                 EnsureKernelWorker();

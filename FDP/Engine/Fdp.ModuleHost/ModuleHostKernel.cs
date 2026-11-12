@@ -45,7 +45,7 @@ namespace Fdp.ModuleHost
     /// </summary>
     public sealed class ModuleHostKernel : IDisposable
     {
-        private readonly EntityRepository _liveWorld;
+        private EntityRepository _liveWorld;   // ⭐ POC 2 (CE-4439): not readonly — RetargetLiveWorld moves the kernel onto World S
         private readonly EventAccumulator _eventAccumulator;
         private readonly List<ModuleEntry> _modules = new();
         private SnapshotPool? _snapshotPool;
@@ -292,6 +292,24 @@ namespace Fdp.ModuleHost
         /// Initialize kernel: build execution orders, validate dependencies.
         /// Must be called after all modules/systems registered, before Update().
         /// </summary>
+        /// <summary>
+        /// ⭐ EXPERIMENT — POC 2 of the threaded editor (CE-4439, <c>HROT_THREADED_KERNEL=2</c>; 📄 DESIGN_Threaded_Simulation_Presentation.md §12 / §14):
+        /// the kernel ticks <paramref name="world"/> from now on (World S; the presentation keeps the world it was built on). Every module's automatic
+        /// provider is re-made over the new world (the old ones read the old world). ⚠ Systems that CAPTURED the old world at construction still use it —
+        /// <see cref="Fdp.Core.WorldGuard"/> lists them. Call it between frames, on the thread that runs <see cref="Update"/>.
+        /// </summary>
+        public void RetargetLiveWorld(EntityRepository world)
+        {
+            if (ReferenceEquals(world, _liveWorld)) return;
+            _liveWorld = world ?? throw new ArgumentNullException(nameof(world));
+            _liveWorld.AttachEventHistory(_eventAccumulator);
+            foreach (var entry in _modules) if (!entry.HasManualProvider) entry.Provider = null!;
+            foreach (var entry in _modules) if (entry.Provider == null) AssignProviderForDynamicInstall(_modules, entry);
+        }
+
+        /// <summary>The world the kernel ticks (POC 2: S while threaded).</summary>
+        public EntityRepository LiveWorld => _liveWorld;
+
         public void Initialize()
         {
             if (_initialized)

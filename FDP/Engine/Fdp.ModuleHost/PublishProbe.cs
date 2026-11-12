@@ -42,23 +42,38 @@ namespace Fdp.ModuleHost
             _masks = new();
             if (MasksPath == null || !File.Exists(MasksPath)) return _masks;
             using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(MasksPath));
-            var asms = AppDomain.CurrentDomain.GetAssemblies();
             foreach (var p in doc.RootElement.EnumerateObject())
             {
-                var mask = new BitMask512();
-                int types = 0, missing = 0;
-                foreach (var t in p.Value.EnumerateArray())
-                {
-                    string name = t.GetString() ?? "";
-                    Type? type = null;
-                    foreach (var a in asms) { type = a.GetType(name, false); if (type != null) break; }
-                    int id = ComponentTypeRegistry.GetId(type);
-                    if (id < 0) { missing++; continue; }
-                    mask.SetBit(id); types++;
-                }
+                var (mask, types, missing) = MaskOf(p.Value);
                 _masks.Add((p.Name, mask, types, missing, new EntityRepository(), new EntityRepository()));
             }
             return _masks;
+        }
+
+        /// <summary>⭐ POC 2 (CE-4439) — one named mask of a masks file (<c>scripts/access-trace-masks.py</c>): the component ids of the listed types the
+        /// process has registered. Null when the file or the name is missing.</summary>
+        public static (BitMask512 Mask, int Types, int Missing)? LoadMask(string path, string name)
+        {
+            if (!File.Exists(path)) return null;
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+            return doc.RootElement.TryGetProperty(name, out var list) ? MaskOf(list) : null;
+        }
+
+        private static (BitMask512, int, int) MaskOf(System.Text.Json.JsonElement list)
+        {
+            var asms = AppDomain.CurrentDomain.GetAssemblies();
+            var mask = new BitMask512();
+            int types = 0, missing = 0;
+            foreach (var t in list.EnumerateArray())
+            {
+                string name = t.GetString() ?? "";
+                Type? type = null;
+                foreach (var a in asms) { type = a.GetType(name, false); if (type != null) break; }
+                int id = ComponentTypeRegistry.GetId(type);
+                if (id < 0) { missing++; continue; }
+                mask.SetBit(id); types++;
+            }
+            return (mask, types, missing);
         }
 
         /// <summary>Called by a host once per frame after its node frame, on the thread that owns <paramref name="live"/>.</summary>

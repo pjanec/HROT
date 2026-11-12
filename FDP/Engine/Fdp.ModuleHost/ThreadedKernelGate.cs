@@ -13,7 +13,19 @@ namespace Fdp.ModuleHost
     /// </summary>
     public static class ThreadedKernelGate
     {
-        public static readonly bool Enabled = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") == "1";
+        public static readonly bool Enabled = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") is "1" or "2";
+
+        /// <summary>⭐ POC 2 (CE-4439) — <c>HROT_THREADED_KERNEL=2</c>: TWO worlds — the simulation ticks World S on the worker, the presentation keeps
+        /// World A, synced S→A after each tick (📄 DESIGN_Threaded_Simulation_Presentation.md §14). The worker runs only while <see cref="Engaged"/>.</summary>
+        public static readonly bool TwoWorlds = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") == "2";
+
+        /// <summary>⭐ POC 2 — the worker HOLDS the lock for its whole tick as well as the sync (<c>HROT_TWO_WORLDS_LOCK_TICK=1</c>): the safe
+        /// variant while systems still capture A. OFF: the lock is taken for the S→A sync only, and the tick runs beside the drawing thread.</summary>
+        public static readonly bool LockWholeTick = Environment.GetEnvironmentVariable("HROT_TWO_WORLDS_LOCK_TICK") == "1";
+
+        /// <summary>Whether a worker is running (mode 1: always; mode 2: set by the host while S is engaged).</summary>
+        public static volatile bool Engaged = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") == "1";
+        private static bool _locked;
         public static readonly object WorldLock = new();
         private static volatile bool _mainWants;
         private static readonly AutoResetEvent MainDone = new(false);
@@ -51,14 +63,32 @@ namespace Fdp.ModuleHost
 
         public static bool MainTryEnter()
         {
-            if (!Enabled) { MainHasWorld = true; return true; }
+            if (!Enabled || !Engaged) { MainHasWorld = true; _locked = false; return true; }
             double now = FrameClock.Elapsed.TotalMilliseconds;
             if (_lastFrameAt >= 0) lock (StatLock) (_lastWasWorld ? WorldMs : MapMs).Add(now - _lastFrameAt);
             _lastFrameAt = now;
             MainHasWorld = Monitor.TryEnter(WorldLock, 2);
+            _locked = MainHasWorld;
             if (MainHasWorld) { _mainWants = false; WorldFrames++; } else { _mainWants = true; MapOnlyFrames++; }
             _lastWasWorld = MainHasWorld;
             return MainHasWorld;
+        }
+
+        /// <summary>⭐ POC 2 — the drawing thread takes the lock in the MIDDLE of its frame (two worlds engage this frame: its world work so far ran
+        /// unlocked because no worker existed); <see cref="MainExit"/> releases it as usual.</summary>
+        public static void MainAdoptLock()
+        {
+            if (_locked) return;
+            Monitor.Enter(WorldLock);
+            _locked = true; MainHasWorld = true;
+        }
+
+        /// <summary>⭐ POC 2 — the drawing thread lets go of the lock so a stopping worker can finish its sync (then <see cref="MainAdoptLock"/>).</summary>
+        public static void MainReleaseForStop()
+        {
+            if (!_locked) return;
+            _locked = false;
+            Monitor.Exit(WorldLock);
         }
 
         /// <summary>The drawing thread, at its frame's end.</summary>
@@ -66,6 +96,8 @@ namespace Fdp.ModuleHost
         {
             if (!Enabled || !MainHasWorld) return;
             MainHasWorld = false;
+            if (!_locked) return;   // mode 2 disengaged at this frame's start: nothing was taken
+            _locked = false;
             Monitor.Exit(WorldLock);
             MainDone.Set();
         }

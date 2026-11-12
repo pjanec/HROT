@@ -386,6 +386,36 @@ namespace Fdp.Core
             }
         }
 
+        /// <summary>⭐ EXPERIMENT — POC 2 (CE-4439): registers on THIS bus every stream <paramref name="source"/> has (same shape, empty), so World S
+        /// can publish and read every event type World A's bus was given (explicit registration is enforced in the editor).</summary>
+        public void CopyRegistrationsFrom(FdpEventBus source)
+        {
+            var natives = Volatile.Read(ref source._nativeList);
+            int nativeCount = Volatile.Read(ref source._nativeCount);
+            for (int i = 0; i < nativeCount; i++)
+            {
+                var from = natives[i];
+                if (_nativeStreams.ContainsKey(from.EventTypeId)) continue;
+                AddNativeStream(from.EventTypeId, from is UntypedNativeEventStream
+                    ? new UntypedNativeEventStream(from.EventTypeId, from.ElementSize)
+                    : (INativeEventStream)Activator.CreateInstance(from.GetType(), 1024)!);
+            }
+            var manageds = Volatile.Read(ref source._managedList);
+            int managedCount = Volatile.Read(ref source._managedCount);
+            for (int i = 0; i < managedCount; i++)
+            {
+                var from = manageds[i];
+                if (from is not IManagedEventStreamInfo info || _managedStreams.ContainsKey(info.TypeId)) continue;
+                var created = Activator.CreateInstance(from.GetType())!;
+                lock (_streamListLock)
+                {
+                    if (_managedStreams.ContainsKey(info.TypeId)) continue;
+                    _managedStreams[info.TypeId] = created;
+                    AppendManaged((IManagedEventStream)created);
+                }
+            }
+        }
+
         public void SwapBuffers()
         {
             if (AccessTrace.On) AccessTrace.RecordName(TraceKind.BusSwap, "(swap buffers)", TraceId);

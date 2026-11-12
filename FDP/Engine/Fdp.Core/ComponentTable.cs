@@ -100,6 +100,10 @@ namespace Fdp.Core
         /// Sets component value for entity at given index.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <inheritdoc/>
+        public void CopyRowFrom(IComponentTable source, int entityIndex, uint version)
+            => _data.GetRefRW(entityIndex, version) = ((ComponentTable<T>)source)._data.GetRefRO(entityIndex);
+
         public void Set(int entityIndex, in T component, uint version)
         {
             _data.GetRefRW(entityIndex, version) = component;

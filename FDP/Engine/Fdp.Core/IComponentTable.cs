@@ -98,5 +98,9 @@ namespace Fdp.Core
         /// Synchronizes data from a source table of the same type.
         /// </summary>
         void SyncFrom(IComponentTable source);
+
+        /// <summary>⭐ EXPERIMENT (POC 2, CE-4439) — copies ONE row (<paramref name="entityIndex"/>) from a source table of the same type, stamping
+        /// <paramref name="version"/>: the S→A row copy of the selected / inspected entities.</summary>
+        void CopyRowFrom(IComponentTable source, int entityIndex, uint version);
     }
 }

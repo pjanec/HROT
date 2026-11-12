@@ -48,7 +48,14 @@ namespace Fdp.Core
     public static class AccessTrace
     {
         /// <summary>The switch: <c>HROT_ACCESS_TRACE=1</c>. Read once.</summary>
-        public static readonly bool On = Environment.GetEnvironmentVariable("HROT_ACCESS_TRACE") == "1";
+        public static readonly bool On = Environment.GetEnvironmentVariable("HROT_ACCESS_TRACE") == "1" || WorldGuard.On;
+
+        /// <summary>⭐ POC 2 (CE-4439) — the counting itself; OFF when only the world guard turned the hooks on.</summary>
+        internal static readonly bool Aggregate = Environment.GetEnvironmentVariable("HROT_ACCESS_TRACE") == "1";
+
+        /// <summary>The name of a reader id (the guard's report).</summary>
+        internal static string ReaderName(int id) { lock (s_nameLock) return id >= 0 && id < s_readerNames.Count ? s_readerNames[id] : "(?)"; }
+        internal static int CurrentReaderId => CurrentReader();
 
         private static readonly string OutPath = Environment.GetEnvironmentVariable("HROT_ACCESS_TRACE_OUT") is { Length: > 0 } o
             ? o : Path.Combine(Path.GetTempPath(), "hrot-access-trace.json");
@@ -239,6 +246,8 @@ namespace Fdp.Core
         private static void RecordObj(TraceKind kind, object key, int repo)
         {
             if (t_muted > 0) return;
+            if (WorldGuard.On) WorldGuard.Check(kind, key, repo);
+            if (!Aggregate) return;
             var a = t_agg ?? NewAgg();
             var k = (Meta(CurrentContext, kind, CurrentReader(), repo, s_phase), key);
             lock (a) a.Map[k] = a.Map.TryGetValue(k, out var n) ? n + 1 : 1;
@@ -394,7 +403,7 @@ namespace Fdp.Core
 
         private static bool StartIfOn()
         {
-            if (!On) return false;
+            if (!Aggregate) return false;
             AppDomain.CurrentDomain.ProcessExit += (_, _) => { try { Dump(); } catch { /* an instrument never throws at exit */ } };
             var t = new Thread(PumpLoop) { IsBackground = true, Name = "HROT access trace" };
             t.Start();
