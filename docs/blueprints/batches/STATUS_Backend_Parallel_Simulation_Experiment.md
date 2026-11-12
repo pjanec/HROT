@@ -249,7 +249,7 @@ copies — the consumers D-5 helps — are not in the measured path. ⇒ the Win
 |---|---|---|---|
 | Fdp.Core.Tests | 1314 / 3 red | — | `OneSharedJsonOptionsTests` ×2, `NoSystemSchedulesOnTheWallClock` — all in files this branch never touched (`git diff 72b4ed0e6..HEAD` names none) ⇒ pre-existing |
 | Hrot.SimHost.Tests | 2697 / 10 red | 2696 / 11 red | ✅ **9 of the 10 red at the base too** (`72b4ed0e6`, clean worktree): ShippedTreesAreCSharp ×6, StrictNetworkSeparation, OneBootstrap, CgfLogicPack CE454 · the 10th, LoadPhaseChain CE3345, passes its class 3 / 3 at HEAD ⇒ a suite-order flake · +1 in parallel: `ReadingARowAllocatesNothing(FrightFrom.Y)` — passes its class 243/243 twice with parallel on ⇒ a one-off |
-| Fdp.Toolkits.Tests | 4949 / 5 red | 4951 / 3 red | S0 type rails ×2, CQRS struct, BuildingBreach alloc, MissionDirector (passes alone + its class 3×; not red in the parallel run ⇒ suite-order flake) — **base check running** |
+| Fdp.Toolkits.Tests | 4949 / 5 red | 4951 / 3 red | ✅ **red at the base too** (`72b4ed0e6`, full suite): S0 type rails ×2, CQRS struct, MissionDirector · BuildingBreach alloc passes its class 3 / 3 at HEAD and was not red in the parallel run (the base run had its own one-off, ExerciseRetention) ⇒ suite-order flakes, none caused by this branch |
 
 ### Gates for the last commits (chain 4, HEAD `1989f5b2b`)
 | rail | result |
