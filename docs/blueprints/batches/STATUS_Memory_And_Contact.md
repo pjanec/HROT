@@ -16,7 +16,20 @@ related-designs:
 
 ## VERDICT
 
-__VERDICT__
+| question | answer |
+|---|---|
+| ⭐ a cluster NODE at 1 000 men | ✅ under 4 GB: cgf peak 1.77 GB plain / 2.10 GB with recording + replica + last-tick copies; simhost 1.83 / 1.96 |
+| ⭐ 3 000 men | ✅ cgf peak **2.94 GB** (everything on), simhost 2.44 |
+| ⭐ 5 000 men | ⚠ **at the budget**: cgf grows ~0.42 GB peak per 1 000 men with everything on ⇒ **~3.8 GB** at 5 000 — fits only with the two fixes below (or without recording) |
+| ⛔ the EDITOR at 1 000 men | **4.24–4.29 GB — over**, threaded or not; the presentation world A adds only ~106 MB; ~1.2 GB is neither heap nor worlds (the software GL under Xvfb, terrain / navmesh / physics native — not attributed) |
+| ⛔ `--mode all` at 1 000 men | **5.65 GB — over**: every node's heap in one process |
+| what dominates | the GC heap, not the worlds (a world: ~97 KB per CGF man, ~25 KB per SimHost man; the replica and the last-tick copies each ≈ S) |
+
+⭐ **Two fixes, both measured, neither touches the men:**
+1. **Chunk-version arrays sized for `MAX_ENTITIES`** (`NativeChunkTable.cs:56,65`) — 84–217 MB per node, paid by every world including the EMPTY pooled
+   snapshots ⇒ grow them with the committed chunks.
+2. **The recording's ~0.5 GB of CGF heap** (three 128 MiB doubling buffers + the replay-browser timeline) ⇒ bound or spill them.
+⚠ Also: the 15 pooled snapshot worlds of the editor keep 205 MB of native chunks committed while empty.
 
 ## The instruments (both opt-in, both on this branch)
 
@@ -89,4 +102,22 @@ by the node builder (139 MB native together) + 15 pooled snapshot worlds (51 MB,
 process (cgf 0.66 + simhost 1.29 + the rest, plain), no single owner.
 
 
-__N2__
+## N-2 — same-tick cover and contact
+
+`ContactCoverProbe` per sim tick (§ the instruments). The rig (run A, 1 000 men, the two sides closing — CGF holds the claims, SimHost the contact
+lists) and the heaviest combat scenarios, each in a fresh headless editor running to its end (`--verify`; one world holds both).
+
+| run | ticks (sim s) | cover commits | max per tick | same-point pairs (< 1.5 m, one tick) | onto a live claim | units with a new contact | max units per tick | a commit AND a new contact on one tick |
+|---|---|---|---|---|---|---|---|---|
+| rig, 1 000 men (80 s) | ~4 900 (80) | 4 | 1 | **0** | 0 | 970 over 166 ticks | **96** (0.6 s, the first sightings) · then ~25 every 10 s | — (two nodes) |
+| `showcase-crossfire` | 55 424 (919) | 0 | 0 | 0 | 0 | 222 over 97 ticks | 16 | 0 |
+| `uc-urban-battle` | 15 296 (200) | 1 785 — **1 742 from ONE unit** (below); the rest **43** | 3 | **0** | 1 | 132 over 54 ticks | 8 | 2 |
+| `hill-attack` | 12 096 (200) | 2 | 2 | 0 | 0 | 0 (⚠ not explained — its units may hold no `SensorContactList`) | 0 | 0 |
+
+⇒ ⭐ **sizing F-9 (cover recovery): two units committing to the same point on one tick never happened** (0 pairs in ~88 000 ticks); a commit onto
+another unit's live claim happened ONCE. ⇒ the recovery is a rare-case fix-up (a tie-break when it happens), not a hot path.
+⇒ ⭐ **sizing F-10 (callout de-duplication): new contacts arrive in BURSTS** — up to 96 units on one tick at the first sighting, 16 in a 900 s
+fight, ~25 every 10 s in the rig (a sensor period) ⇒ the de-dup at command playback must expect tens of same-tick callouts, not one or two.
+⛔ **Found on the way — CE-3444:** in `uc-urban-battle` entity 60 re-commits its cover claim on 1 742 ticks from 20 s to 181 s, cycling four hide
+points 2–9 m apart — a unit thrashing between cover points (`HROT_CONTACT_PROBE_DETAIL=1` names it). Filed for the behaviors lane.
+
