@@ -90,13 +90,19 @@ namespace Fdp.Toolkit.Replay
         /// <summary>Forgets everything (a scenario opened or created, the station gone Live — §2.2 "lifetime").</summary>
         public void Clear()
         {
+            if (Evicted != null) foreach (var slot in _slots) Evicted(slot.Id);
             _slots.Clear();
             _byId.Clear();
             UsedBytes = 0;
         }
 
+        /// <summary>⭐ N-7 (CE-4469) — a slot is no longer held (aged out, dropped with a redo branch, or cleared). A threaded node's undo sink turns it
+        /// into the UI history's "this step is gone" — the UI never asks the ring (<see cref="Holds"/> reads a dictionary the sim thread writes).</summary>
+        public event Action<long>? Evicted;
+
         private void Evict(LinkedListNode<Slot> node)
         {
+            Evicted?.Invoke(node.Value.Id);
             _slots.Remove(node);
             _byId.Remove(node.Value.Id);
             UsedBytes -= node.Value.Keyframe.SizeBytes;

@@ -286,7 +286,7 @@ def run_stages(s, a, stages):
         undo = [c for c in names if c and "undo" in c.lower()]
         for c in undo[:1]:
             s.step(f"edit (Edit state): undo via {c}", lambda c=c: s.post(f"/editor/commands/{c}/invoke", {}), wait=4)
-        s.step("edit (Edit state): check unsaved", lambda: s.get("/scenario/check-unsaved", timeout=120), wait=2)
+        s.step("edit (Edit state): check unsaved", lambda: s.post("/scenario/check-unsaved", {}, timeout=120), wait=2)
     if "save" in stages:
         st = (s.get("/status").get("data") or {})
         if st.get("inPreview"):

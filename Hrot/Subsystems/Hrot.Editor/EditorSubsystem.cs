@@ -344,19 +344,34 @@ namespace Hrot.Editor
         /// Called where the world + ring and where the session come into being (either order); each half once.</summary>
         private void WireWorldUndo()
         {
-            if (!_undoRecorderInstalled && _world is { } world && _clusterHandlers is { } handlers)
+            // ⭐ N-7 (CE-4469, U-1) — mode 3: the recorder is installed on S (where every write happens, on the sim thread) and hands its steps to the
+            //   UI's history through the staging (ThreadedUndoSink); the session's Saved / Opened (raised on the sim thread) reach the history the same way
+            var undoWorld = Staged ? _nodeWorld : _world;
+            if (!_undoRecorderInstalled && undoWorld is { } world && _clusterHandlers is { } handlers && (!Staged || _staging != null))   // mode 3: once the staging exists
             {
                 _undoRecorderInstalled = true;
-                Fdp.Toolkit.Replication.Edits.EditSteps.Install(world, UndoRecorder = new Hrot.Presentation.Edits.WorldUndoRecorder(EditHistory, handlers.UndoRing,
+                Hrot.Presentation.Edits.IUndoStepSink sink = Staged
+                    ? _threadedUndo = new Hrot.Presentation.Edits.ThreadedUndoSink(EditHistory, _staging!, PostToSim, handlers.UndoRing)
+                    : EditHistory;
+                Fdp.Toolkit.Replication.Edits.EditSteps.Install(world, UndoRecorder = new Hrot.Presentation.Edits.WorldUndoRecorder(sink, handlers.UndoRing,
                     recording: () => Hrot.Common.Editing.StationMode.Of(world) == Hrot.Common.Editing.EditingMode.Edit));
             }
             if (!_undoSessionWired && _editorApp?.ScenarioSession is Hrot.Editor.AiShared.Scenarios.EditorScenarioSession session)
             {
                 _undoSessionWired = true;
-                session.Saved  += EditHistory.MarkSaved;
-                session.Opened += () => { EditHistory.Clear(); _clusterHandlers?.UndoRing.Clear(); };
+                if (_threadedUndo is { } threaded)
+                {
+                    session.Saved  += threaded.MarkSaved;
+                    session.Opened += () => { threaded.Cleared(); _clusterHandlers?.UndoRing.Clear(); };
+                }
+                else
+                {
+                    session.Saved  += EditHistory.MarkSaved;
+                    session.Opened += () => { EditHistory.Clear(); _clusterHandlers?.UndoRing.Clear(); };
+                }
             }
         }
+        private Hrot.Presentation.Edits.ThreadedUndoSink? _threadedUndo;
 
         /// <summary>⭐ B-14 — the world's step recorder (null until the world exists); a rail reads it.</summary>
         internal Hrot.Presentation.Edits.WorldUndoRecorder? UndoRecorder { get; private set; }

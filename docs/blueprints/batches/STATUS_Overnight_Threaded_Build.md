@@ -28,6 +28,10 @@ Started marker `1cd3c2dbc`.
 pause → step ×5 → 3-D view → pause → view off — **all OK, 0 job faults, 0 worker faults, no crash; 0 skipped publishes; publish ~4 ms, pull
 ~4–5 ms**; guard 17 distinct hits (the D-17 / D-18 / SelectionStore fixes target them).
 
+⭐⭐ **Session 6 (same rig, + spawn, component edit, delete, steps, two orders, an Edit-state move, preview stop, save): every step OK, no crash,
+0 faults, and the STRICT world guard at 0 DISTINCT HITS** (no read of S off the sim thread, no write of A by the sim, no UI write lost to a
+pull). The one `[FAIL]` is a correct refusal: the unsaved check is meaningful only in Edit, and the script asks while a Preview runs.
+
 | gate | command | result |
 |---|---|---|
 | N-1 + N-3 rails + TwoWorlds | `dotnet test FDP/Engine/Fdp.Core.Tests --no-build --filter "FullyQualifiedName~SimJobQueueTests\|FullyQualifiedName~StagingWorldsTests\|FullyQualifiedName~TwoWorldsTests"` | 14 / 0 / 0 |
@@ -56,6 +60,8 @@ pause → step ×5 → 3-D view → pause → view off — **all OK, 0 job fault
 | D-16 | the gizmo commit (drag / rotate / place) in mode 3 (U-3) | a per-gizmo command · ⭐ the shared write router | `EntityWriteRouter.For(world)` — the factory EVERY host passes — returns, for a threaded presentation world, a writer that runs S's own router on the sim thread and answers `Requested`; the preview stays a ghost on A (the interaction block re-applies it after each pull); a refused write leaves S untouched, so the next pull snaps it back BY CONSTRUCTION | `EntityWriteRouter.SimThreadWriter` |
 | D-17 | the UI-side gizmo managers drew `_breakpointManager.ActiveView` (the SIM world) — §4's predicted hazard, found by the guard | hand them the breakpoint manager · ⭐ a presentation view provider | `PresentationViewProvider(() => A)`: a data-breakpoint hold pauses the sim, whose held state the staging publishes like any tick | `IActiveViewProvider.cs` |
 | D-18 | UI-side routes (selection, view) used the service's world (S) | ⭐ the SHOWN world | the service's own doc says "on the shown world": `PresentationWorld` / `PresentationMap` for those routes | `DebugApiService` |
+| D-19 | undo / redo in mode 3 (N-7, U-1) — the ONE history also holds the header / AI-edit / take steps (UI state) | move the history to S · ⭐ the history stays the UI's; the recorder runs on S | the recorder is installed on S (the before-snapshot taken on the sim thread, where every write now happens) and hands each step to the UI history through the publish queue (`ThreadedUndoSink`); the step's undo / redo are sim jobs restoring S; availability is a UI-side token cleared by the ring's new `Evicted` event through the same queue; Saved / Opened (raised on the sim thread) reach the history the same way | one history the user sees, one writer of S | `ThreadedUndoSink`, `WorldSnapshotRing.Evicted`, `IUndoStepSink` |
+| D-20 | the map camera's settled pose (the last guard hit) | a per-frame mailbox · ⭐ a sim job | it commits only once the view SETTLED (a user-action rate) ⇒ `SimJobs.Run` with the ownership checks on the world it writes; single-world hosts unchanged | `MapCameraLayer.Commit` |
 | D-5 | `SimLink` needs a component id | — | `GlobalComponentIds.SimLink = 475` (free in every lane and in every test) | — | `GlobalComponentIds.cs` |
 
 ## 4. BUGS FIXED
@@ -70,8 +76,6 @@ pause → step ×5 → 3-D view → pause → view off — **all OK, 0 job fault
 |---|---|---|
 | the film director in mode 3 | it ticks on the UI thread but writes checkpoints / restores / steps on the world and the kernel directly (`EditorSubsystem` director host) | a split: its run-control half as sim jobs with a pending state, its camera / capture half on the UI |
 | the review source (`ReviewSourceOf`) in mode 3 | it clears and reads the world it is given (A) | the same split |
-| Run to … from the toolbar (N-5) | the toolbar holds the concrete `RunToController` (sim side in mode 3) and calls it from the UI thread | an `IRunTo` seam; a threaded implementation (commands as jobs, status from the readout) |
-| undo / redo (N-7) | `WorldUndoRecorder` is installed on A and the sim session's Saved / Opened events reach `EditHistory` (UI) from the sim thread | the recorder on S, brackets on the sim thread, the history's UI half fed by replies |
 
 ## 6. NUMBERS
 (N-16, later)

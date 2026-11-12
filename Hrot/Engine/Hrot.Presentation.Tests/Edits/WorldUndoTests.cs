@@ -175,4 +175,61 @@ public sealed class WorldUndoTests
         Fdp.Toolkit.Replication.Edits.Edits.Submit(rig.World, EditOp.Command(rig.Unit, _ => { }, "Move"));
         Assert.Equal(1, rig.History.Count);
     }
+
+    private sealed class ListOutbox : Fdp.Core.Threading.IPresentationOutbox
+    {
+        public readonly List<System.Action<EntityRepository>> Items = new();
+        public void Post(System.Action<EntityRepository> a) => Items.Add(a);
+        public void DrainOn(EntityRepository ui) { var copy = Items.ToArray(); Items.Clear(); foreach (var a in copy) a(ui); }
+    }
+
+    /// <summary>
+    /// ⭐ N-7 (CE-4469, U-1) — the THREADED editor's undo: the recorder runs on the SIMULATION world (S) and hands each step to the UI's history
+    /// through the publish queue; the history's undo / redo are sim jobs that restore S; a step whose snapshot the ring evicted is greyed through
+    /// the same queue (the UI never reads the ring); a write made inside an undo job joins that step (Applying is the sim side's).
+    /// 🔴 Red-proof (run): the sink's undo running its action at once on the UI thread instead of posting it ⇒ S changes before the sim drains.
+    /// </summary>
+    [Fact]
+    public void N7_TheThreadedUndo_RecordsOnS_UndoesAndRedoesThroughSimJobs_AndGreysAnEvictedStep()
+    {
+        using var s = new EntityRepository();
+        using var ui = new EntityRepository();
+        HrotSharedComponentRegistry.RegisterAll(s);
+        var unit = s.CreateEntity();
+        s.AddComponent(unit, new SimTransform { Position = new Vector3(10f, 20f, 0f) });
+        s.AddComponent(unit, new NetworkIdentity { Value = 55 });
+        s.Tick();
+        var ring = new WorldSnapshotRing();
+        var history = new EditHistory();
+        var toUi = new ListOutbox();
+        var simJobs = new List<System.Action>();
+        var sink = new ThreadedUndoSink(history, toUi, (_, a) => simJobs.Add(a), ring);
+        EditSteps.Install(s, new WorldUndoRecorder(sink, ring, () => true));
+
+        // an edit on the sim thread, bracketed
+        EditSteps.Begin(s, "Move");
+        s.GetComponentRW<SimTransform>(unit).Position = new Vector3(50f, 60f, 0f);
+        EditSteps.End(s);
+        Assert.Equal(0, history.Count);                       // nothing on the UI history until the publish queue is drained
+        toUi.DrainOn(ui);
+        Assert.True(history.CanUndo);
+        Assert.Equal("Move", history.UndoLabel);
+
+        Assert.True(history.Undo());                          // the UI's undo …
+        Assert.Equal(50f, s.GetComponentRO<SimTransform>(unit).Position.X);   // … is a JOB: S untouched until the sim runs it
+        Assert.Single(simJobs);
+        simJobs[0](); simJobs.Clear();
+        Assert.Equal(10f, s.GetComponentRO<SimTransform>(unit).Position.X);
+        Assert.Equal(0, history.Position);                    // the one step, undone
+
+        Assert.True(history.Redo());
+        simJobs[0](); simJobs.Clear();
+        Assert.Equal(50f, s.GetComponentRO<SimTransform>(unit).Position.X);
+
+        ring.Clear();                                         // the snapshots go (a scenario opened, an eviction) …
+        toUi.DrainOn(ui);
+        Assert.False(history.StepAvailable(0));               // … and the UI's step is greyed through the queue
+        Assert.False(history.CanUndo);
+    }
 }
+
