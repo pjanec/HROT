@@ -483,7 +483,7 @@ experiment's D-7) carries the tools, the camera, the selection and four editor o
 
 ⭐ **Next — evidence, not a build:** [CE-4436](blueprints/batches/HANDOFF_Coordinator_To_Backend_Threaded_Analysis_Instruments.md) — a runtime access tracer, a static reachability analysis, the treatments' costs, the out-of-the-tick dependencies; its verdict is folded back into this section.
 
-## 14. ⭐ The whole picture — threads, worlds, copies, locks by host mode *(coordinator, `2026-11-12`; an explainer, the lean — not ruled)*
+## 14. ⭐ The whole picture — threads, worlds, copies, locks by host mode *(coordinator, `2026-11-12`; 🔒 user: "looks good at least for next version of the POC to verify it" — ⭐ the TARGET SHAPE the next proof of concept verifies; not ruled)*
 
 ![threading architecture](img/threading-architecture.svg)
 
@@ -496,3 +496,15 @@ waits exist — headless pays for no presentation, a playing editor pays one mas
 | *"what is the UI writing into singletons?"* | ✔ traced (A-1): ONE `SingletonSet` — `IOrderForm`, the UI registering its own order form. The rest: UI state kept as world singletons by presentation systems that run in the tick (`SelectionStore`, `CanvasContextMenuState`, `SortedHierarchyData`) ⇒ they stay in A, outside the mask; `UnitDebugSettings` (the Brain tab's per-unit debug toggles, read by `DebugStatePatchSystem`) ⇒ a command. ⚠ `StationMode`, `ReplayState`, `WorldEpoch`, `ITkbDatabase`, `NetworkEntityMap` show as "get-by-ref on both sides, write unproven" only because `GetSingletonUnmanaged` returns a writable `ref` — the same disease as A1-2: add a read-only singleton read |
 | *"which systems should we parallelize?"* | by measured payoff (Windows, CGF 242 ms): ⭐ brains 105 ms (Throughput, R-4208) · state egress 28 ms → ALREADY off the frame on a replica (CE-3427, built, OFF by default, never measured on a big node) · weapon dispatcher 21 ms (≈ 2 days) · recorder capture 20 ms → off the frame on the same replica (its file I/O is already async) · ✔ done: stress, threat · ⛔ not callouts (no gain) |
 | *"split egress: background translators from a snapshot, hot ones from the live world at the end of the tick?"* | ✔ that design EXISTS — [Egress §7](DESIGN_Egress_Change_Detection.md), CE-3427 N-1: events (shots, hits), lifecycle, ownership, time and smart egress stay ON the frame on the live world; translators marked `IOffFrameEgress` scan a replica synced at the end of Export while the next tick runs; runtime switch `/diagnostics/egress`. ⚠ `WorldPos` (positions, the biggest) is off-frame there — but the data is still the tick's end state; it leaves after the scan (≈ the same time an on-frame scan would take), not a tick later, so positions lose little. ⏳ Not yet measured on a 1 000-man node (B-8) |
+
+### 14.1 The anti-race strategy — one writer per world, and nothing shared that can change in place
+
+| rule | how |
+|---|---|
+| **S has one writer: the sim thread** | the pool writes only inside the tick, through per-batch buffers merged by the sim thread; ⛔ a write to S from any other thread is a defect — a Debug guard throws |
+| **A has one writer: the main thread** — except the sync | the sync writes A while holding A's lock; the UI holds the same lock for its world work ⇒ they never overlap |
+| **the UI reads only A** — its own copies, never S | per-tick singletons arrive in A at the sync: COPIED (time, traces), REBUILT (`NetworkEntityMap`), or an IMMUTABLE VIEW published (cluster cache, clock status); logs FORWARDED |
+| **an object both worlds hold by reference never changes in place** | immutable (terrain, geo), or changed by swapping the inside in ONE atomic write (TKB, behaviour registry, navmesh ✔) ⇒ a reader sees the old or the new whole, never half; native memory LEASED (roads ✔) |
+| **every UI write to simulated state is a COMMAND** | a thread-safe queue drained by the sim thread at the tick's start (Input); validated there, refused through the edit outcome (Q111-C); a drag is a ghost in A and the drop one command; UI bus publishes become commands |
+| **UI-only state is written directly in A** | selection, menus, camera, order form, effects; what the sim must read from it (the culling viewport, gizmo settings) rides to S with the commands each tick |
+| **reads are reads** | a managed component read and a singleton read must stop returning a writable reference / stamping the chunk (A1-2) — otherwise a read on the main thread is a write; the 3 unsafe statics get a lock / `Concurrent` / `Lazy` |
