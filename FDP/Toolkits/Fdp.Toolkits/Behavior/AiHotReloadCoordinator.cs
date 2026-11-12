@@ -164,6 +164,8 @@ public sealed class AiHotReloadCoordinator : IDisposable
     /// <summary>
     /// Dequeues one pending reload and applies it. Call once per frame on the main thread.
     /// </summary>
+    private static readonly bool ReloadTimingLog = Environment.GetEnvironmentVariable("HROT_INSYNC_LOG") == "1";
+
     public void DrainPendingCallbacks()
     {
         // BPF-044: drain background scan failures before success reloads.
@@ -174,6 +176,19 @@ public sealed class AiHotReloadCoordinator : IDisposable
 
         try
         {
+            if (ReloadTimingLog)
+            {   // ⭐ K-3 (CE-4450) — the drain's apply and EACH completion subscriber, timed (HROT_INSYNC_LOG=1)
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                ApplyReload(pending);
+                Console.WriteLine($"[K-3] hot-reload drain: ApplyReload {sw.Elapsed.TotalMilliseconds:F1} ms on thread {Environment.CurrentManagedThreadId}");
+                foreach (var d in OnReloadCompleted?.GetInvocationList() ?? Array.Empty<Delegate>())
+                {
+                    sw.Restart();
+                    ((Action)d)();
+                    Console.WriteLine($"[K-3]   OnReloadCompleted → {d.Method.DeclaringType?.Name}.{d.Method.Name}: {sw.Elapsed.TotalMilliseconds:F1} ms");
+                }
+                return;
+            }
             ApplyReload(pending);
             OnReloadCompleted?.Invoke();
         }

@@ -30,6 +30,10 @@ public sealed partial class ClusterMaster
 {
     private readonly HashSet<int> _inSync = new();
 
+    // ⭐ K-3 (CE-4450) — every change of the in-sync set with its cause (HROT_INSYNC_LOG=1): the hot-reload desync's root cause is one of these
+    private static readonly bool InSyncLog = Environment.GetEnvironmentVariable("HROT_INSYNC_LOG") == "1";
+    private void NoteInSync(string what) { if (InSyncLog) Console.WriteLine($"[K-3] {DateTime.Now:HH:mm:ss.fff} in-sync {what} · now [{string.Join(",", _inSync.OrderBy(i => i))}] · state {_currentDsmState}"); }
+
     /// <summary>The nodes in sync with the cluster — the targets of every operator round.</summary>
     public IReadOnlyCollection<int> InSyncNodeIds => _inSync;
 
@@ -104,7 +108,7 @@ public sealed partial class ClusterMaster
         //   ⛔ RefuseUntilLoaded (AQ110 E's third value) is not built — only when a deployment needs it.
         bool parkedAndLobby = _parked != null && _config.AdmissionPolicy == Fdp.Toolkit.Orchestration.AdmissionPolicy.Lobby;
         if (_currentDsmState == ClusterState.Idle && !TransitionInFlight && !parkedAndLobby)
-            _inSync.Add(nodeId);
+        { _inSync.Add(nodeId); NoteInSync($"+{nodeId} (joined at rest)"); }
     }
 
     /// <summary>
@@ -117,8 +121,9 @@ public sealed partial class ClusterMaster
     /// <summary>I1 — a node that left is no longer in sync, and its catch-up (if any) is dropped.</summary>
     private void ForgetSync(int nodeId)
     {
-        _inSync.Remove(nodeId);
+        bool was = _inSync.Remove(nodeId);
         _catchUps.Remove(nodeId);
+        if (was) NoteInSync($"-{nodeId} (left / heartbeat eject)");
     }
 
     // ── C7: the catch-up saga ─────────────────────────────────────────────────────────────────
@@ -239,6 +244,7 @@ public sealed partial class ClusterMaster
             if (c.StartedAtEpoch == _transactionEpoch && IsOperating(_currentDsmState))
             {
                 _inSync.Add(c.NodeId);
+                NoteInSync($"+{c.NodeId} (caught up)");
                 FdpLog<ClusterMaster>.Info("[Orchestrator] C7: node {0} caught up — in sync.", c.NodeId);
             }
             else

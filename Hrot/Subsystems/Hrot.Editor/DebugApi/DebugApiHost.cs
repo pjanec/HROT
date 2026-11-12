@@ -1983,8 +1983,12 @@ namespace Hrot.Editor.DebugApi
             // ⭐⭐ MD-002 — diagnostics live on the SHARED service so a cluster-limited node (a SimHost
             //    node) answers for its OWN kernel. 📄 DESIGN_Mcp_Diagnostics_Federation §1/§2.2.
             // ⭐ CE-3427 — what each world query costs in this PROCESS (terrain traces, navmesh, EQS templates and tests, cover, door scans)
+            //   ⭐ R-4213 — the timer is OFF by default: ?enable=true|false switches it at runtime (the answer's "enabled" says which)
             _routes.Add(new("GET", "/diagnostics/queries", ctx => RunMainResult(s =>
-                Ok(s.GetQueryTimings(string.Equals(ctx.Query("reset"), "true", StringComparison.OrdinalIgnoreCase))))));
+            {
+                if (ctx.Query("enable") is { Length: > 0 } en && bool.TryParse(en, out bool on)) Fdp.Toolkit.Diagnostics.QueryTimings.Enabled = on;
+                return Ok(s.GetQueryTimings(string.Equals(ctx.Query("reset"), "true", StringComparison.OrdinalIgnoreCase)));
+            })));
 
             // ⭐ CE-3427 N-1 — the off-frame state egress: its state, and the runtime switch (DESIGN_Egress_Change_Detection §7, O-F)
             _routes.Add(new("GET", "/diagnostics/egress", ctx => RunMainResult(s => ResultOf(s.EgressPipelines(null, post: false), unavailable: 400))));

@@ -21,7 +21,9 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def run(out, extra_env, play, guard):
     os.makedirs(out, exist_ok=True)
-    env = dict(os.environ, HROT_FRAME_STATS="1", **extra_env)
+    env = dict(os.environ, HROT_FRAME_STATS="1")
+    env.setdefault("HROT_QUERY_TIMINGS", "1")   # ⭐ R-4213 — the per-query timer is off by default; the measurement asks for it
+    env.update(extra_env)
     if guard:
         env["HROT_WORLD_GUARD"] = "1"
         env["HROT_WORLD_GUARD_OUT"] = os.path.join(out, "guard.txt")

@@ -36,7 +36,9 @@ POC2 = [
 
 
 def run(name, env_extra, out, rig_args):
-    env = dict(os.environ, HROT_HIDDEN_WINDOW="1", **env_extra)
+    env = dict(os.environ, HROT_HIDDEN_WINDOW="1")
+    env.setdefault("HROT_QUERY_TIMINGS", "1")   # ⭐ R-4213 — the per-query timer is off by default; the measurement asks for it (an item may still set "0")
+    env.update(env_extra)
     dll = ROOT / "Hrot/Runner/Hrot.ClusterRunner/bin/Release/net8.0/Hrot.ClusterRunner.dll"
     if dll.exists():
         env.setdefault("HROT_RUNNER_DLL", str(dll))
