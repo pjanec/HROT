@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — dispatched, not started
+state: WITHDRAWN unstarted 2026-11-12 — superseded-by: HANDOFF_Coordinator_To_Backend_Overnight_Threaded_Build.md (user: build the settled design overnight, no POC)
 updated: 2026-11-12
 current-answer: the whole file
 supersedes: HANDOFF_Coordinator_To_Backend_POC_Staging_Worlds.md · _POC_Write_Path.md · _POC_Brain_Rule.md (withdrawn unstarted)
