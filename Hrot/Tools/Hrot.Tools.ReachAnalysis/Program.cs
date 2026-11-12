@@ -187,7 +187,17 @@ internal static class Program
         }
         Parents[side] = parent;
         return new HashSet<string>(parent.Keys);
-        void Visit(string c, string from) { if (!parent.ContainsKey(c)) { parent[c] = from; q.Enqueue(c); } }
+        void Visit(string c, string from)
+        {
+            if (!parent.ContainsKey(c)) { parent[c] = from; q.Enqueue(c); }
+            // constructing a type runs its field / property initialisers, also when its constructor is implicit (no node of its own)
+            int i = c.IndexOf(".#ctor", StringComparison.Ordinal);
+            if (c.StartsWith("M:", StringComparison.Ordinal) && i > 0)
+            {
+                string init = "INIT:T:" + c[2..i];
+                if (!parent.ContainsKey(init)) { parent[init] = c; q.Enqueue(init); }
+            }
+        }
     }
 
     // the call path from a root to a method — what makes a crossing explainable (⇢dispatch marks an over-approximated interface / virtual step)
