@@ -141,6 +141,61 @@ namespace Hrot.SimHost.Tests
             }
         }
 
+        /// <summary>
+        /// ⭐ P-5 (the parallel experiment, E-4) — the step INTERLEAVED at 0.2 s (each man stepped on his phase) ends within 0.005 of the
+        /// every-frame result after 6 s at 60 frames, and breaks the same men: the step integrates the time since his last step, so a slower
+        /// step loses no time. 🔴 Red-proof: one frame's dt integrated instead of the elapsed time ⇒ the levels drift far apart.
+        /// </summary>
+        [Fact]
+        public void P5_TheInterleavedStressStep_StaysWithinItsError_OfTheEveryFrameStep()
+        {
+            bool was = Fdp.Core.Jobs.ParallelEntities.Enabled;
+            try
+            {
+                var every = RunInterleaved(0.0);
+                var slow = RunInterleaved(0.2);
+                for (int i = 0; i < every.Length; i++)
+                {
+                    Assert.True(System.Math.Abs(every[i].Level - slow[i].Level) <= 0.005f, $"man {i}: {every[i].Level} vs {slow[i].Level}");
+                    Assert.Equal(every[i].Broken, slow[i].Broken);
+                }
+            }
+            finally { Fdp.Core.Jobs.ParallelEntities.Enabled = was; }
+        }
+
+        private static Stress[] RunInterleaved(double period)
+        {
+            Fdp.Core.Jobs.ParallelEntities.Enabled = false;
+            using var w = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(w);
+            CognitiveComponentRegistry.RegisterAll(w);
+            var rng = new Random(3);
+            var men = new Entity[200];
+            for (int i = 0; i < men.Length; i++)
+            {
+                var e = w.CreateEntity();
+                w.AddComponent(e, new BehaviorState());
+                w.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+                w.AddComponent(e, new StanceIntent());
+                w.AddComponent(e, new SimTransform { Position = new Vector3(rng.Next(0, 300), rng.Next(0, 300), 0f), Rotation = Quaternion.Identity });
+                w.AddComponent(e, new EntityInfo { ForceId = ForceId.Friend });
+                w.AddComponent(e, new Stress { Level = (float)rng.NextDouble() * 0.6f, LastStepAt = (SimInstant)1.0 });
+                men[i] = e;
+            }
+            var sys = new StressSystem { StepPeriod = period };
+            for (int f = 1; f <= 360; f++)
+            {
+                w.SetSingleton(new GlobalTime { TotalTime = 1.0 + f / 60.0, DeltaTime = 1f / 60f, TimeScale = 1f });
+                sys.Execute(w, 1f / 60f);
+            }
+            // one last pass at a common time, so both runs are compared AFTER the same elapsed time
+            w.SetSingleton(new GlobalTime { TotalTime = 1.0 + 361 / 60.0, DeltaTime = 1f / 60f, TimeScale = 1f });
+            new StressSystem().Execute(w, 1f / 60f);
+            var r = new Stress[men.Length];
+            for (int i = 0; i < men.Length; i++) r[i] = w.GetComponentRO<Stress>(men[i]);
+            return r;
+        }
+
         private static string RunStressWorld(bool parallel, int threads)
         {
             Fdp.Core.Jobs.ParallelEntities.Enabled = parallel;

@@ -343,6 +343,14 @@ namespace Hrot.AI.Behaviors.Brains
 
         public StressSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
 
+        /// <summary>⭐ P-5 (the parallel experiment, E-4) — each man's CONTINUOUS step (the drift, the calming) runs once per this many sim
+        /// seconds on his phase (<see cref="CadenceGate.DueOnGrid"/>); 0 = every frame (the default). Stimuli still land at once. ✅ The step
+        /// already integrates the time since his last step (<c>Stress.LastStepAt</c>), so a slower step loses no time. Experiment knob:
+        /// <c>HROT_STRESS_PERIOD</c>.</summary>
+        public double StepPeriod { get; set; } = double.TryParse(Environment.GetEnvironmentVariable("HROT_STRESS_PERIOD"),
+            System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var p) ? p : 0.0;
+        private double _prevNow = double.NegativeInfinity;
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<Stress>() || !repo.IsComponentTypeRegistered<StanceIntent>()) return;
@@ -359,6 +367,8 @@ namespace Hrot.AI.Behaviors.Brains
             }
 
             _people ??= repo.Query().With<StanceIntent>().With<BehaviorState>().With<Health>().With<SimTransform>().Build();
+            double prev = _prevNow; _prevNow = now;
+            double period = StepPeriod;
             if (Fdp.Core.Jobs.ParallelEntities.Enabled)
             {
                 // ⭐ P-1 (DESIGN_Parallel_Simulation §5; the parallel experiment E-3) — ① SERIAL: the men we own, and Stress ADDED where it is
@@ -368,6 +378,7 @@ namespace Hrot.AI.Behaviors.Brains
                 foreach (var e in _people)
                 {
                     if (!Owned(repo, e)) continue;
+                    if (!CadenceGate.DueOnGrid(prev, now, period, e.Index) && repo.HasComponent<Stress>(e)) continue;   // ⭐ P-5
                     StressModel.Ensure(repo, e, now);
                     if (n == _list.Length) Array.Resize(ref _list, Math.Max(64, _list.Length * 2));
                     _list[n++] = e;
@@ -378,6 +389,7 @@ namespace Hrot.AI.Behaviors.Brains
             foreach (var e in _people)
             {
                 if (!Owned(repo, e)) continue;
+                if (!CadenceGate.DueOnGrid(prev, now, period, e.Index) && repo.HasComponent<Stress>(e)) continue;   // ⭐ P-5
                 StressModel.Step(repo, e, now);
                 StressModel.Judge(repo, e, now);   // ⭐ CE-2272 (TS-6) — the break and the recovery
             }
