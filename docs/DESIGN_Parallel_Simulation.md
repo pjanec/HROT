@@ -261,3 +261,28 @@ PROFILE of those four (what inside them costs, how much is false change), before
 🔒 User, `2026-11-12`: *"sampled timer approved"* — on the proposal: `QueryTimings` (CE-3427) stays ON by default but times 1 call in 16 and scales
 the time up; the call counts stay exact. POC 2 measured the always-timed version at ~13 ms of the brain on the VM (37 000 timed calls / frame at
 1 000 men: two clock reads + a per-thread record each). Built in [CE-4443](blueprints/batches/HANDOFF_Coordinator_To_Backend_Parallel_Sim_POC_3.md).
+
+## 13. A job system? — what we have, and the lean *(coordinator, `2026-11-12`; user: "other engines use custom job/task systems, why is that, could we benefit?")*
+
+**What exists** (graph `search_graph .*(WorkerPool|JobSystem|JobQueue|Scheduler|ThreadPool|Workers)$` + grep, non-test): ⚠ **FOUR independent
+ways to use the cores, each with its own budget:**
+
+| mechanism | used by | code |
+|---|---|---|
+| `WorkerPool` — persistent, 0 B, "the process's ONE pool" | the EQS solver windows, the off-frame egress scan (CE-3427) | `Fdp.ModuleHost/Threading/WorkerPool.cs` |
+| `FdpWorkerPool` — persistent, 0 B, per-batch ordered merge | the parallel systems (stress, threat, callouts, the brain pre-score) | `Fdp.Core/Jobs/FdpWorkerPool.cs` on `exp/parallel-sim*` only — ⛔ a DUPLICATE of the one above (R-shared-and-unified) |
+| .NET `Task.Run` / thread pool | background modules, the recorder's I/O, topology rebuilds | `ModuleHostKernel.cs:738`, `AsyncRecorder.cs:224` |
+| `Parallel.ForEach` (allocates) | `EntityQuery.ForEachParallel`, the raycast solver | `EntityQuery.cs:444`, `RaycastSolverSystem` |
+
+Plus 8 dedicated `new Thread` sites (egress pipeline, flight-recorder prefetch, SUMO, the id allocator …). ⛔ Systems declare NO component
+access (only `BlueprintWritableAttribute`), so the scheduler cannot run two systems at once safely.
+
+**Why engines build their own:** ① one pool sized to the cores — no oversubscription (POC 1 on Windows: "8 threads" on 7 pinned CPUs);
+② tiny jobs at no allocation; ③ PRIORITIES — frame-critical work first, background work yields; ④ work stealing for uneven batches; ⑤ jobs with
+DEPENDENCIES from declared reads / writes, so independent systems run at the same time and a race is caught when scheduled.
+
+| ⭐ lean | why |
+|---|---|
+| ⭐ **ONE pool, two priorities** (frame-critical: parallel systems, the sync; background: egress, recorder, EQS, background modules) — merge `FdpWorkerPool` into `WorkerPool`, move `Parallel.ForEach` and the background modules' `Task.Run` onto it | cheap, removes the duplicate and the oversubscription; one core budget (cores − 2) by construction |
+| **measure before a dependency scheduler**: the access tracer (threaded-analysis A-1) already records each system's reads / writes — compute which systems are disjoint and the critical path; build declared-access scheduling only if it shows a gain | the brain is 43 % of the frame in ONE system — running the others side by side is bounded by it |
+| ⛔ not a Unity-style job system with safety handles and a compiler | .NET has no Burst; the per-batch merge + `ParallelGuard` already give determinism and race checks where they matter |
