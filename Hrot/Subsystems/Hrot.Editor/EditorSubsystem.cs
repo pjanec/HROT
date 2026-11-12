@@ -2707,8 +2707,8 @@ namespace Hrot.Editor
 
         private void EnsureKernelWorker()
         {
-            if (_canvas != null) Console.WriteLine("[X-4] map layers: " + string.Join(", ", _canvas.Layers.Select(x => x.GetType().Name)));
             if (_kernelWorker != null) return;
+            if (_canvas != null) Console.WriteLine("[X-4] map layers: " + string.Join(", ", _canvas.Layers.Select(x => x.GetType().Name)));
             if (_gizmoBuffer != null) _gizmoBuffer.ReaderUsesPublished = true;
             _kernelWorker = new System.Threading.Thread(KernelWorkerLoop) { IsBackground = true, Name = "HROT kernel (X-4)" };
             _kernelWorker.Start();
@@ -2751,7 +2751,9 @@ namespace Hrot.Editor
                 if (Environment.TickCount64 - lastReport > 5000 && tickN > 0)
                 {
                     var g = Fdp.ModuleHost.ThreadedKernelGate.WorldFrames; var m = Fdp.ModuleHost.ThreadedKernelGate.MapOnlyFrames;
-                    Console.WriteLine($"[X-4] {tickN} ticks, node frame mean {tickSum / tickN:F1} ms · drawing frames: {g} with the world, {m} map-only · yields {Fdp.ModuleHost.ThreadedKernelGate.YieldWaits} · faults {_kernelWorkerFaults}");
+                    var f = Fdp.ModuleHost.ThreadedKernelGate.TakeFrameStats();
+                    Console.WriteLine($"[X-4] {tickN} ticks, node frame mean {tickSum / tickN:F1} ms · drawing frames: {g} with the world, {m} map-only (cumulative) · yields {Fdp.ModuleHost.ThreadedKernelGate.YieldWaits} · faults {_kernelWorkerFaults}");
+                    Console.WriteLine($"[X-4F] world frames {f.WN} mean {f.WMean:F1} p95 {f.WP95:F1} ms · map-only frames {f.MN} mean {f.MMean:F1} p95 {f.MP95:F1} ms");
                     tickSum = 0; tickN = 0; lastReport = Environment.TickCount64;
                 }
             }

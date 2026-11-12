@@ -92,7 +92,44 @@ mechanism (a leased pooled snapshot read by the presentation). 13 decisions with
 
 ## X-4 — the prototype
 
-⏳
+**What it is** (on `exp/threaded-kernel`, switch `HROT_THREADED_KERNEL=1`, default OFF ⇒ the editor is unchanged):
+- `EditorSubsystem.KernelWorkerLoop` runs the editor's WHOLE node frame (`TickNodeFrame`: the slave, the kernel, the afterKernel hooks incl. hot reload
+  and `BrainObservation`, the timeline step, the bus swap, the orchestrator core, the time transport) on a worker thread, holding ONE world lock
+  (`Fdp.ModuleHost.ThreadedKernelGate`), with the real elapsed dt of the drawing frames (capped 0.25 s).
+- the drawing thread (`Program.cs` loop) tries the lock once per frame (2 ms): **with it** the frame does everything that touches the world (the API's
+  jobs, input, selection, the editor logic, the ImGui panels); **without it** the frame moves the camera and draws the map only — from a PUBLISHED copy
+  of the gizmo frame (`DebugPrimitiveBuffer.PublishFrame` / `LeasePublished` / `ReaderFrame`, a triple buffer) and only the layers that read no world
+  (gizmos, grid, 2-D terrain — `MapCanvas.DrawFilter`). When it missed the lock, the worker yields at its next tick boundary (≤ 50 ms) so the panels
+  refresh once per tick.
+
+**Measured** (Release, cloud VM 4 cores + software GL, hidden, the 1 000-man rig ≈ 13 800 entities, Preview played 120 s then paused 40 s; per-kind frame
+clock `[X-4F]` in the log):
+
+| | inline (today) | threaded prototype |
+|---|---|---|
+| ⭐ the drawing frame while PLAYING | **272 ms** (3.7 fps) | **≈ 95 ms** (≈ 10.5 fps) — map-only frames 91–101 ms, world frames 96–112 ms |
+| the drawing frame while PAUSED | 116 ms | ≈ 80 ms (map-only 70, world 88) |
+| the tick (node frame) while playing | 167 ms inside the frame | 160–200 ms on the worker (4–6 Hz); the clock kept real time (121.9 s simulated in 120 s) |
+| panels / input refresh while playing | every frame (3.7 Hz) | **≈ 2.5 Hz** — the frames that get the world (~1 per tick) |
+| faults | — | **0** worker faults over the whole run (load, preview, 120 s play, pause) |
+
+⭐ **Read:** playing ≈ paused — the property the user is buying (§8 ⑧) — holds for the MAP and the camera: the drawing frame no longer contains the
+simulation. ⚠ On this VM the floor is the software rasteriser (~75 ms to draw the scale-1 terrain, which also takes CPU from the worker); on the user's
+GPU the draw was 14.5 ms, so the same split should give a ~20–30 ms map frame while playing. ⚠ The panels and input still wait for the world, i.e.
+for a tick — that is the prototype's built-in limit, and exactly what §12's inversion removes (the presentation would wait for a SYNC, not a tick).
+
+**What broke and how it was found:**
+
+| # | what | how found | handled |
+|---|---|---|---|
+| X4-1 | ⛔ map layers read World A in `Draw`: `EffectLayer` queried it during a worker tick ⇒ `IndexOutOfRangeException` in `QueryCandidateIndex.Build` ⇒ the process aborted | the first threaded run crashed (stack in the log) | map-only frames draw only world-free layers; the other layers (cursor, effects, projectiles, 3-D bodies, traffic, map previews) draw on world frames — a real fix is §12 (they read A, which is only written under the lock) |
+| X4-2 | the gizmo frame is written by the kernel's gizmo systems and read by the map ⇒ needed its own published copy | design reading before the build | triple-buffered publish in `DebugPrimitiveBuffer` (~4 000 primitives per frame, a memcpy) |
+| X4-3 | Run-to's turbo step ticks the node frame from the drawing thread | inventory (§6 row 2865) | ⛔ shortcut: Run-to disabled in threaded mode |
+| X4-4 | nothing on the node frame needed the GL thread | 0 faults over load + preview + play | ⭐ D-7 confirmed in the REAL editor, not only the PoC |
+
+**Shortcuts named:** one world + a lock instead of §12's two worlds · map-only frames skip the world-reading layers and the panels (they would flicker on a
+visible window) · Run-to off · input is processed on world frames only (the camera on every frame) · no commands — the UI writes World A directly on
+the frames that hold the lock (correct, but it is why the lock exists) · the 3-D view not measured (its bodies read the world) · 2 runs.
 
 ## Decisions taken (claim tables)
 

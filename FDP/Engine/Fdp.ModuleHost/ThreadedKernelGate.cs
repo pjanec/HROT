@@ -25,11 +25,39 @@ namespace Fdp.ModuleHost
         public static long WorldFrames, MapOnlyFrames, Ticks, YieldWaits;
 
         /// <summary>The drawing thread, at its frame's start: take the world if the worker is between ticks (never wait for a tick).</summary>
+        // the drawing thread's own frame clock, split by the kind of the frame that just ended (X-4's measurement)
+        private static readonly System.Diagnostics.Stopwatch FrameClock = System.Diagnostics.Stopwatch.StartNew();
+        private static double _lastFrameAt = -1; private static bool _lastWasWorld;
+        private static readonly object StatLock = new();
+        private static readonly System.Collections.Generic.List<double> WorldMs = new(), MapMs = new();
+
+        /// <summary>The drawing thread's frame times since the last call, by kind: (world mean, world p95, map-only mean, map-only p95, counts).</summary>
+        public static (double WMean, double WP95, int WN, double MMean, double MP95, int MN) TakeFrameStats()
+        {
+            lock (StatLock)
+            {
+                static (double, double) Of(System.Collections.Generic.List<double> l)
+                {
+                    if (l.Count == 0) return (0, 0);
+                    var a = l.ToArray(); Array.Sort(a); double sum = 0; foreach (var x in a) sum += x;
+                    return (sum / a.Length, a[(int)(a.Length * 0.95)]);
+                }
+                var (wm, wp) = Of(WorldMs); var (mm, mp) = Of(MapMs);
+                var r = (wm, wp, WorldMs.Count, mm, mp, MapMs.Count);
+                WorldMs.Clear(); MapMs.Clear();
+                return r;
+            }
+        }
+
         public static bool MainTryEnter()
         {
             if (!Enabled) { MainHasWorld = true; return true; }
+            double now = FrameClock.Elapsed.TotalMilliseconds;
+            if (_lastFrameAt >= 0) lock (StatLock) (_lastWasWorld ? WorldMs : MapMs).Add(now - _lastFrameAt);
+            _lastFrameAt = now;
             MainHasWorld = Monitor.TryEnter(WorldLock, 2);
             if (MainHasWorld) { _mainWants = false; WorldFrames++; } else { _mainWants = true; MapOnlyFrames++; }
+            _lastWasWorld = MainHasWorld;
             return MainHasWorld;
         }
 
