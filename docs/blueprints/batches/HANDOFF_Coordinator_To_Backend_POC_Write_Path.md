@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — dispatched, not started
+state: WITHDRAWN unstarted 2026-11-12 — superseded-by: HANDOFF_Coordinator_To_Backend_POC_Combined.md (user: "prove that it will work all together, not each separately")
 updated: 2026-11-12
 current-answer: the whole file
 related-designs:
