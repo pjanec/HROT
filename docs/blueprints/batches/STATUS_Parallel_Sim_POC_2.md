@@ -18,7 +18,7 @@ cloud VM, 4 cores (correctness and trends); the Windows command is `scripts/para
 | measurement blind spot | ✅ | `exp/parallel-sim-2` | the rig reports EVERY system (`all_ms`); the script sums it — a system under the top-8 cut no longer reads 0.00 |
 | Q-0 profile | ✅ | — | §Q-0 — ⭐ + the per-query timer costs ~13 ms of the brain on the VM (D-1) |
 | Q-1 writes stamp only on change | 🔨 | `exp/parallel-sim-2` | D-2: done in the TICK SYSTEMS, not the emitter; the false writes are BTree / HSM, not blueprints (D-3) — measuring |
-| Q-2 off-frame state egress | ✅ measured | — | ⛔ **no gain on the CGF**: egress 39 → 37 ms incl. the launch's 11.8 ms replica SYNC on the main thread (D-7); its biggest translator stays on the frame (D-4); replication suites OFF vs ON running |
+| Q-2 off-frame state egress | ✅ measured | — | ⛔ **no gain on the CGF**: egress 39 → 37 ms incl. the launch's 11.8 ms replica SYNC on the main thread (D-7); its biggest translator stays on the frame (D-4); replication suites OFF vs ON: no ON-only red in the 44 tests both runs reached (D-10) |
 | Q-3 recorder capture off the frame | | | |
 | Q-4 brains in parallel (Throughput) | ✅ | `exp/parallel-sim-2` | ⭐ **BrainTick 92.4 → 57.4 ms (−38 %)**, CGF frame 212 → 160 ms, 11.0 → 13.6 fps on the VM's 2 threads (D-8); rail green at 1/2/4/8, red-proven |
 | Q-5 weapon dispatcher | 🔨 partial | `exp/parallel-sim-2` | D-6: the 12 % turret-lookup waste removed (shared parts index); the executor itself NOT parallelised (D-6) |
@@ -144,3 +144,11 @@ scoring). Q-5's cheapest win is not parallelism: 12 % of the dispatcher looks up
 | "no cover held by two units for more than a bounded number of ticks" (R-4208) | ⭐ **not needed by this cut**: cover claims are made by the tree walk, which stays SERIAL — the pre-score only computes the posture decision's scores. R-4208 is the rule for the NEXT step (a parallel tree walk) |
 | "a Debug guard on a brain writing another unit's state" | ⭐ stronger for this cut: `ParallelGuard` makes ANY writable reference inside the parallel scoring throw in Debug (`NativeChunkTable.GetRefRW`) — proven on the rail, red-proven |
 | "brain ms at 1 / 2 / 4 / 8 threads" | VM: 2 threads only (D-8); the Windows column is `--poc2`'s `rec-all` (+ add `HROT_SIM_THREADS`) |
+
+### D-10 — Q-2's gate: the replication classes of `Hrot.ClusterRunner.Integration.Tests`, `FDP_EGRESS_OFFFRAME=0` then `=1` (resume B-9's filter)
+| | OFF | ON |
+|---|---|---|
+| reached before the host crashed | 86 (82 pass / 4 fail) | 45 (43 / 2) |
+| the crash | `[EqsSensorConfig][REFUSED] … malformed sensor config` | `CycloneDDS … ReturnCode: BadParameter` (a write after shutdown) |
+| tests that ran in BOTH | 44 — ⭐ **no ON-only red**; 1 OFF-red passed ON (`SplitAuthoritySpawnTests.BrainSpawn_WithWorldPosDelegation…`, a flake); 2 red in both (`AllSubsystemsSpawnMovingVehicle…`, `SpawnMovingVehicleWithGateway…`) |
+⚠ Both crash causes are the PRE-EXISTING ones resume B-9 names ("the host crashes at random"). ⇒ "no regression found in 44 tests", not "proven" — the same state B-9 left it in.
