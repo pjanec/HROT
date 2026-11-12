@@ -1,7 +1,7 @@
 <!--STATUS
-state: LIVE — in progress
+state: LIVE — A-1…A-5 first pass done
 updated: 2026-11-12
-current-answer: A-5 the verdict (top, when written) · then A-1…A-4
+current-answer: A-5 the verdict (top) · then A-1…A-4
 related-designs:
   - ../../DESIGN_Threaded_Simulation_Presentation.md — OWNS this: §13 (the analysis this batch tests) · §12 (the experiment)
   - HANDOFF_Coordinator_To_Backend_Threaded_Analysis_Instruments.md — the dispatch (at 25bce1e00)
@@ -15,9 +15,43 @@ with `coordinator` merged (`a5a07fd53`; the one conflict, the design's §12 vs �
 `2026-11-12`: *"the handoff is for separate branch. It's not for pushing into backend."* (so not even the `chore: started` / status copy the
 handoff names). Every instrument is opt-in (an env switch, default OFF) and changes no behaviour.
 
-## A-5 — the verdict
+## A-5 — the verdict *(Opus, `2026-11-12`; folded into the design as [§13.8](../../DESIGN_Threaded_Simulation_Presentation.md))*
 
-⏳ not yet.
+**Decision:** §13.7's "no blocker" holds, with **one precondition** and **one change to the publish plan**.
+- ⛔ **Precondition (A1-2):** a managed component READ stamps the table's chunk version (`GetComponent<T>` → `ManagedComponentTable.GetRW`,
+  `ManagedComponentTable.cs:181-196`). The UI does this about 438 000 times a run. Off the tick thread this is a write race on change tracking,
+  and it marks chunks dirty for the recorder. The managed read path must stop stamping versions before any reader leaves the tick thread.
+- ⭐ **Publish per consumer, not the whole world (A-3):** one 1 000-man copy after a sim tick costs **≈ 13 ms** if it carries everything the UI
+  touches. The FDP inspector alone is what makes it everything: **≈ 5.7 ms** without it, **≈ 1.3 ms** for the map, 3-D and gizmo readers (57 types).
+  ⇒ the map and 3-D view take a masked copy every tick; panels take the inspector-free mask; the inspector reads the SELECTED entity on demand
+  and never drives the mask.
+- ✅ **The other treatments are cheap:**
+  - `NetworkEntityMap` rebuilt from the copy: **0.76 ms**, 0 B, when kept; 1.3 ms and 1.4 MB from empty.
+  - `ClusterUiCache` as an immutable view: **0.01 ms**.
+  - The traffic lists: **0.01 ms**, but this rig runs no traffic, so that is an UNKNOWN at load.
+- ⭐ **§13.1 gains six singletons** (A1-1): `ReplayState`, `SelectionStore`, `StationMode`, `TerrainDefinition`, `UnitDebugSettings`, `WorldEpoch`.
+  **Three statics are unsafe across threads** (A-2): `RunModeChoice.PresetCache`, `UtilityInputNames._names`, `UtilityDecisionCatalog._shared`.
+- ⭐ **S-1 (take the presentation out of the frame) is confirmed, with the shape A-4 measured:**
+  - `GizmoInteractionModule` must be SPLIT; it also runs world writers.
+  - Its "after PostSimulation" comment is wrong: modules tick at `ModuleHostKernel.cs:856`, before PostSimulation at `:925`.
+  - The pick-box producers and their pickers move together.
+  - Tool gizmos become commands.
+  - `MapSelfCheckSystem` (70 M reads a run) is the heaviest scan to move.
+  - UI state keyed by the world instance favours §12's shape: the presentation keeps World A.
+- ⚠ **Gizmo rules cost ≈ 4.4–5.5 ms a frame at 1 000 men** (top 10 shown). The per-entity overlays carry it — Mission / Entity / CommandPicture
+  presentation, OverheadMark, Route, NamedPoint, TacticalArea, TerrainZone, about 0.3–0.9 ms each over ≈ 8 300 entities. The tool rules
+  (EntityRotation ≈ 0.8–1.3 ms, EntityEditorLabel ≈ 0.4–0.6 ms) are the minority. ⇒ moving the overlays out of the tick is where the time is.
+
+**Rejected:**
+- *One whole-world copy per tick* — A-3: ≈ 13 ms at 1 000 men, the inspector's mask; a frame budget cannot carry it beside the sim.
+- *Locks on the shared singletons* — A-1: 266 types cross, and a lock per type is the race §11 already rejected.
+- *Keep the managed read path as it is and document it* — A1-2: it is a write, and it would race off-thread.
+
+**Still unknown:**
+- The right-click menu, `editor.undo` and fire traces were not exercised.
+- Traffic under load was not measured (the rig runs none).
+- The numbers come from one 4-core cloud VM with software GL.
+- The 12 §13.1 singletons the presentation never touched in the run (A1-4) may be reached through a cached reference the tracer cannot see.
 
 ## The items
 
@@ -25,9 +59,57 @@ handoff names). Every instrument is opt-in (an env switch, default OFF) and chan
 |---|---|---|---|---|
 | A-1 | runtime access tracer (`HROT_ACCESS_TRACE=1`) | ✅ first run (worker built it; Opus reviewed, fixed two placement defects, gated) | this commit | §A-1 below; full tables: [A1_Access_Trace_Tables.md](threaded-analysis/A1_Access_Trace_Tables.md) |
 | A-2 | static reachability (Roslyn) | ✅ first pass | this commit | §A-2 below; per type: [A2_Crossing_Types.md](threaded-analysis/A2_Crossing_Types.md) |
-| A-3 | the treatments' costs (`PublishProbe` extended) | | | needs A-1's masks |
+| A-3 | the treatments' costs (`PublishProbe` extended) | ✅ one live run | `8732b9b5f` | §A-3 below |
 | A-4 | presentation-out-of-the-tick dependencies | ✅ first pass (read-only sweep + Opus spot-checks) | this commit | §A-4 below |
-| A-5 | verdict + fold into §13 | | | |
+| A-5 | verdict + fold into §13 | ✅ | this commit | top of this file; the design's §13.8 |
+
+## A-3 — what the treatments cost *(Opus, `2026-11-12`)*
+
+**Instrument:** `PublishProbe` (opt-in `HROT_PUBLISH_PROBE=1`, in the editor's frame after the node frame, every 30th frame).
+- `HROT_PUBLISH_PROBE_MASKS` names a JSON file of masks; each mask is copied warm (a kept repository) and cold (`SoftClear` first).
+- The editor registers the other treatments as extras, timed at the probe frame against the warm all-types copy.
+- **Masks** (from the A-1 trace): **ui-all** (265 of 290 types resolved), **ui-no-inspector** (96), **map** (57 types: the `layer.*`, `gizmo-rule`,
+  `subsystem.DrawWorld` and `map-input` readers). The unresolved types are singleton interfaces and types not registered at the probe.
+
+**Run:** the 1 000-man rig (13 596 live entities), Release, hidden window under Xvfb, the cloud VM (4 cores). The tracer was off;
+`HROT_FRAME_STATS=1` was on. Steps: load, select a unit, play 60 s, 3-D view following the unit while playing, pause. 20 probe samples were taken
+while playing. The editor runs uncapped, so most probe frames carry no sim tick. ⇒ The **p90 is the copy after a real tick**; the median is a frame
+without one.
+
+| copy, playing (ms) | warm median · **p90 (after a tick)** | cold median · p90 | dirty KB after a tick |
+|---|---|---|---|
+| production `SyncFrom` (background mask) | 12.2 · 34.2 | — | — |
+| ALL types | 1.5 · **13.2** | 13.1 · 20.0 | 1 536 |
+| ⭐ **ui-all** — what the UI touches, inspector included | 1.1 · **12.8** | 13.2 · 20.4 | 1 536 |
+| ⭐ **ui-no-inspector** | 1.0 · **5.7** | 7.5 · 9.6 | 128 |
+| ⭐ **map** (map, 3-D, gizmos) | 0.8 · **1.3** | 2.4 · 3.8 | 128 |
+
+| other treatment | ms (median · p90) | allocated | items |
+|---|---|---|---|
+| `NetworkEntityMap.RebuildFromWorld`, kept map | **0.76** · 0.87 | 0 B | 8 276 |
+| `NetworkEntityMap.RebuildFromWorld`, from empty | 1.33 · 2.01 | 1.4 MB | 8 276 |
+| `ClusterUiCache` immutable view (shallow) | 0.01 · 0.01 | 0 B | 4 |
+| `TrafficFrame` lists copy | 0.01 · 0.05 | 0 B | ⚠ **0** (this rig runs no traffic) |
+
+**Gizmo rules** (`GizmoRuleTimings`, `HROT_FRAME_STATS`, top 10 per period, 62 periods with the scenario loaded): **≈ 4.4–5.5 ms a frame** summed
+over the top 10.
+
+| rule | ms per frame (median) | kind (§13.4) |
+|---|---|---|
+| `(match pass)` | 1.79 | the shared match |
+| `EntityRotationGizmo` | 1.25 | **tool** |
+| `CommandPictureAbsentGizmo` | 1.20 | overlay |
+| `EntityPresentationGizmo` | 0.94 | overlay |
+| `MissionPresentationGizmo` | 0.90 | overlay |
+| `EntityEditorLabelGizmo` | 0.60 | **tool** |
+| `RouteGizmo` | 0.41 | overlay |
+| `OverheadMarkGizmo`, `NamedPointGizmo`, `TacticalAreaGizmo`, `TerrainZoneGizmo`, `EqsSensorGizmo` | 0.26–0.43 each | overlay |
+
+**Limits:**
+- Panel rows for 1 / 10 selected units were not measured as row copies (no row copy exists). The ui-no-inspector mask copies whole tables, so it is
+  an upper bound.
+- There was no 3 000-man run.
+- Raw data is in the session scratchpad (`a3/probe.jsonl`, `a3/editor-1.log`); the masks are made by `scripts/access-trace-masks.py` from the A-1 trace.
 
 ## A-1 — runtime access trace: what each side actually touched in the world *(worker + Opus review, `2026-11-12`)*
 

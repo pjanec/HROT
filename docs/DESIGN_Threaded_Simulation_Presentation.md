@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — ✅ the concept APPROVED (R-4205, `2026-11-11`); next S-0 (the architect question for the details + a FDP-DES-012 section) before any build; a proof of concept exists (§7)
-updated: 2026-11-12 (§12 the experiment, exp/threaded-kernel · §13 the shared-state analysis, coordinator)
-current-answer: ⭐ §13 SHARED STATE (13.7 the verdict: no blocker; S-1 = take the presentation out of the node frame first) · ⭐ §12 the overnight experiment's answer (invert the worlds — measured, prototyped; the user to rule) · §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
+updated: 2026-11-12 (§12 the experiment, exp/threaded-kernel · §13 the shared-state analysis, coordinator · §13.8 the instruments' answer, CE-4436)
+current-answer: ⭐ §13 SHARED STATE (13.8 the instruments' answer: no blocker but ONE precondition — managed reads stamp chunk versions — and publish per consumer · 13.7 the verdict: no blocker; S-1 = take the presentation out of the node frame first) · ⭐ §12 the overnight experiment's answer (invert the worlds — measured, prototyped; the user to rule) · §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
 stale-below: nothing
 known-rot: none
 known-conflict: FDP/Engine/Fdp.ModuleHost/docs/UserGuide/06_SimulationViewsAndExecutionModes.md shows a two-replica swap in DoubleBufferProvider — the code syncs ONE replica in place (DoubleBufferProvider.cs:63-66); this design does not rely on it
@@ -465,7 +465,7 @@ case found has a treatment, ⭐ four of which (share, lease, swap the inside, pe
 | `TrafficNetCache` | 1 (3-D traffic) | ✔ get-only, built once per road net | **share** | |
 | `INavmeshProvider`, `ICoverProvider`, `IEqsTemplateRegistry`, `SpatialGridData` | 0–2 (gizmos, the inspector, `WorldInfoReport`) | read on the main thread only by the inspector and the debug report | **share** (gizmos are on the worker) | `SyncFrom` already shares them with EQS (`EntityRepository.Sync.cs:118-129`) |
 | `GlobalTime`, `ShotTraces`, `DetonationTraces` | 12 / 0 / 0 | ✔ unmanaged; written every tick (traces: 64-slot rings, ~7 KB each) | **copy** by value | an ordinary singleton copy |
-| `NetworkEntityMap` | ⚠ **19** (orders, RTS commands, possession, squad roster, menus, waypoints) | ⛔ two plain `Dictionary`s **changed in place every tick** — spawn, ghost creation, every lightweight round (`NetworkSpawningSystem.cs:248`, `GhostCreationSystem.cs:71`, `LightweightRoundIdentitySystem.cs:59`) | **rebuild** on the UI side from `NetworkIdentity` (the UI copies it anyway) | ✔ `NetworkEntityMap.RebuildFromWorld` exists for SoD modules (`NetworkEntityMap.cs:223`); ⚠ its per-tick cost at 13 800 entities NOT measured |
+| `NetworkEntityMap` | ⚠ **19** (orders, RTS commands, possession, squad roster, menus, waypoints) | ⛔ two plain `Dictionary`s **changed in place every tick** — spawn, ghost creation, every lightweight round (`NetworkSpawningSystem.cs:248`, `GhostCreationSystem.cs:71`, `LightweightRoundIdentitySystem.cs:59`) | **rebuild** on the UI side from `NetworkIdentity` (the UI copies it anyway) | ✔ `NetworkEntityMap.RebuildFromWorld` exists for SoD modules (`NetworkEntityMap.cs:223`); ✅ measured `2026-11-12` (§13.8): **0.76 ms, 0 B** kept, 1.3 ms / 1.4 MB from empty, at 13 600 entities |
 | `ZoneEnvironmentData` (the road graph) | 2 | ⛔ a struct of `NativeArray`s; a bridge collapse publishes a new graph (`BridgeClosureSystem.cs:140-142`) and the old one is FREED | **lease** — the UI's copy holds a lease until the next sync | ✔ `RoadNetworkHolder` pins a retired graph while a lease is open (`RoadNetworkHolderTests` C6) |
 | `TrafficFrame` | 2 (3-D traffic lights, ambient bodies) | ⛔ its car and pedestrian lists are the module's LIVE lists, **cleared and refilled every tick** (`TrafficModules.cs:72-73,197,263`); two `Func` callbacks read the replica set | **copy** the lists into UI-owned lists at the sync; ⚠ the callbacks need the same | — |
 | `ITkbDatabase` | ⚠ **27** (add-entity, catalogue, weapon kits, possession …) | ⛔ ONE object, **`Clear()` + `Register` in place** when a load stages a different TKB (`KnowledgeBaseLoadStep.cs:67,107`); plain `Dictionary`s (`TkbDatabase.cs:14-15`); also held directly by DI, so replacing the singleton alone misses holders | **swap the inside** — a `SwitchableTkbDatabase` (build the new catalogue aside, swap in one write) | ✔ `SwitchableGeoTransform`, `SwitchableNavmeshProvider`: *"replacing the object would leave the ~15 holders on the old one"* |
@@ -566,7 +566,36 @@ experiment's D-7) carries the tools, the camera, the selection and four editor o
 |---|---|
 | ✅ **no blocker** | every shared object found — 16 world singletons, 5 simulation-written logs, 17 objects outside the world, 79 gizmos — fits one of the treatments: share · copy · rebuild · lease · swap the inside · publish an immutable view · forward a log · move to the main thread · command |
 | ⭐ **the real work is a SPLIT, not a lock** | S-1 is "take the presentation OUT of the node frame" (13.5) before any thread moves — the tools, gizmo tools, camera, selection and four `afterKernel` objects. ⭐ It is worth doing even single-threaded: it is the seam R-4205's pulled presentation module (Q111-G `RunMode.Pulled`) needs |
-| ⚠ **not measured** | per tick: rebuilding `NetworkEntityMap`, copying the traffic lists, publishing `ClusterUiCache`; the per-rule gizmo cost at 1 000 men |
+| ⚠ **not measured** | ⛔ *SUPERSEDED `2026-11-12` by §13.8 — measured by CE-4436 A-3:* per tick: rebuilding `NetworkEntityMap`, copying the traffic lists, publishing `ClusterUiCache`; the per-rule gizmo cost at 1 000 men |
 | ⚠ **not traced** | `TimelineLaneCatalog` (UI lane edits vs `Step`), `OrchestratorCore.ScenarioPanel`, `GizmoUiStateHub`, the mission service's async acks; the 170 static collections triaged by mutation count, not read one by one; ⛔ `check_index_coverage` is not in the CLI |
 
 ⭐ **Next — evidence, not a build:** [CE-4436](blueprints/batches/HANDOFF_Coordinator_To_Backend_Threaded_Analysis_Instruments.md) — a runtime access tracer, a static reachability analysis, the treatments' costs, the out-of-the-tick dependencies; its verdict is folded back into this section.
+
+### 13.8 ⭐ The instruments' answer *(CE-4436, backend, `2026-11-12`, branch `exp/threaded-analysis`; [status](blueprints/batches/STATUS_Threaded_Analysis_Instruments.md))*
+
+⭐ **Measured, not inferred:**
+- **A-1** — a runtime access tracer over a scripted editor session on the 1 000-man rig, with all 78 windows opened.
+  ([tables](blueprints/batches/threaded-analysis/A1_Access_Trace_Tables.md))
+- **A-2** — a Roslyn reachability pass over `HROT.sln`. ([per type](blueprints/batches/threaded-analysis/A2_Crossing_Types.md))
+- **A-3** — `PublishProbe` copying the masks A-1 found.
+- **A-4** — a sweep of what the presentation relies on by running inside the frame.
+
+| §13.7 said | the evidence | ⇒ |
+|---|---|---|
+| ✅ no blocker | ⛔ **one PRECONDITION:** a managed component READ is a WRITE to change tracking. `GetComponent<T>` → `UnsafeShim.ManagedAccessor.GetRO` → `GetManagedComponentRW` → `ManagedComponentTable.GetRW` stamps the chunk version (`ManagedComponentTable.cs:181-196`). The UI does this ≈ 438 000 times a run (`TerrainObjectKey` from `DrawWorld` and the 3-D layer, `SopStartRecord` from the inspector) | ⭐ fix the managed read path before any reader leaves the tick thread; ⛔ otherwise it is a write race, and the recorder sees UI reads as changes |
+| 16 world singletons (§13.1) | **+6 cross the line:** `ReplayState`, `SelectionStore`, `StationMode`, `TerrainDefinition`, `UnitDebugSettings`, `WorldEpoch`. 12 of §13.1's were never touched by the presentation in the run (unexercised, or reached through a cached reference) | §13.1 gains six rows; each still needs its treatment chosen |
+| the treatments | measured at 1 000 men, after a sim tick: **a whole-UI copy ≈ 13 ms**, the same without the FDP inspector **≈ 5.7 ms**, the map / 3-D / gizmo mask (57 types) **≈ 1.3 ms**; `NetworkEntityMap` rebuilt and kept **0.76 ms, 0 B**; `ClusterUiCache` immutable view **0.01 ms**; traffic copy 0.01 ms (⚠ no traffic on the rig) | ⭐ **publish PER CONSUMER:** the map takes its mask every tick, panels take the inspector-free mask, ⛔ and the FDP inspector never drives the mask — it reads the selected entity on demand |
+| 170 statics, triaged | **20 shared statics cross**; three are unsafe: `RunModeChoice.PresetCache` (`RunModeChoice.cs:566`), `UtilityInputNames._names` (`:12`), `UtilityDecisionCatalog._shared ??=` (`:72`) | a fix each (a concurrent or immutable structure, or one built before the threads start) |
+| S-1: take the presentation out of the frame (§13.5) | confirmed, with its shape: ① `GizmoInteractionModule` also runs world WRITERS (action dispatch, debug-state patch, effect / wreck spawn, lifespan) ⇒ SPLIT it; ② its "after PostSimulation" comment is wrong — modules tick at `ModuleHostKernel.cs:856`, before PostSimulation at `:925`; ③ the pick-box producers and their pickers move together (CE-259r); ④ tool gizmos write per drag frame ⇒ commands; ⑤ UI state keyed by the world INSTANCE (`MapUiStates`, `EcsSelectionState`) favours §12's shape — the presentation keeps World A; ⑥ `MapSelfCheckSystem` is the heaviest scan to move (70 M reads a run) | S-1 stands as the first slice |
+| §13.4 gizmos | ≈ **4.4–5.5 ms a frame** for the top 10 rules at 1 000 men. The per-entity OVERLAYS carry it (Mission / Entity / CommandPicture presentation, OverheadMark, Route …, 0.3–0.9 ms each over ≈ 8 300 entities); tool rules (EntityRotation ≈ 1.25 ms, EditorLabel ≈ 0.6 ms) are the minority | moving the overlays to the presentation side is where the time is |
+
+**Rejected:**
+- *One whole-world copy per tick* — ≈ 13 ms at 1 000 men (A-3).
+- *A lock per shared type* — 266 types cross (A-1).
+- *Leave the managed read path and document it* — it is a write (A1-2).
+
+**Unknown:**
+- Not exercised: the right-click menu, undo, fire traces.
+- Traffic under load was not measured.
+- The numbers come from one 4-core cloud VM.
+- `check_index_coverage` is not in the CLI, so A-2's completeness is unproven.
