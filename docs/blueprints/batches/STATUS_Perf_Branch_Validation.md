@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — PAUSED by the user 2026-11-12 (exp/perf); interim report at VERDICT
+state: LIVE — verdict written (CE-4454)
 updated: 2026-11-12
 current-answer: VERDICT (top), then V-1 … V-7
 stale-below: nothing yet
@@ -16,23 +16,23 @@ related-designs:
 
 ## VERDICT
 
-⏸ **INTERIM — validation stopped by the user (`2026-11-12`) before V-7 and V-8 finished.** Not a merge verdict.
+⭐ **MERGE-READY — nothing must be fixed first** *(CE-4454, `2026-11-12`; the branch's changed features proven through their own rails, T-1)*.
+⛔ It still merges only when the user says so: the branch stays experimental until then.
 
 | item | state | finding |
 |---|---|---|
-| V-1 build + 8 core suites | ✅ done | 0 build errors; every red is red at the base. Two census rails had new branch fields → **fixed** (`a1b074bdf` + `DESIGN_System_State_Inventory.md`) |
-| V-2 defaults unchanged | ✅ done | switches off ⇒ the base's world, entity for entity (only a per-process random `EntityGuid` differs, as it does base vs base) |
-| V-3 determinism | ✅ done | `DeterminismRails` 5/5 serial, at 1/2/4/8 threads, and Throughput |
+| V-1 build + the changed projects' suites | ✅ | 0 build errors; every red is red at the base `786e99599`. Two census rails had new branch fields → **fixed** (`a1b074bdf` + `DESIGN_System_State_Inventory.md`) |
+| V-2 defaults unchanged | ✅ | switches off ⇒ the base's world, entity for entity (only a per-process random `EntityGuid` differs, as it does base vs base) |
+| V-3 determinism | ✅ | `DeterminismRails` 5/5 serial, at 1/2/4/8 threads, and Throughput |
 | V-4 scenario regression | ⛔ stopped by ruling | user: test features, not scenarios — see V-4 |
-| V-5 replication / recording | ✅ done | no new red; managed-read detector **0 hits** over 74 726 frames |
-| V-6 editor + frame rails (xvfb) | ✅ done | no branch red; 2 order-dependent tests (green alone) |
-| ⭐ all 54 test projects in `HROT.sln` | ⏸ **9 of the remaining 40 run** | green: CarKinem, UrbanCombat, EnvelopeStamper, four GizmoMap. ⚠ **NOT yet checked at the base:** `Fdp.Examples.Scenarios.Tests` 9 red, `Fdp.Presentation.Tests` 1 red. **31 suites not run** |
-| V-7 allocation | ⏸ partial | the 0 B rails inside the V-1 suites are green; the rig's garbage-per-frame vs base was **not measured** (the rig runs were killed) |
-| V-8 verdict | ⏸ not written | |
+| V-5 replication / recording | ✅ | no new red; managed-read detector **0 hits** over 74 726 frames |
+| V-6 editor + frame rails (xvfb) | ✅ | no branch red; 2 order-dependent tests (green alone) |
+| P-1 the 10 reds of the extra suites | ✅ | `Fdp.Examples.Scenarios.Tests` 9 (AutoDrive ×4, UrbanCombatNew ×5) and `Fdp.Presentation.Tests` 1 (`CE4351_AFixedBufferOfStructs…`): **all 10 red at the base**, run by name ⇒ pre-existing |
+| P-2 / V-7 garbage per frame | ✅ | the 0 B rails in the V-1 suites green; the 1 000-man rig (V-7 below): **no regression** |
+| ⚠ not run | stated | **31 test projects of projects the branch does not touch** — by ruling (CE-4454: the changed features' own rails prove a branch, not every suite) |
 
-⇒ **To finish:** run the 31 unrun suites; re-run the 10 reds above at the base (`/home/user/hrot-base` worktree at `786e99599`); the rig
-(`scale-rig.py --runner-dll`, from a SCRIPT FILE — `cluster-node.sh`'s `pkill -f ClusterRunner.dll` kills any shell whose command line
-contains that path); then the verdict. So far nothing found blocks a merge, but the coverage is incomplete.
+⚠ What would change this verdict: a red in one of the 31 unrun suites that is red only on `exp/perf`, or the Windows measurement
+(`HANDOFF_Coordinator_To_Ui_Windows_Perf_Measure.md`) finding a slowdown with the switches off.
 
 ## V-1 — the build and the suites
 
@@ -125,3 +125,20 @@ compared with the base (V-4 stopped).
 | `Hrot.Diagnostics.Breakpoints.Tests` | 171 / 0 / 0 | — |
 
 ⇒ no red the branch caused. ⚠ The two order-dependent ones were run alone at the base, not in a base full-suite run.
+
+## V-7 — allocation (CE-4454 P-2)
+
+The 0 B rails (`ParallelEntitiesTests`, the CE-2394 / CE-4445 allocation rails) are green inside V-1's suites. The scale rig: `scale-rig.py
+--terrain scale-1 --men 1000 --vehicles 50 --aircraft 10 --seconds 30`, `HROT_QUERY_TIMINGS=0`, Debug runner, every switch off, one run per tree,
+the runner given through `HROT_RUNNER_DLL` (⚠ `--runner-dll` puts the dll path on python's command line and `cluster-node.sh`'s
+`pkill -f ClusterRunner.dll` then kills the rig itself).
+
+| node | garbage B/frame exp/perf | base | work ms/frame exp/perf | base | entities exp/perf / base |
+|---|---|---|---|---|---|
+| CGF | **2 940 974** | 2 996 810 (−1.9 %) | 556 | 536 | 14 296 / 13 800 |
+| SimHost | **5 363 519** | 5 336 141 (+0.5 %) | 261 | 224 | 13 063 / 12 665 |
+
+⇒ ⭐ **no garbage regression** — the largest producers are the same systems at the same size on both trees (CGF `BrainTickSystem` 1.56 vs 1.63 MB,
+SimHost `EqsSolverSystem` 3.86 vs 3.60 MB, `EventHistoryCaptureSystem` on both). ⚠ The rig's budget (0 B per steady frame) is missed by BOTH
+trees — pre-existing, not this branch's. ⚠ Work per frame is one Debug run per tree on a 4-core VM, with ~3–4 % more entities on exp/perf at the
+sample: not evidence either way; the Windows Release measurement is the performance answer.
