@@ -296,3 +296,17 @@ DEPENDENCIES from declared reads / writes, so independent systems run at the sam
 managed component (already forbidden — CLAUDE.md: managed components are immutable and replaced whole). Both lanes hit it: the threaded editor
 (a read off the sim thread is a write race) and the egress visit gate (POC 3 T-2: 0 skips, because `OwnershipEgressSystem`'s reads stamp every
 chunk). Built and measured in [CE-4445](blueprints/batches/HANDOFF_Coordinator_To_Backend_Managed_Reads_Audit.md).
+
+### 11.1 Update — `exp/perf` on the 8-core Windows machine *(`STATUS_Ui_Windows_Perf.md` on exp/perf, `2026-11-12`)*
+
+| | serial | everything on | |
+|---|---|---|---|
+| CGF frame (1 000 men, recorded) | 256 ms (8.8 fps) | **163–173 ms (12.2 fps)** | **1.52×** (POC 2 alone: 1.47×) |
+| `BrainTickSystem` | 96 ms | **42 ms** | the pre-score, posture + threat ranking |
+| the one worker pool | everything on, 1 thread: 255 ms | at its budget: 173 ms | **the pool buys 81 ms** |
+| SimHost with off-frame egress | 96–104 ms | **42–51 ms** | 20 → 40–45 fps |
+| the sampled timer · T-2 gate · Q-1 | — | inside the 9 ms noise | the gate still skips 0 (CE-3442) |
+
+⚠ **Two open anomalies:** ① off-frame egress + the parallel replica sync ALONE on a serial CGF frame makes it **slower** (252 → 337–339 ms,
+reproduced; brain, weapons, ingress all grow) — invisible with everything on; suspected CPU contention on the 7 pinned logical CPUs, not measured.
+② network ingress falls 14 → 3.6 ms with threads though it is not parallelised — unexplained.
