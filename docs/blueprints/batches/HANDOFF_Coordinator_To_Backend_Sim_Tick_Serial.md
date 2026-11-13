@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — dispatched, not started
+state: HELD — NOT dispatched (user 2026-11-13: "we need to do design not any building lane; buildiong lane is for building"); the coordinator writes the designs first, then this is re-dispatched as a build-only batch
 updated: 2026-11-13
 current-answer: the whole file
 related-designs:
