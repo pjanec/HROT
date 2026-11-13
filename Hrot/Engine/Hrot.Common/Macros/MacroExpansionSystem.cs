@@ -199,6 +199,9 @@ namespace Hrot.Common.Macros
         private void AwaitPlacement(EntityRepository repo, Entity e, MacroExpansionIntent intent)
         {
             var parked = intent.Parked!;
+            // ⭐ N-9 (CE-4471) — the placed children are NEW requests (WithInitialComponents): the parked ones live in a managed component that
+            //   snapshots and the presentation world share by reference, so they are never changed in place
+            var placed = new List<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>(parked);
             string fallback = "";
             if (!_answers.TryGetValue(intent.PlacementRequestId, out var answer))
             {
@@ -227,21 +230,22 @@ namespace Hrot.Common.Macros
                     Finish(repo, e, MacroExpansionState.Failed, $"placement: '{NameOf(parked[a.Key])}' — {a.Reason}");
                     return;
                 }
-                var comps = parked[a.Key].InitialComponents!;
+                var comps = new List<object>(parked[a.Key].InitialComponents!);
                 for (int i = 0; i < comps.Count; i++)
                     if (comps[i] is SimTransform st)
                     {
                         st.Position = new WorldPoint(a.Point.X, a.Point.Y, a.Point.Z);
                         comps[i] = st;
                     }
+                placed[a.Key] = parked[a.Key].WithInitialComponents(comps);
             }
             if (intent.ReconcileFrom != null)
             {
                 repo.RemoveComponent<MacroExpansionIntent>(e);
-                ApplyReconcile(repo, e, intent.ReconcileTo!, parked, intent.ReconcileFrom);
+                ApplyReconcile(repo, e, intent.ReconcileTo!, placed, intent.ReconcileFrom);
                 return;
             }
-            Publish(repo, e, parked, $"instance #{(_entityMap.TryGetNetworkId(e, out int id) ? id : 0)} (placed)");
+            Publish(repo, e, placed, $"instance #{(_entityMap.TryGetNetworkId(e, out int id) ? id : 0)} (placed)");
             if (fallback.Length > 0)
             {
                 var said = new MacroExpansionStatus { State = MacroExpansionState.Expanding, Reason = new FixedString128(fallback.Length > 127 ? fallback[..127] : fallback) };
