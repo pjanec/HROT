@@ -29,6 +29,7 @@ public sealed class PerEntityRuleTests
     [ComponentId(509)] private struct Tag { public int From; }
     [ComponentId(510)] private struct Doomed { public int X; }
     [EventId(9511)] private struct Ping { public int From; }
+    [EventId(9512)] private struct Unregistered { public int From; }
 
     /// <summary>Each entity reads its LEFT neighbour's <see cref="Val"/> (another entity, declared) and writes its own = neighbour + own index.
     /// Read live, a neighbour in an earlier slot of the same batch has already moved on ⇒ the answer would depend on the batching.</summary>
@@ -230,6 +231,32 @@ public sealed class PerEntityRuleTests
             foreach (int t in new[] { 2, 4, 8 }) Assert.Equal(one, SquadLikeAt(t, own: true));
         }
         finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
+    }
+
+    /// <summary>⭐ M-7 (CE-4486) — a phase publishing an event its world never REGISTERED behaves as a serial publish: the stream is made at the
+    /// publish and the event arrives (in batch order). 📐 Measured: the squad phase's publish threw at the batch's playback ("not registered … Cannot
+    /// playback command") where the serial publish worked. 🔴 Red-proof: the stream not made on the deferred path ⇒ the playback throws.</summary>
+    [Fact]
+    public void M7_APhasePublishesAnUnregisteredEvent_LikeASerialPublish()
+    {
+        try
+        {
+            FdpWorkerPool.Resize(2);
+            using var w = World(100, out var list);
+            ParallelEntities.Run(w, list, list.Length, new PublishUnregisteredJob { Repo = w });
+            w.Bus.SwapBuffers();
+            var got = w.Bus.Read<Unregistered>();
+            Assert.Equal(list.Length, got.Length);
+            for (int i = 0; i < got.Length; i++) Assert.Equal(i, got[i].From);   // batch order = entity order
+        }
+        finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
+    }
+
+    private struct PublishUnregisteredJob : IEntityBatchJob
+    {
+        public EntityRepository Repo;
+        public void Execute(Entity e, int index, BatchContext ctx) => Repo.Bus.Publish(new Unregistered { From = index });
+        public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
     }
 
     /// <summary>⭐ M-7 (CE-4486) — a type declared AFTER this tick's view was taken is still served from the tick start: the phase takes the view

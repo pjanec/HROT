@@ -91,9 +91,18 @@ namespace Fdp.Core
         /// <param name="evt">Event to publish</param>
         public void Publish<T>(T evt) where T : unmanaged
         {
-            if (ParallelReadCheck.DefersBus(this)) { ParallelReadCheck.CurrentBatch!.Commands.PublishEvent(in evt); return; }   // ⭐ N-10 / F-2 — a publish in a phase rides the batch, in batch order
-            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.BusPublish, TraceId);
             int typeId = EventType<T>.Id;
+            // ⭐ M-7 (CE-4486) — ONE rule for a direct and a deferred publish: strict mode demands the registration, otherwise the stream is made
+            //   at the publish. 📐 Measured: a squad phase's publish of an event its world never registered threw at the batch's playback (the
+            //   playback finds the stream by id) where the serial publish made the stream. Stream creation is thread-safe (concurrent dictionary).
+            if (ParallelReadCheck.DefersBus(this))
+            {
+                if (!(FdpConfig.EnforceExplicitEventRegistration && !_nativeStreams.ContainsKey(typeId))) GetOrCreateNativeStream<T>();
+                else ThrowUnregisteredNative<T>(typeId);
+                ParallelReadCheck.CurrentBatch!.Commands.PublishEvent(in evt);   // ⭐ N-10 / F-2 — a publish in a phase rides the batch, in batch order
+                return;
+            }
+            if (AccessTrace.On) AccessTrace.Record<T>(TraceKind.BusPublish, TraceId);
             if (FdpConfig.EnforceExplicitEventRegistration && !_nativeStreams.ContainsKey(typeId))
             {
                 throw new InvalidOperationException(
@@ -105,6 +114,12 @@ namespace Fdp.Core
             var stream = GetOrCreateNativeStream<T>();
             stream.Write(evt);
         }
+
+        private static void ThrowUnregisteredNative<T>(int typeId)
+            => throw new InvalidOperationException(
+                $"Strict Mode Violation: Unmanaged event type '{typeof(T).Name}' (ID: {typeId}) " +
+                "was published without being explicitly registered. " +
+                $"You must call world.RegisterEvent<{typeof(T).Name}>() during bootstrap.");
 
         /// <summary>
         /// Pre-registers a native event type so that events of this type injected during
@@ -130,6 +145,8 @@ namespace Fdp.Core
         {
             if (ParallelReadCheck.DefersBus(this) && !typeof(T).IsValueType && evt is object boxed)
             {   // ⭐ N-10 / F-2 — a publish in a phase rides the batch, in batch order (a managed STRUCT event has no buffer op: published at once, locked)
+                //   ⭐ M-7 — the stream made now when strict mode allows it (the same rule as a direct publish; its playback finds it by id)
+                if (!(FdpConfig.EnforceExplicitEventRegistration && !_managedStreams.ContainsKey(GetManagedTypeId<T>()))) GetOrCreateManagedStream<T>();
                 ParallelReadCheck.CurrentBatch!.Commands.PublishManagedEventRaw(GetManagedTypeId<T>(), boxed);
                 return;
             }
