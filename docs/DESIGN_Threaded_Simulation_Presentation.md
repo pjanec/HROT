@@ -814,3 +814,164 @@ door and run-to readout are its OWN, fed by the mirrored orchestration bus and t
 | ⭐ the REVIEW SOURCE is sim-side (`2026-11-13`, CE-4495…CE-4499): it merges a participant group into S at the end of the node frame (one call site, both modes); the UI reads a published `ReviewReadModel` and commands through `ThreadedReviewChannel` (sim jobs; the model carried by the staging) — 0 B steady, strict guard silent. ⛔ SUPERSEDED: it ran from a UI frame overlay and merged into A | the review UI holds no manager (railed) | [DESIGN_Threaded_Review_Source](DESIGN_Threaded_Review_Source.md) §1, §4 |
 | ⚠ OPEN: the film director still acts on the world it is given; an unstaged subsystem's windows are absent from a threaded `--mode all` until it has a staging split | — | status §5 |
 
+
+## 15. ⭐⭐ The STAGED PRESENTATION in the shared node frame — every windowed host, by construction *(CE-3446, backend, `2026-11-13`; build-state: BUILT — as-built `2026-11-13`, see §15.5)*
+
+🔒 User, `2026-11-13`: *"of course fix it properly now, no duplications and hacks please, we unify share and parametrize"* · *"if we need different
+behaviour for something, we add parameter to shared bootstrap"*. R-4215: *"There is should be no difference between how player is handled from how
+the others are handled."*
+
+**INVENTORY** (grep, `2026-11-13`; graph re-index in progress — `search_graph` for `StagingWorlds`/`ISimSteppedSubsystem` returned nothing on the
+stale index, ⇒ grep only, re-checked below once it is up): `ISimSteppedSubsystem` — 1 implementer (`EditorSubsystem`); `StagingWorlds` /
+`SimJobQueue` / `SimLink` — composed in 1 place (`EditorSubsystem.ComposeInitialPresentationCopy`, `EditorSubsystem.cs:2977`); `HrotNodeContext.Tick`
+— both hosts (`EditorSubsystem.TickNodeFrame`, `PlayerApplication.Update`); `SharedApplicationBootstrapper.BootstrapNode` — both hosts;
+`MapInteractionPack.Build` — both hosts; its threaded split (`NodeSideInteractionSystems`, `RunInteractionBlock`) — editor only;
+`NodeRunControls.For` — both hosts, the editor overriding it in mode 3 with a UI-side mirror.
+
+⛔ **Measured, the defect:** the presentation half of the threaded node lives in `EditorSubsystem`; `SubsystemOrchestrator.Draws` draws only an
+`ISimSteppedSubsystem` beside the sim worker ⇒ a threaded player shows blank windows (U-3, `STATUS_Unify_Threaded_Defaults_On.md` D-U3).
+
+### 15.1 The classes
+
+```mermaid
+classDiagram
+  class HrotNodeConfig {
+    +PresentationMode Presentation  «NEW: Direct | Staged»
+  }
+  class SharedApplicationBootstrapper {
+    +BootstrapNode(config, role, net) HrotNodeContext
+    -ComposeStagedPresentation(ctx) «NEW, when config.Presentation == Staged»
+  }
+  class HrotNodeContext {
+    +EntityRepository World  «S: the node's»
+    +StagedPresentation? Presentation  «NEW»
+    +EntityRepository PresentationWorld  «NEW: A when staged, else World»
+    +FdpEventBus PresentationEventBus  «NEW: the orchestration mirror when staged»
+    +Tick(beforeKernel, afterKernel)
+  }
+  class StagedPresentation {
+    «NEW, Hrot.Common — the ONE presentation side»
+    +EntityRepository Sim
+    +EntityRepository World  «A»
+    +NetworkEntityMap Map  «A's»
+    +FdpEventBus UiEventBus
+    +ClusterView UiClusterView
+    +SimJobQueue Jobs
+    +StagingWorlds Staging
+    +Post(label, action)
+    +AddTime(dt)
+    +Step(dt) «sim thread: jobs, uplinks, SimBefore, node frame, SimAfter, publish»
+    +Pull() bool «UI thread: pull, map, UiAfterPull»
+    +UiFrame(dt) «UI: single-thread step+pull, or worker time + pull»
+    +UseHostSimWorker() / StepOnHostWorker() bool
+    +SimBefore / NodeFrame / SimAfter / UiAfterPull «host hooks»
+    +UiOwnedSingleton~T~() / UiOwnedTable~T~() «host parameters»
+    +AddReadout~T~(readIfChanged, applyOnUi) «sim → UI, non-world state»
+    +AddUplink~T~(readIfChangedOnUi) Func~T~ «UI → sim»
+  }
+  class StagedMapBuildStatus {
+    «NEW: the load's map step reads the UI's map through an uplink»
+    +Over(presentation, ui) Func~IMapBuildStatus~
+  }
+  class IDeployFlow { «NEW: the flow or its view» }
+  class DeployFlowView { «NEW: readout + verbs as jobs» }
+  class NodeRunControls {
+    +For(node, profile) «the UI's: the mirror when staged»
+    +ForSimSide(node, profile) «NEW: the node's»
+  }
+  class MapPresentationStep {
+    «NEW, Hrot.Presentation — was EditorSubsystem.NodeSideInteractionSystems / RunInteractionBlock»
+    +NodeModule() «the world writers, for the tick»
+    +RunPerPulledTick(dt) / RunEveryFrame(dt)
+    +AddHostUiSystem / AddHostUiSystemFirst / AddLateHostUiSystems «host parameters»
+  }
+  class StagingWorlds { «existing, Fdp.Core» }
+  class SimJobQueue { «existing, Fdp.Core» }
+  class SimLink { «existing: UI writes on A become jobs» }
+  class MapInteraction { «existing, the pack's result — both hosts» }
+  class ISimSteppedSubsystem { «existing» }
+  class EditorSubsystem { «hooks: logic, Run-to, readouts, review, debug API» }
+  class PlayerSubsystem { «hooks: none beyond the frame» }
+  SharedApplicationBootstrapper ..> StagedPresentation : composes
+  HrotNodeContext o-- "0..1" StagedPresentation
+  StagedPresentation *-- StagingWorlds
+  StagedPresentation *-- SimJobQueue
+  StagedPresentation ..> SimLink : installs on A
+  MapPresentationStep ..> MapInteraction : splits
+  MapPresentationStep ..> StagedPresentation : runs over A
+  StagedMapBuildStatus ..> StagedPresentation : AddUplink
+  DeployFlowView ..|> IDeployFlow
+  DeployFlowView ..> StagedPresentation : AddReadout
+  NodeRunControls ..> StagedPresentation : the mirror
+  EditorSubsystem ..|> ISimSteppedSubsystem
+  PlayerSubsystem ..|> ISimSteppedSubsystem
+  EditorSubsystem ..> HrotNodeContext
+  PlayerSubsystem ..> HrotNodeContext
+```
+*What the picture shows that the prose hid: the staging, the job queue and the link already were engine pieces; only their COMPOSITION and the step
+were the editor's. Moving those two into the shared frame is the whole fix — the player gains nothing it would compose itself.*
+
+### 15.2 One frame of a staged host
+
+```mermaid
+sequenceDiagram
+  participant UI as main thread (host Update)
+  participant P as StagedPresentation
+  participant W as host sim worker
+  participant N as HrotNodeContext.Tick
+  UI->>P: AddTime(dt)
+  UI->>P: Pull()
+  P->>P: Staging.Pull(A) · Map.Rebuild(A)
+  P->>UI: UiAfterPull (host: map pack PresentationStep, read models)
+  UI->>UI: draw, windows (read A, write via SimJobs.Run)
+  W->>P: StepOnHostWorker()
+  P->>P: Jobs.Drain(S) · Staging.TakeUplinks(S)
+  P->>W: SimBefore (host: logic pump, sim HTTP routes)
+  P->>N: node frame(dt) (host's Tick with its own hooks)
+  P->>W: SimAfter (host: readouts posted to the staging)
+  P->>P: Staging.Publish(S, tick)
+```
+*What it shows: the host keeps only its HOOKS — the order (jobs before the tick, the publish after, the pull before the UI) is the shared object's.*
+
+### 15.3 Who composes what, per host
+
+```mermaid
+graph TD
+  PR[PerformanceStartup<br/>resolve: threaded node per process] --> GATE[ThreadedKernelGate.ComposedWorlds]
+  GATE --> CFG[host sets HrotNodeConfig.Presentation<br/>Staged when windowed and ComposedWorlds]
+  CFG --> BS[SharedApplicationBootstrapper.BootstrapNode]
+  BS --> SP[StagedPresentation]
+  ED[EditorSubsystem] --> BS
+  PL[PlayerApplication] --> BS
+  HL[headless hosts: CGF, SimHost, traffic, orchestrator] --> BS
+  HL -. Presentation = Direct .-> BS
+  SW[SubsystemOrchestrator sim worker] -->|StepOnHostWorker| SP
+  MAIN[main loop] -->|Update: Pull + UI| SP
+```
+*What it shows: a headless node passes `Direct` and never builds A — the same code without a presentation world (R-4215); a windowed host cannot
+forget the presentation, because the bootstrap builds it from the one parameter.*
+
+### 15.4 Rules
+
+| | |
+|---|---|
+| ⭐⭐ the threaded node is composed ONLY by `BootstrapNode` from `HrotNodeConfig.Presentation` | ⛔ no host builds A, the staging or the job queue itself |
+| ⭐⭐ a host difference is a PARAMETER or a HOOK on the shared object | editor: its logic pump, Run-to, readouts, review model, debug API queue · player: none |
+| ⭐ UI-owned singletons are a parameter with a shared default set (canvas menu, order form, station mode, unit debug settings, selection store) | a host adds its own |
+| ⭐ the map pack's threaded split is the pack's (it knows its members) | ⛔ not re-derived per host |
+| ⭐ the run controls of a staged host read the orchestration MIRROR (`PresentationEventBus`, `UiClusterView`) | `NodeRunControls.For(node)` picks it — every host, by construction |
+| ⭐ proof: `HROT_WORLD_GUARD=1` silent on an editor session and a player + server session | the guard names every UI read of S and every off-thread write |
+| ⭐⭐ non-world state crosses ONLY as a readout (sim → UI) or an uplink (UI → sim), both immutable, a new one only on change | the editor's session / Run-to / review readouts and the deploy flow use the one channel; the 3-D map's build the uplink |
+
+### 15.5 As built *(`2026-11-13`)*
+
+| | where |
+|---|---|
+| the staged presentation, composed by `BootstrapNode` from `HrotNodeConfig.HasPresentation` + `ThreadedKernelGate.ComposedWorlds`; the UI-owned set (canvas menu, order form, station mode, unit debug settings, selection store + rows) | `StagedPresentation.cs`, `SharedApplicationBootstrapper.NewStagedPresentation` |
+| the editor: hooks only (`SimBeforeNodeFrame`, `TickNodeFrame`, `SimAfterNodeFrame`, `UiAfterPull`); its three readouts on `AddReadout` | `EditorSubsystem.BindStagedPresentation` |
+| the player: `HasPresentation = !headless`, `ISimSteppedSubsystem`, `UiFrame` + its map step; its node frame is `HrotNodeContext.Tick()` with no UI work in it | `PlayerApplication.BindStagedPresentation`, `PlayerSubsystem` |
+| the map pack's split | `MapPresentationStep` (both hosts) |
+| ⭐ found by the guard on the first threaded player run (17 distinct hits): the load's map step read the UI's 3-D map from the sim thread ⇒ `StagedMapBuildStatus` over an uplink; `MapBuildStatus` is ONE property on the shared bootstrapper (four subclasses each declared one) | `StagedMapBuildStatus.cs` |
+| ⭐ found by reading: the deploy screen looks the flow up by world (a side table on S) ⇒ `IDeployFlow` / `DeployFlows.Of`, the view staged by the capability that composes the flow | `DeployFlowView.cs`, `GameplayClientPack` |
+| `NodeRunControls.For(node)` is the UI's (the mirror when staged), `ForSimSide(node)` the node's | `NodeRunControls.cs` |
+| rails | `SharedApplicationBootstrapperTests.CE3446_*` (3), `GameplayDeployFlowTests.CE3446_*`, `PerformanceStartupTests` (the player resolves the threaded node) |

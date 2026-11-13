@@ -561,6 +561,129 @@ public sealed class SharedApplicationBootstrapperTests
         public void Tick(ISimulationView view, float deltaTime) { }
     }
 
+    // ════ ⭐⭐ CE-3446 (DESIGN_Threaded_Simulation_Presentation §15) — THE STAGED PRESENTATION IS THE BOOTSTRAP'S, FOR EVERY UI-DRAWN NODE ════════════
+
+    private static HrotNodeContext Boot(bool hasPresentation, int threadedMode)
+    {
+        Fdp.ModuleHost.ThreadedKernelGate.Configure(threadedMode);
+        var factory = new Hrot.Editor.OfflineNetworkFactory();
+        var config = HeadlessConfig();
+        config.HasPresentation = hasPresentation;
+        return new TestBootstrapper(factory).BootstrapNode(config, NodeRole.None, factory);
+    }
+
+    /// <summary>
+    /// ⭐ CE-3446 — a node a UI draws gets the staged presentation from the bootstrap when the threaded node is on: A is its own world with the
+    /// job link and the UI-owned state; a headless node, or the threaded node off, never builds one (the presentation world IS the node's).
+    /// 🔴 Red-proof: the bootstrap's <c>config.HasPresentation</c> test dropped ⇒ the headless row builds A.
+    /// </summary>
+    [Fact]
+    public void CE3446_AUiDrawnNode_WithTheThreadedNodeOn_GetsTheStagedPresentation_AHeadlessOneNever()
+    {
+        try
+        {
+            using var staged = Boot(hasPresentation: true, threadedMode: 3);
+            Assert.NotNull(staged.Presentation);
+            Assert.NotSame(staged.World, staged.PresentationWorld);
+            Assert.Same(staged.World, staged.Presentation!.Sim);
+            Assert.NotNull(Fdp.Core.Threading.SimJobs.LinkOf(staged.PresentationWorld));             // UI writes become jobs
+            Assert.Same(staged.Presentation.UiEventBus, staged.PresentationEventBus);                 // the UI reads the orchestration mirror
+            Assert.True(staged.Presentation.SingletonExcept.IsSet(ManagedComponentType<Hrot.Map.Common.Components.SelectionStore>.ID));   // the shared UI-owned set
+
+            using var headless = Boot(hasPresentation: false, threadedMode: 3);
+            Assert.Null(headless.Presentation);
+            Assert.Same(headless.World, headless.PresentationWorld);
+
+            using var serial = Boot(hasPresentation: true, threadedMode: 0);
+            Assert.Null(serial.Presentation);
+        }
+        finally { Fdp.ModuleHost.ThreadedKernelGate.Configure(0); }
+    }
+
+    /// <summary>
+    /// ⭐ CE-3446 — the shared step's ORDER and the S → A path: a UI job runs on S before the host's sim work, then the node frame, then the host's
+    /// readout work; the publish carries S's rows to A at the pull, a readout applies once per change (none when nothing changed), and the host's
+    /// after-pull hook runs after the readouts. 🔴 Red-proof: the readouts published before <c>SimAfter</c> ⇒ the readout misses the value it wrote.
+    /// </summary>
+    [Fact]
+    public void CE3446_TheSharedStep_JobsBeforeTheFrame_ReadoutsAfter_ThePullBringsSToA()
+    {
+        try
+        {
+            using var node = Boot(hasPresentation: true, threadedMode: 3);
+            var p = node.Presentation!;
+            var order = new List<string>();
+            int simValue = 0, applied = 0, appliedValue = -1;
+            p.SimBefore = () => order.Add("before");
+            p.NodeFrame = dt => { order.Add("frame"); node.Tick(); };
+            p.SimAfter = () => { order.Add("after"); simValue = 7; };
+            p.UiAfterPull = _ => order.Add("pulled:" + appliedValue);
+            p.AddReadout<string>(last => last == simValue.ToString() ? null : simValue.ToString(), r => { applied++; appliedValue = int.Parse(r); });
+
+            Entity made = default;
+            p.Post("make an entity", () => { made = node.World.CreateEntity(); order.Add("job"); });
+            p.Step(0.016f);
+            Assert.Equal(new[] { "job", "before", "frame", "after" }, order);
+
+            Assert.True(p.Pull());
+            Assert.Equal("pulled:7", order[^1]);   // the readout applied before the host's after-pull hook
+            Assert.Equal(1, applied);
+            Assert.True(p.World.IsAlive(made));     // S's entity reached A with the publish
+
+            p.Step(0.016f);                         // nothing changed: no readout
+            p.Pull();
+            Assert.Equal(1, applied);
+        }
+        finally { Fdp.ModuleHost.ThreadedKernelGate.Configure(0); }
+    }
+
+    private sealed class FakeMap : Fdp.Toolkit.Orchestration.IMapBuildStatus
+    {
+        public bool IsBuilt { get; set; }
+        public string? Failure { get; set; }
+        public string Step { get; set; } = "";
+        public int Requests;
+        public void Request3D() => Requests++;
+    }
+
+    /// <summary>
+    /// ⭐ CE-3446 — the host's map build, as the load's map step (sim side) reads it: ONE property on the shared bootstrapper; on a threaded node a
+    /// STAGED view — the UI's map state rides up at each pull, and <c>Request3D</c> reaches the map on the UI thread at the next pull; unstaged it
+    /// is the host's own. 🔴 Red-proof: the staged branch of <c>MapBuildStatus</c> removed ⇒ the sim reads the UI's map directly (IsBuilt true
+    /// before any pull).
+    /// </summary>
+    [Fact]
+    public void CE3446_TheMapBuildStatus_IsStagedOnAThreadedNode_TheHostsOwnOtherwise()
+    {
+        try
+        {
+            var map = new FakeMap { IsBuilt = true };
+            var factory = new Hrot.Editor.OfflineNetworkFactory();
+            Fdp.ModuleHost.ThreadedKernelGate.Configure(3);
+            var config = HeadlessConfig(); config.HasPresentation = true;
+            var staged = new TestBootstrapper(factory) { MapBuildStatus = () => map };
+            using var node = staged.BootstrapNode(config, NodeRole.None, factory);
+            var simSide = staged.MapBuildStatus!();
+            Assert.NotNull(simSide);
+            Assert.NotSame(map, simSide);
+            Assert.False(simSide!.IsBuilt);                  // nothing rode up yet
+            node.Presentation!.Pull();                        // a UI frame
+            Assert.True(simSide.IsBuilt);
+            simSide.Request3D();
+            Assert.Equal(0, map.Requests);                    // posted to the UI thread
+            node.Presentation.NodeFrame = _ => { };
+            node.Presentation.Step(0.016f);                   // the publish carries it
+            node.Presentation.Pull();
+            Assert.Equal(1, map.Requests);
+
+            Fdp.ModuleHost.ThreadedKernelGate.Configure(0);
+            var direct = new TestBootstrapper(factory) { MapBuildStatus = () => map };
+            using var plain = direct.BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+            Assert.Same(map, direct.MapBuildStatus!());
+        }
+        finally { Fdp.ModuleHost.ThreadedKernelGate.Configure(0); }
+    }
+
     /// <summary>Creates a minimal headless config for in-memory tests.</summary>
     private static HrotNodeConfig HeadlessConfig() => new HrotNodeConfig
     {
@@ -709,6 +832,7 @@ public sealed class SharedApplicationBootstrapperTests
             "get_BuildsPostSimGroup",
             "get_DeduplicateSystemsByType",   // ⭐ CE-1446 B2 — opt-in CE-165 dedupe (the editor)
             "get_HostFeatures",               // ⭐ Node Features F-2 — the features a HOST implements beside its capabilities' (was missing from this list)
+            "get_DefaultSeat",                // ⭐ B-15 (seats H1) — the station seat a host starts in (added 2026-11-07 without this list; found red by CE-3446)
         };
 
         var allMethods = type.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly);

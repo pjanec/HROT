@@ -35,6 +35,13 @@ public sealed class HrotNodeConfig
     /// <summary>CycloneDDS domain ID.</summary>
     public int DomainId { get; set; }
 
+    /// <summary>
+    /// ⭐⭐ CE-3446 (docs/DESIGN_Threaded_Simulation_Presentation.md §15) — a UI draws this node (the editor, a windowed player). With the threaded
+    /// node on (<c>ThreadedKernelGate.ComposedWorlds</c>) the bootstrap then composes its <see cref="StagedPresentation"/>; a headless node never
+    /// builds one. ⭐ The host states the FACT; the policy is the bootstrap's, the same for every host (R-4215).
+    /// </summary>
+    public bool HasPresentation { get; set; }
+
     /// <summary>Logical node identifier used in DDS heartbeats, entity IDs, and recording file names.</summary>
     public NodeId NodeId { get; set; }
 

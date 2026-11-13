@@ -8,8 +8,8 @@ using Xunit;
 namespace Hrot.ClusterRunner.Tests
 {
     /// <summary>
-    /// ⭐⭐ U-2 / U-3 (CE-4531 / CE-4532, R-4224) — the product's performance defaults, per run mode, with NO environment variable: the editor runs
-    /// the threaded node and the parallel phases; the player (until CE-3446 stages it), the server and a separate CGF / SimHost / orchestrator / traffic node the
+    /// ⭐⭐ U-2 / U-3 (CE-4531 / CE-4532, R-4224) — the product's performance defaults, per run mode, with NO environment variable: the editor and
+    /// the player run the threaded node and the parallel phases; the server and a separate CGF / SimHost / orchestrator / traffic node the
     /// parallel phases (headless: no threaded node); <c>-m all</c> runs serial; the user file is obeyed; the menu writes it.
     /// 🔴 Red-proofs: the UI-host test dropped ⇒ the server resolves the threaded node; the <c>all</c> rule dropped ⇒ <c>-m all</c> parallel.
     /// </summary>
@@ -42,7 +42,7 @@ namespace Hrot.ClusterRunner.Tests
 
         [Theory]
         [InlineData("editor", 3, true)]
-        [InlineData("player", 0, true)]   // U-3: no staged presentation yet (CE-3446) — the node on would leave its windows blank
+        [InlineData("player", 3, true)]   // CE-3446 — the shared staged presentation
         [InlineData("server", 0, true)]
         [InlineData("cgf", 0, true)]
         [InlineData("simhost", 0, true)]
