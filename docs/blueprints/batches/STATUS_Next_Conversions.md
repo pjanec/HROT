@@ -134,3 +134,17 @@ and its result equals the fine job's, byte for byte, at 1 / 4 / 8 threads. 🔴 
 
 **Tracker rows:** CE-4516 … CE-4522 live on `coordinator`, not on this branch (cut from `exp/threaded-build` before they were written). ⭐ Decision:
 their state is kept in this file's item table for the merging lane to tick, rather than merging `coordinator` here for seven rows.
+
+## Second round — what the profile at 4 threads showed, and the two fixes *(`2026-11-13`)*
+
+| finding (gate on: `HROT_EQS_CONFIG_GATE=1`, `HROT_EGRESS_GATE_STATS=1`; `dotnet-trace` 12 s of the CGF) | fix |
+|---|---|
+| ⭐ H1 per entity works: begins 30 931, **full 30** (was 5 281), visited 4.15 M, **skipped 4.13 M**; CGF 112.5 ms (17.0 fps). The largest non-full visit reason: **managed input 2.08 M** — a managed input's chunk is 16 384 entities, so one sensor's new `SensorConfigPayload` visited every sensor | **X-4:** a managed input is compared by REFERENCE (an immutable record, replaced whole — CLAUDE.md, CE-4046); the chunk stays the cheap first filter. Rail `AManagedInput_IsComparedByReference_…` 🔴 red-proved |
+| ⭐ the squad phase DOES spread (main 378 ms, workers 232–240 ms per 12 s) and its serial tail is tiny (`UnderFire` 7 ms, `Rounds` 5 ms); but **~45 % of the squad jobs' time is `PartIndex.PartsOf`** (via `SquadSenseChanges.Structure` → `EqsChildSensor.Find`) — every read under ONE `lock (index)`, the X-1 shape | **X-2:** a fresh index with no late parts is read LOCK-FREE; its stamps go up only after a build completes (`Volatile`), late parts keep the locked path; `SquadCoordinationSystem` prepares the index serially before its phases (the brains' `PrepareFrame`, N-11). Rail `CE4517_APreparedIndex_IsReadFromManyThreadsAtOnce_AsTheScan_WithoutABuild` (8 threads × 50 rounds vs the scan, no build, 0 B, a late part still found) |
+
+| gate | result |
+|---|---|
+| `Fdp.Toolkits.Tests` — gate, parts index, squad, frame grid, aim-and-fire, weapon dispatcher, ownership, EQS child sensor | 388 / 0 serial · 388 / 0 `HROT_PARALLEL_SIM=1` |
+| red-proof: the managed compare off (the old rule) | ⛔ the new rail fails (1 / 13) — as it should |
+| `Hrot.Network.NED.Tests` · `Hrot.Animation.Replication.Tests` (the gated translators) | 198 / 0 · 48 / 0 |
+| `Hrot.SimHost.Tests` — the touched classes + EQS | 383 / 1 (`CE454`, pre-existing) |
