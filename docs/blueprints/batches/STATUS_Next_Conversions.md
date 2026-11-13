@@ -17,7 +17,7 @@ Handoff: `HANDOFF_Coordinator_To_Backend_Next_Conversions.md` (dispatched at `90
 |---|---|---|---|
 | X-1 | CE-4516 | ✅ | one `lock (bodies)` around the line-of-fire walk queued every shooter — lock-free walk; 20.1 → 9.4 ms at 4 threads (4 now beats 1). Left: the serial pre-pass over mounts / barrels / loadouts (X-5 lever ②) |
 | X-2 | CE-4517 | ✅ | not the batch size first: ~45 % of the squad jobs was `PartIndex.PartsOf` under one lock — lock-free once prepared; plus `ICoarseJob` (2 a batch). Squads 5.2 → 4.1 ms; BrainTick 39 → 24 ms (it read the same index) |
-| X-3 | CE-4518 | ✅ | the staff composer a per-commander phase, launches bucketed — 3.6 → 2.3 ms; read survey not re-run (no new cross read: own outbox only, the composer's reads are of commanders' squads and members) |
+| X-3 | CE-4518 | ✅ | the staff composer a per-commander phase, launches bucketed — 3.6 → 2.3 ms; ⭐ `HROT_READ_CHECK=2` survey clean for this batch (below) |
 | X-4 | CE-4519 | ✅ | the gate skipped 0: H1 forced a full scan on any ownership write anywhere — per entity now; repeat ownership writes skipped; managed inputs by reference. Full scans 5 281 → 30, skipped 0 % → 75 %; egress 30.3 → 23.4 ms. The EQS samples themselves are real config changes (re-aims, suspend toggles) |
 | X-5 | CE-4520 | ✅ | a plateau explained: ≈ 48 ms serial floor (egress 23 ms the largest) — levers named |
 | X-6 | CE-4521 | ✅ | stepped gate EQUAL at 1 / 4 / 8 · threaded session ×2 ok, 0 guard hits · 0 B rails |
@@ -206,3 +206,15 @@ $env:HROT_PARALLEL_SIM=1; $env:HROT_EQS_CONFIG_GATE=1
 $env:HROT_RUNNER_DLL="$PWD\Hrot\Runner\Hrot.ClusterRunner\bin\Release\net8.0\Hrot.ClusterRunner.dll"
 foreach ($t in 1,2,4,6,8,10,12) { $env:HROT_SIM_THREADS=$t; python scripts\scale-rig.py --terrain demo-city --men 1000 --json "$env:TEMP\nc-rig-$t.json" }
 ```
+
+## The read-check survey (`HROT_READ_CHECK=2`, 1 000 men, 4 threads, Release) — X-3's gate, and what it caught
+
+| run | undeclared cross reads in a phase | |
+|---|---|---|
+| first | 5: `VehicleParams` · `PassengerBuffer` · `CarrierStations` (the staff composer's SPOT → `EquipmentOf`: is the contact a vehicle, can it fire at aircraft) · `PartMetadata` (`PartIndex.TakeLateAdds` inside the WEAPON phase — it never prepared the index) · `Gesture` (the brains' `EnemyStrengthRatio`) | ⛔ my earlier "not re-run, no new cross read" was WRONG — three of the five were X-3's |
+| fix | `ComposeJob : IStableReads` declares the three contact types (nothing in the staff phase writes them); `WeaponDispatcherSystem` calls `PartIndex.PrepareFrame` before its phase (as the brains and squads do) | |
+| after | **1: `Gesture`** — the brain phase's utility input, not touched by this batch | ✅ clean for X-1 … X-4 |
+
+⚠ One run in between used a build that did not compile (`CarKinem.Core` resolves inside `Fdp.Toolkit` — fixed as `global::`), so its numbers were void
+and are not quoted. ⚠ `CE4518_ASteadyFrame_AllocatesNothing` failed 1 run in 5 (24 B): the measured loop also set the `GlobalTime` singleton —
+now only the composer is measured, warmed 200 frames: **0 / 20 failed**.
