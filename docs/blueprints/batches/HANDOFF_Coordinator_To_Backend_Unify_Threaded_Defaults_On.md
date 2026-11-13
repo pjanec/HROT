@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (VM): AUTONOMOUS — unify the programme, every optimisation ON by default, switchable in View ▸ Settings
 
-**For:** a backend VM lane. **From:** coordinator. **Dispatched at `1d459ad0c`** — scope frozen.
+**For:** a backend VM lane. **From:** coordinator. **Dispatched at `<stamp>`** — scope frozen.
 🔒 User, `2026-11-13`: *"unify - OK. bring to lanes - not yet, it needs my manual tests first, with all optimization ON hardcoded by default …
 and best switchable ON/OFF easily in the clusterrunner settings somehow (in main menu maybe somewhere in the View -> Settings …, savable to user
 folder)"* · *"windows run and automated test of course first so i can run something what has been tested already at least a bit automatically"*
@@ -29,6 +29,16 @@ push per item, by path; tick its tracker row. Deviations folded into the designs
 On **`exp/threaded-build`** (the unified branch from here on). Push `chore: started unify at <sha>`. Status file
 `docs/blueprints/batches/STATUS_Unify_Threaded_Defaults_On.md`. ⛔ Do NOT merge into `ui` / `behaviors` / `backend` / `coordinator` — the user
 tests it by hand first (R-4224).
+
+## ⭐⭐ The order — the Windows run waits on U-1 … U-4 ONLY
+
+🔒 User, `2026-11-13`: *"the windows handoff comes AFTER the unify i guess. but the unify contains some rare issues which might take ages to finish"*.
+
+| | |
+|---|---|
+| ⭐⭐ **U-1 → U-2 → U-3 → U-4 first, in that order** | the Windows session starts the moment `CE-4530`…`CE-4533` are ticked — ⭐ push a commit titled `READY FOR WINDOWS at <sha>` then |
+| ⭐⭐ **a RARE, non-reproducing divergence never holds U-4** | a gate that fails once and passes on a re-run of the same command (CE-3445-like, ≤ 1 in 10) is RECORDED in U-4's row with its saved worlds and handed to U-6 — U-4 is ticked. ⛔ A failure that reproduces is a defect and is fixed before the tick |
+| ⭐ **U-6 (CE-3445) runs LAST and in the background**; U-5 and U-7 do not wait for it | it may take long; the user's tests do not depend on it |
 
 ## The work
 
