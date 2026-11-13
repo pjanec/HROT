@@ -121,6 +121,8 @@ tasks"* · *"It needs to be dynamic"*. ⛔⛔ **Autonomous overnight, NO QUESTIO
 | **12** | **CE-7034** company vs company · **CE-7033** the dynamism gate · **CE-7018** the interest score | the drafter scores only shots / hits / blasts (`Drafter.cs:80,112`) | the stalemate probe runs nightly; the gate reads a recording |
 | **13** | **CE-7017** the full battle · **CE-7019** recording ON within budget | first on **demo-city** (`showcases/city-battle-demo-city`, the forces scaled to fit); then on `showcase-world`'s `showcases/city-battle` (CE-6010) and its town (CE-6001) — merged in 0.2 | the dynamism gate green on a filmed seed — demo-city first |
 
+⭐ **From the world lane (rows on `showcase-world`):** CE-6018 ② (no jammer / recon types) = your CE-7014 / CE-7028; ③ (the commander and the air gate order the held aircraft and the 2nd wave) = your CE-7002 / CE-7010 — replace the skeleton's time fallbacks as those land. CE-6013 (an obstacle is not a man) is done by world round 2 — merge it, do not redo it.
+
 ⏸ **Not in this batch:** **CE-7015** morale / rout (waits for the user's AQ101 E-3 / E-4) · **CE-7020** the radar SAM (parked) · **CE-2264** (on hold).
 
 ## 3. Report — the gate contract (CLAUDE.md rule 8)
