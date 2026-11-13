@@ -17,6 +17,7 @@ namespace Hrot.SimHost.Tests
     /// leader's command and the bound's "moving / covering" at an issue, and the moments engine code leaves behind (a throw, a reload, a new
     /// contact, a man down). 📄 docs/blueprints/Architect_Question_105_Squad_Callouts.md §4.
     /// </summary>
+    [Collection(ParallelSwitchMutatorCollection.Name)]   // ⭐ CE-4518 — they flip the process-wide parallel switch
     public sealed class CalloutsTests : IDisposable
     {
         private readonly EntityRepository _w = new();

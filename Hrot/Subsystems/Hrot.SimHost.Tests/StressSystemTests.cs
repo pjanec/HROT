@@ -23,6 +23,7 @@ namespace Hrot.SimHost.Tests
     /// ⭐⭐ <c>CE-2270</c> TS-B (R-2034 TS-4) — a combatant's stress: each stimulus, the nerve scaling, the calming by time, by cover and by
     /// his leader; and who has none (TS-7). 📄 docs/DESIGN_Temperament_And_Stress.md §4.
     /// </summary>
+    [Collection(ParallelSwitchMutatorCollection.Name)]   // ⭐ CE-4518 — they flip the process-wide parallel switch
     public sealed class StressSystemTests : IDisposable
     {
         private readonly EntityRepository _w = new();
