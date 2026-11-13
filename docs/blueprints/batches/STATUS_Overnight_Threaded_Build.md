@@ -40,6 +40,10 @@ pause → step ×5 → 3-D view → pause → view off — **all OK, 0 job fault
 0 faults, and the STRICT world guard at 0 DISTINCT HITS** (no read of S off the sim thread, no write of A by the sim, no UI write lost to a
 pull). The one `[FAIL]` is a correct refusal: the unsaved check is meaningful only in Edit, and the script asks while a Preview runs.
 
+⭐⭐ **Session 7 (same rig, mode 3 — now WITH THE BRAINS A PARALLEL PHASE, N-10 / N-11): every stage OK** (load, select, focus, play, pause,
+step ×5, 3-D view, spawn, component edit, delete, steps, two orders, Edit-state move, preview stop, save), **0 faults, strict guard 0 distinct
+hits** (`scratchpad/sess7`).
+
 | gate | command | result |
 |---|---|---|
 | N-1 + N-3 rails + TwoWorlds | `dotnet test FDP/Engine/Fdp.Core.Tests --no-build --filter "FullyQualifiedName~SimJobQueueTests\|FullyQualifiedName~StagingWorldsTests\|FullyQualifiedName~TwoWorldsTests"` | 14 / 0 / 0 |
@@ -86,6 +90,8 @@ pull). The one `[FAIL]` is a correct refusal: the unsaved check is meaningful on
 | D-31 | brain code that ADDS a component and then writes it ("add default, then GetComponentRW") — the scale rig crashed on two (`Callouts.Say`, `UnderFire.Stamp`); a scan found ~20 more | make own-entity adds direct (they touch shared counters, the add log, managed chunk allocation, and their ORDER would depend on threads) · ⭐ keep F-6 (structural changes deferred) and ADD WITH THE FINAL VALUE | the value is built in a local and added once; present ⇒ the RW path as before; serial behaviour identical. Where the read is in a LATER call (the callout's cooldown), the whole operation defers (`BatchContext.Later`) | `852cf7598`, `767561959` |
 | D-32 | a squad commander's drill trace was first ADDED mid-tick (a second write in the same tick built from empty) | ⭐ provision it with the commander | `SquadStateProvisioning` adds it with the squad state (the fact "a roster ⇒ a commander") | `cee930493` |
 | D-33 | callouts the brain makes for OTHER units (squad plays) | ⭐ R-4212 ②: a command, heard a tick later | `Callouts.Say` inside the phase queues a follow-up (`BatchContext.Later` + `IPhaseFollowUp`, played serially in batch order after the command buffers) — the policy and AQ105 E's de-dup (F-10) run in a fixed order | `cee930493` |
+| D-34 | `--mode all` threaded (N-13, U-2 / F-21): the editor's kernel on its worker, the other kernels on the main thread ⇒ the pool / runners / timers entered from two threads | per-kernel statics · ⭐ ONE sim worker for every kernel | `SubsystemOrchestrator.StartSimWorker`: one thread runs, in sequence, the host's sim-side boundary work (the cluster API's sim-side routes, the startup load) and every subsystem's kernel step — a staged one's own (`ISimSteppedSubsystem`, the editor's `SimStep`), a plain one's `Update`; the main thread keeps only the staged presentation and the UI-side routes (N-8's split, now on the cluster API too). A plain subsystem is NOT drawn while its kernel ticks on the worker (it has no presentation copy). Policy F-21: windowed = threaded; headless keeps everything inline (nothing drawn ⇒ no race) | `OneSimWorkerTests`, red-proved |
+| D-35 | cover ties in the parallel brain phase (F-9) | ⭐ age, then index | `CoverClaim.Since`; the older claim keeps the point (equal ⇒ lower index); the loser yields and re-picks, the winner's picks ignore it — §10.7 folded | `F9_…`, red-proved twice |
 | D-5 | `SimLink` needs a component id | — | `GlobalComponentIds.SimLink = 475` (free in every lane and in every test) | — | `GlobalComponentIds.cs` |
 
 ### N-9 (`CE-4471`) — managed components changed in place: the audit and the verdict
@@ -118,7 +124,12 @@ in a world): 6 in-place write sites in 4 types; everything else replaces whole (
 | the generator emitting each asset's cross reads (§18.2) | `BrainReads` is a hand list (from the survey) | the blueprint / BTree / HSM generators emit, per asset, the types read on other entities; `BrainPhase` unions them |
 
 ## 6. NUMBERS
-(N-16, later)
+
+| what | measured | where |
+|---|---|---|
+| the brains' wall time, in process (800 men, 2 sides, the shipped SOP + reactions, 120 ticks, 4-core VM) | serial walk **10.6 ms/tick** · parallel phase **13.7 / 10.1 / 7.5 ms** at 1 / 2 / 4 threads (1.8× from 1 to 4 threads; 1.4× vs the serial walk — ~3 ms of phase overhead: the pre-pass, BrainPhase, the hooks, the batch merge) | `HROT_MEASURE=1 … --filter N16_TheBrainsWallTime_At1_2_4Threads` |
+| the scale rig, serial vs parallel (300 men, demo-city, Debug, 4-core VM, three busy node processes) | CGF work 266.0 vs 266.6 ms/frame · BrainTick 131 vs 134 ms · movers moved 3/12 in both — ⚠ no core free to win on this VM (the in-process number above is the one that isolates the brain); behaviour equal, 0 crashes | `scripts/scale-rig.py --terrain demo-city --men 300` with / without `HROT_PARALLEL_SIM=1` |
+| ⚠ Windows / more cores | not measurable here — the handoff's Windows script is N-16's remaining half | — |
 
 ## RULES FROM THE USER DURING THE NIGHT
 🔒 *"when you are making a Decision, Take the one that follows the best practices and fits the engine architecture. Do not do any shortcuts, no hacks please."* · *"run only focused test suites … only those that are really necessary for the trouble you are testing."*

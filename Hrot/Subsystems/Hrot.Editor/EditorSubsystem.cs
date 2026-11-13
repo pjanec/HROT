@@ -169,7 +169,7 @@ namespace Hrot.Editor
     /// </list>
     /// </para>
     /// </summary>
-    public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable, Fdp.Toolkit.Runner.IAppExitGuard,
+    public sealed class EditorSubsystem : ISubsystem, Fdp.Toolkit.Runner.ISimSteppedSubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable, Fdp.Toolkit.Runner.IAppExitGuard,
         Fdp.Toolkit.Runner.IWindowTitleSource,
         Hrot.Common.EntityCreation.IEntityCreationHost,
         Hrot.Presentation.DebugApi.IHostsClusterMaster,
@@ -3176,9 +3176,46 @@ namespace Hrot.Editor
         private volatile bool _debugMirrorJobPending;
         private Action<EntityRepository>? _debugMirrorJob;
 
+        // ⭐ N-13 (CE-4475) — the host runs every kernel of the process on ITS one sim worker: this editor starts no thread, its staged step
+        //   (jobs, tick, publish — SimStep) is called from there
+        private bool _hostSimWorker, _hostWorkerArmed;
+
+        /// <inheritdoc/>
+        public void UseHostSimWorker() { if (Staged) _hostSimWorker = true; }
+
+        /// <inheritdoc/>
+        public bool SimStepOnHostWorker()
+        {
+            if (!_hostSimWorker || _staging == null) return false;
+            if (!_hostWorkerArmed)
+            {
+                _hostWorkerArmed = true;
+                if (_simWorld != null) Fdp.Core.WorldGuard.Arm(_simWorld, _world!, Environment.CurrentManagedThreadId);   // the sim thread is the host's
+            }
+            float dt;
+            lock (_workerDtLock)
+            {
+                dt = (float)System.Math.Min(_workerPendingDt, 0.25);
+                _workerPendingDt = _workerPendingDt - dt > 0.25 ? 0 : _workerPendingDt - dt;   // never more than one quarter second behind
+            }
+            if (dt <= 0f) return false;
+            try { SimStep(dt); }
+            catch (Exception ex)
+            {
+                if (System.Threading.Interlocked.Increment(ref _kernelWorkerFaults) <= 20) Console.WriteLine("[N-13] editor sim step fault: " + ex);
+            }
+            Fdp.ModuleHost.ThreadedKernelGate.Ticks++;
+            return true;
+        }
+
         private void EnsureKernelWorker()
         {
             if (_kernelWorker != null) return;
+            if (_hostSimWorker)
+            {   // ⭐ N-13 — the host's worker runs the step; only the presentation-side switches are made here
+                if (_gizmoBuffer != null) _gizmoBuffer.ReaderUsesPublished = true;
+                return;
+            }
             if (_canvas != null) Console.WriteLine("[X-4] map layers: " + string.Join(", ", _canvas.Layers.Select(x => x.GetType().Name)));
             if (_gizmoBuffer != null) _gizmoBuffer.ReaderUsesPublished = true;
             _kernelWorker = new System.Threading.Thread(KernelWorkerLoop) { IsBackground = true, Name = "HROT kernel (X-4)" };

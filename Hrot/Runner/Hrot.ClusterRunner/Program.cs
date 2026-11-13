@@ -668,6 +668,16 @@ class Program
                 using var clickLatch = Fdp.Presentation.Input.ClickLatch.Create();
                 var frameStats = Hrot.ClusterRunner.Presentation.FrameStats.FromEnvironment();   // ⭐ CE-1072 — HROT_FRAME_STATS=1
 
+                // ⭐⭐ N-13 (CE-4475; U-2 / F-21) — a windowed threaded process runs EVERY kernel on ONE sim worker, in sequence; the cluster API's
+                //   sim-side routes and the startup load run on that worker between passes, its UI-side routes (N-8's split) stay on this thread
+                bool simWorker = Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds && !Fdp.ModuleHost.ThreadedKernelGate.ComposedSingleThread;
+                Hrot.Editor.DebugApi.MainThreadJobQueue? clusterUiQueue = null;
+                if (simWorker)
+                {
+                    if (clusterApiQueue is not null) clusterApiQueue.UiQueue = clusterUiQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
+                    orchestrator.StartSimWorker(() => { startupLoad?.Tick(); clusterApiQueue?.DrainAll(); });
+                }
+
                 while (true)
                 {
                     // ③ + ④ — THE FRAME BOUNDARY. 🔴 ORDER MATTERS (HN-007): the API's jobs drain FIRST,
@@ -676,7 +686,8 @@ class Program
                     //    panel read return an empty set in the editor, and it would do the same here.
                     if (clusterApiQueue is not null)
                     {
-                        clusterApiQueue.DrainAll();
+                        if (clusterUiQueue is not null) clusterUiQueue.DrainAll();   // N-13 — the sim-side routes drain on the sim worker
+                        else clusterApiQueue.DrainAll();
                         Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.ClearCaptured();
                     }
 
@@ -708,7 +719,7 @@ class Program
                     // ⭐ EXPERIMENT (threaded kernel X-4) — HROT_THREADED_KERNEL=1: take the world if the kernel's worker is between ticks (OFF: always true)
                     bool haveWorld = Fdp.ModuleHost.ThreadedKernelGate.MainTryEnter();
                     try {
-                    if (haveWorld) startupLoad?.Tick();   // ⭐ CE-3354 ⑥
+                    if (haveWorld && !simWorker) startupLoad?.Tick();   // ⭐ CE-3354 ⑥ (N-13: on the sim worker when it runs)
                     frameStats?.Begin();
                     orchestrator.Update(dt);
                     frameStats?.EndUpdate();

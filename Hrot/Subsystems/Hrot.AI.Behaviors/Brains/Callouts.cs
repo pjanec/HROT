@@ -50,6 +50,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!urgent && st.LastAt > 0 && now - st.LastAt < CoolDownSeconds) return false;
             if (SaidNearby(world, man, at, kind, now)) return false;
             if (!Utterances.Say(world, man, kind, target, now, SpeakSeconds)) return false;
+            if (Fdp.Toolkit.Diagnostics.QueryTimings.Enabled) Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_Spoken, 1);   // F-10 — what was said (measurement)
             st.LastAt = (SimInstant)now;
             st.LastKind = kind;
             return true;
@@ -126,6 +127,7 @@ namespace Hrot.AI.Behaviors.Brains
 
 
         private static readonly int S_SaidNearby = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("brain.Callouts.SaidNearby");
+        private static readonly int S_Spoken = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("brain.Callouts.spoken (count)");
 
 
         private static bool SaidNearbyCore(EntityRepository world, Entity man, Vector3 at, UtteranceKind kind, double now)
