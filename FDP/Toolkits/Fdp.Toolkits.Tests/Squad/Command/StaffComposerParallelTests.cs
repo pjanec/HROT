@@ -128,17 +128,13 @@ namespace Fdp.Toolkits.Tests.Squad.Command
                 var (w, cs, _) = World(60);
                 for (int c = 0; c < cs.Length; c++) w.SetComponent(cs[c], new ReportingRequirements());   // no sitrep timer: nothing becomes due
                 var composer = new StaffComposerSystem();
-                for (int f = 0; f < 40; f++)   // warm: outboxes added, buffers grown, the pool waited on once
+                w.SetSingleton(new GlobalTime { TotalTime = 5.0, DeltaTime = 0.1f, TimeScale = 1f });   // nothing is due: the time need not move
+                for (int f = 0; f < 200; f++)   // warm: outboxes added, buffers grown, the pool waited on, the JIT settled
                 {
-                    w.SetSingleton(new GlobalTime { TotalTime = 1.0 + f * 0.1, DeltaTime = 0.1f, TimeScale = 1f });
                     w.Bus.SwapBuffers(); composer.Execute(w, 0.1f); w.Bus.SwapBuffers();
                 }
                 long before = GC.GetAllocatedBytesForCurrentThread();
-                for (int f = 40; f < 60; f++)
-                {
-                    w.SetSingleton(new GlobalTime { TotalTime = 1.0 + f * 0.1, DeltaTime = 0.1f, TimeScale = 1f });
-                    composer.Execute(w, 0.1f);
-                }
+                for (int f = 0; f < 20; f++) composer.Execute(w, 0.1f);   // ⭐ ONLY the composer is measured
                 Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
                 w.Dispose();
             }
