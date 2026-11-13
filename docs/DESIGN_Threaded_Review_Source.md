@@ -26,6 +26,17 @@ the staging pull copies S (empty during a group review) over A; and UI panels re
 **Decision:** the review source is SIMULATION-side, like the own-run replay: it merges into S on the sim thread; the UI reads a published,
 immutable **review read model** and changes it only through sim jobs. The standalone Replay Browser builds the same model inline.
 
+## INVENTORY *(2026-11-13)*
+
+| query | total | what it found |
+|---|---|---|
+| `scripts/cbm.sh search_graph '{"name_pattern":".*(Federat\|ReviewSource\|Readout).*","label":"Class"}'` | 13 | ⚠ the graph indexes `coordinator`, which lacks the review code: `FederatedReplayManager`, `FederationPanel` + `FederationPanelViewModel` (a panel that already builds a view model — the precedent R-1 follows), `FederationWindow`, `FederatedGuidResolver`, `MapCursorReadout`; ⛔ no existing review read model |
+| grep `FederatedReplayManager` over `exp/threaded-build` (production, no tests) | 19 files | the Federation toolkit (manager, merger, `ReplicaViews`, ownership, inventory, priming, builder) · the UI readers: `FederationPanel`, `FederationWindow`, `ReplayTimelinePanel`, `ByNodeSection`, `ReplaySearchPanel`, `ITimelineCursor`, `FileReview`, `ReplicaWatchLane` · the hosts: `ReviewSource`, `ReplayBrowserSubsystem` (+ DebugSurface), `ReplayDirectorHost` |
+| grep `ReviewSourceOf` over `exp/threaded-build` | 3 sites | `EditorSubsystem.cs:421` (built), `:438` (picker notes), `:5875` (composition; `:5931` the frame-overlay `Update`) |
+
+⚠ Coverage could not be checked (`check_index_coverage` is not in the CLI); `ReplayDirectorHost` and the Replay Browser's debug surface are the
+manager's other host-side users — R-2 re-points only the UI readers and leaves those hosts on the live manager.
+
 ## 1. The design
 
 ### 1.1 Classes
