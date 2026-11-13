@@ -228,6 +228,30 @@ public sealed class DemAndRoadsTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ CE-6022 — a single Overpass answer writes the ways' nodes AFTER the ways (<c>out meta; &gt;; out meta qt;</c>); netconvert resolves points only from nodes it has
+    /// already read, so the road vanished while the import succeeded (Štěchovice: 6 road edges of 2 554). 🔴 Red-proof: hand netconvert the file as given ⇒ no edge ⇒ red.
+    /// </summary>
+    [Fact]
+    public async Task WaysBeforeTheirNodes_StillBecomeRoads()
+    {
+        if (Netconvert.Locate().Problem != null) return;
+        (double lat, double lon)[] pts = { (49.8700, 14.4100), (49.8700, 14.4130), (49.8715, 14.4130) };
+        var (e0, n0) = Utm.FromGeodetic(pts[0].lat, pts[0].lon, 33, false);
+        var frame = new UtmFrame(33, false, Math.Round(e0 / 100) * 100, Math.Round(n0 / 100) * 100);
+        var osm = new System.Text.StringBuilder("<?xml version='1.0' encoding='UTF-8'?>\n<osm version='0.6' generator='test'>\n");
+        osm.Append("<way id='10' version='1'><nd ref='1'/><nd ref='2'/><nd ref='3'/><tag k='highway' v='residential'/></way>\n");   // the way first, as Overpass answers
+        for (int i = 0; i < pts.Length; i++)
+            osm.Append(string.Create(CultureInfo.InvariantCulture, $"<node id='{i + 1}' lat='{pts[i].lat}' lon='{pts[i].lon}' version='1'/>\n"));
+        osm.Append("</osm>\n");
+        string osmFile = Path.Combine(_dir, "late-nodes.osm");
+        File.WriteAllText(osmFile, osm.ToString());
+        await new NetconvertRoadBuilder(-1000, -1000, 1000, 1000).BuildAsync(osmFile, frame, Path.Combine(_dir, "roads"), default);
+        var doc = System.Xml.Linq.XDocument.Load(Path.Combine(_dir, "roads", "roads.net.xml"));
+        Assert.Contains(doc.Root!.Elements("edge"), x => (string?)x.Attribute("type") == "highway.residential");
+        Assert.False(File.Exists(Path.Combine(_dir, "roads", "hrot-osm-nodes-first.osm")), "the reordered copy is a build input, not left in the roads folder");
+    }
+
+    /// <summary>
     /// ⭐ CE-6020 — opt-in HARNESS (not a gate): a real town through the SAME composition the editor's OSM wizard uses (<see cref="OsmPipelines.ForAreas"/>), from OSM files on disk.
     /// <c>HROT_OSM_RUN_DIR</c> holds the downloaded <c>*.osm</c> tiles (merged here by <see cref="OsmXmlMerge"/>) and a <c>box.txt</c> (<c>south west north east</c>); the input set is written to
     /// <c>HROT_OSM_RUN_OUT</c>. Raw OSM data never enters git — the files live wherever the caller put them.
