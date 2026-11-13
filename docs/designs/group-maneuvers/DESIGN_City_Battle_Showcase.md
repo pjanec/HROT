@@ -68,7 +68,7 @@ the obstacle bake / placement / avoidance classes (`StaticObstacleBakeSystem`, `
 ![The battle at a glance](city-battle-overview.svg)
 
 *What the picture shows that prose hid:* the battle is THREE bands the attack must cross — the open fields (where both sides' drones make a dead
-zone), the ring road (the defenders' main line, roadblocked), the old town behind the river (the inner ring, the town hall). Each phase line is a
+zone), the ring road (the defenders' main line, roadblocked), the old town (the inner ring, the town hall) with the river BEHIND it from the attacker's side, the hill and the reserve beyond. Each phase line is a
 scripted trigger; everything between two lines is a company commander's problem. The air assault skips the bands and lands on the objective.
 
 ## 3. The phases — the scripted top, OVERLAPPING, and nothing below it
