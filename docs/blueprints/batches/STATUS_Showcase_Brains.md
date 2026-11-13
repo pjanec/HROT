@@ -22,7 +22,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | 3 | CE-7023 `CompanyAttack` · CE-7024 `CompanyDefend` | ✅ | `Brains/CompanyBehaviors.cs`; `PlatoonDefend` Ready reports Set up |
 | 4 | CE-7005 tempo | ✅ | inside `CompanyAttack` |
 | 5 | CE-7025 smoke bombs · CE-7003 support calls (fires + smoke) | ✅ · 🔶 part (bulldozer / drone tasking wait for CE-7012 / CE-7026…) | §6b; CE-2278 (the grenade) not yet |
-| 6 | CE-7008 suppression wears off | ✅ | `StressModel.QuietSeconds` |
+| 6 | CE-7008 suppression wears off · CE-7007 shoot and move | ✅ · ✅ | `StressModel.QuietSeconds` · `SquadDefend.ShootAndMove` |
 | 7 | CE-7010 the air gate | ⏭ ignored — the user | — |
 
 ## 2. The gates
@@ -49,6 +49,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | the company has NO standing orders (handoff said `BasicCompanySop`) | its work is its task |
 | `CompanyAttack` takes four fixed objectives `Objective1…4` | the intent payload is a flat struct |
 | the reserve reinforces before the company falls back; the block it went into counts as held | measured on the bench: with two blocks one failure is "half" |
+| R-7002 shoot and move opt-in below the company, on (25 s) in `CompanyDefend` | no existing defence changes |
 | R-7001 a smoke request = the `ElementEquipment.Smoke` flag; the gun loads the round its strike names | a request's `Count` is already 1 in production |
 
 | for the user to look at | |

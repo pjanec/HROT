@@ -49,6 +49,8 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Falling;
         /// <summary>⭐ E-3a (DA-66) — the fall-back point (made at plan time when the order has none).</summary>
         public Vector3 FallBackTo;
+        /// <summary>⭐ <c>CE-7007</c> — handed to every squad's <c>SquadDefend</c> (s; 0 = off).</summary>
+        public float ShootAndMove;
         /// <summary>⭐ E-4 (DA-85, DA-90) — 1 once the area's survey was asked (battle positions) · when (sim s).</summary>
         public byte Asked;
         public SimInstant AskedAt;
@@ -176,6 +178,7 @@ namespace Hrot.AI.Behaviors.Brains
             plan.SearchRadius = authored.SearchRadius;
             plan.Speed = authored.Speed;
             plan.FallBackTo = authored.FallBackTo;
+            plan.ShootAndMove = authored.ShootAndMoveSeconds;   // ⭐ CE-7007
             if (SectorSplit.Norm(authored.Right - authored.Left) > 0f)
                 plan.Area = new EngagementArea
                 {
@@ -403,8 +406,8 @@ namespace Hrot.AI.Behaviors.Brains
                 else
                 {
                     var order = p.Falling != 0   // ⭐ E-3a (DA-69) — the reserve (and an OP) covers at the fall-back point
-                        ? new SquadDefendParamsJsonDto { Position = p.FallBackTo, SearchRadius = p.Radius[slot], Speed = p.Speed }
-                        : new SquadDefendParamsJsonDto { Position = p.Point(slot), SearchRadius = p.Radius[slot], Speed = p.Speed };
+                        ? new SquadDefendParamsJsonDto { Position = p.FallBackTo, SearchRadius = p.Radius[slot], Speed = p.Speed, ShootAndMoveSeconds = p.ShootAndMove }
+                        : new SquadDefendParamsJsonDto { Position = p.Point(slot), SearchRadius = p.Radius[slot], Speed = p.Speed, ShootAndMoveSeconds = p.ShootAndMove };
                     CommandOrders.Assign(world, self, squad, BehaviorNames.SquadDefend, JsonSerializer.Serialize(order, json), newOrder: true);
                 }
                 Sector(ref p, slot, world, squad);

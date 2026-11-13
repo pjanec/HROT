@@ -34,5 +34,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>The platoons' asked speed (m/s); 0 = their own.</summary>
         [JsonPropertyName("Speed")]
         public float Speed;
+
+        /// <summary>⭐ <c>CE-7007</c> (active defence) — handed down to every platoon and squad: shoot and move between posts (s); 0 = 25, a
+        /// negative value = off.</summary>
+        [JsonPropertyName("ShootAndMoveSeconds")]
+        public float ShootAndMoveSeconds;
     }
 }

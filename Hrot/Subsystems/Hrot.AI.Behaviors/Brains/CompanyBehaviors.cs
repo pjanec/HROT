@@ -503,6 +503,8 @@ namespace Hrot.AI.Behaviors.Brains
         public float Frontage;
         public float Depth;
         public float Speed;
+        /// <summary>⭐ <c>CE-7007</c> — shoot and move handed down (s; ≤ 0 off).</summary>
+        public float ShootAndMove;
         public byte Made;
         /// <summary>1 once the company fell back to its next line.</summary>
         public byte Falling;
@@ -535,6 +537,8 @@ namespace Hrot.AI.Behaviors.Brains
     public static class CompanyDefendBehavior
     {
         public const float DefaultFrontage = 300f, DefaultDepth = 250f, BlockArcHalfDegrees = 40f;
+        /// <summary>⭐ <c>CE-7007</c> (lane default R-7002) — a company's defence shoots and moves by default (the showcase's "never just sitting").</summary>
+        public const float DefaultShootAndMoveSeconds = 25f;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct CompanyDefendBlackboard
@@ -555,6 +559,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.Plan.Frontage = authored.Frontage > 0f ? authored.Frontage : DefaultFrontage;
             block.Plan.Depth = authored.Depth > 0f ? authored.Depth : DefaultDepth;
             block.Plan.Speed = authored.Speed;
+            block.Plan.ShootAndMove = authored.ShootAndMoveSeconds == 0f ? DefaultShootAndMoveSeconds : authored.ShootAndMoveSeconds;   // ⭐ CE-7007
             block.Plan.ReserveTo = -1;
         }
 
@@ -653,7 +658,8 @@ namespace Hrot.AI.Behaviors.Brains
                 if (p.Dirty[slot] == 0 && CommandOrders.Stands(world, self, platoon)) continue;
                 p.Dirty[slot] = 0;
                 var at = p.Point(slot);
-                var dto = new PlatoonDefendParamsJsonDto { Position = at, Speed = p.Speed, FallBackTo = at - new Vector3(p.Toward * p.Depth, 0f) };
+                var dto = new PlatoonDefendParamsJsonDto { Position = at, Speed = p.Speed, FallBackTo = at - new Vector3(p.Toward * p.Depth, 0f),
+                                                          ShootAndMoveSeconds = Math.Max(0f, p.ShootAndMove) };
                 if (p.Role[slot] == CompanyDefencePlan.Line || p.ReserveTo >= 0)
                 {
                     float bearing = SectorSplit.Norm(MathF.Atan2(p.Toward.X, p.Toward.Y) * (180f / MathF.PI));

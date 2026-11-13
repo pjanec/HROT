@@ -36,6 +36,12 @@ namespace Hrot.Map.Definitions.Behavior
         /// lifts when that charge is gone (set off, or destroyed) or a round lands at a man — not when the enemy is first seen in the sector.</summary>
         [JsonPropertyName("InitiatedBy")]
         public Fdp.Toolkit.Replication.EntityLink InitiatedBy;
+
+        /// <summary>⭐ <c>CE-7007</c> (City Battle §3a — active defence) — SHOOT AND MOVE: a posted man in contact changes to another post of
+        /// the squad's set after this many seconds at one (each man 1 – 1.6 × it, seeded by who he is); 0 = off (he stays until his post is
+        /// untenable or flanked, as before).</summary>
+        [JsonPropertyName("ShootAndMoveSeconds")]
+        public float ShootAndMoveSeconds;
     }
 
     /// <summary>⭐ <c>CE-2275</c> D-2f (DA-46) — one authored fighting position of a <c>SquadDefend</c> order.</summary>

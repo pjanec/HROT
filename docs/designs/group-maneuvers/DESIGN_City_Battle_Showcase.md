@@ -389,6 +389,7 @@ task-end Set never came).
 | the base of fire 250 m short of the objective, the reserve 400 m; each next objective measured from the previous one | — |
 | tempo: ½ deadline ⇒ REQUEST FireSupport on the objective · 1× ⇒ the reserve attacks beside the assault · 1.5× ⇒ bypass (never the last) | the smoke round comes with CE-7025; until then the request is plain fire support |
 | defend: the reserve goes in FIRST; the company falls back only when half the blocks fail with the reserve already in (the block it reinforced counts as held) | ⭐ measured on the bench: with two blocks one failure is already "half", so the first rule fell back before the reserve could act |
+| ⭐ CE-7007: shoot and move is opt-in below the company (`ShootAndMoveSeconds`, 0 = off) and on by default at 25 s in `CompanyDefend` — the company hands it to its platoons, they to their squads | ⭐ lane default R-7002: shoot and move is opt-in below the company, so every existing defence scenario keeps its behaviour |
 | the puppet bench (CE-7022) = the drills' existing one-frame `Platoon` fixture with its members as platoons (`SquadManeuverTests.Company.cs`) | no new harness was needed: the fixture never cared what echelon its members were |
 
 ## 6b. Smoke from the guns as built *(showcase-brains, `2026-11-13`; CE-7025, CE-7003 — obligation ⑤)*
