@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — in progress
+state: LIVE — DONE (F-1 … F-6; one residue open: CE-3445)
 updated: 2026-11-13
 current-answer: the whole file (NEXT is the resume point)
 related-designs:
