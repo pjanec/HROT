@@ -73,6 +73,12 @@ Branch `exp/threaded-build`. Rulings R-4218 / R-4219 (R-4207, R-4215).
 |---|---|---|---|
 | ⭐ M-4 the tick, 1 000-man demo-city, mode 3 + `HROT_PARALLEL_SIM=1`, PLAYING (Throughput by M-2), 4-core VM | **Debug** 1 thread / 4 threads: tick 2 247 / 1 452 ms · **Release**: 192 / **222** ms ⚠ (worse at 4) | Release 1 / 2 / 4: **182 / 205 / 214** ms; BrainTick 44 / 38 / 26; the sim group 116 / 111 / 106; ⚠ the module-snapshot pool keeps 222 MB | `threaded-scale-measure.py --threads 1,2,4` (`HROT_PARALLEL_SIM=1`) |
 
+| ⭐ **M-8 after** — the same rig and switches, every phase on (`HROT_PARALLEL_SIM=1`), after M-4 … M-7 | Release 1 / 4: 192 / 222 ms (M-4) · Debug 1 / 4: 2 247 / 1 452 ms | **Release 1 / 2 / 4: 177 / 190 / 186 ms** (BrainTick 52 / 35 / 26; the sim group 118 / 105 / 96; the weapon dispatcher 13–15) · **Debug 1 / 4: 2 189 / 1 290 ms** · ⭐ the tick no longer gets WORSE with threads; ⚠ a 4-core VM shared with the UI and EQS cannot show the real-core scaling — that is the Windows run's | `threaded-scale-measure.py --threads 1,2,4` |
+
+⭐ **The Windows command (real cores, Release):** `dotnet build Hrot/Runner/Hrot.ClusterRunner -c Release` then
+`set HROT_PARALLEL_SIM=1` and `python scripts\threaded-scale-measure.py --out <dir> --threads 1,2,4,6,8,12` — and the determinism gate
+`python scripts\stepped-hash.py --threads 1,2,4,8` (exit 0 = state equal).
+
 ### M-4 — what is serial in the tick (ms per call, recent average; 4 threads)
 
 | system | Debug 1 → 4 | Release 1 → 4 | per-entity? | writes on OTHER entities |
