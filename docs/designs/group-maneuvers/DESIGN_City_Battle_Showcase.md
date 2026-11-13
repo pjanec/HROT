@@ -419,6 +419,34 @@ own one-reload rule, so a mission that does not ask for smoke reloads HE the sam
 | `StrikeOrder.Smoke` → battery `Round` → `MemberOrder.Round` → `FireAtPoint` `round` → the executor loads it | one field per hop, the existing chain |
 | a smoke REQUEST is the `ElementEquipment.Smoke` flag | ⭐ lane default R-7001: a request's `Count` is already 1 in production, so it could not carry the round |
 
+## 6c. The bulldozer's `ClearObstacle` as built *(showcase-brains, `2026-11-13`; CE-7012 — obligation ⑤)*
+
+```mermaid
+sequenceDiagram
+  participant D as ClearObstacle (dozer brain, parallel phase)
+  participant L as LocomotionChannel (its own)
+  participant Bus as bus → batch buffer
+  participant O as obstacle owner: HealthApplication + ObstacleRemoval (CE-6003)
+  D->>D: Face = ObstacleDamage.NearestPoint(box, dozer)
+  alt farther than ContactMetres (6 m)
+    D->>L: MoveTo StandOffMetres (4 m) in front of the face
+  else blade on it
+    D->>Bus: ObstacleDamage.Damage(Max / PushSeconds × dt) each tick
+    Bus-->>O: DamageAssessedEvent (next tick)
+    O->>O: Health → 0 ⇒ DestroyEntityCommand ⇒ rebake (existing)
+  end
+  D-->>D: obstacle gone (or Health ≤ 0) ⇒ Success
+```
+*What the picture shows that prose hid:* the dozer never writes the obstacle — the push is the damage EVENT, which inside the phase rides the batch's
+buffer (`FdpEventBus.Publish` → `BatchContext.Commands`), so CE-6003's owner, removal and rebake are reused by construction (R-4212).
+
+| as built | why |
+|---|---|
+| `ClearObstacle` params `Obstacle` (link), `Speed` (0 = 4), `PushSeconds` (0 = 10) | ⭐ lane default R-7004: ANY obstacle in 10 s of contact (the push is the obstacle's `Health.Max / 10` per second) — the handoff's frame |
+| contact = hull centre within 6 m of the nearest face; the drive stops 4 m short | half a dozer + the blade; no new shape kit for the dozer |
+| `StaticObstacle` + `ObstacleShape` added to `BrainReads` | declared stable reads — nobody writes them in the phase |
+| ⏳ the company ORDERING it after smoke (CE-7003's rest) | not built here — CE-7003 |
+
 ## 7. Sequences
 
 ```mermaid
@@ -555,7 +583,7 @@ B's CE-7012 (the bulldozer's ClearObstacle) stands on them.
 | CV-1 | **CE-7011** | civilians (§3c): Watch (CE-7030), boldness (CE-7031), and a driver who panics from noise, not only when hit (`TrafficPanic.cs:187-200` covers a hit car). ⭐ CIV-3 fear-spreads is ALREADY BUILT (`CrowdSystem.cs:400-421`, measured 2026-11-13) | `CivilianHsm`, the phone held item | B |
 | CV-1a | **CE-7030** | `CivilianMode.Watch`: curious at a distance, some film | `CivilianBehavior`, the phone | B |
 | CV-1b | **CE-7031** | the boldness trait (≈ 5 % filmers) | civilian params | B |
-| V-2 | **CE-7012** | `ClearObstacle`: drive to the blocker, blade down, push → CE-6003 | vehicle drive behaviours | B |
+| V-2 | **CE-7012** ✅ BUILT `2026-11-13` (§6c) | `ClearObstacle`: drive to the blocker, blade down, push → CE-6003 | vehicle drive behaviours | B |
 | R-1 | **CE-7013** | drone team: operator + stock + battery; Bomber and Recon quadcopters; recon joins the observer chain | FPV drone, `DroneImpactSystem`, `PersonObserveFire` | B |
 | R-1a | **CE-7026** | the operator launches (a drone born through the ELM; ⛔ no launch exists — drones are placed airborne) | FPV type + dive brain | B |
 | R-1b | **CE-7027** | the bomber quadcopter (drop) | the impact path | B |

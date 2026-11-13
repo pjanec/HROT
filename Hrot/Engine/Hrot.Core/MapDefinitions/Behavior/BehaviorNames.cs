@@ -259,6 +259,8 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-7024</c> (City Battle §6, §11 C-1c) — the company defends a line: a block per platoon facing the threat, a reserve
         /// behind that reinforces a failing block, the whole company falls back to the next line when half its blocks fail.</summary>
         public const string CompanyDefend = "CompanyDefend";
+        /// <summary>⭐ <c>CE-7012</c> (City Battle §11 V-2) — the bulldozer drives to an obstacle and pushes it away (CE-6003's damage seam).</summary>
+        public const string ClearObstacle = "ClearObstacle";
         /// <summary>⭐ <c>CE-2347</c> (R-2069, Defend &amp; Attack §11a) — the platoon rides a route: the squads in their vehicles, a halt on
         /// contact, secure when it is quiet, remount and carry on.</summary>
         public const string PlatoonConvoy = "PlatoonConvoy";

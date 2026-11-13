@@ -30,6 +30,8 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Core.CommandHierarchy.UnitSubordinate>();      // the ROE through his commander (AimAndFireExecutor)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.CoverClaim>();       // a friend's cover claim (R-4208: seen a tick late)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Replication.Components.TkbIdentity>(); // a contact's template (the threat level's weapon count)
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.StaticObstacle>();             // CE-7012 — the dozer's blocker (nobody writes it in the phase)
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.ObstacleShape>();               // — and its box (its nearest face)
         }
     }
 }
