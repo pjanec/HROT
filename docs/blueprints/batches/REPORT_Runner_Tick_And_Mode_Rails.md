@@ -7,7 +7,7 @@ known-conflict: none.
 -->
 # REPORT — the runner's tick path and its mode rails
 
-> 📌 **Dispatch:** [`HANDOFF_Runner_Tick_And_Mode_Rails.md`](HANDOFF_Runner_Tick_And_Mode_Rails.md),
+> 📌 **Dispatch:** `HANDOFF_Runner_Tick_And_Mode_Rails.md`,
 > frozen at **`5963fffd4`**. Branch `claude/blueprint-macro-feature-sdmspn` (BACKEND lane).
 > **ids allocated: `ST-019`, `ST-020`, `ST-021`** *(rule 5)*. Order per §1: **T2 before T1**.
 

@@ -7,7 +7,7 @@ known-conflict: none.
 -->
 # REPORT — gizmo schema follows declaration
 
-> 📌 **Dispatch:** [`HANDOFF_Gizmo_Schema.md`](HANDOFF_Gizmo_Schema.md), frozen at **`7977adace`**.
+> 📌 **Dispatch:** `HANDOFF_Gizmo_Schema.md`, frozen at **`7977adace`**.
 > Branch `claude/blueprint-macro-feature-sdmspn` (BACKEND lane).
 > **ids allocated: `ST-022`, `ST-023`, `ST-024`, `ST-025`** *(rule 5)*. Order per §1: **T1 → T3 → T2**.
 

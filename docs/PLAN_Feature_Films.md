@@ -264,8 +264,8 @@ A 20 s clip takes ~8 min, plus ~2 min of scouting. **The ~40 clips in §1 fit in
 ## 4. What the sweep found — notes sent to the lanes
 
 The descriptions were written from each scenario's live check and its owning design, and that reading turned up the following. The
-notes are [NOTE_Coordinator_To_Behaviors_Demo_Sweep.md](blueprints/batches/NOTE_Coordinator_To_Behaviors_Demo_Sweep.md) and
-[NOTE_Coordinator_To_Backend_Filming.md](blueprints/batches/NOTE_Coordinator_To_Backend_Filming.md).
+notes are NOTE_Coordinator_To_Behaviors_Demo_Sweep.md and
+NOTE_Coordinator_To_Backend_Filming.md.
 
 | kind | scenarios |
 |---|---|

@@ -322,6 +322,47 @@ pays the ~59 s every time.**
 | ⭐⭐ **prove it in the rail** | `GC.GetAllocatedBytesForCurrentThread()` before/after a steady frame `== 0` (📌 the CE-2394 rails) |
 | ⚠ allocation on a first call, on growth, or on a user action is fine | ⛔ every frame is not |
 
+## ⛔⛔⛔ LANGUAGE-NEUTRAL OUTPUT — **no decimal commas, ever** *(user, `2026-11-13`, R-4221)*
+
+> 🔒 **User, verbatim:** *"There should never ever be decimal commas, it needs to be language neutral"*
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐⭐ **every HROT process is culture-INVARIANT** — logs, HTTP JSON, files, the UI, scripts' output | enforced ONCE for every executable (`InvariantGlobalization` in `Directory.Build.props`), so a new executable cannot forget it |
+| ⛔⛔ **never teach a parser to accept a comma** | 📌 a Czech Windows machine printed `[FrameStats] mean 8,9 ms` and the measuring script read 8 — the fix is the OUTPUT, never a tolerant reader (it hides the defect) |
+| ⭐ **code that formats or parses a number says so explicitly anyway** — `CultureInfo.InvariantCulture`, `ToString("0.0", CultureInfo.InvariantCulture)`, `double.Parse(s, CultureInfo.InvariantCulture)`; ⛔ never `CurrentCulture` / `CurrentUICulture` / `new CultureInfo("cs-CZ")` in production | ⭐ a library can run inside a host that is not ours (a test runner, a tool) |
+| ⭐ **a rail for anything that prints numbers is run under `cs-CZ`** | 📌 the existing precedent: `TreeTests` / `EndToEndTests` (TerrainSynth), `TheEventDetailsViewTests` |
+
+## ⛔⛔⛔ BEHAVIOUR CODE RUNS IN PARALLEL — **the per-entity rule, checked by machine** *(user, `2026-11-13`, R-4212 / R-4214 / R-4225)*
+
+> 🔒 **User, verbatim:** *"for sure i would like to start developing the showcase in parallel, but how to prevent breaking the parallelism rules?
+> there will be lots of new behavior work involved"*
+
+⭐ Every brain, squad, staff, stress, callout, threat, weapon and movement step runs as a **per-entity parallel phase** (`DESIGN_Parallel_Simulation.md`
+§18.5–§18.8). Any new behaviour code runs there too. ⭐ Each row below was a REAL defect found by the build — the shape repeats.
+
+| ⛔ never | ⭐ instead | 📌 found as |
+|---|---|---|
+| write ANOTHER entity's component directly | a command (the batch's buffer) — it lands next tick (R-4212) | the core rule |
+| read another entity's component that the SAME phase writes, undeclared | declare it — served from the tick-start view; a type nobody writes in the phase ⇒ a declared stable read | the weapon phase (M-D10) |
+| add a component, then write it (`Add` default, then `GetComponentRW`) | add it WITH its final value | `Callouts.Say`, `UnderFire.Stamp` crashed (D-31) |
+| a callout / order / message / egress mark to someone else, inline | a follow-up (`BatchContext.Later`), played in batch order | callouts, the order journal, rule messages (D-33, D-39) |
+| `static` mutable scratch, caches, counters, a shared `Random` | per-thread (`[ThreadStatic]`) or per-entity state; a random seeded per entity | `MemberEvaluation`, `ObjectiveCensus`, the message id (D-27) |
+| register a type or build an index lazily mid-tick | in the phase's serial pre-pass (`BrainPhase`) | D-26 |
+| change a managed component in place | build a new instance and set it (CLAUDE.md "NEW COMPONENTS") | the traffic frame race (N-9) |
+| a lock around per-entity work | a lock-free read of data prepared before the phase | the weapon dispatcher's line-of-fire lock, `PartIndex` (X-1, X-2) |
+| anything paced by the WALL clock in a step | sim time only | the module timeout (F-3) |
+
+| ⭐⭐⭐ the machine checks — every new behaviour's OWN rails run with them | |
+|---|---|
+| `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` | the rails run the behaviour as the parallel phase; an undeclared cross-entity read THROWS (`=2` lists them all — the survey) |
+| the strict world guard (`HROT_WORLD_GUARD=1`) | a write off its owning thread throws |
+| `python3 scripts/stepped-hash.py --threads 1,4,8` on the scenario the behaviour serves | the same world at every thread count, or a shared-state bug no review would see |
+
+⛔ **Behaviour code written where these checks do not exist meets the rule only at merge — the worst moment.** ⭐ Until the parallel programme is
+merged into the lanes, new behaviour CODE is written on a branch made from the unified parallel branch (`exp/threaded-build`); designs and
+scenario content can be done anywhere.
+
 ## ⭐⭐⭐ NEW COMPONENTS — **UNMANAGED when recorded; a managed one is IMMUTABLE and REPLACED whole** *(user, `2026-11-02`)*
 
 > 🔒 **User, verbatim:** *"when creating new components, we should prefer unmanaged ones, for those that are going to be saved into the
@@ -576,6 +617,22 @@ scaffolding.**
 was *first lean wrong · third lean right*, **because the USER'S CORRECTIONS WERE DOING THE MEASUREMENT.**
 ⚠⚠ **That is the wrong division of labour — the user was acting as the test suite.** ⇒ ⭐ **spend the tool
 calls first; a slower, measured first answer is the deliverable.**
+
+## ⭐⭐⭐ START FROM THE PROVEN SOLUTION, THEN JUSTIFY EVERY PIECE — **the code's current shape is a cost, not a boundary** *(user, `2026-11-12`)*
+
+> 🔒 **User, verbatim:** *"the rule 'consider standard proven solutions even if code is not yet there' is generic and should go to claude.md."* ·
+> *"not even standard approaches can be adopted blindly, all decisions must have a strong reason"*
+
+📌 **The miss that produced this:** for a day of threading / parallelism work every plan was derived from what the code did — brains write other
+entities ⇒ "brains are hard, convert the self-writing systems"; determinism ⇒ "keep the serial order". The standard ECS discipline (write your own
+entity, others by command, read last tick — deterministic at any thread count) was known and never stated, because the plan was formed from the
+code in front of me. The user had even said it (*"writing stuff via command buffers, allowing parallel runs"*).
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐⭐ **before inventorying constraints, STATE the proven solution for the problem class** (how engines / the literature solve it) | ⭐ then measure the code against it: what it does today is the CONVERSION COST, ⛔ not a limit on the design |
+| ⭐⭐⭐ **⛔ never adopt a standard approach blindly** — every piece needs a STRONG REASON measured here: the cost it adds, the problem it removes, and why our case fits | 📌 the same day: a fixed simulation step was proposed as "standard" and rejected — under overload it spirals or falls behind real time, and a dynamic step suits this simulation. ⇒ a standard piece goes through the claim table like any lean |
+| ⭐⭐ **the claim table gets one more row**: *"the proven solution for this problem class is ___; we adopt / adapt / reject it because ___ (measured)"* | ⛔ an empty row means the target was never stated |
 
 ## ⛔⛔⛔ EXPLORE WIDE, DECIDE SHORT — **the output contract for "how does X work" / "how should X work"** *(user, `2026-09-16`)*
 

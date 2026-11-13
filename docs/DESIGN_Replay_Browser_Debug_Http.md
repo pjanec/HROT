@@ -173,7 +173,7 @@ check_index_coverage is not available through the CLI ⇒ these lists are not pr
 
 ## 6. Build — ONE lane, the BACKEND lane (R-4082)
 
-🔒 **User, `2026-10-26`:** *"Ui id not building anything niw. Better if all http stuff handle by a single lane."* · *"Wait it is nit visual so lets give it to backend"* — ⭐ every step below, the map and selection routes included; handed over as [HANDOFF_Coordinator_To_Backend_Replay_Browser_Http](blueprints/batches/HANDOFF_Coordinator_To_Backend_Replay_Browser_Http.md). ⛔ The ui handoff of the same work is WITHDRAWN (it was never started).
+🔒 **User, `2026-10-26`:** *"Ui id not building anything niw. Better if all http stuff handle by a single lane."* · *"Wait it is nit visual so lets give it to backend"* — ⭐ every step below, the map and selection routes included; handed over as HANDOFF_Coordinator_To_Backend_Replay_Browser_Http. ⛔ The ui handoff of the same work is WITHDRAWN (it was never started).
 
 
 | step | builds | accepted when |

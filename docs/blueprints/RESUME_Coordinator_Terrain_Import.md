@@ -90,7 +90,7 @@ first navmesh bake time when the editor opens it.
 | order | item | why |
 |---|---|---|
 | 1 | ✅ **the results of §2** — RUN on the user's machine 2026-11-10: both paths work, real terrain warm load 25.3 s, cold 366 s; 6 fixes landed — read [REPORT_Terrain_Import_Real_Runs](REPORT_Terrain_Import_Real_Runs.md) (F-R4 / F-R5 left) | the first real proof of both paths |
-| 2 | ⏳ **dispatched to backend `2026-11-10` as CE-4394** ([handoff](batches/HANDOFF_Coordinator_To_Backend_Navmesh_Prefill_And_Utm.md)) — **`UtmTransform : IGeographicTransform`** (stage 1, UTM §6.1) — chosen when `terrain.json` carries `frame.utm` (the importer already writes it, I-b) | lat / lon read-outs drift ≲ 2 m at 5 km on the tangent plane today; ⚠ touches the geographic origin (R-229, `DESIGN_Geo_Origin.md`, 53 users) — design first |
+| 2 | ⏳ **dispatched to backend `2026-11-10` as CE-4394** (handoff) — **`UtmTransform : IGeographicTransform`** (stage 1, UTM §6.1) — chosen when `terrain.json` carries `frame.utm` (the importer already writes it, I-b) | lat / lon read-outs drift ≲ 2 m at 5 km on the tangent plane today; ⚠ touches the geographic origin (R-229, `DESIGN_Geo_Origin.md`, 53 users) — design first |
 | 3 | ⏳ **dispatched to backend `2026-11-10` as CE-4393** (same handoff; lean: tiles written into the terrain folder, a read-only cache layer staged to every node) — **navmesh prefill** in the importer (stage 6, I-l) | the first load bakes ≈ 127 s (server GC, 4 cores) — pre-fill `NavTileCache` at import |
 | 4 | **CE-4379** a switch-back stair when a straight one does not fit | 6 % of houses become solid today |
 | 5 | **CE-4380** hash once while streaming | 14.9 of 18.1 s of an import is reading + hashing |
@@ -103,7 +103,7 @@ brief; the coordinator reviews the diff, spot-checks surprising claims, re-measu
 
 | lane | doing | handoff |
 |---|---|---|
-| **ui** | the OSM wizard LIVE: real tile source + Nominatim search (CE-4381 — un-greys the menu), the preview's missing details (CE-4382), CE-1466 | [HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live](batches/HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live.md) |
+| **ui** | the OSM wizard LIVE: real tile source + Nominatim search (CE-4381 — un-greys the menu), the preview's missing details (CE-4382), CE-1466 | HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live |
 | **backend** | large-terrain performance (many-core); the user approved **C-1** (slow modules on wall-clock cadence) and **G-1** (server GC on headless nodes) | [RESUME_Backend_Large_Terrain_Perf](RESUME_Backend_Large_Terrain_Perf.md) |
 | **behaviors** | its own queue (vehicle gun spread etc.) | — |
 

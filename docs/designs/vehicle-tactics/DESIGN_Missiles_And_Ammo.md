@@ -164,7 +164,7 @@ Wire: `WeaponFireRequest.AmmoGuid` (the only new wire field, R-169); `EntityWeap
 `WeaponFireIntentEgressTranslatorTests.M8_TheLoadedRound_RoundTripsTheWire` · `StandardInputReaderTests.M8_Effectiveness_…`. ⚠ No built-in type carries a
 loadout yet — that is B8's data (M5).
 
-### 2b. Enough, not most — a munition has a COST (`CE-2186`, W2, 🔒 R-2020; backend `2026-10-15`, [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Munition_Cost.md))
+### 2b. Enough, not most — a munition has a COST (`CE-2186`, W2, 🔒 R-2020; backend `2026-10-15`, handoff)
 
 🔒 **User, `2026-10-15`:** *"not using non-reasonably strong or expensive ammo or weak or collateral-damage sensitive targets"* → W2 *"accepted"*
 ([Air Ops §7b](../air-attack/DESIGN_Air_Operations.md)). 📐 Measured: `AmmoChoice.Best` takes the HIGHEST value — the strongest round always wins,
@@ -313,7 +313,7 @@ sequenceDiagram
   HR-->>HR: DetonationNotification { Travel = descending ⇒ Top }
 ```
 
-### 3a. The profile FITS the range, and a locking mount never fires blind (`CE-2201`, `CE-2200`; backend `2026-10-16`, [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Javelin_Lock.md))
+### 3a. The profile FITS the range, and a locking mount never fires blind (`CE-2201`, `CE-2200`; backend `2026-10-16`, handoff)
 
 ⛔ SUPERSEDES two lines above: the `FireAndForget` row's *"with `TopAttack` (range ≥ `TopAttackMinRangeM`)"* and the rule *"between
 `MinRangeM` and `TopAttackMinRangeM` a top-attack weapon fires direct"*. `TopAttackMinRangeM` is still a floor, but no longer enough on its own.
@@ -345,7 +345,7 @@ passed the tank.*
 ⚠ **Consequence for the `ua-javelin-lock` demo** (behaviors): Javelin B's 230 m shot is now a DIRECT hit, not "from above". Check ② must
 place the open tank ≥ ~610 m away to see a top attack, or accept a direct hit at 230 m.
 
-### 3a′. A missile's own turn rate and climb — the Javelin top-attacks from its declared 150 m (`CE-2222`; backend `2026-10-16`, [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Javelin_Top_Attack_Range.md))
+### 3a′. A missile's own turn rate and climb — the Javelin top-attacks from its declared 150 m (`CE-2222`; backend `2026-10-16`, handoff)
 
 📐 **Measured** (behaviors, offline): at the engine's 30°/s the Javelin's profile fitted only beyond **~610 m**, while its TKB says
 `TopAttackMinRangeM = 150` — so every closer Javelin flew DIRECT onto the front (live `ua-javelin-lock` ①, ~190 m).
@@ -412,7 +412,7 @@ sequenceDiagram
 ## 3c. Air defence — the IR seeker, the proximity fuze, flares and chaff, the missile warning (`CE-2187`…`CE-2189`, backend, `2026-10-15`; build-state: BUILDING)
 
 🔒 Frame: [Air Operations §7d](../air-attack/DESIGN_Air_Operations.md) AD1–AD6 (behaviors' leans, sent with
-[the handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Air_Defence.md)); 🔒 user `2026-10-15`: *"approved, start air defence"*,
+the handoff); 🔒 user `2026-10-15`: *"approved, start air defence"*,
 including moving `SimRng` down to `Fdp.Toolkits`. The launchers and the ZU-23 are [Weapon Systems §5c](../weapons/DESIGN_Weapon_Systems.md).
 
 **INVENTORY** (`2026-10-15`, graph CLI `search_graph` + grep): `.*Countermeasure.*|.*Decoy.*|.*Flare.*|.*Chaff.*` → **0**;

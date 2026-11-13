@@ -805,7 +805,7 @@ on which the latch or the ammo switch could silently not tick.
 
 🔒 **User, `2026-10-14`:** the air-operations plan *"Approved"* (R-2015) — its U3: *"the pilot station — `ControlScheme.FixedWing`; the camera
 follows the body's attitude (bank and pitch) for both flyers (today yaw only); the HUD per scheme (speed, height, heading; later the bomb
-cue)"* ([HANDOFF_Behaviors_To_Ui_Air_Operations.md](blueprints/batches/HANDOFF_Behaviors_To_Ui_Air_Operations.md) U3) → the ui plan → *"Ok go"*.
+cue)"* (HANDOFF_Behaviors_To_Ui_Air_Operations.md U3) → the ui plan → *"Ok go"*.
 
 📐 **INVENTORY** *(read end to end: `PossessionStation.cs`, `FpsCameraDriver`, `MapCamera3D.cs`, `FixedWingModel.Manual`, `RotorcraftModel.Manual`;
 Air Operations §6, §6b)*:
@@ -1177,7 +1177,7 @@ raising the door / embark commands itself* — it would skip the executors' reac
 target* — takes the body away from the operator · *a driver / gunner split now* — crew is abstract by design (B5) · *the brain moving
 possession on boarding* — the soldier and the vehicle may live on two brain nodes.
 
-### 8h.4 Items — one per lane-sized piece (`2026-10-16`; handoffs [backend](blueprints/batches/HANDOFF_Use_Key_To_Backend.md) · [behaviors](blueprints/batches/HANDOFF_Use_Key_To_Behaviors.md) · [ui](blueprints/batches/HANDOFF_Use_Key_To_UI.md))
+### 8h.4 Items — one per lane-sized piece (`2026-10-16`; handoffs backend · behaviors · ui)
 
 | id | slice | builds | lane | needs |
 |---|---|---|---|---|
@@ -1291,7 +1291,7 @@ owner; the verdict on SimHost and on the pure IG — the live IG check `CE-1153`
 
 ### 8h.9 AS-BUILT — the station (`CE-1158`, `2026-10-16`, ui)
 
-Built against §8h.2's diagrams and the [ui handoff](blueprints/batches/HANDOFF_Use_Key_To_UI.md); the driving sequence as built is the
+Built against §8h.2's diagrams and the ui handoff; the driving sequence as built is the
 second sequence diagram in §8h.2. All in `Hrot/Engine/Hrot.Presentation/Map3D/PossessionStation.cs` plus `EntityOrders.Possess(unit, mode)`.
 
 | part | as built | deviation, and why |

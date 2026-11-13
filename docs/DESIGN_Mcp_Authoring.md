@@ -24,6 +24,8 @@ design-basis: Architect_Question_56_Mcp_Authoring_Surface.md (the decision trail
   precondition) · CE-011 (save + QuickReload — the runtime effect) · AQ10 (deterministic pin/link ids on
   disk) · R-133/HN-030 (routes self-document; SKILL.md generated).
 known-conflict: ⚠ shares the DebugApi surface with the CE-* editing slices — the collision plan is §8.
+related-designs:
+  - DESIGN_Debug_Api_Http_Only.md — the AI debug API goes HTTP-ONLY: the MCP server removed, `GET /help` (the guide) rendered from the one route-doc source (R-4223)
 -->
 # DESIGN — **the MCP authoring surface** *(AI-asset editing + scenario authoring + UI-command actions)*
 

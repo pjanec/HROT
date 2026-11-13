@@ -263,7 +263,7 @@ cross-node? then the peer wait is free"* — read the ELM API + design-talk + `N
 
 ⇒ **This reframes ask B:** the question is no longer *"is the peer barrier a relic?"* (it is required) but
 *"scope the wiring"* — captured in the FRAME:
-📄 [`batches/FRAME_Construction_Barrier_Participants.md`](batches/FRAME_Construction_Barrier_Participants.md)
+📄 `batches/FRAME_Construction_Barrier_Participants.md`
 *(pieces A–D, the reusable `DeferredConstructionParticipant` base)*. ⭐ **Updated `2026-09-15` after reading
 `DESIGN_Entity_Genesis_End_To_End.md`:** D2 *(expected-peer source)* is RESOLVED — the per-entity owner
 node-set is the distinct `NodeId`s in `DeferredTakeOwnershipCommand.Grants` *(traced: `CreateEntityRequestSystem:363`

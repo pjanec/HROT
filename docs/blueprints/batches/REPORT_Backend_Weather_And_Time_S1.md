@@ -23,7 +23,7 @@ Branch **`backend`**, started at `38fc06b12` + `ui@931f3ee8a` (behaviors' `62311
 | **the clock (S1-0)** | the first positionless replicated entity — the **World Environment** (TKB 8810) — carries `ScenarioClock`, the authored start time; every node reads UTC = start + its sim time (`ScenarioTime.Utc`). A runtime change is one attribute, `ScenarioStartUtcTicks`, through the existing attribute request: the owner applies it as sent. A scenario without one gets a default at load, at a FIXED 2025-06-21 06:00 UTC (never the wall clock); a second is ignored |
 | **the weather (S1)** | `WeatherConditions` on the World Environment (global) and on **Weather Regions** (TKB 8811, areas); `WeatherField.At(world, point)` blends them (a region weighs 1 at its centroid and 0 at its edge along the ray; overlaps add; the global fills the rest; the wind blends as a vector) and derives temperature (with a day–night swing), pressure, density, the wind at a height, visibility (fog), cloud, precipitation, the sun (NOAA) and the light band |
 | **W-5** | the parachute and the airborne release point read `WeatherField.WindAt`; the `Wind` singleton is gone |
-| **handed to ui** | the Scenario Details view (start time + global weather), the Weather Region tool, inspectors, and CE-3217 — [handoff](HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time.md) |
+| **handed to ui** | the Scenario Details view (start time + global weather), the Weather Region tool, inspectors, and CE-3217 — handoff |
 
 ## 2. Deviations (all folded into the design §6)
 

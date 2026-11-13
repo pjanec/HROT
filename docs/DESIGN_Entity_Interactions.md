@@ -1197,7 +1197,7 @@ Built to §7.5.1 / §7.5.2; the class diagram holds. What the build settled:
 | rails | ⚠ in the person-carrier feature suite (`PersonCarrierTests.TA_*`: the gate, the rear handle as he turns + derived on another node, either man down, the speeds) rather than `EmbarkationTests` / `EmbarkedStateSystemTests` (T-1: the feature's own suite) · `PassengerReplicationTests.TA_TheSecondMan_TravelsWithTheList_HeldUntilHeIsKnown` · `InteractionTransportTests` (the stretcher request's `Assistant` crosses) | §7.5.4 |
 
 
-### 7.6 Custody — search, detain, restrain *(backend, `CE-3256`, behaviors' BR-4 — [handoff](blueprints/batches/HANDOFF_Behaviors_To_Backend_Building_Clearing_Interactions.md); Building Clearing CB-19, R-2032; build-state: BUILT 2026-10-19)*
+### 7.6 Custody — search, detain, restrain *(backend, `CE-3256`, behaviors' BR-4 — handoff; Building Clearing CB-19, R-2032; build-state: BUILT 2026-10-19)*
 
 ```mermaid
 classDiagram

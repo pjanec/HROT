@@ -7,7 +7,7 @@ known-conflict: none.
 -->
 # REPORT — gizmo membership by reflection
 
-> 📌 **Dispatch:** [`HANDOFF_Gizmo_Reflection.md`](HANDOFF_Gizmo_Reflection.md), frozen at **`5db5c60bc`**.
+> 📌 **Dispatch:** `HANDOFF_Gizmo_Reflection.md`, frozen at **`5db5c60bc`**.
 > Branch `claude/blueprint-macro-feature-sdmspn` (BACKEND lane).
 > **ids allocated: `ST-031` … `ST-035`** *(rule 5)*, filed in the commits that use them.
 

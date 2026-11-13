@@ -36,7 +36,7 @@
 > ⭐ **Guide row `A9`/`A9b` added** — the alias reload is `91b`'s only designer-visible surface, and the
 > failure it replaces was **silent**.
 
-> ⏭ **BATCH 92 DISPATCHED at `27c83f5e0`** — 📄 [`HANDOFF_Batch92_The_Orchestrator_Is_Generated.md`](batches/HANDOFF_Batch92_The_Orchestrator_Is_Generated.md).
+> ⏭ **BATCH 92 DISPATCHED at `27c83f5e0`** — 📄 `HANDOFF_Batch92_The_Orchestrator_Is_Generated.md`.
 > ⭐⭐⭐ **`Q45` BUILT**: the orchestrator becomes a **fourth `AddSource`** in the JSON→C# generators,
 > its body moves to `Hrot.AiEditor.Persistence/Emit/`, the editor emitters are routed onto it, and
 > `subAssetResolver` finally gets passed.
@@ -115,7 +115,7 @@
 > ⭐⭐ **They reported two `§M` rows as stale rather than editing them** — 📌 §M is the coordinator's.
 > **`M-19`** and **`M-23`** updated here.
 
-> ⏭ **BATCH 93 DISPATCHED at `ad9f1cd93`** — 📄 [`HANDOFF_Batch93_Watch_Pinning.md`](batches/HANDOFF_Batch93_Watch_Pinning.md).
+> ⏭ **BATCH 93 DISPATCHED at `ad9f1cd93`** — 📄 `HANDOFF_Batch93_Watch_Pinning.md`.
 > ⭐⭐ **Watch pinning, all three slices in one batch** — the split stopped being worth it once `M-25`
 > sized slice 3 and `R-102` ruled its one decision. ⭐ **What is missing is the GESTURE, not the
 > machinery** *(the 14th instance)*, and ⚠ **the handoff explicitly warns against building the per-tick
@@ -191,7 +191,7 @@
 > `C7c` *(a zero where `(pending)` belongs is the `BP-338` regression)* and `C10`/`H10`
 > *(Blueprint's highlight is inert; BTree/HSM's lights)*.
 
-> ⏭ **BATCH 91 DISPATCHED at `3868c29e5`** — 📄 [`HANDOFF_Batch91_The_Sub_Asset_Sharing_Model_Finished.md`](batches/HANDOFF_Batch91_The_Sub_Asset_Sharing_Model_Finished.md).
+> ⏭ **BATCH 91 DISPATCHED at `3868c29e5`** — 📄 `HANDOFF_Batch91_The_Sub_Asset_Sharing_Model_Finished.md`.
 > ⭐⭐⭐ **Five items, one spine: the master ⇄ sub-asset sharing model is HALF-BUILT IN BOTH HALVES, in
 > opposite ways.** ⭐ **Approach A authors and FORGETS** *(`M-20`: aliases never persist)*; ⭐ **Approach
 > B remembers and DOES NOTHING** *(the orchestrator emitters have no callers — `R-99`)*.
@@ -233,7 +233,7 @@
 > the second in two batches** ⇒ ⭐⭐ **the gate is being reported without being re-run after the final
 > tracker edit.** ⛔ **Next handoff must say: run it LAST.**
 
-> ⏭ **BATCH 90 DISPATCHED at `67a6376e4`** — 📄 [`HANDOFF_Batch90_The_Details_Value_Column_Goes_Live.md`](batches/HANDOFF_Batch90_The_Details_Value_Column_Goes_Live.md).
+> ⏭ **BATCH 90 DISPATCHED at `67a6376e4`** — 📄 `HANDOFF_Batch90_The_Details_Value_Column_Goes_Live.md`.
 > ⭐⭐⭐ **`BP-334` — the Details Value column goes live.** 📌 **The user's headline ask**, and `M-22`
 > measures it. ⭐ **`R-101` rules the shape: an OBJECT arm, ⛔ not a formatted-string arm** — Blueprint's
 > snapshot is already `IReadOnlyDictionary<string, object>`, and BTree/HSM need **no arm at all**
@@ -349,7 +349,7 @@
 | ⭐⭐ **A2** | ⚠ **Two surfaces present node-owned variables OPPOSITELY** *(`R-87`)*. `BlackboardMyBlueprintModel` **lists** them under `Inputs`, `IsHostDefined: true`; `VariablesPanelControl` **segregates** them into a dimmed *"Node-Owned Allocations"* table. ⛔ **Neither is wrong today — but they cannot both be the rule** | ⭐ **Pick one and state it.** ⚠ **Sequencing row 61 owns the unified outline** ⇒ ⛔ do not settle it in a Details batch |
 | ⭐⭐ **A3** | ⛔ **The outline shows the RAW NAME** — `DisplayName: v.Name` ⇒ N copies of one action give N opaque rows *(`_auto_7f3c9e2a…`)*. 📌 The addendum §3.1 already says node-owned vars are *"presented as belonging to its owning node"* — **that intent is unimplemented** | ⭐ `MyBlueprintItem` already carries `DisplayName` · `BadgeText` · `Tooltip` · **`CategoryPath`** ⇒ **render by owner, group by owning node, keep the real name in the tooltip.** ⚠ **Display only** — ⛔ not a rename |
 | ⭐ **A4** | ⛔ **BTree/HSM have no Details WINDOW** to host the panel *(`R-60`/`R-62`)* — ⭐ but `VariableDetailsSection` **is already in `AiShared` and deliberately window-less** *("the host draws it; it does not own a window")* | ⭐ **Placement + selection routing only.** ⛔ **Never a second copy of the table** *(ruling 9)*. ⚠ **Gated by `R-21`** — no visual check for these hosts yet |
-| 🔴🔴 **A6** ⏭ **DISPATCHED as Batch 89** *(`2026-08-19`)* — 📄 [`HANDOFF_Batch89_The_Edit_Dialog_Reaches_The_Designer.md`](batches/HANDOFF_Batch89_The_Edit_Dialog_Reaches_The_Designer.md) | ⛔⛔ **`VariableEditModal.Draw()` HAS ZERO CALLERS — production or test.** 📐 `grep -rn "EditModal" --include=*.cs` over the whole repo returns **four** hits: the construction *(`PerspectiveWorkspaceRegistrar:328`)*, the property *(`:602`)*, and two test asserts that it is non-null. ⇒ ⭐⭐ **no frame ever renders it, so the edit dialog still cannot appear.** ⚠⚠ **This is one level up from `BP-327`**: Batch 84 built a write path nothing drew · Batch 87 built the dialog **nothing calls** — 📌 **the same pattern, third consecutive turn of it** | ⭐ **Call `EditModal.Draw()` from the frame** — ⭐⭐ **and rail it the only way that works: `R-67` — assert on the CONSTRUCTED registrar, ⛔ never on the source.** ⚠ **`TheEditDialogIsDrawnTests` already exists and is GREEN** — 📌 **it constructs the modal itself, so it cannot see that nobody else does.** ⛔ **Do not extend it; add a rail that asks the composition root** |
+| 🔴🔴 **A6** ⏭ **DISPATCHED as Batch 89** *(`2026-08-19`)* — 📄 `HANDOFF_Batch89_The_Edit_Dialog_Reaches_The_Designer.md` | ⛔⛔ **`VariableEditModal.Draw()` HAS ZERO CALLERS — production or test.** 📐 `grep -rn "EditModal" --include=*.cs` over the whole repo returns **four** hits: the construction *(`PerspectiveWorkspaceRegistrar:328`)*, the property *(`:602`)*, and two test asserts that it is non-null. ⇒ ⭐⭐ **no frame ever renders it, so the edit dialog still cannot appear.** ⚠⚠ **This is one level up from `BP-327`**: Batch 84 built a write path nothing drew · Batch 87 built the dialog **nothing calls** — 📌 **the same pattern, third consecutive turn of it** | ⭐ **Call `EditModal.Draw()` from the frame** — ⭐⭐ **and rail it the only way that works: `R-67` — assert on the CONSTRUCTED registrar, ⛔ never on the source.** ⚠ **`TheEditDialogIsDrawnTests` already exists and is GREEN** — 📌 **it constructs the modal itself, so it cannot see that nobody else does.** ⛔ **Do not extend it; add a rail that asks the composition root** |
 | ⚠ **A5** | ⛔ **A dead menu item**: `VariablesPanelControl:272` offers *"Promote to new variable"* on an **unbound subtree requirement** and the handler is empty — `{ } // deferred 1.5d` | ⭐ **Implement or remove.** ⛔ **A gesture that silently does nothing is the silent-default pattern in UI form** |
 
 ---
@@ -539,7 +539,7 @@ hosts.** ⛔ **Group A and Group B are not parallelisable across sessions.**
 > ⭐⭐⭐ **BATCH 82 = `U-6` = stage `B` = `Q32` batch 57** — **Details hosts the shared table + ruling
 > 2's selection routing.** ⭐ **Two independent roadmaps converge on it**, and 📌 it is **half the
 > unblock condition** for the standing *"NO VISUAL CHECKS"* suspension *(`R-21`)*.
-> 📄 **[`HANDOFF_Batch82_U6_Details_Hosts_The_Table.md`](batches/HANDOFF_Batch82_U6_Details_Hosts_The_Table.md)**
+> 📄 **`HANDOFF_Batch82_U6_Details_Hosts_The_Table.md`**
 > 📄 **[`REPORT_Batch81_Surfaces_Reach_The_User.md`](batches/REPORT_Batch81_Surfaces_Reach_The_User.md)**
 
 
@@ -579,8 +579,8 @@ hosts.** ⛔ **Group A and Group B are not parallelisable across sessions.**
 > ⭐⭐⭐ **With ONE drop item:** §3c *(greying the `[+]`)* crosses into **`NodeEditor.Core` +
 > `NodeEditor.UI`** and needs **per-graph descriptors** ⇒ ⛔ **if it grows it is split back out and the
 > rest ships** — the blocking fix is never held hostage.
-> 📄 **[`HANDOFF_Batch81_Surfaces_Reach_The_User.md`](batches/HANDOFF_Batch81_Surfaces_Reach_The_User.md)** — ⭐ **DISPATCHED, absorbs 82**
-> 📄 **[`HANDOFF_Batch82_The_Row_Commands_Work.md`](batches/HANDOFF_Batch82_The_Row_Commands_Work.md)** — ⛔ **pointer stub**
+> 📄 **`HANDOFF_Batch81_Surfaces_Reach_The_User.md`** — ⭐ **DISPATCHED, absorbs 82**
+> 📄 **`HANDOFF_Batch82_The_Row_Commands_Work.md`** — ⛔ **pointer stub**
 >
 > ✅✅ **REVISION 25 (`2026-08-17`) — BATCH 80 MERGED at `4911cf50d`. ⭐⭐⭐ TRACK C IS REACHABLE IN THE
 > RUNNING EDITOR, AND THE VISUAL CHECK IS UNBLOCKED END TO END.**

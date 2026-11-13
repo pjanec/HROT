@@ -185,7 +185,7 @@ nowhere) — until they exist, the parts that read them draw nothing, and the re
 
 | the lean rests on | code — how it IS | design — how it was MEANT to be |
 |---|---|---|
-| the held item, the posture and the active mount reach every node | ✅ `dtWeaponPosture` carries `HeldItem` beside `ActiveMount` (`SimDescriptors.cs:277-278`) | ✅ [backend's note to ui](blueprints/batches/NOTE_Backend_To_Ui_Armed_People_Drawing.md) |
+| the held item, the posture and the active mount reach every node | ✅ `dtWeaponPosture` carries `HeldItem` beside `ActiveMount` (`SimDescriptors.cs:277-278`) | ✅ backend's note to ui |
 | a hidden station must not be drawn | ✅ `CarryStations.IsConcealed` (`CarryStations.cs:33-60`) | ✅ Civilians AW-13 / AW-15 (per-observer identification) |
 | a toy is told by its ground truth, not its look | ✅ `ItemAppearanceDto.Lethal` (`WeaponSuiteDto.cs:154-185`); `Armament.LethalInHand` | ✅ AW-15: "a toy gun is a rifle" to an observer |
 | fear and anger are not on the wire | ✅ `CognitiveComponentRegistry.cs:35-36` registers `CivilianState` / `Crowd` on the brain only | ⛔ searched `docs/` + `.dev/`: no design puts them on the wire |
@@ -294,7 +294,7 @@ sequenceDiagram
 | `CE-1179` U18 — the rest | a weapon LAID DOWN (his active own mount, `WeaponLaying.IsLaidDown`, replicated in `WeaponAmmo.LaidDown`) lies across his path a step in front of his feet (`BlockFigure.LaidAtFeet`, after the gestures — a hands-up gesture would sling it); a PLACED charge (no `IsEmbarkedTag`) blinks red a quarter second each second on sim time (`ChargeLightOn`), the same on every node | `Map3DTests.CE1179_*` · frame `people-overnight-4-laid-down-and-a-placed-charge.png` |
 | `CE-1170` U9 — the aim line | `AimLineGizmo` (Hrot.Common, `[GizmoProjector(WeaponPosture)]`, auto-discovered on every map host): `Aimed` at a living PERSON (`PhysicsColliderReaders.IsPerson`) ⇒ a thin red-orange line from `Muzzle.TryOf(ActiveMount)` — or, with no muzzle data (a rifleman), his shoulder (1.4 m) half a metre toward the target — to the target's chest (1.2 m); on `UnitDetails`. ⭐ A non-zero Z is drawn at its height in 3-D, never draped (`GizmoRenderer3D`); 2-D draws it flat. None when ready, at a vehicle, at a dead man | `Map3DTests.CE1170_*` (red-proof: the person check removed ⇒ the vehicle case draws) |
 
-### 7d. U19 — the IDLE gestures: a relaxed man smokes, shifts his weight, stretches, looks about *(`CE-1308`, ui, `2026-10-24`; behaviors' `CE-2368`, AQ103 I, R-2074 — [handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Idle_Gestures.md))* — build-state: BUILT
+### 7d. U19 — the IDLE gestures: a relaxed man smokes, shifts his weight, stretches, looks about *(`CE-1308`, ui, `2026-10-24`; behaviors' `CE-2368`, AQ103 I, R-2074 — handoff)* — build-state: BUILT
 
 🔒 User, `2026-10-24`: *"soldiers who are actually really idle or waiting in some boring job … Some of them could be smoking a cigarette,
 some of them just moving their bodies, stepping from one leg to the other … that of course applies to civilians as well."* · and *"follow
@@ -484,7 +484,7 @@ the label card. It needs to be just short. Otherwise, it would overlap too much 
 | **U21c** | ✅ **people AND vehicles** (alive, a person not inside a vehicle); ✅ **hidden whenever the card is shown** — the card already carries the health bar (user, `2026-10-24`) | ⛔ people only, and ⛔ *"under the card when both show"* — SUPERSEDED by the user the same day |
 | **U21d** | 3-D only | 2-D — the symbol view already has the card; ask if wanted |
 
-## 8. Gaps for the other lanes *(sent as [findings](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))*
+## 8. Gaps for the other lanes *(sent as findings)*
 
 | # | gap | lean | owner |
 |---|---|---|---|

@@ -17,7 +17,7 @@ related-designs:
 # DESIGN — **authoring macros in the editor** *(CE-4210 + the editor half of SR-39a, SR-104 Z1, §14 "Save selection as macro")*
 
 [CE-4210](blueprints/Blueprint_Issues_Tracker.md) (feed a field from a parameter) · dispatched by
-[HANDOFF_Coordinator_To_Ui_Scenario_Authoring](blueprints/batches/HANDOFF_Coordinator_To_Ui_Scenario_Authoring.md) ⑤ and ⑧.
+HANDOFF_Coordinator_To_Ui_Scenario_Authoring ⑤ and ⑧.
 The model is [`DESIGN_Scenario_Macros.md`](DESIGN_Scenario_Macros.md); nothing here changes it.
 
 ## 1. INVENTORY *(`2026-11-02`)*

@@ -313,7 +313,7 @@ the buffer the reports are folded into, and the picture is where ageing happens.
 
 ⚠ **Changes to BR-3** (the `SquadReport` topic, backend, unstarted — `git merge-base` checked): the fields gain `ObservedAt` and `Seq`,
 the kinds gain `Status` (with men in the fight, effective, ammo-low, phase in `Count` and a small flags field). Sent as
-[`NOTE_Behaviors_To_Backend_Report_Ageing.md`](../../blueprints/batches/NOTE_Behaviors_To_Backend_Report_Ageing.md).
+`NOTE_Behaviors_To_Backend_Report_Ageing.md`.
 
 ## 5c. What is reported up, what each level needs, and who processes it *(✅ concept approved 2026-10-18, R-2040; CB-41 superseded by CB-43 §5d; details in §5d)*
 
@@ -417,7 +417,7 @@ it ASKED for machine guns, and it is woken by an edge, not by polling.
 
 ⚠ **Changes to BR-3 again** (still unstarted): the header gains `KindId` (ushort, the registry) and a small `Payload` (≤ 64 bytes); the
 SPOT fields (size class, activity, equipment flags) ride in the standard fields; CB-34's `Status` is the SITREP. Folded into
-[`NOTE_Behaviors_To_Backend_Report_Ageing.md`](../../blueprints/batches/NOTE_Behaviors_To_Backend_Report_Ageing.md) (re-stamped).
+`NOTE_Behaviors_To_Backend_Report_Ageing.md` (re-stamped).
 
 ## 5d. Inside a commander — how requests arrive, who reads the reports, and how a report changes a decision *(⭐ leans CB-42…CB-47, 2026-10-18)*
 
@@ -631,7 +631,7 @@ Rebased onto `CommandReport` before it was pushed; ⚠ dropped with it: `Request
 | 7 | **BC-4** `CE-2260` | behaviors | grenades by `Intensity` (CB-6); demo `bc-house-high-intensity` | BC-3, BR-2 |
 | 8 | **BC-5** `CE-2261` | behaviors | contact and casualties (CB-12, §6a); demo `bc-house-defended` | BC-3 |
 | 0 | **CP-1** `CE-2265` | behaviors | the civilians' poses (CB-24): Cower Prone + `CoverHead`; the four gesture values; `ShowsHandsUp` counts HandsOnHead / Restrained, never CoverHead — buildable now | — |
-| — | **BR-1** … **BR-5** | backend | the room graph + a CQB test house · stun holds every class · the `SquadReport` topic · the Search / Detain / Restrain interactions · the `Lean` body state | [handoff 1](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Building_Clearing.md) (BR-1, BR-2) · [handoff 2](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Building_Clearing_Reports.md) (BR-3) · [handoff 3](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Building_Clearing_Interactions.md) (BR-4, BR-5) |
+| — | **BR-1** … **BR-5** | backend | the room graph + a CQB test house · stun holds every class · the `SquadReport` topic · the Search / Detain / Restrain interactions · the `Lean` body state | handoff 1 (BR-1, BR-2) · handoff 2 (BR-3) · handoff 3 (BR-4, BR-5) |
 
 ### 7.0 As built — SL-0 *(`CE-2262`, 2026-10-19)*
 
@@ -1032,7 +1032,7 @@ carrying the casualty during the clearing (CB-17 — the SOP's lull row after), 
 | re-stack (CB-73) | `RoomDrill.Restack`: a placed man no longer live before anybody crossed ⇒ `Places` again over the live, the gate closes | `RoomDrill.cs` |
 | a Cleared room reopened (CB-74) | `ClearBuildingPlay.Reopen` before each next room | `ClearBuildingBehavior.cs` |
 | the carrier type (CB-71) | `UrbanCombatTkbCatalog.TkbAssaultRifleman = 2009` (rifle · 2 stun · 2 M67 · the hands at 3 — no pistol: four mounts is all `dtWeaponAmmo` carries) | `UrbanCombatTkbCatalog.cs` |
-| ⛔ **BC-4 live: BLOCKED on backend** | 📐 `bc-room-clear` with the bang-out (5 runs): the stun grenades burst **12.4 m up** (a short hand throw judged blocked low is LOBBED at the mount's full 15 m/s and its 1.5 s time fuze fires near the apex), and the weapon brain's own hidden-target throw put two M67 into the door's jamb (493 and 143 damage to the stack). ⇒ no demo fields the AssaultRifleman until backend's fix — [NOTE](../../blueprints/batches/NOTE_Behaviors_To_Backend_Thrown_Grenades_At_A_Doorway.md); `bc-room-clear` is back on InfantrySoldiers; `bc-house-high-intensity` is not shipped | the twins print every burst (`DumpBursts`) |
+| ⛔ **BC-4 live: BLOCKED on backend** | 📐 `bc-room-clear` with the bang-out (5 runs): the stun grenades burst **12.4 m up** (a short hand throw judged blocked low is LOBBED at the mount's full 15 m/s and its 1.5 s time fuze fires near the apex), and the weapon brain's own hidden-target throw put two M67 into the door's jamb (493 and 143 damage to the stack). ⇒ no demo fields the AssaultRifleman until backend's fix — NOTE; `bc-room-clear` is back on InfantrySoldiers; `bc-house-high-intensity` is not shipped | the twins print every burst (`DumpBursts`) |
 | ⚠ BC-5 live: **half there** | `scenarios/demos/buildings-and-doors/bc-house-defended` (InfantrySoldiers; a defender at the hallway's east end, on the front door's axis) — 📐 run 1 (the hold ended on "3 s unseen"): 3 Blue lost, house not cleared; run 2 (the hold lasts while he is known, the pie sliced): **1 lost** (the man released before the contact) — but a STALEMATE: the two pie men, leaning at 10° / 5° off the axis 1.8 m out, never fire at him (Blue fired 1 round in 480 s), so the contact never ends. ⇒ ⏭ next: why a frame-post Watch does not engage what it leans toward (`PostureNodes.HoldWatch` only stands and leans; the fight is CombatPosture's other branches). The demo has no twin until it passes | — |
 
 Rails: `SquadManeuverTests.CE2260_BC4_*` ×3 (the choice and the friend check, pure · "bang out" by #2 from the door front, the far-third aim, the

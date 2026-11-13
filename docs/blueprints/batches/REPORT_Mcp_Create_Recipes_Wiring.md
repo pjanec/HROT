@@ -9,7 +9,7 @@ known-conflict: none.
 # REPORT — **MCP: CGF create-from-recipe + recipe discovery** *(`MA-019`…`MA-023`)*
 
 > 📌 **Dispatched at `7b1ea7bb9`** · **started-marker `d3da5b057`** *(rule 1b, pushed before any code)*.
-> 📄 Handoff: [`HANDOFF_Mcp_Create_Recipes_Wiring.md`](HANDOFF_Mcp_Create_Recipes_Wiring.md) ·
+> 📄 Handoff: `HANDOFF_Mcp_Create_Recipes_Wiring.md` ·
 > design: [`Architect_Question_57_Cgf_Authoring_Packaging.md`](../Architect_Question_57_Cgf_Authoring_Packaging.md).
 > ⭐ **All four items DONE.** ⛔ Nothing stopped, nothing deferred.
 

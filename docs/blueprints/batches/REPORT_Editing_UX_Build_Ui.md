@@ -1,7 +1,7 @@
 <!--STATUS state: LIVE · updated: 2026-11-07 · current-answer: §1 the outcome, §3 what is open -->
 # REPORT — ui, editing-UX build
 
-[Handoff](HANDOFF_Coordinator_To_Ui_Editing_UX_Build.md) dispatched `9c50cec00` · protocol [two lanes](PROTOCOL_Two_Lanes_Self_Coordinating.md) ·
+Handoff dispatched `9c50cec00` · protocol [two lanes](PROTOCOL_Two_Lanes_Self_Coordinating.md) ·
 per-item state and shas: [STATUS_Editing_UX_Build_Ui.md](STATUS_Editing_UX_Build_Ui.md) (the one table; this report does not repeat it).
 
 ## 1. The outcome
@@ -37,7 +37,7 @@ times); a test project not restored after a merge (ClusterRunner.Tests). ⇒ eve
 | open | where |
 |---|---|
 | U-25: a LIST of named points beside the map pick (the map click snaps today) | [Initial state §4.3](../../UX/DESIGN_Initial_State.md) |
-| U-24: the carry-mode change and Damage (REQUEST to backend: [NOTE_Ui_To_Backend_Carry_Mode_And_Damage](NOTE_Ui_To_Backend_Carry_Mode_And_Damage.md)), Damage, aim at a POINT, the seat chooser, Weapons control / Reactions | Initial state §4.2 |
+| U-24: the carry-mode change and Damage (REQUEST to backend: NOTE_Ui_To_Backend_Carry_Mode_And_Damage), Damage, aim at a POINT, the seat chooser, Weapons control / Reactions | Initial state §4.2 |
 | U-23: the combined rows the mockup draws (Weapon + aimed at, Playable + slot) | [Details forms §4.0a](../../UX/DESIGN_Details_Forms.md) parts 5 + fidelity |
 | U-18: live edits on CGF (it reads and controls rules; no `RuleEditorServices` yet — the editor's composition is editor-specific: AI edit model, undo history, brain journal, macro preview; ⭐ the right step is ONE shared services factory both hosts use, a design-sized change); richer objective sentences (RX4's gallery) | [Rule editor §2.6, §2.1.1](../../UX/DESIGN_Rule_Editor_UX.md) |
 
@@ -52,5 +52,5 @@ refuted on verification.
 
 ## 5. Answered for the other lane
 
-[`NOTE_Backend_To_Ui_Two_Presentation_Reds`](NOTE_Backend_To_Ui_Two_Presentation_Reds.md) → `LabelFirstForms` fixed `404ce6f92`, `CE1063` fixed `c8744b5b4`
-([answer](NOTE_Ui_To_Backend_Presentation_Reds_Answered.md)).
+`NOTE_Backend_To_Ui_Two_Presentation_Reds` → `LabelFirstForms` fixed `404ce6f92`, `CE1063` fixed `c8744b5b4`
+(answer).

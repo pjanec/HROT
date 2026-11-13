@@ -1146,7 +1146,7 @@ shared binder) · `TheEqsBrainStartupIsSharedTests` (both hosts pass the authori
 
 ## 18. The AreaQuery pipeline — RETIRED *(`2026-10-01`, build-state: BUILT)*
 
-> Frame: [`HANDOFF_AreaQuery_Retirement_And_Cluster_Ai_Debug.md`](../../blueprints/batches/HANDOFF_AreaQuery_Retirement_And_Cluster_Ai_Debug.md)
+> Frame: `HANDOFF_AreaQuery_Retirement_And_Cluster_Ai_Debug.md`
 > §A. Precondition met: no behaviour caller left (§16.3, `CE-478`).
 
 **INVENTORY** — `search_graph(".*AreaQuery.*")` → 12 production types + `search_graph(".*EqsTargetPool.*")` → 1; grep for the

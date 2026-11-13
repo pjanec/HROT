@@ -493,7 +493,7 @@ y = 150 (**≈ 70 m**, not 150 m); hostile B walks from (185, 5) to 40 m behind 
 built: ① his BODY within 10° of north within 8 s · ② A seen (visual) · ③ B in his memory NOT AT ALL while it walks · ④ B's shots
 turn his eyes behind him (`look.eyeYawDeg`) and B is seen · ⑤ the control sees B while it walks (and turns to him — so the control
 is not asked ①). Deviations: A's 150 m became ≈ 70 m — 📌 at ≈ 113 m A was never acquired in 20 s, even at 360°, cause not found
-(asked of backend: [the note](../../blueprints/batches/NOTE_Behaviors_To_Backend_Sight_Beyond_100m.md)); bt-range is 200 m across, so
+(asked of backend: the note); bt-range is 200 m across, so
 the spec's 150 m never fitted. The live runs changed the look order twice (§3.3a: the heard source; then a man SHOT AT turns to the
 shot over a threat in sight). ⛔ No in-process twin yet. `ld-crossing-security`, `ld-watch-last-window`, `ld-room-sectors` wait on LD-3
 slice 2 (`MemberArc`, the clearing drill, PC-16).

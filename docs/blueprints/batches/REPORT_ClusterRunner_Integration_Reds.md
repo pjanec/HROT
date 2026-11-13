@@ -14,7 +14,7 @@ related-designs:
 
 # REPORT — the 32 `Hrot.ClusterRunner.Integration.Tests` reds *(backend lane)*
 
-**Answers** [`HANDOFF_ClusterRunner_Integration_Reds.md`](HANDOFF_ClusterRunner_Integration_Reds.md). **User, `2026-10-01`:**
+**Answers** `HANDOFF_ClusterRunner_Integration_Reds.md`. **User, `2026-10-01`:**
 *"those load bearing ones are worth restoring, others can be filtered out or removed completely"* → verdict table approved:
 *"approved, go ahead with all steps"* (S1 remove · S2 domain · S3 shared causes · S4 product defects · S5 hand back).
 
