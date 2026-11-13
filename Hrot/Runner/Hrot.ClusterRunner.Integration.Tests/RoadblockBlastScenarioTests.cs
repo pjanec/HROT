@@ -26,7 +26,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 [Collection("HeavyE2ETests")]
 public sealed class RoadblockBlastScenarioTests : IDisposable
 {
-    private const int DomainId = 186;   // CycloneDDS accepts 0–232; 186 used by no other rail (grep of domain ids, 2026-11-13)
+    private const int DomainId = 176;   // CycloneDDS accepts 0–232; 176 used by no other rail (ClusterOpE2e owns 170–173, the AI debug surface 181–189; grep 2026-11-13). Was 186 — it collided with 181–189
     private readonly List<string> _staged = new();
     private readonly ITestOutputHelper _out;
 

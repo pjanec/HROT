@@ -26,7 +26,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 [Collection("HeavyE2ETests")]
 public sealed class WreckBlocksStreetScenarioTests : IDisposable
 {
-    private const int DomainId = 187;   // CycloneDDS accepts 0–232; 187 used by no other rail (grep of domain ids, 2026-11-13)
+    private const int DomainId = 177;   // CycloneDDS accepts 0–232; 177 used by no other rail (ClusterOpE2e owns 170–173, the AI debug surface 181–189; grep 2026-11-13). Was 187 — it collided with 181–189
     private const long WreckType = 8819;
     private readonly List<string> _staged = new();
     private readonly ITestOutputHelper _out;

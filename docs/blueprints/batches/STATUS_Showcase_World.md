@@ -147,3 +147,36 @@ only); grep: no other producer of a wreck obstacle; 88xx ids grepped on every br
   for the vehicle layer only.
 - ⚠ Edge not handled: a Health claim that moves to another node in the very frame of the death (no crossing on either node ⇒ no wreck). Not measured anywhere.
 - The bulldozer (112) does not leave a wreck (not on the heavy list); one line in `RegisterObstacles` adds it.
+
+## CE-6009 — company / platoon macros
+
+Started at `44b98210c`. **As built:** [`DESIGN_City_Battle_Showcase.md` §4a](../../designs/group-maneuvers/DESIGN_City_Battle_Showcase.md) (macro tree, decisions).
+⭐ **CONTENT only** — four macro files under `macros/city-battle/` on the existing expander / `InsertMacro` (Scenario Macros §16); no code, and none of the
+off-limits files (`MacroExpansionSystem.cs`, `ScenarioEntityWalk.cs`, `ActionComponents.cs`, the editor sessions) needed a change. `MacroExpanderTests.cs`
+is on the parallel list ⇒ the rails are in their own file.
+
+| macro | what it expands into (measured) |
+|---|---|
+| `rifle-platoon` (side, name) | platoon 305 @Platoon + 3 squads 302 + 18 men (15 × 2002, 3 × 2004 grenadiers) — 22 parts |
+| `militia-platoon` (side = Hostile, name) | the same shape, 2003 fighters |
+| `mech-company` (side) | 3 nested rifle-platoon instances (1st / 2nd / 3rd Platoon; `MacroInstance.Args.side ← side`) + tank section 301 with 2 M1 + 4 Bradleys — 76 parts |
+| `defender-company` (side = Hostile) | 3 militia platoons + 2 technicals |
+
+**Company commander: NONE** until CE-7002 — a placeholder 305 would run platoon plays that expect squads. **Kit** = which macro; **entry point** = the anchor.
+
+| # | command | result | `--no-build` |
+|---|---|---|---|
+| 1 | `dotnet build Hrot/Subsystems/Hrot.SimHost.Tests/... --no-restore` · `dotnet test … --no-build --filter "…BehaviorParamsSweepTests\|…CityBattleMacrosTests\|…ScenarioRulesTests"` (the sweep reads every shipped macro) | **143 / 0 / 0** | ✅ |
+| 2 | `dotnet build Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/... --no-restore` · `dotnet test … --no-build --filter "FullyQualifiedName~MacroPlatoonScenarioTests"` | **1 / 0 / 0** — at sim 3.4 s, on CGF / SimHost / Player: 3 squads, 18 men, 22/22 Active, 22/22 Friend, within 20 m of (50, 50); on CGF 3 squads under the platoon, 18 men under a squad; the instance Done | ✅ |
+
+| red-proof (data mutation, applied, tested, restored) | rail | result |
+|---|---|---|
+| the platoon's `EntityInfo.Name ← name` dropped | `CE6009_M1` | 🔴 |
+| one nested instance's `MacroInstance.Args.side ← side` dropped | `CE6009_M2` | 🔴 |
+| one man without his `UnitSubordinate` | `MacroPlatoonScenarioTests` | 🔴 |
+
+**Found, filed CE-6015:** the command hierarchy reaches neither SimHost nor the Player for any platoon (scenario-loaded `pc-attack-dry`: 15/15 on CGF,
+0 elsewhere — a temporary probe, not committed). An egress re-send while the commander is unmapped (`EntityInfoEgressTranslator`) was tried and changed
+nothing ⇒ reverted, not shipped. The twin asserts the hierarchy on the brain node and says why.
+**Also:** my three twins moved to DDS domains 176 / 177 / 178 — 186 / 187 sat in `TheClusterAiDebugSurfaceAnswersTests`' 181–189 range (my CE-6003 / CE-6005 miss).
+**Ids:** CE-6015. No previews (`thumbnails.py` needs a live editor).
