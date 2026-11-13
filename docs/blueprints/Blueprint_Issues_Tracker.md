@@ -4973,7 +4973,7 @@ collides with work in flight.
 - [ ] **CE-4502** · `RW-L` 📋 **DISPATCHED `2026-11-13`, QUEUED after CE-4488 (Windows findings) — F-2 is the stepped run repeatable with every switch off / in mode 3 (Windows saw 4 types differ between identical 1-thread runs).** 📄 [HANDOFF](batches/HANDOFF_Coordinator_To_Backend_Windows_Findings.md)
 - [ ] **CE-4503** · `RW-L` 📋 **DISPATCHED `2026-11-13`, QUEUED after CE-4488 (Windows findings) — F-3 make stepped mode repeatable — find the differing source and fix it (Time Architecture §17).** 📄 [HANDOFF](batches/HANDOFF_Coordinator_To_Backend_Windows_Findings.md)
 - [ ] **CE-4504** · `RW-L` 📋 **DISPATCHED `2026-11-13`, QUEUED after CE-4488 (Windows findings) — F-4 one thread slower than the switch off — measure and fix the cause.** 📄 [HANDOFF](batches/HANDOFF_Coordinator_To_Backend_Windows_Findings.md)
-- [ ] **CE-4505** · `RW-L` 📋 **DISPATCHED `2026-11-13`, QUEUED after CE-4488 (Windows findings) — F-5 decimal-comma FrameStats parse; the EcoQoS opt-out logs its result.** 📄 [HANDOFF](batches/HANDOFF_Coordinator_To_Backend_Windows_Findings.md)
+- [ ] **CE-4505** · `RW-L` 📋 **DISPATCHED `2026-11-13`, QUEUED after CE-4488 (Windows findings) — F-5 every HROT executable culture-invariant (`InvariantGlobalization` once in `Directory.Build.props`, R-4221 — no decimal commas ever); the EcoQoS opt-out logs its result.** 📄 [HANDOFF](batches/HANDOFF_Coordinator_To_Backend_Windows_Findings.md)
 - [ ] **CE-4506** · `RW-L` 📋 **DISPATCHED `2026-11-13`, QUEUED after CE-4488 (Windows findings) — F-6 fold the findings into the designs.** 📄 [HANDOFF](batches/HANDOFF_Coordinator_To_Backend_Windows_Findings.md)
 
 ## Out of scope
