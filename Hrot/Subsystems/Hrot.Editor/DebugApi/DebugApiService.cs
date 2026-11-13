@@ -95,13 +95,28 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>⭐ N-15 ② (CE-4477) — <c>GET /world/hash</c>: <see cref="EntityRepository.ContentHash()"/> of this service's world (the
         /// simulation's, S, in a threaded node — the route runs on the sim thread), with the clock and the entity count it was taken at.</summary>
-        public JsonObject GetWorldHash() => new()
+        public JsonObject GetWorldHash(bool byType = false)
         {
-            ["hash"] = _world.ContentHash().ToString("X16"),
-            ["simTime"] = (double)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).Time,
-            ["tick"] = (long)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).Tick,
-            ["entities"] = _world.EntityCount,
-        };
+            var o = new JsonObject
+            {
+                ["hash"] = _world.ContentHash().ToString("X16"),
+                ["simTime"] = (double)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).Time,
+                ["tick"] = (long)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).Tick,
+                ["entities"] = _world.EntityCount,
+            };
+            if (!byType) return o;
+            // ⭐ N-15 ② — which TYPE differs between two runs: every row's hash folded per component type (order-free), plus the entity rows
+            var perType = new System.Collections.Generic.SortedDictionary<string, ulong>(StringComparer.Ordinal);
+            _world.ContentHash((entity, typeId, h) =>
+            {
+                string name = typeId < 0 ? "(entity)" : ComponentTypeRegistry.GetType(typeId)?.Name ?? typeId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                perType[name] = unchecked((perType.TryGetValue(name, out var acc) ? acc : 0UL) + h * 0x9E3779B97F4A7C15UL);
+            });
+            var types = new JsonObject();
+            foreach (var kv in perType) types[kv.Key] = kv.Value.ToString("X16");
+            o["types"] = types;
+            return o;
+        }
 
         private EntityRepository _world
             => _editorWorld ?? _dispatcher?.World

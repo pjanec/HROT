@@ -446,7 +446,7 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("GET", "/status", _ => RunMain(s => s.GetStatus())));
             // ⭐ N-15 ② / P-6 (CE-4477) — the world's content hash (every live entity and every unmanaged component's bytes): two runs that took
             //   the same steps with the same edits agree on it exactly when their state is identical (the threads-independence gate)
-            _routes.Add(new("GET", "/world/hash", _ => RunMain(s => s.GetWorldHash())));
+            _routes.Add(new("GET", "/world/hash", ctx => RunMain(s => s.GetWorldHash(ctx.Query("byType") is "1" or "true"))));
             // ⭐ CE-1145 — the map view's frame rate and camera (a process-wide snapshot, no main-thread hop)
             _routes.Add(new("GET", "/diagnostics/render", _ => Task.FromResult(Ok(Hrot.UI.Common.Map3D.RenderTelemetry.ToJson()))));
             // ⭐ CE-3289 (docs/DESIGN_Map_3D_Mode.md §6ab) — filming: hold the map's camera on a shot, capture the scene alone as a PNG.
