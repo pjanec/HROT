@@ -67,6 +67,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ E-2 (DA-60) — 1 = this line squad was turned to a flank (once).</summary>
         public fixed byte Flank[Capacity];
         /// <summary>⭐ E-2 (DA-59) — where the OP comes back to.</summary>
+        /// <summary>⭐ <c>CE-7032</c> — 1 while this (former) OP is withdrawing under BreakContact to its Back point (it defends there after).</summary>
+        public fixed byte Withdrawing[Capacity];
         public fixed float BackX[Capacity];
         public fixed float BackY[Capacity];
         public fixed float BackZ[Capacity];
@@ -397,9 +399,23 @@ namespace Hrot.AI.Behaviors.Brains
                     p.Casevac[slot] = 0;
                     p.Dirty[slot] = 1;
                 }
+                if (p.Withdrawing[slot] == 2 && CasevacAnswers.Returned(world, self, slot))   // ⭐ CE-7032 — back: it defends there now
+                {
+                    p.Withdrawing[slot] = 0;
+                    p.Dirty[slot] = 1;
+                }
                 if (p.Dirty[slot] == 0 && CommandOrders.Stands(world, self, squad)) continue;   // ⭐ E-2 (DA-62) — a dirty slot goes again
                 p.Dirty[slot] = 0;
                 var json = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+                if (p.Withdrawing[slot] != 0 && p.Falling == 0)   // ⭐ CE-7032 (City Battle §3a) — the OP withdraws under cover, not a walk
+                {
+                    p.Withdrawing[slot] = 2;
+                    CommandOrders.Assign(world, self, squad, BehaviorNames.BreakContact,
+                                         JsonSerializer.Serialize(new BreakContactParamsJsonDto { To = p.Point(slot), Speed = p.Speed }, json), newOrder: true);
+                    Sector(ref p, slot, world, squad);
+                    ws.Orders++;
+                    continue;
+                }
                 if (p.Falling != 0 && p.Role[slot] == PlatoonDefencePlan.Line)   // ⭐ E-3a (DA-68) — the line bounds back
                     CommandOrders.Assign(world, self, squad, BehaviorNames.BreakContact,
                                          JsonSerializer.Serialize(new BreakContactParamsJsonDto { To = p.FallBackTo, Speed = p.Speed }, json), newOrder: true);
@@ -508,13 +524,16 @@ namespace Hrot.AI.Behaviors.Brains
         public static bool OpThreatened(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
             => p.Controls != 0 && p.Made != 0 && p.Falling == 0 && ThreatenedOp(ref p, self, world) >= 0;
 
-        /// <summary>OpBack's entry (DA-59): the OP goes back to its <c>Back</c> point and becomes a reserve; <c>KeepDefence</c> orders it.</summary>
+        /// <summary>OpBack's entry (DA-59): the OP goes back to its <c>Back</c> point and becomes a reserve; <c>KeepDefence</c> orders it —
+        /// ⭐ <c>CE-7032</c> first a <c>BreakContact</c> to that point (the squad's covered bounds: its own retreat search picks each cover),
+        /// then, once that has ended (Set or TaskFailed), its <c>SquadDefend</c> there.</summary>
         [SharedAiAction]
         public static unsafe NodeStatus BringOpBack(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
         {
             int slot = ThreatenedOp(ref p, self, world);
             if (slot < 0) return NodeStatus.Success;
             p.Set(slot, PlatoonDefencePlan.Reserve, new Vector3(p.BackX[slot], p.BackY[slot], p.BackZ[slot]), p.Radius[slot]);
+            p.Withdrawing[slot] = 1;   // ⭐ CE-7032 — it fights its way back first (BreakContact: covered bounds), then defends there
             p.Dirty[slot] = 1;
             return NodeStatus.Success;
         }

@@ -4196,7 +4196,8 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>⭐⭐ <c>CE-2276</c> E-2 (DA-59) — an OP forward at (0, 250): a SPOT 350 m from it changes nothing; one 250 m from it brings
-        /// it back to its <c>Back</c> point (0, −30), where it is a reserve (no sector) and is ordered once. ✅ Red-proof: the OP's 300 m
+        /// it back to its <c>Back</c> point (0, −30) — ⭐ <c>CE-7032</c> under BreakContact first, then, once back (Set), as a reserve there
+        /// (no sector), each ordered once. ✅ <c>CE-7032</c> red-proof: the withdrawal dropped ⇒ a SquadDefend at once, no BreakContact. ✅ Red-proof: the OP's 300 m
         /// ignored ⇒ the far SPOT brings it back.</summary>
         [Fact]
         public void CE2276_E2_AnEnemyNearTheOp_BringsItBack_AsAReserve()
@@ -4210,6 +4211,14 @@ namespace Hrot.SimHost.Tests
             p.Ticks(4);
             Assert.Equal(1, DefendOrders(p, p.Charlie));
             p.ReportSpot(p.Alpha, new Vector3(0f, 500f, 0f), 2);
+            p.Ticks(4);
+            // ⭐ CE-7032 — it WITHDRAWS first (BreakContact to its Back point: covered bounds), not a walk back under a SquadDefend
+            Assert.Equal(1, DefendOrders(p, p.Charlie));
+            Assert.Equal(1, p.OrdersTo(p.Charlie, BehaviorNames.BreakContact));
+            Assert.Equal<Vector3>(new Vector3(0, -30, 0), OrderTo<BreakContactParamsJsonDto>(p, p.Charlie, BehaviorNames.BreakContact).To);
+            p.Ticks(10);
+            Assert.Equal(1, p.OrdersTo(p.Charlie, BehaviorNames.BreakContact));   // once
+            p.ReportSet(p.Charlie);                                                // back
             p.Ticks(4);
             Assert.Equal(2, DefendOrders(p, p.Charlie));
             Assert.Equal<Vector3>(new Vector3(0, -30, 0), DefendOrderTo(p, p.Charlie).Position);
