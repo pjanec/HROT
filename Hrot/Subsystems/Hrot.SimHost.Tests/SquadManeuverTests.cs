@@ -28,7 +28,7 @@ namespace Hrot.SimHost.Tests
     /// ⭐ <c>CE-3160</c> / <c>CE-507</c> D2 (a) (R-264) — the first squad manoeuvre that RUNS, on the commander:
     /// <see cref="BoundingOverwatchBehavior"/>. 📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §6.
     /// </summary>
-    public class SquadManeuverTests : IDisposable
+    public partial class SquadManeuverTests : IDisposable
     {
         // Every world a test builds is disposed after it: an undisposed repository keeps its native maps, and the
         // suite's leaked worlds once reached the process's map limit (`OutOfMemoryException` in later classes).

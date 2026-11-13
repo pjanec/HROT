@@ -1003,6 +1003,28 @@ namespace Hrot.Map.Definitions.Tkb
                 })
                 .AsLandUnit(TkbEntityTypes.Unit_InfantryPlatoon, Hrot.Core.Tkb.UnitArm.Infantry, UnitedStates);
 
+            // ⭐ CE-7021 (City Battle §11 C-1a) — Infantry Company: a body-less commander over three platoon commanders (the support element
+            //   is authored beside them in a scenario: the company plays order the first three slots and leave any further one to its own task).
+            //   ⭐ No standing orders (lane default R-7000): the company's work is its task; a platoon's SOP already reacts to contact below it.
+            builder
+                .DefineVehicle(TkbEntityTypes.Unit_InfantryCompany, "Infantry Company")
+                .WithVisual(TkbEntityTypes.Unit_InfantryCompany, v =>
+                {
+                    v.IconName = "infantry_squad";
+                    v.SymbolCode = "SFGPUCI---E----"; // Company echelon
+                    v.ColorHex = "#0000FF";
+                    v.Scale = 1.8f;
+                })
+                .WithFaction(TkbEntityTypes.Unit_InfantryCompany, 1)
+                .WithBehavior(TkbEntityTypes.Unit_InfantryCompany)
+                .AsComposite(TkbEntityTypes.Unit_InfantryCompany, comp =>
+                {
+                    comp.Subordinates.Add(new TkbChildSlot { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Unit_InfantryPlatoon), Count = 3, Designation = TacticalDesignation.Wingman });
+                    comp.Echelon = "Company";
+                    comp.AutoCreateChildren = false;
+                })
+                .AsLandUnit(TkbEntityTypes.Unit_InfantryCompany, Hrot.Core.Tkb.UnitArm.Infantry, UnitedStates);
+
             // Tank Platoon (Auto-Spawning)
             builder
                 .DefineVehicle(TkbEntityTypes.Unit_TankPlatoon_Auto, "Tank Platoon (Auto Spawn)")

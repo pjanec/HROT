@@ -345,6 +345,52 @@ classDiagram
 *What the picture shows that prose hid:* only ONE new echelon (the company) sits in the existing chain; everything else new is a leaf the company
 commander calls (bulldozer, drone team) or a world rule (obstacle health, wrecks). The platoon, squad and soldier levels are reused unchanged.
 
+## 6a. The company as built *(showcase-brains, `2026-11-13`; CE-7021…CE-7024, CE-7005 — obligation ⑤)*
+
+```mermaid
+classDiagram
+  direction LR
+  class Unit_InfantryCompany {
+    <<TKB 306, NEW>>
+    3 x Unit_InfantryPlatoon · echelon Company
+    no standing orders
+  }
+  class CompanyAttackBehavior {
+    <<NEW HSM CompanyAttack>>
+    CPlan · CSupport · CAssault · CNext · CConsolidate · CWon
+    CBreaking · CBroke · watch: CRelieve · CAbort
+    Tempo(): 0.5 x fires · 1 x reserve · 1.5 x bypass
+  }
+  class CompanyDefendBehavior {
+    <<NEW HSM CompanyDefend>>
+    KPlan · KHold · KFallBack · watch: KReinforce
+  }
+  class PlatoonAttackBehavior { <<existing>> }
+  class PlatoonDefendBehavior { <<existing>> Ready entry now LineReady: reports PROGRESS Set up }
+  class CommandOrders { <<existing>> Assign · Stands · StillRunning }
+  class ReportQueue { <<existing>> REQUEST FireSupport up }
+  Unit_InfantryCompany ..> CompanyAttackBehavior : runs
+  Unit_InfantryCompany ..> CompanyDefendBehavior : runs
+  CompanyAttackBehavior --> CommandOrders : PlatoonAttack · PlatoonDefend
+  CompanyDefendBehavior --> CommandOrders : PlatoonDefend
+  CompanyAttackBehavior --> ReportQueue : tempo fires
+  CommandOrders ..> PlatoonAttackBehavior
+  CommandOrders ..> PlatoonDefendBehavior
+```
+*What the picture shows that prose hid:* the company adds NO new order type below it — it speaks only the two platoon plays that already exist, and
+the one change below it is that a platoon's defence now reports Set when its line is ready (the base of fire's signal; a defence never ends, so the
+task-end Set never came).
+
+| as built | deviation from §6 / the handoff, and why |
+|---|---|
+| roles by slot: 0 assault, 1 base of fire, 2 reserve, 3+ keep their own task | — |
+| objectives = four fixed params `Objective1…4` | ⭐ lane default R-7000: the intent payload is a flat struct like every platoon play's |
+| the company has NO standing orders | ⭐ lane default R-7000 (the handoff said `BasicCompanySop`): its work is its task; the platoons' SOP reacts below it |
+| the base of fire 250 m short of the objective, the reserve 400 m; each next objective measured from the previous one | — |
+| tempo: ½ deadline ⇒ REQUEST FireSupport on the objective · 1× ⇒ the reserve attacks beside the assault · 1.5× ⇒ bypass (never the last) | the smoke round comes with CE-7025; until then the request is plain fire support |
+| defend: the reserve goes in FIRST; the company falls back only when half the blocks fail with the reserve already in (the block it reinforced counts as held) | ⭐ measured on the bench: with two blocks one failure is already "half", so the first rule fell back before the reserve could act |
+| the puppet bench (CE-7022) = the drills' existing one-frame `Platoon` fixture with its members as platoons (`SquadManeuverTests.Company.cs`) | no new harness was needed: the fixture never cared what echelon its members were |
+
 ## 7. Sequences
 
 ```mermaid

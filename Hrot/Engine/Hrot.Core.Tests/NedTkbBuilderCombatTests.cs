@@ -740,6 +740,25 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal("BasicSquadSop", squad.GetDescriptor<BehaviorProfileDto>()!.DefaultSop);   // ⭐ CE-2358 (AQ102 G) — every squad type, by default
         }
 
+        /// <summary>⭐ <c>CE-7021</c> (City Battle §11 C-1a) — the INFANTRY COMPANY: a land unit of the infantry arm at company echelon whose roster
+        /// is three platoon commanders, a brain with NO standing orders (lane default R-7000: its work is its task).</summary>
+        [Fact]
+        public void CE7021_TheInfantryCompany_IsThreePlatoons()
+        {
+            var db = BuildDatabase();
+            var company = db.GetByType(TkbEntityTypes.Unit_InfantryCompany)!;
+            var platoon = db.GetByType(TkbEntityTypes.Unit_InfantryPlatoon)!;
+            var roster = Assert.Single(company.GetDescriptor<TkbCompositionDef>()!.Subordinates);
+            Assert.Equal((TkbEntityTypes.Unit_InfantryPlatoon, 3), (roster.TkbType, roster.Count));
+            Assert.Equal("Company", company.GetDescriptor<TkbCompositionDef>()!.Echelon);
+            Assert.Equal((platoon.DisType.Kind, platoon.DisType.Domain, platoon.DisType.Country, platoon.DisType.Category),
+                         (company.DisType.Kind, company.DisType.Domain, company.DisType.Country, company.DisType.Category));
+            Assert.NotEqual(platoon.DisType.Subcategory, company.DisType.Subcategory);
+            var brain = company.GetDescriptor<BehaviorProfileDto>();
+            Assert.NotNull(brain);
+            Assert.True(string.IsNullOrEmpty(brain!.DefaultSop));
+        }
+
         /// <summary>
         /// ⭐ R-2019 D-M2 (AE3; DESIGN_Armour_Hit_Model §7.5) — every catalogued VEHICLE that declares a combat platform STATES its blast
         /// susceptibility (none left to the side-armour fallback): the soft skins take it all, the MBTs nothing, the light armour between.

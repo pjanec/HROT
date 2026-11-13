@@ -201,6 +201,9 @@ namespace Hrot.Map.Common
         /// <summary>⭐ <c>CE-2262</c> SL-0 (CB-16, R-2030) — an INFANTRY PLATOON: a body-less commander whose roster is three
         /// <see cref="Unit_InfantrySquad"/> commanders — the first composite of composites (the platoon plays, Command Chain CC-D).</summary>
         public const long Unit_InfantryPlatoon = 305;
+        /// <summary>⭐ <c>CE-7021</c> (City Battle §11 C-1a) — an INFANTRY COMPANY: a body-less commander over <see cref="Unit_InfantryPlatoon"/>
+        /// commanders (and a support element), running <c>CompanyAttack</c> / <c>CompanyDefend</c>. ⛔ A permanent wire value.</summary>
+        public const long Unit_InfantryCompany = 306;
 
         // Civilian & Insurgent Types
         // ⛔ CE-3220 part 2 — 501 (CivilianPedestrian) retired: a person is the civilian family (Hrot.Core.Tkb.CivilianTkbCatalog 1101–1104).

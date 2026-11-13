@@ -210,7 +210,7 @@ namespace Hrot.AI.Behaviors.Brains
                 .OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, HoldTheLine)
                 .Activity<PlatoonDefendBlackboard, PlatoonDefencePlan, PlatoonDefendState>(bb => bb.Plan, bb => bb.Keep, KeepDefence));
             root.Child("Ready", c => ready = c.InRegion(0)
-                .OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, HoldTheLine)
+                .OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, LineReady)
                 .Activity<PlatoonDefendBlackboard, PlatoonDefencePlan, PlatoonDefendState>(bb => bb.Plan, bb => bb.Keep, KeepDefence));
             root.Child("Engage", c => engage = c.InRegion(0)
                 .OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, OpenFire)
@@ -447,6 +447,19 @@ namespace Hrot.AI.Behaviors.Brains
             var reserve = p.HoldsFire != 0 ? RoeFire.ReturnFire : RoeFire.FireAtWill;
             SetFire(ref p, self, world, line, reserve);
             p.Holding = p.HoldsFire;
+            return NodeStatus.Success;
+        }
+
+        /// <summary>⭐ <c>CE-7023</c> (City Battle §11 C-1b) — Ready's entry: the line holds as before (<see cref="HoldTheLine"/>), and the platoon
+        /// reports PROGRESS Set to ITS superior — a company's base of fire waits for exactly that (a platoon's defence never ends, so the
+        /// task-end Set the staff composes would never come). A top platoon has no superior: the report is dropped by the staff.</summary>
+        [SharedAiAction]
+        public static NodeStatus LineReady(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
+        {
+            HoldTheLine(ref p, self, world);
+            SimInstant now = (SimInstant)CommandPictureOps.Now(world);
+            ReportQueue.Enqueue(world, self, new CommandReport { Kind = ReportKind.Progress, Subtype = (byte)ProgressKind.Set, At = p.Position, ObservedAt = now },
+                                now + CommandNodes.ReportDelaySeconds);
             return NodeStatus.Success;
         }
 
