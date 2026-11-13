@@ -7,7 +7,7 @@ updated: 2026-10-23 (§6ac middle-button pan, the 2-D helper grid, the cursor's 
   §3.6 and M14 rewritten. Rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
-current-answer: ⭐ §6ak bodies and doors at scale (instancing, screen-size bands, the pick on input — DESIGN, awaiting approval) · §6ab filming (CE-3289) · §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
+current-answer: ⭐ §6ak bodies and doors at scale (instancing, screen-size bands, the pick on input — APPROVED, READY-TO-BUILD) · §6ab filming (CE-3289) · §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
   with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §6l smoothness, frame overflow, the FPS eye · §6m the carried / dragged, wounded, seated riders, the jump down · §6n weapon systems, gunners, launchers, mortars and guns, trails, the drone, the attack plane, rotors · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
 known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists…)"* is overtaken: `PipelineTarget.FlatOnly` now exists (AQ93 §12.4, R-4058) — a primitive carrying it is culled by the 3-D triage whatever else it says; `Map2D` itself still means both modes (§7). · earlier: ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
@@ -3791,7 +3791,7 @@ drawing must tolerate, not use.*
   the hosts' render source on a view that only received the damage: breach, heap, 0 B and no rebuild on an unchanged table) · `TheBuildingDamagePlanTests` (the plan's building marks,
   the overlay, the hidden strokes; the production 2-D attach: gap and rubble). Frames under `HROT_RAIL_SHOTS` (never git).
 
-### 6ak. CE-4554 — drawing bodies and doors at scale: by screen size, instanced; the pick on input *(coordinator, `2026-11-13`; build-state: DESIGN — the user's approval of §6ak.4 makes it READY-TO-BUILD)*
+### 6ak. CE-4554 — drawing bodies and doors at scale: by screen size, instanced; the pick on input *(coordinator, `2026-11-13`; build-state: READY-TO-BUILD — approved by the user `2026-11-13` (R-4226); building overnight on the Windows machine)*
 
 🔒 User, `2026-11-13`: *"that scenario has very poor rendering framerate when all terrain in frustum. some graphical performance optimization is a
 must"* · *"the terrain is still ridiculously small and characters are made of few boxes. there must be huge performance improvement opportunities"* ·

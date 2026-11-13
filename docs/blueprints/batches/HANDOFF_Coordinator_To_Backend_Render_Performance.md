@@ -1,5 +1,5 @@
 <!--STATUS
-state: HELD — NOT dispatched (user 2026-11-13: "we need to do design not any building lane; buildiong lane is for building"); the coordinator writes the designs first, then this is re-dispatched as a build-only batch
+state: WITHDRAWN (never dispatched) — superseded-by: HANDOFF_Coordinator_To_Windows_Render_Performance.md (the user: build it on the Windows machine overnight; G-0 designed by the coordinator as Map 3D §6ak)
 updated: 2026-11-13
 current-answer: the whole file
 related-designs:
