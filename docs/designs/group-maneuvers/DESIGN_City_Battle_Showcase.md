@@ -323,8 +323,9 @@ ELM creation — the shapes §9 requires. ⚠ Which node destroys a dead obstacl
 - ⭐ **Where this battle meets it:** the company commander reads its platoons, the drone operator its targets and the jammer the drones — all
   declared reads; an order, a removal, a new wreck and a wave all leave as a command / an event / an ELM creation; drone and tie-break randomness
   is seeded per entity.
-- ⭐ **Code is written on the showcase branches made from `exp/threaded-build`** (the checks exist only there); designs and scenario content may be
-  written anywhere.
+- ⭐ **Where the code is written** (user, `2026-11-13`): the WORLD lane works from `ui` — its seams are identical there, and it is terrain, data,
+  content and two tiny owner-only systems; the machine checks run on them later (CE-6012). The BRAINS lane — new behaviour code — works from
+  `exp/threaded-build`, where the checks exist (CLAUDE.md).
 
 ## 10. Decisions — ✅ APPROVED by the user, `2026-11-13` (chat)
 
@@ -352,8 +353,8 @@ ELM creation — the shapes §9 requires. ⚠ Which node destroys a dead obstacl
 
 ## 11. The work — every item a tracker row *(🔒 user, 2026-11-13: "all needs to be recorded in traceable tasks")*
 
-⭐ Two lanes on two branches made from `exp/threaded-build` (the user, 2026-11-13: two VMs). **W = `showcase-world`** (ids `CE-6000…`,
-rulings `R-6000…`): the terrain, the world rules, the bulldozer, the scenario and its content. **B = `showcase-brains`** (ids `CE-7000…`,
+⭐ Two lanes on two VMs (the user, 2026-11-13). **W = `showcase-world`**, made from `ui` (ids `CE-6000…`,
+rulings `R-6000…`): the terrain, the world rules, the bulldozer, the scenario and its content. **B = `showcase-brains`**, made from `exp/threaded-build` (ids `CE-7000…`,
 `R-7000…`): every new behaviour. ⭐ The rows live in the tracker's **Area S** ([tracker](https://github.com/pjanec/HROT/blob/ui/docs/blueprints/Blueprint_Issues_Tracker.md)); the W lane's frames are in
 [`HANDOFF_Ui_To_Showcase_World.md`](../../blueprints/batches/HANDOFF_Ui_To_Showcase_World.md). ⭐ Order inside W: CE-6003 and CE-6006 first —
 B's CE-7012 (the bulldozer's ClearObstacle) stands on them.
@@ -363,13 +364,14 @@ B's CE-7012 (the bulldozer's ClearObstacle) stands on them.
 | T-1 | **CE-6001** | **the town** — an authored layout of the terrain-authoring blocks (old town + square + town hall, residential belt, industrial edge, ring road, fields, hill) + a river + two bridges, fixed seed, hand-adjusted, saved as a terrain | Terrain Authoring §8, §12, §18f–§18k (the random-terrain pipeline, recipes, block layout, bridges as road); ⛔ no OSM | W |
 | T-2 | **CE-6002** | D-R ✅: water impassable to ground units — ⭐ MEASURE first (Terrain Authoring §10 left it open), fix only if water is walkable | navmesh bake, `TerrainWorld.SurfaceTypeAt`, `RubbleMound` (CE-3438) | W |
 | O-1 | **CE-6003** | **obstacle removal**: an obstacle type carries `Health`; the existing blast damage reaches it; at ≤ 0 the obstacle entity is destroyed ⇒ the existing obstacle bake rebakes sight, fire and navmesh on every node | `AreaEffectSystem` (Health in reach), `HealthApplicationSystem`, `StaticObstacleBakeSystem`, the obstacle types 8806–8809 | W |
-| O-1b | **CE-6004** | the obstacle bake's 0.5 s WALL-CLOCK debounce (R-244) under the deterministic stepped run — measure; a removal must land at the same tick at every thread count | `StaticObstacleBake.cs:52,167`, `stepped-hash.py` | W |
+| O-1b | **CE-6004** | the obstacle bake's 0.5 s WALL-CLOCK debounce (R-244) under the deterministic stepped run — measure; a removal must land at the same tick at every thread count | `StaticObstacleBake.cs:52,167`, `stepped-hash.py` — ⏳ with CE-6012 | W |
 | O-2 | **CE-6005** | wreck → obstacle for heavy vehicles (tanks, IFVs), created through the ELM (multi-frame, acked) | `Health.Current ≤ 0` (as `WreckSpawnSystem` reads it), the obstacle types, the bake | W |
 | V-1a | **CE-6006** | the **bulldozer** type: catalogue entry (engineering type, tracked mobility, no weapon), an armour profile (small arms bounce, a few RPG hits kill) | `TkbEntityTypes`, `NedTkbCatalog`, `ArmorModel` | W |
 | V-1b | **CE-6007** | the bulldozer's **3-D model** (tracked chassis, engine block, cab, articulated blade — NOT armoured-looking), gallery thumbnail — the ONE UI-side item the user allowed | `ShapeKit`, `VisualFamily`, `scripts/thumbnails.py` | W |
 | L-1 | **CE-6008** | lethality as scenario settings (drone count + battery, accuracy, armour) | the existing parameters | W |
 | M-1 | **CE-6009** | company / platoon macros (side, kit, entry point); the waves inserted by trigger | Scenario Macros, `InsertMacro` | W |
 | B-0 | **CE-6010** | the scenario skeleton `showcases/city-battle`: the forces of §4 by macro, prepared positions (sandbags, roadblocks), the 5 km fog, recording ON, civilians placed; the scripted top of §3 | everything above | W |
+| — | **CE-6012** | the world lane's code meets the parallel checks: CE-6003 / CE-6005's rails and the feature scenarios rerun with the three checks once the lane is merged with `exp/threaded-build`; then CE-6004 | the checks | W |
 | V-A | **CE-6011** | variants: defender layout, roadblock set, AA / MANPADS positions, civilian density (D-16) | `$variant`, variant forms (Scenario Macros §17) | W |
 | F-0 | **CE-7001** | ⭐ FIRST in B — fix what the grind stands on: CE-2341 · CE-2304 · PL-1 / CE-2264 · CE-3361 · CE-2232 | the existing behaviours | B |
 | C-1 | **CE-7002** | `CompanyCommander`: attack (base of fire / assault / reserve, phase lines, reserve commit) + defend (a block per platoon, fall back); ⚠ `CommandPicture.MaxSubordinates = 6` ⇒ the support element | PlatoonAttack / Defend, EQS, declared reads | B |
