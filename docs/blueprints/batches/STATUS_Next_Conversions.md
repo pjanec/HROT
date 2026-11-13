@@ -74,3 +74,16 @@ begins 27 361, full 5 281, **5 205 forced by a `DescriptorOwnership` write anywh
 | `Hrot.Animation.Replication.Tests` | 48 / 0 | `StanceIntentEgressTranslator` is gated |
 | X-4 red-proof | `AuthorityMoved` off ⇒ H1 + the authority equivalence rail fail (2 / 12) | |
 | X-1 red-proof | the late list not walked ⇒ CE4516 fails | |
+
+## SimHost gate — what is pre-existing and what this batch caused *(measured `2026-11-13`)*
+
+| run | base `be0f264f7` sources | `HEAD` | verdict |
+|---|---|---|---|
+| SimHost, the touched classes (`ParallelBrainsDeterminism · CgfLogicPack · Callouts · AirDefenceNodes · SquadManeuver · StressSystem · Staff · Report`), `HROT_PARALLEL_SIM=0` | 335 / **1** | before the isolation fix 307–309 / 27–29 · after **335 / 1** | the 1 = `CE454_TheSquadLayerRunsThroughTheRealCgfPack` (0 contacts merged, 2 expected) — pre-existing |
+| SimHost, `SquadManeuver · CgfLogicPack · ScenarioRules`, `HROT_PARALLEL_SIM=1` (process-wide) | 238 / **146** | 236–237 / 147–148 (minus X-3 / minus X-2: same) | ⛔ pre-existing: the suite does not run under the process-wide switch at base; parallel behaviour is gated by each feature's own serial-vs-parallel rails |
+
+⭐ **The 27–29 were test ISOLATION, not a defect in X-2 / X-3** (CE-4518): xUnit runs collections concurrently; `CalloutsTests` /
+`StressSystemTests` flip the process-wide `ParallelEntities.Enabled` and resize the one worker pool, and once the staff composer read that
+switch live, `SquadManeuverTests` running beside them took the parallel path on the shared pool. Proof chain: base 1 · HEAD 27–29 · HEAD minus
+X-3 → 1 · HEAD minus X-2 → 1 · HEAD with only the pack + manoeuvre classes → 1. Fix: `ParallelSwitchMutatorCollection`
+(`DisableParallelization`), the `ComponentTypeRegistryMutatorCollection` precedent.
