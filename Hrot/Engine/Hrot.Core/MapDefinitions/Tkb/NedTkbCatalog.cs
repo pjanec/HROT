@@ -18,6 +18,10 @@ namespace Hrot.Map.Definitions.Tkb
         public const ushort Russia = Hrot.Core.Tkb.CountryTable.Russia;
 
         /// <summary>⭐ M5 (DESIGN_Missiles_And_Ammo §2, §5) — a tank gun's loadout: its APFSDS, the HEAT-MP and the HE-FRAG.</summary>
+        /// <summary>⭐ <c>CE-7025</c> (IF-5) — a mortar's loadout: its HE bombs first (the round a plain mission fires), then its smoke bombs (what a
+        /// mission that asks for smoke loads).</summary>
+        private static List<(long, int)> MortarLoadout(long he, int heRounds, long smoke, int smokeRounds) => new() { (he, heRounds), (smoke, smokeRounds) };
+
         private static List<(long, int)> TankLoadout(long apfsds, int kinetic, int heat, int he)
             => new() { (apfsds, kinetic), (Hrot.Core.Tkb.MunitionTkbCatalog.TkbTankHeatMp, heat), (Hrot.Core.Tkb.MunitionTkbCatalog.TkbTankHeFrag, he) };
 
@@ -460,17 +464,17 @@ namespace Hrot.Map.Definitions.Tkb
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Mortar60, "60 mm mortar", 1,
                 new WeaponSystemDto { Portable = WeaponPortability.OneMan, MountKinds = MountKinds.Ground, DeploySeconds = 20f, PackSeconds = 15f, CarrySpeedFactor = 0.8f },
                 Laid(IndirectMount("60mm_M224", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb60mmMortarHe, Hrot.Core.Tkb.MunitionTkbCatalog.Mortar60mmHeName,
-                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 20, rangeM: 3490f, dispersionMils: 6f, reloadSeconds: 3f)),
+                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 20, rangeM: 3490f, dispersionMils: 6f, reloadSeconds: 3f) with { Loadout = MortarLoadout(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb60mmMortarHe, 20, Hrot.Core.Tkb.MunitionTkbCatalog.Tkb60mmMortarSmoke, 6) }),
                 LayingTurret(45f, 85f, pivotZ: 0.3f), new(0.2f, 2f, 60f), category: 10, report: Mortar60Report);
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Mortar81, "81 mm mortar", 2,
                 new WeaponSystemDto { Portable = WeaponPortability.TwoMan, MountKinds = MountKinds.Ground, DeploySeconds = 60f, PackSeconds = 45f, CarrySpeedFactor = 0.5f },
                 Laid(IndirectMount("81mm_M252", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb81mmMortarHe, Hrot.Core.Tkb.MunitionTkbCatalog.Mortar81mmHeName,
-                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 30, rangeM: 5600f, dispersionMils: 5f, reloadSeconds: 3f)),
+                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 30, rangeM: 5600f, dispersionMils: 5f, reloadSeconds: 3f) with { Loadout = MortarLoadout(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb81mmMortarHe, 30, Hrot.Core.Tkb.MunitionTkbCatalog.Tkb81mmMortarSmoke, 10) }),
                 LayingTurret(45f, 85f, pivotZ: 0.3f), new(0.3f, 2f, 80f), category: 10, report: Mortar81Report);
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Mortar120, "120 mm mortar", 3,
                 new WeaponSystemDto { Portable = WeaponPortability.TwoMan, MountKinds = MountKinds.Ground, DeploySeconds = 90f, PackSeconds = 60f, CarrySpeedFactor = 0.4f },
                 Laid(IndirectMount("120mm_M120", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmMortarHe, Hrot.Core.Tkb.MunitionTkbCatalog.Mortar120mmHeName,
-                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 20, rangeM: 7200f, dispersionMils: 4f, reloadSeconds: 6f)),
+                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 20, rangeM: 7200f, dispersionMils: 4f, reloadSeconds: 6f) with { Loadout = MortarLoadout(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmMortarHe, 20, Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmMortarSmoke, 6) }),
                 LayingTurret(45f, 85f, pivotZ: 0.3f), new(0.5f, 2f, 120f), category: 10, report: Mortar120Report);
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Howitzer105, "105 mm towed howitzer", 1,
                 new WeaponSystemDto { Portable = WeaponPortability.Static, MountKinds = MountKinds.Ground },   // emplaced: no towing yet (IF-G)

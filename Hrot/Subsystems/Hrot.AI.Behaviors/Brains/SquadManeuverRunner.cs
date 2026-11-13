@@ -89,6 +89,8 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Mount;
         /// <summary>⭐ <c>CE-2176</c> IF-2 — <see cref="MemberOrderKind.FireAtPoint"/>: the arc preference (0 Auto, 1 Low, 2 High).</summary>
         public byte Arc;
+        /// <summary>⭐ <c>CE-7025</c> (IF-5) — <see cref="MemberOrderKind.FireAtPoint"/>: the round (0 the first / HE, 1 smoke).</summary>
+        public byte Round;
         /// <summary>⭐ CE-1118 H-1 (§6.5 D-18) — <see cref="MemberOrderKind.Disembark"/>: how he leaves (step out, rope, door); a jump's
         /// landing point is <see cref="Point"/>.</summary>
         public Fdp.Toolkit.Motion.ExitKind Exit;
@@ -627,7 +629,7 @@ namespace Hrot.AI.Behaviors.Brains
             Publish(world, commander, member, BehaviorNames.FireAtPoint, JsonSerializer.Serialize(new FireAtPointParamsJsonDto
             {
                 X = order.Point.X, Y = order.Point.Y, Z = order.Point.Z, Mount = order.Mount, Rounds = Math.Max(order.Rounds, 1),
-                FireAt = order.FireAt, Arc = order.Arc,
+                FireAt = order.FireAt, Arc = order.Arc, Round = order.Round,   // ⭐ CE-7025
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
         }
 

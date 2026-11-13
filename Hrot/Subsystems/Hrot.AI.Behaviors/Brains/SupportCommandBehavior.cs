@@ -83,6 +83,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (fire >= 0)
             {
                 var point = world.GetComponentRO<CommandPicture>(self).Requests.Items[fire].At;
+                bool smoke = world.GetComponentRO<CommandPicture>(self).Requests.Items[fire].Round == FireSupportRound.Smoke;   // ⭐ CE-7025
                 if (AirDefenceNear(world, self, point, p.AirDefenceMetres, p.AirDefenceFreshSeconds, now, out var aa))
                 {
                     // HQ-7 — the air defence first; the request waits while it stays reported
@@ -96,14 +97,14 @@ namespace Hrot.AI.Behaviors.Brains
                 }
                 else
                 {
-                    var heli = Free(world, self, SupportAsset.AttackHelicopter, Entity.Null);
+                    var heli = smoke ? Entity.Null : Free(world, self, SupportAsset.AttackHelicopter, Entity.Null);   // ⭐ CE-7025 — smoke is the guns' only
                     var battery = heli.IsNull ? Free(world, self, SupportAsset.Battery, Entity.Null) : Entity.Null;
                     if (!heli.IsNull)
                         CommandOrders.Assign(world, self, heli, BehaviorNames.AirArmedSearch,
                             JsonSerializer.Serialize(new AirArmedSearchOrder { Location = point }, json), newOrder: true);
                     else if (!battery.IsNull)
                         CommandOrders.Order(world, self, battery, nameof(OrderKind.Strike),
-                            JsonSerializer.Serialize(new StrikeOrder { Location = point, Method = FireMissionMethod.FireForEffect }, json),
+                            JsonSerializer.Serialize(new StrikeOrder { Location = point, Method = FireMissionMethod.FireForEffect, Smoke = smoke }, json),
                             newOrder: true);
                     if (!heli.IsNull || !battery.IsNull)
                     {

@@ -391,6 +391,31 @@ task-end Set never came).
 | defend: the reserve goes in FIRST; the company falls back only when half the blocks fail with the reserve already in (the block it reinforced counts as held) | ⭐ measured on the bench: with two blocks one failure is already "half", so the first rule fell back before the reserve could act |
 | the puppet bench (CE-7022) = the drills' existing one-frame `Platoon` fixture with its members as platoons (`SquadManeuverTests.Company.cs`) | no new harness was needed: the fixture never cared what echelon its members were |
 
+## 6b. Smoke from the guns as built *(showcase-brains, `2026-11-13`; CE-7025, CE-7003 — obligation ⑤)*
+
+```mermaid
+sequenceDiagram
+  participant C as CompanyAttack (tempo)
+  participant HQ as SupportCommand
+  participant B as ArtilleryUnitStrike (battery)
+  participant G as gun: FireAtPoint executor
+  C->>HQ: REQUEST FireSupport · Equipment Smoke flag (half the deadline)
+  HQ->>B: Strike · Smoke true (never the helicopter: smoke is the guns' only)
+  B->>G: FireAtPoint · round 1 (per gun, the member order)
+  G->>G: AmmoChoice.IndexOfKind(Smoke) · LoadIndex = one reload (Reloading)
+  G-->>G: fires the smoke bomb: an AreaEffectCloud where it lands (existing)
+```
+*What the picture shows that prose hid:* nothing NEW carries the round on the wire — the request rides the report's existing equipment byte
+(`ElementEquipment.Smoke`), the gun's params the last padding byte of its 32-byte channel params; the gun switches rounds with the weapon brain's
+own one-reload rule, so a mission that does not ask for smoke reloads HE the same way.
+
+| as built | why |
+|---|---|
+| smoke bombs 60 / 81 / 120 mm = TKB 6047 / 6048 / 6049: cloud 15 / 20 / 25 m, 90 s, the HE charges | Indirect Fire IF-5's round, starter values |
+| each mortar mount carries a loadout: its HE first, then a third as many smoke bombs | a plain mission still fires entry 0 (HE) — unchanged |
+| `StrikeOrder.Smoke` → battery `Round` → `MemberOrder.Round` → `FireAtPoint` `round` → the executor loads it | one field per hop, the existing chain |
+| a smoke REQUEST is the `ElementEquipment.Smoke` flag | ⭐ lane default R-7001: a request's `Count` is already 1 in production, so it could not carry the round |
+
 ## 7. Sequences
 
 ```mermaid

@@ -182,6 +182,33 @@ namespace Fdp.Toolkit.Combat
             return load.SwitchRemaining > 0f;
         }
 
+        /// <summary>⭐ <c>CE-7025</c> (IF-5) — the first loadout entry of <paramref name="mountEntity"/> whose round's warhead is
+        /// <paramref name="kind"/> and has rounds left; −1 when none.</summary>
+        public static int IndexOfKind(EntityRepository world, Entity mountEntity, Fdp.Toolkit.Tkb.Domain.WarheadKind kind)
+        {
+            if (!world.IsComponentTypeRegistered<AmmoLoadout>() || !world.HasComponent<AmmoLoadout>(mountEntity)) return -1;
+            ref readonly var load = ref world.GetComponentRO<AmmoLoadout>(mountEntity);
+            for (int i = 0; i < load.Count; i++)
+                if (load.RoundsAt(i) > 0 && CombatTkb.WarheadOf(world, load.AmmoAt(i)) is { } w && w.Kind == kind) return i;
+            return -1;
+        }
+
+        /// <summary>⭐ <c>CE-7025</c> (IF-5) — load loadout entry <paramref name="index"/> in <paramref name="mountEntity"/>: a different round
+        /// starts a switch of one reload (as <see cref="Choose"/>'s). True while the switch runs (the weapon holds). No loadout ⇒ false.</summary>
+        public static bool LoadIndex(EntityRepository world, Entity mountEntity, int index, float reloadSeconds)
+        {
+            if (!world.IsComponentTypeRegistered<AmmoLoadout>() || !world.HasComponent<AmmoLoadout>(mountEntity)) return false;
+            ref var load = ref world.GetComponentRW<AmmoLoadout>(mountEntity);
+            if (index < 0 || index >= load.Count) return false;
+            if (load.Loaded != index)
+            {
+                load.Loaded = (byte)index;
+                load.ChosenFor = Entity.Null;
+                load.SwitchRemaining = MathF.Max(Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.ReloadSecondsOrFallback(reloadSeconds), float.Epsilon);
+            }
+            return load.SwitchRemaining > 0f;
+        }
+
         /// <summary>The munition type loaded in <paramref name="mountEntity"/> (0 = none: the mount's own <c>AmmoGuid</c> applies).</summary>
         public static long LoadedAmmo(EntityRepository world, Entity mountEntity)
             => world.IsComponentTypeRegistered<AmmoLoadout>() && world.HasComponent<AmmoLoadout>(mountEntity)

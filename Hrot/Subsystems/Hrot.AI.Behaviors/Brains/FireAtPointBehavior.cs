@@ -34,6 +34,7 @@ namespace Hrot.AI.Behaviors.Brains
                 Mount = (byte)authored.Mount,
                 FireAt = (SimInstant)authored.FireAt,                                                  // ⭐ IF-2 (FM-4)
                 Arc = authored.Arc is >= 0 and <= 2 ? (ArcPreference)authored.Arc : ArcPreference.Auto,   // ⭐ IF-2 (IF-C)
+                Round = authored.Round is 0 or 1 ? (byte)authored.Round : (byte)0,                    // ⭐ CE-7025 (IF-5)
             };
         }
 [Behavior(BehaviorNames.FireAtPoint, Params = typeof(global::Hrot.Map.Definitions.Behavior.FireAtPointParamsJsonDto), Categories = BehaviorCategory.AllMilitary, Description = "Fires at a location on the map.")]   // ⭐ CE-2134

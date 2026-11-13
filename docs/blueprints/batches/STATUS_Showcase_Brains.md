@@ -21,6 +21,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | 2 | CE-7021 company echelon · CE-7022 puppet bench | ✅ | TKB 306; `SquadManeuverTests.Company.cs` |
 | 3 | CE-7023 `CompanyAttack` · CE-7024 `CompanyDefend` | ✅ | `Brains/CompanyBehaviors.cs`; `PlatoonDefend` Ready reports Set up |
 | 4 | CE-7005 tempo | ✅ | inside `CompanyAttack` |
+| 5 | CE-7025 smoke bombs · CE-7003 support calls (fires + smoke) | ✅ · 🔶 part (bulldozer / drone tasking wait for CE-7012 / CE-7026…) | §6b; CE-2278 (the grenade) not yet |
 | 7 | CE-7010 the air gate | ⏭ ignored — the user | — |
 
 ## 2. The gates
@@ -35,7 +36,8 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | red-proofs (each a compiling mutant, restored after) | `SupportSet` ⇒ true: `CE7023_CompanyAttack…` red · `Tempo` off: `CE7005_…` red · `Reinforce` finds no reserve: `CE7024_…` red |
 | `dotnet test Hrot.Core.Tests --no-build` | 366 / 367 — the red (`HrotEnvironmentTests.CreateGeoTransform_HasNoDefaultOrigin…`, `NoGeoFrameException`) is PRE-EXISTING on `exp/threaded-build`: no file it touches differs from the base (CE-4396, `ea3ae421c`) |
 | `NedTkbBuilderCombatTests` | 56 / 56 (incl. `CE7021_TheInfantryCompany_IsThreePlatoons`) |
-| `tracker-counts.py --check` · `rulings-check.py` | OK · 600 / 600 |
+| smoke (item 5): `…--filter SquadManeuverTests.CE7|CE2176|CE2312` + `Fdp.Toolkits.Tests --filter AmmoChoiceTests|AimAndFireExecutorTests` | 21 / 21 · 152 / 152; red-proofs: the battery's `Round` dropped ⇒ 2 red · the HQ ignoring the flag ⇒ red · `LoadIndex` never switching ⇒ red |
+| `tracker-counts.py --check` · `rulings-check.py` | OK · 601 / 601 |
 
 ## 3. The morning report
 
@@ -44,6 +46,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | the company has NO standing orders (handoff said `BasicCompanySop`) | its work is its task |
 | `CompanyAttack` takes four fixed objectives `Objective1…4` | the intent payload is a flat struct |
 | the reserve reinforces before the company falls back; the block it went into counts as held | measured on the bench: with two blocks one failure is "half" |
+| R-7001 a smoke request = the `ElementEquipment.Smoke` flag; the gun loads the round its strike names | a request's `Count` is already 1 in production |
 
 | for the user to look at | |
 |---|---|

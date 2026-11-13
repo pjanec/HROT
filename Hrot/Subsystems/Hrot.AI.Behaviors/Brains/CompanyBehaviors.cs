@@ -276,7 +276,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (p.Escalation < 1 && spent >= p.Deadline * 0.5)
             {
                 p.Escalation = 1;
-                if (AskFires(world, self, p.Objective(p.Current))) ws.FireRequests++;
+                if (AskFires(world, self, p.Objective(p.Current), FireSupportRound.Smoke)) ws.FireRequests++;   // ⭐ CE-7025 — smoke on it first
             }
             if (p.Escalation < 2 && spent >= p.Deadline)
             {
@@ -296,13 +296,16 @@ namespace Hrot.AI.Behaviors.Brains
             }
         }
 
-        /// <summary>The company's REQUEST FireSupport on <paramref name="at"/>, up to its headquarters (the staff sends it after the report delay).</summary>
-        public static bool AskFires(EntityRepository world, Entity self, Vector3 at)
+        /// <summary>The company's REQUEST FireSupport on <paramref name="at"/> with <paramref name="round"/> (smoke = the
+        /// <see cref="ElementEquipment.Smoke"/> flag), up to its
+        /// headquarters (the staff sends it after the report delay).</summary>
+        public static bool AskFires(EntityRepository world, Entity self, Vector3 at, FireSupportRound round = FireSupportRound.HighExplosive)
         {
             SimInstant now = (SimInstant)CommandPictureOps.Now(world);
             return ReportQueue.Enqueue(world, self, new CommandReport
             {
-                Kind = ReportKind.Request, Subtype = (byte)RequestKind.FireSupport, At = at, Radius = 50f, ObservedAt = now,
+                Kind = ReportKind.Request, Subtype = (byte)RequestKind.FireSupport, At = at, Radius = 50f, Count = 1,
+                Equipment = round == FireSupportRound.Smoke ? ElementEquipment.Smoke : ElementEquipment.NoEquipment, ObservedAt = now,
             }, now + CommandNodes.ReportDelaySeconds);
         }
 

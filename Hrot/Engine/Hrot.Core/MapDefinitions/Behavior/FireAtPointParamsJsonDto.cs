@@ -43,5 +43,9 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ Indirect fire IF-2 (IF-C) — the arc a fire solution prefers: 0 = Auto (low when it clears), 1 = Low, 2 = High.</summary>
         [JsonPropertyName("arc")]
         public int Arc;
+
+        /// <summary>⭐ <c>CE-7025</c> (IF-5) — the round an indirect weapon loads: 0 its first (HE), 1 its smoke.</summary>
+        [JsonPropertyName("round")]
+        public int Round;
     }
 }

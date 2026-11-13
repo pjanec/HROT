@@ -146,6 +146,10 @@ namespace Hrot.Core.Tkb
         public const int TkbThrowingSpear = 6045;
         /// <summary>⭐ <c>CE-3247</c> — a THROWING STAR.</summary>
         public const int TkbThrowingStar = 6046;
+        /// <summary>⭐ <c>CE-7025</c> (City Battle §5, Indirect Fire IF-5) — the mortars' SMOKE bombs (60 / 81 / 120 mm): no blast, a screen where
+        /// they land (an <c>AreaEffectCloud</c>, as the smoke grenade's, larger and longer), the HE bomb's charges. ⛔ Permanent wire values.</summary>
+        public const int Tkb60mmMortarSmoke = 6047, Tkb81mmMortarSmoke = 6048, Tkb120mmMortarSmoke = 6049;
+        public const string Mortar60mmSmokeName = "60mm mortar smoke", Mortar81mmSmokeName = "81mm mortar smoke", Mortar120mmSmokeName = "120mm mortar smoke";
         public const string ThrowingHatchetName = "throwing hatchet", ThrowingSpearName = "throwing spear", ThrowingStarName = "throwing star";
         /// <summary>⭐ <c>CE-3247</c> (TC-2) — their numbers: damage per hit (starter values) and a small penetration (body armour stops them),
         /// and how long one lies where it landed.</summary>
@@ -324,6 +328,17 @@ namespace Hrot.Core.Tkb
             Register(tkb, SmokeGrenadeName, TkbSmokeGrenade, new DISEntityType { Kind = 2, Domain = 9, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 8f, CloudHeightM = 4f, CloudSeconds = 75f,
                                       Fuze = FuzeKind.Time, FuzeDelayS = 1.5f });
+            // ⭐ CE-7025 (IF-5) — the mortar smoke bombs: a screen ≈ 15 / 20 / 25 m across for 90 s where each lands (starter values; an M302-
+            //   class 81 mm WP/RP screen is of that order). Impact-fused, indirect, the HE bomb's charges; DIS battlefield support, its calibre.
+            Register(tkb, Mortar60mmSmokeName, Tkb60mmMortarSmoke, Dis(9, Usa, 2, 5),
+                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 15f, CloudHeightM = 6f, CloudSeconds = 90f, Indirect = true },
+                     charges: ChargesFor(Mortar60RangesKm));
+            Register(tkb, Mortar81mmSmokeName, Tkb81mmMortarSmoke, Dis(9, Usa, 2, 8),
+                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 20f, CloudHeightM = 8f, CloudSeconds = 90f, Indirect = true },
+                     charges: ChargesFor(Mortar81RangesKm));
+            Register(tkb, Mortar120mmSmokeName, Tkb120mmMortarSmoke, Dis(9, Usa, 2, 11),
+                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 25f, CloudHeightM = 10f, CloudSeconds = 90f, Indirect = true },
+                     charges: ChargesFor(Mortar120RangesKm));
         }
 
         // ⭐ CE-3213 — the SISO-REF-010 countries the munition codes use (enumeration 29, Country).
@@ -407,6 +422,7 @@ namespace Hrot.Core.Tkb
                 [TkbFlare] = 2, [TkbChaff] = 2,                                                  // ⭐ CE-2188 — expendables (never chosen to hurt)
                 [TkbStone] = 0.1f, [TkbBatonRound] = 2, [TkbStunGrenade] = 5,                    // ⭐ CE-3223 — non-lethal (CV-9)
                 [TkbTearGasGrenade] = 5, [TkbTearGasCanister] = 4, [TkbSmokeGrenade] = 4,        // ⭐ CE-3219 part 3 — the cloud rounds
+                [Tkb60mmMortarSmoke] = 25, [Tkb81mmMortarSmoke] = 40, [Tkb120mmMortarSmoke] = 60, // ⭐ CE-7025 — the smoke bombs
                 [TkbThrowingHatchet] = 1, [TkbThrowingSpear] = 1, [TkbThrowingStar] = 0.5f,      // ⭐ CE-3247 — the thrown blades
             };
 

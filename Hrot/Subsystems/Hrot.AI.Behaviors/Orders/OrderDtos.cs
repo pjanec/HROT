@@ -120,6 +120,10 @@ namespace Hrot.AI.Behaviors.Orders
         /// building, a bunker, a bridge or a runway takes a heavy weapon, never a gun (Air Operations §9e). Unspecified = any.</summary>
         [JsonPropertyName("TargetKind")]
         public StrikeTargetKind TargetKind;
+
+        /// <summary>⭐ <c>CE-7025</c> (City Battle §5, IF-5) — fire SMOKE (each gun loads its smoke round): a screen, no blast.</summary>
+        [JsonPropertyName("Smoke")]
+        public bool Smoke;
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 6c (W1, R-2020) — the reason a point is struck (Air Operations §7b, §9e).</summary>
