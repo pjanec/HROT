@@ -127,7 +127,7 @@ public sealed class TheReviewSourceTests : IDisposable
         public readonly List<int> Selects = new();
         public int Clears;
 
-        public Rig(string root, ScenarioSerializer serializer, int thisNode = 1, Func<int, string>? names = null)
+        public Rig(string root, ScenarioSerializer serializer, int thisNode = 1, Func<int, string>? names = null, bool noFacade = false, Func<ITimeTransportFacade?>? facade = null)
         {
             World.RegisterComponent<NetworkIdentity>(); World.RegisterComponent<NetworkAuthority>(); World.RegisterComponent<ObjectiveStatus>();
             Facade.SetupGet(f => f.IsPaused).Returns(true);
@@ -135,8 +135,12 @@ public sealed class TheReviewSourceTests : IDisposable
             Facade.SetupGet(f => f.IsPlayPauseEnabled).Returns(true);
             var builder = new TransientMasterBuilder(serializer);
             Source = new ReviewSource(() => World, () => builder, () => { Clears++; World.SoftClear(); }, () => root, thisNode,
-                ready: () => Ready, inReplay: () => InReplay, selection: () => Selected, select: n => { Selects.Add(n); return true; }, nodeName: names, facade: () => Facade.Object);
+                ready: () => Ready, inReplay: () => InReplay, selection: () => Selected, select: n => { Selects.Add(n); return true; }, nodeName: names, facade: facade ?? (noFacade ? () => null : () => Facade.Object));   // noFacade: a steady 0 B measurement without Moq's per-call allocation (no facade = paused)
         }
+
+        private ReviewUi? _ui;
+        /// <summary>⭐ CE-4496 R-2 — the review UI over this source, as the editor composes it (switch off): an inline channel, the ONE Federation panel.</summary>
+        public ReviewUi Ui => _ui ??= new ReviewUi(new InlineReviewChannel(Source, new ReviewModelBuilder(null)), () => Facade.Object);
 
         public void Open(Guid exercise)
         {
@@ -195,7 +199,7 @@ public sealed class TheReviewSourceTests : IDisposable
         FourParticipants();
         using var rig = new Rig(_root, _serializer);
         rig.Open(_exercise);
-        var panel = rig.Source.SwitchPanel!;
+        var panel = rig.Ui.Panel;
 
         Assert.Equal(0, ProgressOfNet(rig.World, 100));
         Assert.Equal(rig.Source.NameOf(2), panel.NameOf(2));           // the participants' names (Q-B6), not a second naming
@@ -268,7 +272,7 @@ public sealed class TheReviewSourceTests : IDisposable
         Assert.Equal(10, ProgressOfNet(rig.World, 200));
         Assert.Equal(int.MaxValue, ProgressOfNet(rig.World, 100));     // CGF-A's unit is not in CGF-B's file
 
-        var t = rig.Source.Transport;
+        var t = rig.Ui.Transport;
         Assert.True(t.CanPlay);                                        // ▶ is available on a part
         Assert.Null(t.PlayDisabledReason);
         rig.Facade.SetupGet(f => f.IsPaused).Returns(false);           // the toolbar's ▶ is pressed
@@ -293,7 +297,7 @@ public sealed class TheReviewSourceTests : IDisposable
         FourParticipants();
         using var rig = new Rig(_root, _serializer);
         rig.Open(_exercise);
-        var t = rig.Source.Transport;
+        var t = rig.Ui.Transport;
         Assert.Equal(ReviewSourceKind.Merged, rig.Source.Kind);
         Assert.True(t.CanPlay);                                        // ⭐ ▶ enabled in Merged …
         Assert.Null(t.PlayDisabledReason);                             // … and no reason to give
@@ -325,7 +329,7 @@ public sealed class TheReviewSourceTests : IDisposable
         FourParticipants();
         using var rig = new Rig(_root, _serializer);
         rig.Open(_exercise);
-        var t = rig.Source.Transport;
+        var t = rig.Ui.Transport;
 
         Assert.True(t.HasRecording);
         Assert.Equal(5, t.TotalFrames);
@@ -356,7 +360,7 @@ public sealed class TheReviewSourceTests : IDisposable
         using var rig = new Rig(_root, _serializer);
         rig.Open(_exercise);
         rig.Selected = 200;
-        rig.Source.Transport.Step(1);
+        rig.Ui.Transport.Step(1);
         Assert.Contains(200, rig.Selects);                             // the merge makes new entities each step: the selection is re-landed by network id
     }
 
@@ -403,9 +407,9 @@ public sealed class TheReviewSourceTests : IDisposable
         FourParticipants();
         using var rig = new Rig(_root, _serializer);
         rig.Open(_exercise);
-        Assert.Equal(new[] { PathOf(2) }, rig.Source.RecordingFiles());   // Merged: the primary participant's (the lowest node)
+        Assert.Equal(new[] { PathOf(2) }, rig.Ui.RecordingFiles());   // Merged: the primary participant's (the lowest node)
         rig.Source.SelectPart(4);
-        Assert.Equal(new[] { PathOf(4) }, rig.Source.RecordingFiles());
+        Assert.Equal(new[] { PathOf(4) }, rig.Ui.RecordingFiles());
         Assert.Same(rig.Source.Manager, rig.Source.Manager);
         Assert.NotNull(rig.Source.Manager);                              // Recording info / JSON export read this
     }
@@ -443,7 +447,7 @@ public sealed class TheReviewSourceTests : IDisposable
         using var rig = new Rig(_root, _serializer);
         var own = new Mock<IReplayTransport>();
         own.SetupGet(t => t.TotalFrames).Returns(99);
-        var selector = new ReplayTransportSelector(own.Object, rig.Source);
+        var selector = new ReplayTransportSelector(own.Object, rig.Ui);
         Assert.Equal(99, selector.TotalFrames);                        // nothing open: the own part's
         rig.Open(_exercise);
         Assert.Equal(5, selector.TotalFrames);                         // a group open: the source's
@@ -461,9 +465,9 @@ public sealed class TheReviewSourceTests : IDisposable
         FourParticipants();
         using var rig = new Rig(_root, _serializer);
         rig.Open(_exercise);
-        var segment = new AarTransportSegment(new ReplayTransportSelector(new Mock<IReplayTransport>().Object, rig.Source), () => true, () => rig.Source.Kind == ReviewSourceKind.Merged);
-        var combo = new ReviewSourceToolbarCombo(rig.Source);
-        var status = new ReviewSourceStatusSection(rig.Source);
+        var segment = new AarTransportSegment(new ReplayTransportSelector(new Mock<IReplayTransport>().Object, rig.Ui), () => true, () => rig.Source.Kind == ReviewSourceKind.Merged);
+        var combo = new ReviewSourceToolbarCombo(rig.Ui);
+        var status = new ReviewSourceStatusSection(rig.Ui);
         using var frame = UiFrameHarness.Begin(1240, 140);
         new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
         for (int i = 0; i < 4; i++)
@@ -495,15 +499,337 @@ public sealed class TheReviewSourceTests : IDisposable
         if (!string.IsNullOrEmpty(shot)) { Directory.CreateDirectory(shot); frame.Screenshot(Path.Combine(shot, "v6-merged-status-and-toolbar.png")); }
     }
 
+    // ── ⭐ CE-4498 R-4 — the review across threads (mode 3): commands are sim jobs, the model rides the pull ─────────
+
+    /// <summary>A dedicated "sim thread": work runs on it, one item at a time, and the caller waits (as the staged editor's sim worker runs SimStep).</summary>
+    private sealed class SimThread : IDisposable
+    {
+        private readonly System.Collections.Concurrent.BlockingCollection<Action> _work = new();
+        private readonly System.Threading.Thread _thread;
+        public int Id { get; private set; }
+
+        public SimThread()
+        {
+            var started = new System.Threading.ManualResetEventSlim();
+            _thread = new System.Threading.Thread(() => { Id = Environment.CurrentManagedThreadId; started.Set(); foreach (var a in _work.GetConsumingEnumerable()) a(); }) { IsBackground = true, Name = "review-sim" };
+            _thread.Start();
+            started.Wait();
+        }
+
+        public void Run(Action a)
+        {
+            using var done = new System.Threading.ManualResetEventSlim();
+            Exception? error = null;
+            _work.Add(() => { try { a(); } catch (Exception e) { error = e; } finally { done.Set(); } });
+            done.Wait();
+            if (error != null) throw new InvalidOperationException("sim step failed", error);
+        }
+
+        public void Dispose() { _work.CompleteAdding(); _thread.Join(5000); }
+    }
+
+    /// <summary>The source's commands, recording the thread each one ran on.</summary>
+    private sealed class ThreadRecorder : IReviewCommands
+    {
+        private readonly ReviewSource _s;
+        public readonly List<int> Threads = new();
+        public ThreadRecorder(ReviewSource s) => _s = s;
+        private void Note() { lock (Threads) Threads.Add(Environment.CurrentManagedThreadId); }
+        public void SelectMerged() { Note(); _s.SelectMerged(); }
+        public void SelectPart(int node) { Note(); _s.SelectPart(node); }
+        public void SeekFrame(int frame) { Note(); _s.SeekFrame(frame); }
+        public void StepFrame(int delta) { Note(); _s.StepFrame(delta); }
+        public void SetNodeOffsetTicks(int node, long t) { Note(); _s.SetNodeOffsetTicks(node, t); }
+        public void SetBaseWallTicks(long t) { Note(); _s.SetBaseWallTicks(t); }
+        public void SetLocalEntitiesShown(int node, bool shown) { Note(); _s.SetLocalEntitiesShown(node, shown); }
+        public void SetLocalEntitiesProvider(int node) { Note(); _s.SetLocalEntitiesProvider(node); }
+    }
+
+    /// <summary>The threaded review as the staged editor composes it: the channel posts to a queue the sim step drains; the sim step updates the source and publishes a NEW model only; the pull applies it.</summary>
+    private sealed class ThreadedRig : IDisposable
+    {
+        public readonly SimThread Sim = new();
+        public readonly System.Collections.Concurrent.ConcurrentQueue<Action> Jobs = new();
+        public readonly ReviewModelPublisher Publisher;
+        public readonly ThreadedReviewChannel Ui;
+        public readonly ThreadRecorder Commands;
+        private readonly ReviewSource _source;
+        private ReviewReadModel? _published;
+        public int Publishes;
+
+        public ThreadedRig(ReviewSource source, ReplicaViews? views)
+        {
+            _source = source;
+            Commands = new ThreadRecorder(source);
+            Publisher = new ReviewModelPublisher(new ReviewModelBuilder(views));
+            Ui = new ThreadedReviewChannel(Commands, Publisher, Jobs.Enqueue);
+        }
+
+        /// <summary>One sim step: drain the jobs, the source's Update (the node frame's call), publish when changed.</summary>
+        public void Step(double dt = 0) => Sim.Run(() =>
+        {
+            while (Jobs.TryDequeue(out var job)) job();
+            _source.Update(dt);
+            if (Publisher.PublishIfChanged(_source) is { } m) { _published = m; Publishes++; }
+        });
+
+        /// <summary>The UI frame's start: the newest published model, applied on the UI thread.</summary>
+        public void Pull() { if (_published is { } m) { Ui.Apply(m); _published = null; } }
+
+        public void Dispose() => Sim.Dispose();
+    }
+
+    /// <summary>
+    /// ⭐ CE-4498 R-4 (docs/DESIGN_Threaded_Review_Source.md §1.2) — mode 3's review channel: a UI command is NOT applied on the UI thread — it runs on the sim thread at the next step; the UI sees
+    /// its effect only after the pull that follows (the model is built sim-side, carried, applied); a By-node ask rides up once and its view comes back; a steady step publishes nothing (0 B).
+    /// 🔴 Red-proof: <c>ThreadedReviewChannel.StepFrame</c> calling the source directly ⇒ the thread assert names the UI thread ⇒ red.
+    /// </summary>
+    [Fact]
+    public void R4_TheThreadedChannel_RunsCommandsOnTheSimThread_AndTheModelReachesTheUiOnlyAfterThePull()
+    {
+        FourParticipants();
+        using var rig = new Rig(_root, _serializer, noFacade: true);
+        using var t = new ThreadedRig(rig.Source, new ReplicaViews(new OwnershipSource(), _serializer));
+        int uiThread = Environment.CurrentManagedThreadId;
+
+        t.Sim.Run(() => Assert.True(rig.Source.OnRecordingOpened(_exercise)));   // the recording-opened branch: sim-side (D-7)
+        t.Step();
+        Assert.False(t.Ui.Model.IsOpen);                                          // published, not yet pulled
+        t.Pull();
+        Assert.True(t.Ui.Model.IsMerged);
+        Assert.Equal(0, t.Ui.Model.CurrentFrame);
+        Assert.Equal(4, t.Ui.Model.Participants.Count);
+
+        t.Ui.StepFrame(+1);                                                       // ▶| on the UI
+        Assert.Single(t.Jobs);                                                    // a job, not a call
+        Assert.Empty(t.Commands.Threads);
+        Assert.Equal(0, t.Ui.Model.CurrentFrame);
+        t.Step();
+        Assert.Equal(new[] { t.Sim.Id }, t.Commands.Threads.ToArray());           // ⭐ applied on the SIM thread
+        Assert.NotEqual(uiThread, t.Sim.Id);
+        Assert.Equal(0, t.Ui.Model.CurrentFrame);                                 // not before the pull …
+        t.Pull();
+        Assert.Equal(1, t.Ui.Model.CurrentFrame);                                 // … and after it
+
+        t.Ui.SelectPart(3); t.Step(); t.Pull();
+        Assert.Equal(ReviewKind.Part, t.Ui.Model.Kind);
+        Assert.Equal(3, t.Ui.Model.Facts.PartNode);
+        t.Ui.SelectMerged(); t.Ui.SetNodeOffsetTicks(2, 1_000 * TimeSpan.TicksPerMillisecond); t.Step(); t.Pull();
+        Assert.True(t.Ui.Model.IsMerged);
+        Assert.Equal(1000d, t.Ui.Model.Participant(2)!.OffsetMs, 3);
+
+        t.Ui.Requests.AskByNode(100, typeof(ObjectiveStatus));
+        t.Ui.EndFrame();                                                          // the ask rides up once …
+        t.Ui.Requests.AskByNode(100, typeof(ObjectiveStatus));
+        t.Ui.EndFrame();                                                          // … and not again
+        Assert.Single(t.Jobs);
+        t.Step(); t.Pull();
+        Assert.True(t.Ui.Model.TryByNode(100, typeof(ObjectiveStatus), out _));   // the view came back in the model
+
+        int publishes = t.Publishes;
+        long simBytes = -1;
+        t.Step(); t.Step();                                                       // warm
+        t.Sim.Run(() =>
+        {
+            long b0 = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 20; i++) { rig.Source.Update(0); t.Publisher.PublishIfChanged(rig.Source); }
+            simBytes = GC.GetAllocatedBytesForCurrentThread() - b0;
+        });
+        Assert.Equal(publishes, t.Publishes);                                     // a steady paused step publishes nothing …
+        Assert.Equal(0, simBytes);                                                // … and allocates nothing
+    }
+
+    /// <summary>
+    /// ⭐ CE-4498 R-4 — the STRICT world guard (mode 3's: any read of S off the sim thread is a race) stays silent while the UI drives the review through the threaded channel and draws its
+    /// Source menu from the model. Needs <c>HROT_WORLD_GUARD=1</c> in the test process (the guard is read once); run as <c>HROT_WORLD_GUARD=1 dotnet test … --filter R4_</c>.
+    /// </summary>
+    [SkippableFact]
+    public void R4_TheStrictWorldGuard_StaysSilent_WhileTheUiDrivesTheThreadedReview()
+    {
+        Skip.IfNot(Fdp.Core.WorldGuard.On, "run with HROT_WORLD_GUARD=1 (the guard is read once per process)");
+        FourParticipants();
+        using var rig = new Rig(_root, _serializer);
+        using var t = new ThreadedRig(rig.Source, new ReplicaViews(new OwnershipSource(), _serializer));
+        using var presentation = new EntityRepository();
+        int before = Fdp.Core.WorldGuard.DistinctHits;
+        Fdp.Core.WorldGuard.Arm(rig.World, presentation, t.Sim.Id);
+        bool wasStrict = Fdp.Core.WorldGuard.Strict;
+        Fdp.Core.WorldGuard.Strict = true;
+        try
+        {
+            t.Sim.Run(() => rig.Source.OnRecordingOpened(_exercise));
+            t.Step(); t.Pull();
+            var ui = new ReviewUi(t.Ui);
+            for (int i = 0; i < 3; i++)
+            {
+                t.Ui.StepFrame(+1); t.Ui.SetLocalEntitiesShown(4, i % 2 == 0);
+                t.Ui.Requests.AskByNode(100, typeof(ObjectiveStatus)); t.Ui.EndFrame();
+                t.Step(); t.Pull();
+                _ = ui.Transport.CurrentFrame; _ = ui.RecordingFiles(); _ = ui.Model.Facts.StatusText; _ = ui.Panel.BuildViewModel("p", "k");
+            }
+            t.Ui.SelectPart(3); t.Step(); t.Pull(); t.Ui.SelectMerged(); t.Step(); t.Pull();
+            Assert.True(t.Ui.Model.IsMerged);
+        }
+        finally { Fdp.Core.WorldGuard.Disarm(); Fdp.Core.WorldGuard.Strict = wasStrict; }
+        Assert.Equal(before, Fdp.Core.WorldGuard.DistinctHits);   // ⭐ not one read of S off the sim thread
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4499 R-5 (docs/DESIGN_Threaded_Review_Source.md §3 ① ⑤) — mode 3 END TO END on the real machinery: the review source on S on a dedicated sim thread, the REAL job queue
+    /// (<c>SimJobQueue</c>) carrying the UI's commands, the REAL staging (<c>StagingWorlds</c>) publishing S and carrying the model, A pulled on the UI thread — as <c>EditorSubsystem.SimStep</c> /
+    /// <c>PullStaging</c> do. Every action of the acceptance, each checked on A (what the map draws) AND on the model (what the panels draw): Merged · step · scrub · ▶ / rate · the Source switch to a
+    /// part and back · an offset · a locals toggle · By node · a watch item · a search hit's seek. ⭐ A still holds the merged entities after N pulls (the pull does not erase the merge).
+    /// 0 B per steady paused frame, on BOTH threads. With <c>HROT_WORLD_GUARD=1</c> the strict guard is armed too and must stay silent.
+    /// 🔴 Red-proofs (reasoned): the source merging into A (R-3 undone) ⇒ the next pull overwrites A with an S that holds no merge ⇒ the "after N pulls" assert red; a command applied on the UI
+    /// thread ⇒ the strict guard's hit count moves.
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void R5_Mode3_TheReviewOverTheRealStagingAndJobQueue_EveryActionReachesA_AndTheMergeSurvivesThePulls()
+    {
+        _localBase[4] = 904;
+        FourParticipants();
+        ITimeTransportFacade? facade = null;   // paused (no ▶) until the play step; null also keeps the steady measurement free of Moq's per-call bytes
+        using var rig = new Rig(_root, _serializer, facade: () => facade);
+        using var a = new EntityRepository();
+        a.RegisterComponent<NetworkIdentity>(); a.RegisterComponent<NetworkAuthority>(); a.RegisterComponent<ObjectiveStatus>();
+        using var staging = new Fdp.Core.Threading.StagingWorlds();
+        staging.TableMask.SetBit(Fdp.Core.ComponentType<NetworkIdentity>.ID);
+        staging.TableMask.SetBit(Fdp.Core.ComponentType<NetworkAuthority>.ID);
+        staging.TableMask.SetBit(Fdp.Core.ComponentType<ObjectiveStatus>.ID);
+        staging.RegisterStreamsFrom(rig.World.Bus);
+        var jobs = new Fdp.Core.Threading.SimJobQueue { Outbox = staging };
+        var publisher = new ReviewModelPublisher(new ReviewModelBuilder(new ReplicaViews(new OwnershipSource(), _serializer)));
+        var channel = new ThreadedReviewChannel(rig.Source, publisher, act => jobs.Post(_ => act(), "review command"));
+        var ui = new ReviewUi(channel, () => facade);
+        using var sim = new SimThread();
+        long tick = 0;
+        ReviewReadModel? toApply = null;
+        Action<EntityRepository> apply = _ => { if (toApply is { } m) channel.Apply(m); };
+        void SimStep(double dt) => sim.Run(() =>
+        {
+            rig.World.Tick();                                                                // the kernel's tick of S (ModuleHostKernel.cs:596) — every node frame stamps a new version, so the staging copies what changed
+            jobs.Drain(rig.World);
+            rig.Source.Update(dt);                                                           // the node frame's ONE call site (R-3)
+            if (publisher.PublishIfChanged(rig.Source) is { } m) { toApply = m; staging.Post(apply); }   // PublishReviewModel (R-4)
+            staging.Publish(rig.World, ++tick);
+        });
+        void Frame(double dt = 0) { SimStep(dt); staging.Pull(a); channel.EndFrame(); }     // the UI frame: pull, then the panels' asks ride up
+
+        bool guard = Fdp.Core.WorldGuard.On;
+        int hitsBefore = guard ? Fdp.Core.WorldGuard.DistinctHits : 0;
+        bool wasStrict = Fdp.Core.WorldGuard.Strict;
+        if (guard) { Fdp.Core.WorldGuard.Arm(rig.World, a, sim.Id); Fdp.Core.WorldGuard.Strict = true; }
+        try
+        {
+            // ① Merged — opened sim-side (the recording-opened branch runs with the editor logic, D-7)
+            sim.Run(() => Assert.True(rig.Source.OnRecordingOpened(_exercise)));
+            Frame();
+            Assert.True(ui.Model.IsMerged);
+            Assert.Equal(0, ProgressOfNet(a, 100)); Assert.Equal(10, ProgressOfNet(a, 200));
+            Assert.Equal(int.MinValue, ProgressOfNet(a, 300)); Assert.Equal(int.MinValue, ProgressOfNet(a, 400));
+            for (int i = 0; i < 10; i++) Frame();                                            // ⭐ N pulls later the merge is still in A
+            Assert.Equal(0, ProgressOfNet(a, 100)); Assert.Equal(10, ProgressOfNet(a, 200)); Assert.Equal(int.MinValue, ProgressOfNet(a, 400));
+
+            // ② step ③ scrub (a seek)
+            ui.Transport.Step(+1); Frame();
+            Assert.True(ui.Model.CurrentFrame == 1, $"frame {ui.Model.CurrentFrame}; jobs posted {jobs.Posted} ran {jobs.Executed} faults {jobs.Faults}: {jobs.LastFault}");
+            Assert.Equal(1, ProgressOfNet(a, 100)); Assert.Equal(11, ProgressOfNet(a, 200));
+            ui.Transport.Seek(3); Frame();
+            Assert.Equal(3, ui.Model.CurrentFrame); Assert.Equal(3, ProgressOfNet(a, 100));
+            ui.Transport.Seek(0); Frame();
+
+            // ④ ▶ / rate — the toolbar's ▶ at 2×: one wall second plays two recorded seconds
+            facade = rig.Facade.Object;
+            rig.Facade.SetupGet(f => f.IsPaused).Returns(false); rig.Facade.SetupGet(f => f.TimeScale).Returns(2f);
+            Frame(0); Frame(1.0); Frame(0);
+            Assert.True(ui.Transport.IsPlaying);
+            Assert.Equal(2, ui.Model.CurrentFrame); Assert.Equal(2, ProgressOfNet(a, 100));
+            rig.Facade.SetupGet(f => f.IsPaused).Returns(true); rig.Facade.SetupGet(f => f.TimeScale).Returns(1f);
+            Frame();
+            facade = null;
+
+            // ⑤ the Source switch to a part (CGF-B) and back
+            ui.Channel.SelectPart(3); Frame();
+            Assert.Equal(ReviewKind.Part, ui.Model.Kind); Assert.Equal(3, ui.Model.Facts.PartNode);
+            Assert.Equal(int.MaxValue, ProgressOfNet(a, 100));                               // A shows CGF-B's file only …
+            Assert.Equal(12, ProgressOfNet(a, 200));                                         // … at the same moment (frame 2)
+            ui.Channel.SelectMerged(); Frame();
+            Assert.True(ui.Model.IsMerged);
+            Assert.Equal(2, ProgressOfNet(a, 100)); Assert.Equal(int.MinValue, ProgressOfNet(a, 400));
+            ui.Transport.Seek(0); Frame();
+
+            // ⑥ an offset (the Federation slider): CGF-A at +2 s ⇒ its unit shows two seconds on
+            ui.Panel.SetNodeOffsetMs(2, 2000d); Frame();
+            Assert.Equal(2000d, ui.Model.Participant(2)!.OffsetMs, 3);
+            Assert.Equal(2, ProgressOfNet(a, 100)); Assert.Equal(10, ProgressOfNet(a, 200));
+            ui.Panel.SetNodeOffsetMs(2, 0d); Frame();
+            Assert.Equal(0, ProgressOfNet(a, 100));
+
+            // ⑦ a locals toggle: SimHost-4's local entity, tagged by the model's local origins, leaves A and comes back
+            Assert.Equal(new[] { 904 }, LocalsInWorld(ui, a).Select(l => l.Progress).ToArray());
+            ui.Panel.SetLocalEntitiesShown(4, false); Frame();
+            Assert.Empty(LocalsInWorld(ui, a));
+            ui.Panel.SetLocalEntitiesShown(4, true); Frame();
+            Assert.Equal(new[] { 904 }, LocalsInWorld(ui, a).Select(l => l.Progress).ToArray());
+
+            // ⑧ By node ⑨ a watch item — asked by the UI, computed sim-side, in the next model
+            var item = new ReplicaWatchItem("ObjectiveStatus.ProgressCur", 0, true, 0.5, 0u, "Progress");
+            channel.Requests.AskByNode(100, typeof(NetworkIdentity)); channel.Requests.AskWatch(100, item);
+            Frame(); Frame();
+            Assert.True(ui.Model.TryByNode(100, typeof(NetworkIdentity), out var byNode));
+            Assert.NotNull(byNode);
+            Assert.Equal(new[] { 2, 4 }, byNode!.Rows.Select(r => r.NodeId).ToArray());       // the owner (CGF-A) and the SimHost's ghost
+            Assert.True(ui.Model.TryWatch(100, item, out _));
+
+            // ⑩ a search hit's seek — the file review's Seek is the transport's (EditorSubsystem's ReviewFileServices)
+            Action<long> searchSeek = frame => ui.Transport.Seek((int)frame);
+            Assert.Equal(3, ui.Model.PrimaryNode);                                           // the last part shown stays the primary (SelectPart sets it; Merged keeps it — as with the switch off)
+            Assert.Equal(new[] { PathOf(3) }, ui.RecordingFiles());                          // the search reads the primary's file
+            searchSeek(4); Frame();
+            Assert.Equal(4, ui.Model.CurrentFrame); Assert.Equal(4, ProgressOfNet(a, 100));
+
+            // ⑪ 0 B per steady paused frame — the sim step (jobs, source, publish) and the UI frame (pull, asks, the panels' reads)
+            for (int i = 0; i < 5; i++) { channel.Requests.AskByNode(100, typeof(NetworkIdentity)); channel.Requests.AskWatch(100, item); Frame(); }
+            long simBytes = 0, uiBytes = 0, pullBytes = 0, askBytes = 0, endBytes = 0, readBytes = 0;
+            for (int i = 0; i < 20; i++)
+            {
+                sim.Run(() =>
+                {
+                    long b0 = GC.GetAllocatedBytesForCurrentThread();
+                    rig.World.Tick(); jobs.Drain(rig.World); rig.Source.Update(0);
+                    if (publisher.PublishIfChanged(rig.Source) is { } m) { toApply = m; staging.Post(apply); }
+                    staging.Publish(rig.World, ++tick);
+                    simBytes += GC.GetAllocatedBytesForCurrentThread() - b0;
+                });
+                long u0 = GC.GetAllocatedBytesForCurrentThread();                            // the UI frame's own work (the rig's SimThread.Run hand-off allocates on this thread, not the editor)
+                staging.Pull(a);
+                long u1 = GC.GetAllocatedBytesForCurrentThread(); pullBytes += u1 - u0;
+                channel.Requests.AskByNode(100, typeof(NetworkIdentity)); channel.Requests.AskWatch(100, item);
+                long u2 = GC.GetAllocatedBytesForCurrentThread(); askBytes += u2 - u1;
+                channel.EndFrame();
+                long u3 = GC.GetAllocatedBytesForCurrentThread(); endBytes += u3 - u2;
+                _ = ui.Model.Facts.StatusText; _ = ui.Transport.CurrentFrame; _ = ui.RecordingFiles(); _ = ui.Panel.HasNonZeroOffset;
+                _ = ui.Model.TryByNode(100, typeof(NetworkIdentity), out _);
+                readBytes += GC.GetAllocatedBytesForCurrentThread() - u3;
+                uiBytes += GC.GetAllocatedBytesForCurrentThread() - u0;
+            }
+            Assert.Equal(0, simBytes);
+            Assert.True(uiBytes == 0, $"UI frame bytes over 20: pull {pullBytes} · asks {askBytes} · end {endBytes} · reads {readBytes}");   // 🔴 measured red before BUG-3: end 640 (32 B per frame)
+            Assert.Equal(0, jobs.Faults);
+        }
+        finally { if (guard) { Fdp.Core.WorldGuard.Disarm(); Fdp.Core.WorldGuard.Strict = wasStrict; } }
+        if (guard) Assert.Equal(hitsBefore, Fdp.Core.WorldGuard.DistinctHits);               // ⭐ strict: not one read of S off the sim thread
+    }
+
     // ── S5 · I7 — local entities from EVERY node, tagged, the Source menu's checkboxes (mockup ③) ─────────
 
-    private static List<(string Note, int Progress)> LocalsInWorld(ReviewSource source, EntityRepository world)
+    private static List<(string Note, int Progress)> LocalsInWorld(ReviewUi ui, EntityRepository world)
     {
         var found = new List<(string, int)>();
         for (int i = 0; i <= world.MaxEntityIndex; i++)
         {
             var e = new Entity(i, world.GetMetadata(i).Generation);
-            if (world.IsAlive(e) && source.LocalOriginNote(e) is { } note) found.Add((note, world.GetComponent<ObjectiveStatus>(e).ProgressCur));
+            if (world.IsAlive(e) && ui.LocalOriginNote(e) is { } note) found.Add((note, world.GetComponent<ObjectiveStatus>(e).ProgressCur));
         }
         found.Sort();
         return found;
@@ -521,15 +847,15 @@ public sealed class TheReviewSourceTests : IDisposable
         using var rig = new Rig(_root, _serializer);
         rig.Open(_exercise);
 
-        Assert.Equal(new[] { ("local to SimHost-2", 902), ("local to SimHost-4", 904) }, LocalsInWorld(rig.Source, rig.World));   // ⭐ one from each node, each tagged with its own
+        Assert.Equal(new[] { ("local to SimHost-2", 902), ("local to SimHost-4", 904) }, LocalsInWorld(rig.Ui, rig.World));   // ⭐ one from each node, each tagged with its own
 
-        rig.Source.SwitchPanel!.SetLocalEntitiesShown(4, false);                                                            // the checkbox
-        Assert.Equal(new[] { ("local to SimHost-2", 902) }, LocalsInWorld(rig.Source, rig.World));
+        rig.Ui.Panel.SetLocalEntitiesShown(4, false);                                                            // the checkbox
+        Assert.Equal(new[] { ("local to SimHost-2", 902) }, LocalsInWorld(rig.Ui, rig.World));
         Assert.NotEqual(int.MaxValue, ProgressOfNet(rig.World, 300));                                                      // its networked unit stays
 
-        rig.Source.SwitchPanel!.SetLocalEntitiesShown(4, true);
-        Assert.Equal(2, LocalsInWorld(rig.Source, rig.World).Count);
-        Assert.Null(rig.Source.LocalOriginNote(Entity.Null));
+        rig.Ui.Panel.SetLocalEntitiesShown(4, true);
+        Assert.Equal(2, LocalsInWorld(rig.Ui, rig.World).Count);
+        Assert.Null(rig.Ui.LocalOriginNote(Entity.Null));
     }
 
     [SkippableFact]
@@ -539,7 +865,7 @@ public sealed class TheReviewSourceTests : IDisposable
         FourParticipants();
         using var rig = new Rig(_root, _serializer, names: n => n switch { 2 => "CGF-1", 3 => "CGF-2", 4 => "SimHost-1", _ => "Player-1" });
         rig.Open(_exercise);
-        var panel = rig.Source.SwitchPanel!;
+        var panel = rig.Ui.Panel;
         panel.CaptureLayout = true;
         using var frame = UiFrameHarness.Begin(420, 400);
         new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
@@ -547,12 +873,12 @@ public sealed class TheReviewSourceTests : IDisposable
         {
             ImGui.SetNextWindowPos(Vector2.Zero); ImGui.SetNextWindowSize(new Vector2(420, 400));
             ImGui.Begin("Source", ImGuiNET.ImGuiWindowFlags.NoCollapse);
-            ReviewSourceSwitch.Draw(rig.Source);
+            ReviewSourceSwitch.Draw(rig.Ui);
             ImGui.End();
         });
         Draw();
 
-        Assert.Equal(ViewMode.Merged, panel.ActiveMode);                                       // the group opens Merged: the switch shows it
+        Assert.Equal(ReviewKind.Merged, rig.Ui.Model.Kind);                                     // the group opens Merged: the switch shows it (CE-4496: the model says so)
         Assert.Equal(new[] { 2, 3, 4, 5 }, panel.LocalsRows.Select(r => r.Node).ToArray());    // ⭐ one checkbox per participant …
         Assert.All(panel.LocalsRows, r => Assert.True(r.On));                                  // … every node's on by default
         Assert.Single(panel.LocalsRows.Select(r => r.X).Distinct());                           // aligned: ONE x (the mockup's column of boxes)
@@ -581,12 +907,12 @@ public sealed class TheReviewSourceTests : IDisposable
         FourParticipants();
         using var rig = new Rig(_root, _serializer, names: n => n switch { 2 => "CGF-1", 3 => "CGF-2", 4 => "SimHost-1", _ => "Player-1" });
         rig.Open(_exercise);
-        var panel = rig.Source.SwitchPanel!;
+        var panel = rig.Ui.Panel;
         panel.CaptureLayout = true;
-        int offsetsAsked = 0; rig.Source.OffsetsRequested += () => offsetsAsked++;
+        int offsetsAsked = 0; rig.Ui.OffsetsRequested += () => offsetsAsked++;
         var registered = new List<Fdp.Presentation.WindowManager.ManagedWindow>();
-        var host = new ReviewFederationWindowHost(rig.Source, registered.Add, "Review", Vector4.One);
-        Assert.Single(registered);   // the window over the open group's panel, registered once
+        var host = new ReviewFederationWindowHost(rig.Ui, registered.Add, "Review", Vector4.One);
+        Assert.Empty(registered);    // ⭐ CE-4496 R-2 — the window over the review's ONE panel is registered on the first Offsets…, once
         ReviewSourceSwitch.CaptureLayout = true;
         try
         {
@@ -598,7 +924,7 @@ public sealed class TheReviewSourceTests : IDisposable
                 ImGui.SetNextWindowPos(Vector2.Zero); ImGui.SetNextWindowSize(new Vector2(460, 330));
                 ImGui.Begin("Source", ImGuiNET.ImGuiWindowFlags.NoDecoration | ImGuiNET.ImGuiWindowFlags.NoMove | ImGuiNET.ImGuiWindowFlags.NoSavedSettings);
                 long b0 = GC.GetAllocatedBytesForCurrentThread();
-                ReviewSourceSwitch.Draw(rig.Source);
+                ReviewSourceSwitch.Draw(rig.Ui);
                 drawBytes = GC.GetAllocatedBytesForCurrentThread() - b0;
                 ImGui.End();
             });
@@ -645,10 +971,13 @@ public sealed class TheReviewSourceTests : IDisposable
         finally { ReviewSourceSwitch.CaptureLayout = false; }
 
         // Offsets… asks the host; the host's window hosts the panel with NO radio and NO checkboxes (they are in the menu)
-        Assert.False(host.Window!.IsOpen);          // closed until asked for
-        rig.Source.RequestOffsets();
+        Assert.Null(host.Window);                   // not there until asked for
+        rig.Ui.RequestOffsets();
         Assert.Equal(1, offsetsAsked);
+        Assert.Single(registered);
         Assert.True(host.Window!.IsOpen);           // Offsets… opened the Federation window
+        rig.Ui.RequestOffsets();
+        Assert.Single(registered);                  // … registered once
         Assert.False(panel.ShowModeRadio); Assert.False(panel.ShowLocals);
     }
 
@@ -687,8 +1016,20 @@ public sealed class TheReviewSourceTests : IDisposable
         return Entity.Null;
     }
 
-    private ByNodeSection ByNode(Rig rig) => new(new ReplicaViews(new OwnershipSource(), _serializer), () => rig.Source.MergedManager,
-        e => rig.World.IsAlive(e) && rig.World.HasComponent<NetworkIdentity>(e) ? rig.World.GetComponent<NetworkIdentity>(e).Value : 0, rig.Source.NameOf);
+    /// <summary>⭐ CE-4496 R-2 — the section over the review's channel (inline, with the replica lens), as the editor composes it.</summary>
+    private (ByNodeSection Section, InlineReviewChannel Channel) ByNode(Rig rig)
+    {
+        var channel = new InlineReviewChannel(rig.Source, new ReviewModelBuilder(new ReplicaViews(new OwnershipSource(), _serializer)));
+        return (new ByNodeSection(channel, e => rig.World.IsAlive(e) && rig.World.HasComponent<NetworkIdentity>(e) ? rig.World.GetComponent<NetworkIdentity>(e).Value : 0, rig.Source.NameOf), channel);
+    }
+
+    /// <summary>A view as a drawn frame gets it: asked this frame, in the model after the frame's end (the request rides up only when it changes).</summary>
+    private static ReplicaView? ViewNow(ByNodeSection section, InlineReviewChannel channel, Entity e, Type t)
+    {
+        section.ViewOf(e, t);
+        channel.EndFrame();
+        return section.ViewOf(e, t);
+    }
 
     /// <summary>
     /// ⭐ G-7 S5 (I5, M-5) — Details ▸ a component ▸ <i>By node</i>: the OWNER (CGF-A, from the recorded ownership) first, then each replica; the replica that believes 7 more is marked DIFFERING (amber, Δ 7), the one that
@@ -700,20 +1041,20 @@ public sealed class TheReviewSourceTests : IDisposable
         ReplicaGroup();
         using var rig = new Rig(_root, _serializer);
         rig.Open(_exercise);
-        var section = ByNode(rig);
+        var (section, channel) = ByNode(rig);
         var unit = UnitOf(rig.World, 100);
 
-        var view = section.ViewOf(unit, typeof(ObjectiveStatus))!;
+        var view = ViewNow(section, channel, unit, typeof(ObjectiveStatus))!;
 
         Assert.Equal(2, view.OwnerNode);
         Assert.Equal(new[] { 2, 3, 4 }, view.Rows.Select(r => r.NodeId).ToArray());
         Assert.Equal(new[] { true, false, false }, view.Rows.Select(r => r.IsOwner).ToArray());
         Assert.Equal(new[] { false, false, true }, view.Rows.Select(r => r.Differs).ToArray());        // ⭐ only node 4's copy differs from the owner's
         Assert.Equal(7d, view.Rows[2].Delta, 3);
-        Assert.Null(section.ViewOf(Entity.Null, typeof(ObjectiveStatus)));
+        Assert.Null(ViewNow(section, channel, Entity.Null, typeof(ObjectiveStatus)));
 
         rig.Source.SelectPart(3);
-        Assert.Null(section.ViewOf(unit, typeof(ObjectiveStatus)));                                    // a part: no By node
+        Assert.Null(ViewNow(section, channel, unit, typeof(ObjectiveStatus)));                                    // a part: no By node
     }
 
     [SkippableFact]
@@ -723,7 +1064,7 @@ public sealed class TheReviewSourceTests : IDisposable
         ReplicaGroup();
         using var rig = new Rig(_root, _serializer, names: n => n switch { 2 => "CGF-1 (Brain)", 3 => "SimHost-1 (Muscle)", _ => "IG-1 (Map2D)" });
         rig.Open(_exercise);
-        var section = ByNode(rig);
+        var (section, channel) = ByNode(rig);
         section.Capture = true;
         var panel = new Fdp.Presentation.Panels.EntityInspectorPanel();
         panel.Reflector.ComponentFooter = section.Draw;
@@ -738,6 +1079,7 @@ public sealed class TheReviewSourceTests : IDisposable
             ImGui.Begin("Details", ImGuiNET.ImGuiWindowFlags.NoCollapse);
             panel.DrawComponentsFor(session, unit);
             ImGui.End();
+            channel.EndFrame();   // the frame's asks become the request (the editor's frame overlay does this)
         });
 
         var rows = section.Rows;   // the LAST component drawn (ObjectiveStatus sorts last) — three rows
@@ -763,7 +1105,7 @@ public sealed class TheReviewSourceTests : IDisposable
         ReplicaGroup();
         using var rig = new Rig(_root, _serializer, names: n => n switch { 2 => "CGF-1 (Brain)", 3 => "SimHost-1 (Muscle)", _ => "IG-1 (Map2D)" });
         rig.Open(_exercise);
-        var section = ByNode(rig);
+        var (section, channel) = ByNode(rig);
         section.Capture = true;
         var watch = new ReplicaWatchList();
         section.Watch = watch;
@@ -788,6 +1130,7 @@ public sealed class TheReviewSourceTests : IDisposable
             ImGui.Begin("Details", ImGuiNET.ImGuiWindowFlags.NoCollapse);
             section.DrawAttribute(unit, watch.ItemsOf(100)[0]);
             ImGui.End();
+            channel.EndFrame();
         });
         Assert.Equal(new[] { 2, 3, 4 }, section.Rows.Select(r => r.Node).ToArray());
         Assert.Equal(new[] { false, false, true }, section.Rows.Select(r => r.Amber).ToArray());

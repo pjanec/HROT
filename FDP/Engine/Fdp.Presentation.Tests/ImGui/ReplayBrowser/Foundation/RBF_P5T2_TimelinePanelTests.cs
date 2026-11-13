@@ -65,7 +65,7 @@ public sealed class RBF_P5T2_TimelinePanelTests : IDisposable
     private static ReplayTimelinePanel MakePanel(FederatedReplayManager? manager, Func<int>? getNodeId = null)
     {
         return new ReplayTimelinePanel(
-            manager,
+            manager is null ? null : InlineReviewChannel.OverManager(manager),
             getNodeId ?? (() => manager?.LocalEntitiesProviderNodeId ?? 0),
             new StubExportService(),
             new StubFileDialogService(),
