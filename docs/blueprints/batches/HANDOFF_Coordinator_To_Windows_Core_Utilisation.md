@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → WINDOWS session: WHY THE EDITOR USES ~35–40 % OF THE CPU — measure everything that keeps the cores idle
 
-**For:** the Windows session (hidden window, always). **From:** coordinator. **Dispatched at `<stamp>`**.
+**For:** the Windows session (hidden window, always). **From:** coordinator. **Dispatched at `98ede68a1`**.
 🔒 User, `2026-11-13`: *"cpu utilization when i run the scale-rig-scale-1-1000-2s scenario is just aroung 40%. very bad parallelization"* ·
 *"i am running editor so no networks whatsoever. without the recorder the cpu load is around 35-37%. yes pls measure whatever needed to help
 utilize the cores, this is enormous waste."* ⛔ Autonomous, MEASURE ONLY (no fix): a failing step gets one retry, then its error in the status
