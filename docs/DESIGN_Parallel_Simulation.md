@@ -889,6 +889,11 @@ HIDDEN windows — a process Windows treats as background may already have been 
 | ⭐ Intel hybrid (P- + E-cores) | `Environment.ProcessorCount` counts both; a batch on an E-core finishes later and the whole parallel step waits for it | size the frame lane to the PERFORMANCE cores (`GetSystemCpuSetInformation`, `EfficiencyClass`), let the background lane use the efficiency cores; keep adaptive batches (stragglers absorbed). ⚠ The user's machine is AMD (no E-cores) ⇒ this can be designed and unit-tested, measured only on an Intel hybrid machine |
 | ⭐ a console node FREEZES when someone clicks in its window | QuickEdit mode: a text selection blocks every write to the console ⇒ a thread that logs (a console line per step) stops, and the simulation with it | console hosts turn QuickEdit OFF at start-up (`SetConsoleMode`, clear `ENABLE_QUICK_EDIT_MODE`) |
 
+⭐ **As built and verified on Windows** *(F-5 / F-6, CE-4505 / CE-4506)*: the opt-out lands on every process — ControlMask 5 / StateMask 0 read
+back on each; each runner logs what it did once at start-up (`[Scheduling] power throttling: … · console QuickEdit: …`, `WindowsScheduling.Describe`).
+⚠ Windows' default cost without it varies by day: 1.2–1.4× on `2026-11-13`, ~1.9× earlier — so the opt-out stays on, and a number measured
+without it is not comparable.
+
 ### 11.2 ⭐ Scaling past 4 threads — measured on Windows *(`STATUS_Ui_Windows_Scaling.md` on exp/perf, CE-4451)*
 
 | | measured (CGF on 6 cores of its own) |
