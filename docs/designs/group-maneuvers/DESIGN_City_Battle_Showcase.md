@@ -589,7 +589,7 @@ B's CE-7012 (the bulldozer's ClearObstacle) stands on them.
 | R-1b | **CE-7027** | the bomber quadcopter (drop) | the impact path | B |
 | R-1c | **CE-7028** | the recon quadcopter → SPOT → FireSupport → the battery | `StaffComposerSystem`, `PersonObserveFire` | B |
 | R-2 | **CE-7014** | anti-drone reaction + the jammer | `ua-drone-shelter` | B |
-| R-2a | **CE-7029** | infantry take cover from drones (vehicles already do) | `ShelterFromAir` | B |
+| R-2a | **CE-7029** ✅ BUILT `2026-11-13` | infantry take cover from drones (vehicles already do). As built: a man's `AirThreat` edge is re-raised on his commander (`SquadSensing.AirThreat`, serial, once per squad a frame; a man aboard skipped — the vehicle shelters); `BasicSquadSop`'s new drone row (above "under a platoon") reacts `SquadShelterFromAir` — every live man is sent `ShelterFromAir`, held until 10 s after the last sensing, then the task resumes; a LONE man's `BasicInfantrySop` row reacts `ShelterFromAir` himself (a man under command never does, R-2062) | `ShelterFromAir`, `SquadSensing` | B |
 | S-1 | **CE-2278** *(existing)* | smoke rounds — ⭐ MUST-HAVE on the breach drill's critical path | indirect fire | B |
 | S-1b | **CE-7025** | smoke ROUNDS from the mortars (IF-5) and a FireSupport request that names smoke — ⛔ no smoke round exists today | Indirect Fire IF-5, `SupportCommandBehavior` | B |
 | S-2 | **CE-7015** | unit morale / rout — ⭐ MUST-HAVE; ⛔ waits for the user's AQ101 E-3 / E-4 decision | stress | B |

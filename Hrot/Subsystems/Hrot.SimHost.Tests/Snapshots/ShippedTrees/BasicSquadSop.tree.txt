@@ -8,8 +8,10 @@ variable LeaderDown Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"SquadLeaderDo
 variable Contact Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"SquadContact","Seconds":3}
 variable MemberDown Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"SquadMemberDown","Seconds":3}
 variable AreaAhead Fdp.Toolkit.Behavior.SopAreaParams = {"WithinMetres":30}
+variable AirSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"AirThreat","Seconds":3}
 parse (empty) -> ok
   c2123000-0000-0000-0000-000000000041 {"Kind":"SquadUnderFire","Seconds":3}
+  c7029000-0000-0000-0000-000000000011 {"Kind":"AirThreat","Seconds":3}
   c2123000-0000-0000-0000-000000000011 {"Kind":"SquadUnderFire","Seconds":3}
   c2123000-0000-0000-0000-000000000031 {"Kind":"SquadLeaderDown","Seconds":3}
   c2123000-0000-0000-0000-000000000051 {"Kind":"SquadMemberDown","Seconds":3}
@@ -48,6 +50,10 @@ Selector c2123000-0000-0000-0000-000000000002 "Rows — first true wins"
     Condition c2123000-0000-0000-0000-000000000081 call Hrot.AI.Behaviors.Brains.SquadSopConditions.Riding "Every live member aboard a vehicle"
     Action c2123000-0000-0000-0000-000000000082 sop React:SquadRide:Alert "React: SquadRide"
       # Ends the moment somebody is out.
+  Sequence c7029000-0000-0000-0000-000000000010 "Drone → every man takes cover"
+    # CE-7029 (City Battle R-1d): a man senses a drone ⇒ the squad does (SquadSensing.AirThreat); every live man is sent ShelterFromAir (overhead cover, else keep moving; fire at it while seen) until the sky has been clear 10 s. Above 'under a platoon': a drone is the squad's own immediate threat, as the carrier rows are its own.
+    Condition c7029000-0000-0000-0000-000000000011 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"AirThreat","Seconds":3} "A drone over the squad (fresh, 3 s)"
+    Action c7029000-0000-0000-0000-000000000012 sop React:SquadShelterFromAir:UnderFire "React: SquadShelterFromAir"
   Condition c2123000-0000-0000-0000-0000000000c1 call Fdp.Toolkit.Behavior.SopConditions.UnderCommand "Under a platoon → the platoon reacts for the squad"
     # CE-2358 (AQ102 G, R-2072): true = the row wins and nothing is ordered — a squad under a live platoon gets its fight from its platoon's play (AQ97 A at the squad level); the carrier rows above stay the squad's own (mount, dismount, ride). Every squad type now carries this SOP by default.
   Sequence c2123000-0000-0000-0000-000000000010 "Squad under fire → react"

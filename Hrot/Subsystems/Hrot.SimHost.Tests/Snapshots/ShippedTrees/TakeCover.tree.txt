@@ -1,5 +1,5 @@
 asset a2092000-0000-0000-0000-000000000001
-group Library/Tactics
+group Library/Combat
 sop-orders no
 writes-channels []
 json-params Hrot.AI.Behaviors.Brains.EqsTacticsParams

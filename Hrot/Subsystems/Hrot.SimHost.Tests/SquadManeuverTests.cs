@@ -1197,6 +1197,32 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
         }
 
+        /// <summary>⭐⭐ <c>CE-7029</c> (City Battle R-1d) — the shipped squad SOP under a DRONE: the squad's <c>AirThreat</c> (a man sensed it) ⇒ React
+        /// <c>SquadShelterFromAir</c>, which PAUSES the task and sends EVERY man <c>ShelterFromAir</c>; while the drone is still sensed the reaction runs,
+        /// and <c>ClearSeconds</c> after the last sensing it ends and the task resumes. ✅ Red-proof: the squad SOP's drone row removed ⇒ the task stays.</summary>
+        [Fact]
+        public void CE7029_BasicSquadSop_ADroneOverTheSquad_EveryManTakesCover_ThenTheTaskResumes()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 20; i++) s.Tick();
+            Assert.Equal(BehaviorNames.BoundingOverwatch, s.TaskName);
+
+            s.Orders.Clear();
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.AirThreat);
+            for (int i = 0; i < SopReactionFrames + 2; i++) s.Tick();
+            Assert.Equal(BehaviorNames.SquadShelterFromAir, s.TaskName);
+            Assert.Equal(ReactionUrgency.UnderFire, s.Repo.GetComponent<BehaviorState>(s.Commander).Urgency);
+            foreach (var m in s.Members)
+                Assert.Contains(s.Orders, o => o.Entity == m && o.IntentId == BehaviorNames.ShelterFromAir);
+
+            for (int k = 0; k < 4; k++) { s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.AirThreat); Seconds(s, 2); }   // still overhead
+            Assert.Equal(BehaviorNames.SquadShelterFromAir, s.TaskName);
+            Seconds(s, SquadShelterFromAirBehavior.ClearSeconds + 1);                                                         // the sky clear
+            Assert.Equal(BehaviorNames.BoundingOverwatch, s.TaskName);
+        }
+
         /// <summary>⭐ <c>CE-2358</c> (AQ102 G, R-2072) — a squad under a LIVE platoon lets its own contact rows stand aside (the platoon's
         /// play fights for it, AQ97 A at the squad level): the same <c>SquadContact</c> that pauses a lone squad's bound leaves this one's
         /// bound running. ✅ Red-proof: drop the <c>UnderCommand</c> row from <c>BasicSquadSop</c> ⇒ ReactToContact ⇒ red.</summary>
