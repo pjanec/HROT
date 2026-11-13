@@ -19,9 +19,9 @@ using Xunit;
 namespace Hrot.Presentation.Tests.Map3D;
 
 /// <summary>
-/// â­ CE-4555 â€¦ CE-4558 (docs/DESIGN_Map_3D_Mode.md Â§6ak) â€” bodies and doors at scale, on this machine's GL: the batch draws every part of a frame in one
+/// ⭐ CE-4555 … CE-4558 (docs/DESIGN_Map_3D_Mode.md §6ak) — bodies and doors at scale, on this machine's GL: the batch draws every part of a frame in one
 /// instanced call per mesh and the picture is the one the per-part <c>DrawMesh</c> drew; the screen-size bands; the pick through the drawn boxes.
-/// Screenshots go to <c>HROT_RAIL_SHOTS</c> (else the temp folder) â€” never to git. Skips where there is no display.
+/// Screenshots go to <c>HROT_RAIL_SHOTS</c> (else the temp folder) — never to git. Skips where there is no display.
 /// </summary>
 [Collection(Map3DFrameRail.Serial)]
 public sealed class BodyScaleFrameRail
@@ -34,7 +34,7 @@ public sealed class BodyScaleFrameRail
     }
 
     /// <summary>A squad on open ground in test-town: riflemen (camouflage, faces, helmets), one aimed, one crouched, one hurt (stains), civilians (faces, hair,
-    /// outfit details), a dead man, and a car â€” every kind of instance the body layer adds.</summary>
+    /// outfit details), a dead man, and a car — every kind of instance the body layer adds.</summary>
     internal static (EntityRepository World, Fdp.Interfaces.ITkbDatabase Tkb, Vector2 Spot, Func<float, float, float> Ground) Squad(int riflemen = 12)
     {
         var terrain = Map3DTests.TestTown();
@@ -110,10 +110,10 @@ public sealed class BodyScaleFrameRail
     }
 
     /// <summary>
-    /// â­ CE-4555 (G-1) / CE-4556 (G-2) â€” the batch: every part, face box, outfit detail and stain of the frame is ONE instance, drawn in one instanced call per mesh
-    /// with instances (â‰¤ 3: cube, cylinder, cone) â€” and the picture is the one the per-part <c>DrawMesh</c> path draws (the same frame through
-    /// <see cref="EntityBodyLayer3D.ForcePerDraw"/>, the layer's draw before the batch, faces and camouflage set as uniforms): the look is unchanged (Â§6ak.5 â‘¢).
-    /// ðŸ”´ Red-proof: an instance's paint dropped (no camouflage / face) â‡’ the two pictures differ on every soldier â‡’ red.
+    /// ⭐ CE-4555 (G-1) / CE-4556 (G-2) — the batch: every part, face box, outfit detail and stain of the frame is ONE instance, drawn in one instanced call per mesh
+    /// with instances (≤ 3: cube, cylinder, cone) — and the picture is the one the per-part <c>DrawMesh</c> path draws (the same frame through
+    /// <see cref="EntityBodyLayer3D.ForcePerDraw"/>, the layer's draw before the batch, faces and camouflage set as uniforms): the look is unchanged (§6ak.5 ③).
+    /// 🔴 Red-proof (run 2026-11-14): the instanced program reading a tone from the wrong vector (<c>#define tone1 instData2.rgb</c>) ⇒ 21 885 pixels differ ⇒ red.
     /// </summary>
     [SkippableFact]
     public void CE4556_TheBatch_OneCallPerMesh_AndTheSamePictureAsDrawMeshPerPart()
@@ -155,7 +155,7 @@ public sealed class BodyScaleFrameRail
     }
 
     /// <summary>
-    /// â­ CE-4555 (G-1, Â§6ak.5 â‘¤) â€” the layer and its batch allocate NOTHING in a steady frame (the batch's arrays and buffers are grown, never shrunk).
+    /// ⭐ CE-4555 (G-1, §6ak.5 ⑤) — the layer and its batch allocate NOTHING in a steady frame (the batch's arrays and buffers are grown, never shrunk).
     /// </summary>
     [SkippableFact]
     public void CE4555_ASteadyFrame_AllocatesNothing()

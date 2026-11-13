@@ -17,8 +17,8 @@ related-designs:
 
 | # | item | state |
 |---|---|---|
-| G-1 · CE-4555 | `LitInstanceBatch` + the instanced program in `LitShader` | 🔄 |
-| G-2 · CE-4556 | the body layer fills the batch | 🔄 |
+| G-1 · CE-4555 | `LitInstanceBatch` + the instanced program in `LitShader` | ✅ `029427648` |
+| G-2 · CE-4556 | the body layer fills the batch | ✅ `029427648` |
 | G-3 · CE-4557 | the screen-size bands | ⬜ |
 | G-4 · CE-4558 | the pick on input, through the drawn boxes | ⬜ |
 | G-5 · CE-4559 | the 2-D terrain layer from a cache | ⬜ |
@@ -51,5 +51,10 @@ The UI thread at the whole-terrain pose (10 s sampled): `EntityBodyLayer3D.Draw3
 | A-5 | a driver that refuses the instanced program | draw nothing · plain colour · the old per-draw path | **the old per-draw path, paint included** (`BodySurface.Apply`) | the same picture on every GL; the rail compares the two paths | `LitInstanceBatch.FlushOneByOne` |
 
 ## BUGS FIXED
+
+| bug | fix | rail |
+|---|---|---|
+| the body layer allocated ≈ 1.4 KB a steady frame (16 bodies): a capturing lambda per frame (`DrawCarried`'s `wreckOf`, `DrawRopes`' `RemoveAll`), a new rope query and a new `WorldQuery` view per frame, a boxed enumerator per head (`foreach` over `IReadOnlyList`), `ToList` in the motion tracker's sweep — and the new batch's `stackalloc` initializer (64 B) | each made allocation-free (`029427648`) | `BodyScaleFrameRail.CE4555_ASteadyFrame_AllocatesNothing` |
+| (this run) `BodyScaleFrameRail.cs` was committed in `029427648` with its comments double-encoded (a PowerShell `Get-Content`/`Set-Content` round trip in the cs-CZ code page) | re-encoded | — |
 
 ## OPEN
