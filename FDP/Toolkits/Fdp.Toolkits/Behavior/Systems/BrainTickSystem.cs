@@ -288,7 +288,8 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <summary>⭐ N-11 — the brains run as a per-entity parallel phase: with the engine's parallel simulation (<c>HROT_PARALLEL_SIM=1</c>,
         /// <see cref="ParallelEntities.Enabled"/> — the switch every converted per-entity system follows) or the threaded node
         /// (<c>HROT_THREADED_KERNEL=3</c>). Off by default; tests set it.</summary>
-        public static bool Parallel = ParallelEntities.Enabled || Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds;
+        public static bool Parallel = (ParallelEntities.Enabled || Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds)
+            && Environment.GetEnvironmentVariable("HROT_SERIAL_BRAINS") != "1";   // ⭐ N-15 — the measuring switch: this phase alone serial
 
         private struct Due
         {
