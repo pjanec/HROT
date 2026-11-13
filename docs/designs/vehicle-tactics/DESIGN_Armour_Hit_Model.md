@@ -267,6 +267,15 @@ took a tank for a person. With B8's loadouts the weapon brain then picked HEAT-M
 states the hull's `Body.Geometry` (ground-centred size; people excluded) and `VehicleKinematicsTkbTranslator` falls back to its height. Rail
 `NedTkbBuilderCombatTests.B8_ANedHull_StatesItsSizeAndLocomotion_…`; the live hill attack is the proof (handoff report).
 
+**The bulldozer's profile (CE-6006, showcase world, `2026-11-13`; 🔒 user: *"it should stand some shots as armored one would"*)** — the light-armour idea
+(the APC's, the pickup's) tuned by PARAMETERS only, no new mechanism: armour 50 front / 40 side and rear / 35 roof (mm RHA), health 1000, blast
+susceptibility 0.1 (`NedTkbCatalog.DefineBulldozer`, TKB type 112). With `P = clamp((pen / armour − 0.8) / 0.4, 0, 1)`: the rifle (pen 5), every 7.62 (≤ 8) and
+the 12.7 AP (25 < 0.8 × 35 = 28) are **P = 0 on every face** — 200 hits leave it untouched; the RPG-7 (pen 300 ≥ 1.2 × 50, no `…Ce` column ⇒ the kinetic value) is
+**P = 1 on every face**, 400 per hit ⇒ two leave 200 of 1000, the **third kills**. The burst's blast on the hull is bounded (a rail asserts < 60 per rocket).
+Rail: `Hrot.Core.Tests` `BulldozerArmourTests` (the real catalogue through `ArmorModel`; red-proofs: side 40 → 4 fails the small-arms rows, health 1000 → 700 fails the
+third-rocket row); the in-world twin is the feature scenario `scenarios/showcases/city-battle/features/bulldozer-armour`. A bulldozer has no `bodies.json` profile, so
+a round meets its whole hull (no per-part hit location) — a profile would be a follow-up if the showcase needs parts.
+
 ## 7. Area effects against vehicles — D-M *(🔒 user, `2026-10-15`, R-2019; build-state: BUILT `2026-10-15` — §7.5 design, §7.6 as built; AE5 §7.7 BUILT)*
 
 🔒 **User, `2026-10-15`:** *"A and B together is the most realistic … chosing this one, most realistic.*

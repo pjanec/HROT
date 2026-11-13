@@ -654,6 +654,54 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 4, Subcategory = 1 });
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-6006</c> (showcase world, DESIGN_City_Battle_Showcase §6 <c>Bulldozer</c> / D-6; 🔒 user, 2026-11-13: <i>"no need to look armored,
+        /// just it should stand some shots as armored one would"</i>) — the BULLDOZER: a D9-class engineering dozer, tracked, NO weapon. Its brain
+        /// (ClearObstacle, B's CE-7012) is the behaviours lane's; this is the TYPE. Class <c>Bulldozer</c> 1.1.*.9.1 (a large tracked utility
+        /// vehicle). The crew stays abstract, as the tanks' (R-2009 B5).
+        /// <para>🛡 ARMOUR (📐 <c>ArmorModel</c>, <c>P = clamp((pen / armour − 0.8) / 0.4, 0, 1)</c>): 40 mm on the sides and rear, 50 on the front, 35 on
+        /// the roof — a steel cab and appliqué kit, ⛔ not a tank's. A rifle round (pen 5) and a 7.62 (pen ≤ 8) are 0 % at any face, the 12.7 AP (pen 25)
+        /// too (25/35 = 0.71 &lt; 0.8); the RPG-7 (pen 300 ≥ 1.2 × 50) is 100 % at every face. Health 1000: an RPG hit does 400 (its stated
+        /// <c>DamagePerHit</c>), so the third kills (3 × 400 ≥ 1000) and two do not (800), while <c>BlastSusceptibility</c> 0.1 keeps the
+        /// burst's blast on the hull from moving that arithmetic. The profile is the light-armour idea (the APC's, the pickup's) tuned by
+        /// parameters — no new armour mechanism.</para>
+        /// </summary>
+        private static void DefineBulldozer(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.Engineer_Bulldozer;
+            builder
+                .DefineVehicle(type, "Bulldozer (D9-class)")
+                .WithVisual(type, v =>
+                {
+                    v.SymbolCode = "SFGPEVEE-------";   // 2525B ground equipment · vehicle · engineer · earthmover
+                    v.ColorHex = "#E3B01C";             // construction yellow
+                    v.Scale = 1.2f;
+                    v.ShowLabel = true;
+                })
+                .WithPhysics(type, p =>
+                {
+                    p.Mass = 49_000;   // a D9 (about 49 t)
+                    p.Length = 8.0f;   // with the blade
+                    p.Width = 4.3f;    // the blade's
+                    p.Height = 4.0f;   // the cab's ROPS
+                    p.MaxSpeed = 4.5f; p.MaxSpeedRev = 4.5f; p.Acceleration = 1.0f; p.TurnRate = 25f;
+                    p.Mobility = TerrainMobility.Tracked;
+                })
+                .WithCombat(type, c =>
+                {
+                    c.ArmorFront = 50; c.ArmorSide = 40; c.ArmorRear = 40; c.ArmorTop = 35;
+                    c.MaxHealth = 1000;
+                    c.BlastSusceptibility = 0.1f;
+                    c.EyeHeight = 3.2f;   // the operator in the cab
+                    c.SensorRange = 500;
+                })
+                .WithFaction(type, 1)
+                .WithBehavior(type)
+                .WithSignatures(type, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine))
+                // Large Tracked Utility Vehicle (1.1.*.9) · subcategory 1 = the bulldozer (HROT, EntityClassTable "Bulldozer")
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 9, Subcategory = 1 });
+        }
+
         public static void RegisterAll(TkbDatabase tkbDb)
         {
             var builder = new NedTkbBuilder(tkbDb);
@@ -1058,6 +1106,7 @@ namespace Hrot.Map.Definitions.Tkb
             //   weapon mount (Dispenser, below): the UH-60s, the AH-64, the A-10. ⚠ The F-16 and the C-130 have no combat block and no
             //   brain (nothing could release their flares), so they carry none yet.
             DefineSelfPropelledHowitzer(builder);   // ⭐ Indirect fire IF-1 (I8)
+            DefineBulldozer(builder);               // ⭐ CE-6006 — the engineering dozer
 
             // ⭐ IF-1 (I8, FM-1) — the ARTILLERY BATTERY: a body-less commander unit (class ArtilleryUnit 11.1.*.4) whose roster is its guns;
             //   a Strike to it resolves to ArtilleryUnitStrike (the behaviour lane's battery play). Three M109s, placed by hand (no auto spawn).

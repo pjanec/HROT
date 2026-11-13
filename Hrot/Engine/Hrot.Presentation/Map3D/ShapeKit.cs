@@ -481,6 +481,77 @@ public static class ShapeKits
         Box(0.21f, 0f, 0.46f, 0.03f, 0.10f, 0.20f, ColourRole.Dark, -30f),                       // travel lock, folded
     }, new KitPivots(new Vector2(-0.20f, 0f), new Vector2(-0.06f, 0.72f)));
 
+    // ── ⭐ CE-6007 (showcase world, DESIGN_City_Battle_Showcase V-1b; 🔒 user 2026-11-13: "no need to look armored") — the BULLDOZER ───────────────────
+    private const float DzL = 8.0f, DzW = 4.3f, DzH = 4.0f;   // a D9: 8 m with the blade, the blade 4.3 m wide, 4 m to the ROPS roof
+
+    /// <summary>A bulldozer box from METRES (x forward, y left, z up from the ground), as the fractions a part is.</summary>
+    private static KitPart Dz(float cx, float cy, float cz, float lx, float ly, float lz, ColourRole c, float pitch = 0f)
+        => Box(cx / DzL, cy / DzW, cz / DzH, lx / DzL, ly / DzW, lz / DzH, c, pitch);
+
+    /// <summary>A bulldozer cylinder from METRES: <paramref name="len"/> along its axis, <paramref name="dia"/> across (an X cylinder may pitch).</summary>
+    private static KitPart DzCyl(PartAxis axis, float cx, float cy, float cz, float len, float dia, ColourRole c, float pitch = 0f)
+    {
+        var centre = new Vector3(cx / DzL, cy / DzW, cz / DzH);
+        var extent = axis switch
+        {
+            PartAxis.X => new Vector3(len / DzL, 0f, dia / DzH),
+            PartAxis.Y => new Vector3(0f, len / DzW, dia / DzH),
+            _ => new Vector3(dia / DzL, 0f, len / DzH),
+        };
+        return new KitPart(PartShape.Cylinder, centre, extent, c, axis, PitchDegrees: pitch);
+    }
+
+    private static KitPart[] BulldozerParts()
+    {
+        var p = new List<KitPart>(48);
+        foreach (float s in new[] { 1f, -1f })   // the two track units: a run on the ground, a front idler, a HIGH rear sprocket, the slope between, the top run, the fender
+        {
+            float y = s * 1.35f;
+            p.Add(Dz(0.1f, y, 0.6f, 3.8f, 0.85f, 1.2f, ColourRole.Dark));                  // track on the ground
+            p.Add(DzCyl(PartAxis.Y, 2.0f, y, 0.6f, 0.85f, 1.2f, ColourRole.Dark));          // front idler
+            p.Add(DzCyl(PartAxis.Y, -2.2f, y, 1.05f, 0.85f, 1.5f, ColourRole.Dark));        // the elevated rear sprocket (a dozer's high drive)
+            p.Add(Dz(-1.95f, y, 0.85f, 1.7f, 0.85f, 0.35f, ColourRole.Dark, 30f));         // the slope up to it
+            p.Add(Dz(0f, y, 1.32f, 4.0f, 0.85f, 0.2f, ColourRole.Dark, 6f));               // the top run
+            p.Add(Dz(0.15f, y, 1.58f, 2.7f, 0.95f, 0.12f, ColourRole.Body));               // the fender
+            p.Add(Dz(1.75f, s * 2.0f, 0.9f, 3.5f, 0.3f, 0.45f, ColourRole.Body));          // the push arm, outside the track, to the blade
+            p.Add(Dz(2.15f, s * 0.95f, 1.9f, 0.3f, 0.3f, 0.8f, ColourRole.Body));          // the ram bracket on the radiator guard
+            p.Add(DzCyl(PartAxis.X, 2.8f, s * 1.0f, 1.8f, 1.5f, 0.2f, ColourRole.Metal, 20f));   // the lift ram, hood to blade
+            p.Add(Dz(3.6f, s * 2.05f, 0.9f, 0.5f, 0.2f, 1.6f, ColourRole.Body));           // the blade's end wing
+        }
+        // the hull: the lower tub, the hood, the grille, the exhaust stack and air cleaner, the rear deck
+        p.Add(Dz(-0.2f, 0f, 1.0f, 4.4f, 1.9f, 0.6f, ColourRole.Body));                  // the lower hull
+        p.Add(Dz(1.25f, 0f, 1.65f, 1.8f, 1.35f, 0.9f, ColourRole.Body));                // the hood (the engine is in FRONT on a dozer)
+        p.Add(Dz(2.17f, 0f, 1.65f, 0.06f, 1.1f, 0.7f, ColourRole.Dark));                // the radiator grille
+        p.Add(DzCyl(PartAxis.Z, 1.5f, -0.45f, 2.7f, 1.2f, 0.22f, ColourRole.Metal));    // the exhaust stack
+        p.Add(DzCyl(PartAxis.Z, 1.2f, 0.5f, 2.5f, 0.8f, 0.3f, ColourRole.Metal));       // the air pre-cleaner
+        p.Add(Dz(-2.0f, 0f, 1.55f, 1.2f, 1.9f, 0.9f, ColourRole.Body));                 // the rear deck over the final drives
+        // the open cab: a floor, a seat, FOUR ROPS pillars, a roof, glass only in the upper half (the operator shows below)
+        p.Add(Dz(-0.55f, 0f, 1.35f, 1.8f, 1.7f, 0.1f, ColourRole.Body));                // the cab floor
+        p.Add(Dz(-0.8f, 0f, 1.8f, 0.5f, 0.5f, 0.45f, ColourRole.Dark));                 // the seat
+        p.Add(Dz(-1.05f, 0f, 2.25f, 0.1f, 0.5f, 0.6f, ColourRole.Dark));                // the seat back
+        foreach (float px in new[] { 0.25f, -1.35f })
+            foreach (float py in new[] { 0.8f, -0.8f })
+                p.Add(Dz(px, py, 2.4f, 0.1f, 0.1f, 2.2f, ColourRole.Body));              // the ROPS pillars
+        p.Add(Dz(-0.55f, 0f, 3.55f, 1.9f, 1.8f, 0.08f, ColourRole.Body));               // the roof
+        p.Add(Dz(0.25f, 0f, 3.0f, 0.03f, 1.5f, 0.8f, ColourRole.Glass));                // windscreen (upper)
+        p.Add(Dz(-1.35f, 0f, 3.0f, 0.03f, 1.5f, 0.8f, ColourRole.Glass));               // rear glass (upper)
+        p.Add(Dz(-0.55f, 0.8f, 3.0f, 1.5f, 0.03f, 0.8f, ColourRole.Glass));             // side glass, left (upper)
+        p.Add(Dz(-0.55f, -0.8f, 3.0f, 1.5f, 0.03f, 0.8f, ColourRole.Glass));            // side glass, right (upper)
+        // the blade: a wide curved mould-board (leaning a little forward), its cutting edge, a back brace
+        p.Add(Dz(3.7f, 0f, 0.95f, 0.45f, 4.3f, 1.8f, ColourRole.Body, 8f));             // the blade
+        p.Add(Dz(3.93f, 0f, 0.1f, 0.12f, 4.3f, 0.2f, ColourRole.Metal));                // the cutting edge
+        p.Add(Dz(3.4f, 0f, 1.0f, 0.1f, 2.0f, 0.9f, ColourRole.Body));                   // the back brace
+        // the rear ripper: the frame, the beam, the shank trailing behind
+        p.Add(Dz(-2.95f, 0f, 1.4f, 0.7f, 1.2f, 0.5f, ColourRole.Body));                  // the ripper frame
+        p.Add(Dz(-3.45f, 0f, 1.0f, 0.4f, 2.0f, 0.4f, ColourRole.Body));                 // the beam
+        p.Add(Dz(-3.68f, 0f, 0.53f, 0.15f, 0.3f, 1.0f, ColourRole.Metal, 20f));          // the shank
+        return p.ToArray();
+    }
+
+    /// <summary>⭐ CE-6007 — a D9-class bulldozer (x forward, the blade at +x): see <see cref="BulldozerParts"/>. No articulated part: the blade and the
+    /// ripper are drawn lowered; a lift pose would be a part role of its own (not needed by the showcase).</summary>
+    public static readonly ShapeKit Bulldozer = new(BulldozerParts(), default);
+
     public static readonly ShapeKit Unknown = new(new[] { Box(0f, 0f, 0.5f, 1f, 1f, 1f, ColourRole.Body) }, default);
     public static readonly ShapeKit None = new(System.Array.Empty<KitPart>(), default);
 
@@ -498,6 +569,7 @@ public static class ShapeKits
         VisualFamily.SpArtillery => SpArtillery,
         VisualFamily.AttackJet => AttackJet,
         VisualFamily.AttackHelicopter => AttackHelicopter,   // ⭐ CE-1103
+        VisualFamily.Bulldozer => Bulldozer,                 // ⭐ CE-6007
         VisualFamily.Unit => None,
         _ => Unknown,
     };
@@ -517,6 +589,7 @@ public static class ShapeKits
         VisualFamily.SpArtillery => new Vector3(9.7f, 3.6f, 3.3f),
         VisualFamily.AttackJet => new Vector3(16.3f, 17.5f, 4.5f),
         VisualFamily.AttackHelicopter => new Vector3(AhL, AhW, AhH),   // ⭐ CE-1103 — the AH-64's box (the TKB's own wins)
+        VisualFamily.Bulldozer => new Vector3(8.0f, 4.3f, 4.0f),       // ⭐ CE-6007 — a D9: 8 m with the blade, the blade 4.3 m wide, 4 m to the ROPS
         _ => new Vector3(2f, 2f, 2f),
     };
 }
