@@ -8,14 +8,17 @@ namespace Hrot.ClusterRunner.Configuration
     /// host is built: an explicit <c>HROT_*</c> environment variable &gt; <c>-m all</c> SERIAL (the AI-debug network mode — threading would hide
     /// its unstaged subsystems' windows, Threaded Presentation §14.8) &gt; the user file (<see cref="PerformanceSettings.FileName"/> beside the
     /// layout files) &gt; ON. Every HROT process runs this <c>Main</c>, so the editor, the player, the server and a separate CGF / SimHost node
-    /// agree by construction (R-4215). The threaded node is a UI host's (editor, player); a headless node runs the parallel phases only.
+    /// agree by construction (R-4215). The threaded node is a STAGED UI host's — today the editor only: a host the sim worker ticks draws only when
+    /// it is an <c>ISimSteppedSubsystem</c> (<c>SubsystemOrchestrator.Draws</c>), and the player has no staged presentation yet ⇒ with the node
+    /// on its windows would be blank (U-3, measured 2026-11-13; CE-3446 builds the player's staging). Every other node — the player included —
+    /// runs the parallel phases.
     /// </summary>
     public static class PerformanceStartup
     {
         /// <summary>What this process runs with (set by <see cref="Apply"/>; the menu compares the saved file against it).</summary>
         public static ResolvedPerformance Running { get; private set; }
 
-        /// <summary>Is this process a UI host (the threaded node applies)?</summary>
+        /// <summary>Is this process a staged UI host (the threaded node applies: the editor)?</summary>
         public static bool UiHost { get; private set; }
 
         /// <summary>Is this process <c>-m all</c> (serial by default)?</summary>
@@ -42,7 +45,8 @@ namespace Hrot.ClusterRunner.Configuration
         internal static (ResolvedPerformance Resolved, bool SerialMode, bool UiHost) ResolveFor(HrotRunnerConfiguration config, Func<string, string?> env)
         {
             bool serial = string.Equals(config.ModeString.Trim(), "all", StringComparison.OrdinalIgnoreCase);
-            bool ui = config.RequestedSubsystems.Contains("editor") || config.RequestedSubsystems.Contains("player");
+            // ⭐ U-3 — only a host whose presentation is staged (the editor); the player joins when CE-3446 stages it
+            bool ui = config.RequestedSubsystems.Contains("editor");
             return (PerformanceSettings.Resolve(PerformanceSettings.Load(UserPath), env, serial, ui), serial, ui);
         }
 
