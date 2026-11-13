@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-12
-current-answer: ⭐ §7 THE CRITICAL REVIEW (decisions U-1…U-6, fixes F-1…F-16, plan P-1…P-7, unmeasured) · then §0–§6 — the MEASURED inventory the overnight threaded + parallel build works from
+current-answer: ⭐ §8.5 AS BUILT (the overnight build) · §7 THE CRITICAL REVIEW (decisions U-1…U-6, fixes F-1…F-16, plan P-1…P-7, unmeasured) · then §0–§6 — the MEASURED inventory the overnight threaded + parallel build works from
 stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_Threaded_Simulation_Presentation.md §12 D-12 (on exp/threaded-kernel; "GET routes read A on the main thread") — SUPERSEDED by the user's rule that the debug API sees EVERY component ⇒ routes are SIM-side by default (Q111-E); §14.6 "every frame" vs exp/threaded-poc-4 §14.2.0 "once per tick" — open decision D-1 below
@@ -82,6 +82,14 @@ mechanical — ⇒ a small POC before the overnight conversion (CE-4455).
 | stepped mode on the worker | §17's waits are per frame inside `ModuleHostKernel`, thread-independent; the worker has no `SynchronizationContext` (no CE-4158 hang) | — |
 | ⛔ no world-STATE hash route; `DeterminismRails` compares id maps + panels, not values | `DeterministicSimulationTests.ComputeStateHash` (`Fdp.Core.Tests:402`) only | add `GET /world/hash` (on S, between ticks) + a `DeterminismRails` case: N steps, threaded vs `HROT_THREADED_SINGLE=1` |
 | hot reload desync: the "build blocks the frame" suspect is REFUTED (out-of-process, `ConfigureAwait(false)`) | `AiBehaviorsRebuild.cs:43-58,125` | likely a round that completed without node 1 or the preview stop acting on A; measure: log every `_inSync` change + grep `ejected (heartbeat timeout)` (`ClusterMaster.cs:783`); ⭐ the reload's UI subscribers (catalog, documents, breakpoints, log — `EditorSubsystem.cs:2248-2258,5345-5351,2533`, `:2265`) run on the worker ⇒ queue them to the presentation step |
+
+### 2.1 ⭐ Measured `2026-11-12` (CE-4450, [`STATUS_Pre_Build_Measurements.md`](blueprints/batches/STATUS_Pre_Build_Measurements.md) on `exp/measure-2`)
+
+| row above | measured | changes the plan |
+|---|---|---|
+| the tick-rate anomaly = lock starvation | ✅ the worker waits **150–175 ms / tick playing, 82–106 paused** to acquire the world (work 270–400 / 40–55, sync hold 13–17 / 3). On the VM that is ≈ ONE drawing frame (the main thread holds the world ~its whole frame) and a fair hand-over changes nothing; on Windows (15.6 ms frames) the same wait is many frames ⇒ unfairness — the Windows run decides | ⭐ shorten the main thread's hold (release before `EndDrawing` / D-4) — works either way; the fair hand-over (`HROT_FAIR_HANDOVER`) only if Windows shows it |
+| ⛔ NEW — the orchestration bus | the worker publishes to and swaps `_node.EventBus` outside the world lock while the main thread READS it (`DrainStagingRemap`: "Collection was modified" 3 / 3 once the hand-over was fair) and the UI PUBLISHES onto it | ⭐ blocking: the UI's control-plane publishes become commands, its readers move to the worker / a published copy — BEFORE any hand-over change |
+| the hot-reload desync | ⭐ the DRAIN blocks the node frame **3.7–4.4 s** (OFF and `=3` alike) against a **5 s** heartbeat timeout; an eject drops the node from the in-sync set and it is not re-admitted while operating — POC 3's symptom; the eject did not reproduce here (margin 0.6–1.3 s; POC 3 ran with the guard) | not a threading item: build the staging off the frame, swap on it |
 
 ## 3. The HTTP debug API — 223 routes *(routes sweep)*
 
@@ -204,11 +212,11 @@ all. Either everything is deterministic or not."*
 |---|---|
 | the threaded 4.8 Hz tick is lock starvation | K-1 (running, exp/measure-2) |
 | per-entity work scales past 4 threads | CE-4451 (running, Windows) |
-| the per-read check's cost on the real rig | R-2 (running, exp/read-check) |
+| the per-read check's cost on the real rig | ✅ **measured (CE-4454 R-2)**: flag off — no measurable cost; own +1.5–2.7 ns; another entity cheaper (`STATUS_Read_Check.md`, Parallel Simulation §18.3) |
 | no hidden cross-entity writes beyond the census — 36 systems were silent; rules, embarkation, custody, fire-and-movement were NOT exercised; BrainTick's "read-after-create 162 681 / run" is unexplained | K-2 (running) + a census on a rules scenario and a fire-and-movement scenario |
-| MEMORY per node: S, A, R, the last-tick copy, SoD snapshots, the undo ring, recorder keyframes, pooled snapshots — vs the ≤ 4 GB budget (1 000 men already peak at 1.88 GB); × the nodes in `--mode all` | ⛔ not measured anywhere — a new item |
+| MEMORY per node: S, A, R, the last-tick copy, SoD snapshots, the undo ring, recorder keyframes, pooled snapshots — vs the ≤ 4 GB budget (1 000 men already peak at 1.88 GB); × the nodes in `--mode all` | ✅ **measured (CE-4456 N-1, `STATUS_Memory_And_Contact.md`)**: a node fits (cgf 2.10 GB at 1 000 men everything on, 2.94 GB at 3 000; ~3.8 GB at 5 000); ⛔ the editor (4.29 GB) and `--mode all` (5.65 GB) are OVER at 1 000; the GC heap dominates — two fixes: chunk-version arrays sized for `MAX_ENTITIES` in every world (84–217 MB / node), the recording's ~0.5 GB of buffers |
 | the "off-frame egress alone makes the CGF slower" anomaly (252 → 337 ms) | ✅ CE-4457 (Windows, `STATUS_Ui_Windows_Egress_Anomaly.md` on exp/perf): **did NOT reproduce** over 14 columns on the same production code — serial 248–281 ms, both switches on 266–284 ms (noise ~30 ms); contention, scan workers, pool budget, recording and the timer each ruled out; the egress scan thread uses 2–4.5 % of one core. ⇒ a machine-state effect of that session (it also hit low system memory), INFERENCE. The SimHost benefit holds: 99–107 → 38–54 ms |
-| how often units commit to cover / see a new contact on the SAME tick | ⛔ a contact-onset scenario count — a new item |
+| how often units commit to cover / see a new contact on the SAME tick | ✅ **measured (CE-4456 N-2)**: same-point commits on one tick — **0** in ~88 000 ticks (F-9 is a rare-case fix-up); new contacts arrive in BURSTS — up to 96 units on one tick (F-10 must expect tens); found CE-3444 (a unit thrashing between cover points) |
 
 ### 7.5 Sound — the reviews found no flaw in
 the census method and its short conversion list · the one pool's two lanes (no deadlock; the caller drains unclaimed batches) · the read check is free with its flag off (±1 ns) · the UI-write inventory and the HTTP split · the UI frame gain (97 → 15.6 ms) · the D-3 and D-5 withdrawals · the no-dependency-scheduler verdict · cluster time with the sim on a worker (the slave clock is wall-clock derived, barriers snap) · Run-to's fix · no target deconfliction to race (grep only) · room clearing, embarkation and possession go through single serial arbiters · orders already travel one frame late on the bus.
@@ -277,3 +285,28 @@ frame start; events / logs / edit outcomes travel queued with each staging world
 - `--mode all` on one worker → track A.
 - every caller copes with a delayed write result → the write-path POC (CE-4455), track B's first task.
 - 8-core scaling with the per-entity rule (today's measured ceiling is the brain's ~36 ms serial walk — §11.2) → Windows after track C lands.
+
+### 8.5 ⭐ AS BUILT — how the overnight build answered this list *(N-1…N-17, branch `exp/threaded-build`; the decisions D-1…D-35 with their reasons are in the [status file](blueprints/batches/STATUS_Overnight_Threaded_Build.md) §3)*
+
+#### INVENTORY — the seams §18.5 builds on *(N-17, `2026-11-13`)*
+
+| query | total | what it found |
+|---|---|---|
+| `scripts/cbm.sh search_graph '{"name_pattern":".*(Job\|Phase\|Staging\|SimJob\|ReadCheck).*","label":"Class"}'` | 64 (has_more) | the pre-existing job / phase classes (`ParallelEntities`, `BatchContext`, `FdpWorkerPool`, the per-system jobs) — the rule was built INTO them, no parallel set |
+| `scripts/cbm.sh search_graph '{"name_pattern":".*(BatchJob\|StableReads\|PhaseFollowUp\|SimStepped\|ValueCopy).*","label":"Interface"}'` | 0 | ⚠ the graph predates tonight's types (a re-index produced no output) — grep below instead; coverage could not be checked |
+| `grep` implementers of `IEntityBatchJob` | 6 files (`2026-11-13`; `UtilityPrescore` since retired, R-4219) | `UtilityPrescore`, `BrainTickSystem`, `ThreatEvaluationSystem`, `Callouts` (CalloutSystem), `StressSystem` (+ the declaration) — every per-entity phase |
+| `grep` implementers of `IStableReads` · `IPhaseFollowUp` · `ISimSteppedSubsystem` · `IValueCopy` | 2 · 2 · 1 · 1 | threat + stress jobs · callouts + the incoming order · the editor · the traffic frame |
+
+| item | state | the as-built answer |
+|---|---|---|
+| U-1 undo | ✅ | the recorder on S, the one history on the UI (Threaded Presentation §14.8) |
+| U-2 `--mode all` | ✅ | ONE sim worker for every kernel (`StartSimWorker`); windowed = threaded, headless inline (F-21) |
+| U-3 gizmo commits | ✅ | the shared write router runs S's router as a job |
+| U-6 one determinism setting | ✅ in the build | the per-entity rule makes the result independent of thread count (`ParallelBrainsDeterminismTests`); determinism itself stays the time mode's |
+| F-2 publish in a phase | ✅ | deferred into the batch, played in batch order |
+| F-5 / F-6 / F-8 cross writes, structure, child sensors | ✅ | checked / deferred; child sensors deferred and idempotent while pending; add-once (D-31) |
+| F-9 cover ties · F-10 callout de-dup | ✅ | claim age then index; callouts said after the phase in batch order through the same policy |
+| F-11 squads per squad | ⚠ OPEN | the squad systems still run serially (their per-squad conversion is the next step of the census list) |
+| P-6 `/world/hash` | ✅ partly | `EntityRepository.ContentHash` (+ per-row breakdown) — the in-process gate uses it; ⚠ no HTTP route yet |
+| §1 the 133 UI writes | 🔄 | through jobs / readouts; ⚠ the film director and the review source still open |
+| N-9 managed in place | ✅ | the audit (status file); the traffic frame fixed; egress / grant bookkeeping exempt (sim-thread only) |

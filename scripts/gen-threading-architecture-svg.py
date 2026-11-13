@@ -7,7 +7,7 @@ Owned by docs/DESIGN_Threaded_Simulation_Presentation.md §14 (the picture is an
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-W, H = 1500, 1175
+W, H = 1500, 1205
 out = []
 def add(s): out.append(s)
 
@@ -29,15 +29,15 @@ def box(x, y, w, h, fill, stroke, label=None, size=11, fc=None, rx=4, weight="no
 
 add(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" font-family="Segoe UI, Helvetica, Arial, sans-serif">')
 add(f'<rect width="{W}" height="{H}" fill="{C["bg"]}"/>')
-text(30, 38, "One kernel, three schedulings — how the threads, worlds and copies change by host mode", 22, weight="bold")
-text(30, 62, "Numbers: measured 2026-11-12 at 1 000 men (threaded-analysis A-3, the Windows parallel run, egress §7). "
-             "Nothing here is built except where marked ✔ (exists) — the rest is the lean.", 13, C["sub"])
+text(30, 38, "One kernel, three schedulings — threads, worlds and crossings by host mode (AS BUILT)", 22, weight="bold")
+text(30, 62, "✔ built on exp/threaded-build (overnight 2026-11-12/13, N-1…N-17) · ⏳ in flight (R-4218 the mode, R-4220 the review source, the serial systems). "
+             "Numbers: Debug, 4-core VM, 1 000 men; Windows Release numbers pending (CE-4489).", 13, C["sub"])
 
 # ---------------------------------------------------------------- the three mode panels
 cols = [
-    ("① WINDOWED — editor, player", "interactive; Throughput while playing, Deterministic when stepping / Run-to / filming"),
-    ("② HEADLESS LIVE TRAINING — CGF, SimHost, IG nodes", "no presentation at all; Throughput"),
-    ("③ DETERMINISTIC — regression, filming, stepping", "same threads as ① or ②, different rules"),
+    ("① WINDOWED — editor, player (HROT_THREADED_KERNEL=3)", "the UI on the main thread, the simulation on ONE sim worker"),
+    ("② HEADLESS — CGF, SimHost, IG (HROT_PARALLEL_SIM=1)", "no presentation; the tick on the process's main thread"),
+    ("③ DETERMINISTIC — stepped, Run-to, filming, regression, tests", "same threads as ① or ②; chosen by what is running (R-4218 ⏳)"),
 ]
 px, pw, gap, py, ph = 30, 470, 15, 80, 485
 lanes_y = [py + 70, py + 190, py + 330]   # MAIN, SIM, POOL
@@ -45,11 +45,11 @@ lane_h = [100, 120, 140]
 for i, (title, sub) in enumerate(cols):
     x = px + i * (pw + gap)
     add(f'<rect x="{x}" y="{py}" width="{pw}" height="{ph}" rx="8" fill="#fbfcfe" stroke="{C["line"]}" stroke-width="1.5"/>')
-    text(x + 14, py + 26, title, 15, weight="bold")
+    text(x + 14, py + 26, title, 14, weight="bold")
     text(x + 14, py + 46, sub, 11.5, C["sub"])
     for j, (name, col, fill) in enumerate([("MAIN thread", C["main"], C["mainf"]),
-                                           ("SIM thread", C["sim"], C["simf"]),
-                                           ("WORKER POOL (cores − 2)", C["pool"], C["poolf"])]):
+                                           ("SIM worker (one per process)", C["sim"], C["simf"]),
+                                           ("WORKER POOL — FdpWorkerPool (HROT_SIM_THREADS, cores − 2)", C["pool"], C["poolf"])]):
         ly = lanes_y[j]
         add(f'<rect x="{x+10}" y="{ly}" width="{pw-20}" height="{lane_h[j]}" rx="6" fill="{fill}" fill-opacity="0.45" stroke="{col}" stroke-opacity="0.5"/>')
         text(x + 18, ly + 16, name, 11.5, col, "bold")
@@ -58,93 +58,91 @@ def lane(i, j): return px + i * (pw + gap) + 10, lanes_y[j]
 
 # ① windowed
 x, y = lane(0, 0)
-box(x + 8,  y + 26, 95, 30, C["mainf"], C["main"], "input →\ncommands", 10.5)
-box(x + 108, y + 26, 150, 30, C["mainf"], C["main"], "panels · 2-D · 3-D · ALL\ngizmos on WORLD A", 10.5)
-box(x + 263, y + 26, 60, 30, C["mainf"], C["main"], "draw", 10.5)
-box(x + 328, y + 26, 112, 30, C["lockf"], C["lock"], "waits only for a\nSYNC (≈1–6 ms)", 10.5)
-text(x + 8, y + 76, "every frame at the render rate — never waits for a tick", 11, C["main"])
-text(x + 8, y + 92, "world A = one object for life: selection, menus, effects stay here", 11, C["sub"])
+box(x + 8,  y + 26, 100, 30, C["lockf"], C["lock"], "PULL newest\nstaging → A ✔", 10.5)
+box(x + 113, y + 26, 150, 30, C["mainf"], C["main"], "the WHOLE gizmo block\n+ panels on WORLD A ✔", 10.5)
+box(x + 268, y + 26, 60, 30, C["mainf"], C["main"], "draw", 10.5)
+box(x + 333, y + 26, 107, 30, C["poolf"], C["pool"], "edits → JOBS\n(SimJobQueue) ✔", 10.5)
+text(x + 8, y + 76, "never waits for a tick, no lock: UI frame ≈ 45 ms at 1 / 2 / 4 threads", 11, C["main"])
+text(x + 8, y + 92, "pull ≈ 4–5 ms, only when a newer tick is complete", 11, C["sub"])
 x, y = lane(0, 1)
-box(x + 8, y + 24, 70, 34, C["simf"], C["sim"], "drain\ncommands", 10.5)
-box(x + 83, y + 24, 140, 34, C["simf"], C["sim"], "TICK on WORLD S\n(per-entity, parallel)", 10.5)
-box(x + 228, y + 24, 70, 34, C["simf"], C["sim"], "hot egress\n(events)", 10.5)
-box(x + 303, y + 24, 70, 34, C["lockf"], C["lock"], "S → A\nsync 🔒", 10.5)
-box(x + 378, y + 24, 62, 34, C["bg2f"], C["bg2"], "S → R\n≈1 ms", 10.5)
-text(x + 8, y + 78, "A sync = map / 3-D / overlay tables ≈ 1.3 ms + panel rows of", 11, C["sub"])
-text(x + 8, y + 93, "the selected units (µs); the inspector never widens it", 11, C["sub"])
-text(x + 8, y + 108, "pause / Edit: the tick keeps running with the clock held", 11, C["sub"])
+box(x + 8, y + 24, 70, 34, C["simf"], C["sim"], "drain\nJOBS ✔", 10.5)
+box(x + 83, y + 24, 140, 34, C["simf"], C["sim"], "TICK on WORLD S\n(per-entity phases)", 10.5)
+box(x + 228, y + 24, 70, 34, C["simf"], C["sim"], "readouts\n(save gate…)", 10.5)
+box(x + 303, y + 24, 137, 34, C["lockf"], C["lock"], "PUBLISH into the free\nbuffer — or SKIP ✔", 10.5)
+text(x + 8, y + 78, "two staging buffers claimed by CAS; both busy ⇒ skip, the next", 11, C["sub"])
+text(x + 8, y + 93, "publish carries it all (R-4217) · publish ≈ 4 ms · 0 skips measured", 11, C["sub"])
+text(x + 8, y + 108, "--mode all: EVERY kernel of the process on this one worker ✔", 11, C["sub"])
 x, y = lane(0, 2)
-box(x + 8, y + 24, 215, 30, C["poolf"], C["pool"], "every per-entity system, in parallel", 10.5)
-box(x + 228, y + 24, 212, 30, C["bg2f"], C["bg2"], "off-frame, on REPLICA R:", 10.5)
-box(x + 228, y + 58, 104, 32, C["bg2f"], C["bg2"], "state egress\nscan ✔ (CE-3427)", 10)
-box(x + 336, y + 58, 104, 32, C["bg2f"], C["bg2"], "recorder\ncapture", 10)
-box(x + 8, y + 58, 215, 32, C["poolf"], C["pool"], "background solvers (EQS …)\non SoD snapshots ✔", 10)
-text(x + 8, y + 112, "the off-frame work overlaps the NEXT tick", 11, C["sub"])
-text(x + 8, y + 127, "and the UI frames; it joins at the next Export", 11, C["sub"])
+box(x + 8, y + 24, 215, 30, C["poolf"], C["pool"], "brains · squads (per squad) · movement ✔", 10.5)
+box(x + 228, y + 24, 212, 30, C["bg2f"], C["bg2"], "background lane: EQS window ✔", 10.5)
+box(x + 8, y + 58, 215, 32, C["poolf"], C["pool"], "threat · stress · callouts · rays ✔\nweapons, the toggled group ⏳", 10)
+box(x + 228, y + 58, 212, 32, C["bg2f"], C["bg2"], "replica R: egress scan,\nrecorder capture ✔", 10)
+text(x + 8, y + 112, "BrainTick 352 / 182 / 135 ms at 1 / 2 / 4 threads (Debug VM)", 11, C["sub"])
+text(x + 8, y + 127, "≈ 800 ms of the tick still serial — the next conversions ⏳", 11, C["sub"])
 
 # ② headless
 x, y = lane(1, 0)
 add(f'<rect x="{x+8}" y="{y+26}" width="{pw-36}" height="44" rx="4" fill="{C["grey"]}" stroke="{C["line"]}" stroke-dasharray="5 4"/>')
 text(x + (pw - 20) / 2, y + 45, "no main-thread presentation · no world A", 12, C["sub"], anchor="middle")
-text(x + (pw - 20) / 2, y + 61, "no A sync, no lock, no masks — zero overhead for the UI", 12, C["sub"], anchor="middle")
+text(x + (pw - 20) / 2, y + 61, "no staging, no job queue — nothing paid for a UI", 12, C["sub"], anchor="middle")
 x, y = lane(1, 1)
 box(x + 8, y + 24, 70, 34, C["simf"], C["sim"], "ingress", 10.5)
 box(x + 83, y + 24, 185, 34, C["simf"], C["sim"], "TICK on WORLD S\n(the process's main thread)", 10.5)
-box(x + 273, y + 24, 80, 34, C["simf"], C["sim"], "hot egress\n(events)", 10.5)
-box(x + 358, y + 24, 82, 34, C["bg2f"], C["bg2"], "S → R\n≈1–6 ms", 10.5)
-text(x + 8, y + 78, "the ONE thread that writes S: no locks in the tick", 11, C["sub"])
-text(x + 8, y + 93, "R is taken only when an off-frame consumer is switched on", 11, C["sub"])
+box(x + 273, y + 24, 80, 34, C["simf"], C["sim"], "egress\n(events)", 10.5)
+box(x + 358, y + 24, 82, 34, C["bg2f"], C["bg2"], "S → R", 10.5)
+text(x + 8, y + 78, "the ONE thread that writes S; no locks in the tick", 11, C["sub"])
+text(x + 8, y + 93, "Windows: EcoQoS / power throttling OFF, QuickEdit off ✔ (N-14)", 11, C["sub"])
 x, y = lane(1, 2)
-box(x + 8, y + 24, 215, 30, C["poolf"], C["pool"], "EVERY per-entity system in parallel:\nbrains, stress ✔, threat ✔, weapons …", 10)
-box(x + 228, y + 24, 104, 66, C["bg2f"], C["bg2"], "state egress\nscan on R ✔\n(positions,\nstate)", 10)
-box(x + 336, y + 24, 104, 66, C["bg2f"], C["bg2"], "recorder\ncapture on R\n(file I/O\nalready async ✔)", 10)
-box(x + 8, y + 58, 215, 32, C["poolf"], C["pool"], "background solvers on SoD ✔", 10)
-text(x + 8, y + 112, "own entity written directly; other entities by command,", 11, C["sub"])
-text(x + 8, y + 127, "merged in a fixed order; their data read as LAST tick", 11, C["sub"])
+box(x + 8, y + 24, 215, 30, C["poolf"], C["pool"], "the same per-entity phases as ①", 10)
+box(x + 228, y + 24, 104, 66, C["bg2f"], C["bg2"], "egress scan\non R ✔", 10)
+box(x + 336, y + 24, 104, 66, C["bg2f"], C["bg2"], "recorder\ncapture on R ✔", 10)
+box(x + 8, y + 58, 215, 32, C["poolf"], C["pool"], "background solvers (EQS) ✔", 10)
+text(x + 8, y + 112, "own entity written directly; others by command,", 11, C["sub"])
+text(x + 8, y + 127, "played in batch order; their data read from the tick-start view", 11, C["sub"])
 
 # ③ deterministic
 x, y = lane(2, 0)
 box(x + 8, y + 26, 432, 30, C["mainf"], C["main"], "windowed: as ① — the UI still never waits for a tick", 10.5)
-text(x + 8, y + 76, "tests and rails: INLINE — one thread, the live world through a", 11, C["sub"])
-text(x + 8, y + 92, "read-only view, no copies (R-4206 F)", 11, C["sub"])
+text(x + 8, y + 76, "tests and rails: INLINE (HROT_THREADED_SINGLE=1 runs the", 11, C["sub"])
+text(x + 8, y + 92, "same sim step, pull and presentation step on one thread)", 11, C["sub"])
 x, y = lane(2, 1)
 box(x + 8, y + 24, 140, 34, C["simf"], C["sim"], "TICK on WORLD S", 10.5)
-box(x + 153, y + 24, 140, 34, C["simf"], C["sim"], "per-entity systems\nPARALLEL too", 10.5)
+box(x + 153, y + 24, 140, 34, C["simf"], C["sim"], "per-entity phases\nPARALLEL too", 10.5)
 box(x + 298, y + 24, 142, 34, C["lockf"], C["lock"], "step boundary: JOIN\nbackground jobs", 10.5)
-text(x + 8, y + 78, "same bytes at 1, 2, 4 or 8 threads — the rule, not the order", 11, C["sub"])
-text(x + 8, y + 93, "stepped / Run-to wait for background jobs (Time §17)", 11, C["sub"])
+text(x + 8, y + 78, "✔ the SAME world at 1, 2, 4, 8 threads — 7 stepped runs, 1 000 men", 11, C["sub"])
+text(x + 8, y + 93, "one value for the whole process (R-4215), set from the clock (R-4218 ⏳)", 11, C["sub"])
 x, y = lane(2, 2)
-box(x + 8, y + 24, 432, 30, C["poolf"], C["pool"], "commands to other entities merged in a FIXED order ✔ (57 µs) — deterministic", 10.5)
-box(x + 8, y + 58, 432, 32, C["bg2f"], C["bg2"], "off-frame egress / recorder: allowed — they read, never write S", 10.5)
-text(x + 8, y + 112, "the price of determinism is the WAIT at a step, not the", 11, C["sub"])
-text(x + 8, y + 127, "buffers (§7.2)", 11, C["sub"])
+box(x + 8, y + 24, 432, 30, C["poolf"], C["pool"], "fixed 32-entity batches, buffers played in batch order = entity order ✔", 10.5)
+box(x + 8, y + 58, 432, 32, C["bg2f"], C["bg2"], "Throughput (continuous live play): adaptive batch size — the same rule", 10.5)
+text(x + 8, y + 112, "a result that differs by batch size or thread count is a BUG,", 11, C["sub"])
+text(x + 8, y + 127, "never a reason for a mode (R-4218)", 11, C["sub"])
 
 # ---------------------------------------------------------------- the strategies table
 ty = py + ph + 30
 text(30, ty, "The strategies — what holds in every mode", 18, weight="bold")
 rows = [
     ("WORLDS", C["sim"],
-     "S — the simulation, ONE per node, ONE writer (the sim thread)   ·   A — the presentation's world, windowed only, the same object for life   ·   "
-     "R — one GDB replica per tick for off-frame readers   ·   SoD snapshots for background solvers ✔"),
-    ("COPIES", C["bg2"],
-     "S→A: a MASK per consumer — tables for the map, 3-D and the ACTIVE gizmo layers (0 … ≈1.3 ms), ROWS for the selected / pinned units; the inspector reads rows only "
-     "(whole world ≈13 ms, rejected)   ·   S→R: full, ≈1 ms SimHost / 6 ms CGF   ·   LAST-TICK view for cross-entity reads (how: census N-5, open)"),
-    ("LOCKS", C["lock"],
-     "ONE short lock on A (the sync vs the UI's world work)   ·   none inside the tick — parallel loops write through per-batch command buffers   ·   "
-     "R and the gizmo frame are published / leased, never locked"),
+     "S — the simulation, ONE writer (the sim worker and its pool)   ·   A — the UI's world, ONE writer (the main thread), the same object for life   ·   "
+     "B1 / B2 — two staging buffers (102 MB at 1 000 men)   ·   the tick-start view (11 MB) for cross-entity reads   ·   R — the replica for egress / recorder"),
+    ("CROSSINGS", C["bg2"],
+     "DOWN: one SimJobQueue — UI writes, run controls, sim-side HTTP, the UI's bus publishes, review commands (R-4220 ⏳)   ·   UP: the staging — masked tables (the active "
+     "gizmo layers), the selected rows, singletons, and a tick-tagged packet FIFO: events, logs, edit outcomes, undo steps, the bus pair, readouts — exactly once, in order"),
+    ("NO LOCK", C["lock"],
+     "buffers claimed by compare-and-swap; the sim never waits — both busy ⇒ it skips that publish (R-4217)   ·   the UI pulls only a newer complete tick   ·   "
+     "inside the tick per-batch command buffers, never a lock"),
     ("SINGLETONS", C["pool"],
-     "share what is immutable or swapped in one write (terrain, geo, navmesh ✔; TKB, behaviour registry → swap the inside)   ·   copy small values (time, traces)   ·   "
-     "rebuild derived maps (NetworkEntityMap 0.76 ms)   ·   lease native memory (roads ✔)   ·   publish immutable views (cluster cache 0.01 ms, clock status)"),
+     "managed components are immutable and replaced whole (audit: 6 in-place sites, the traffic frame fixed and value-copied)   ·   a managed read never stamps (R-4210)   ·   "
+     "shared objects immutable or swapped in one write   ·   derived maps rebuilt   ·   values only the sim can compute are published as readouts"),
     ("UI STATE", C["main"],
-     "selection, menus, order form, effects live in A (outside the mask)   ·   the UI changes S only by COMMANDS (drag = a ghost in A, the drop = a command)   ·   "
-     "UI work leaves the tick FIRST (S-1: the WHOLE gizmo block, camera, selection, the after-kernel objects — R-4211)"),
+     "the WHOLE gizmo block on the main thread over A (R-4211)   ·   a drag is a ghost in A, the drop one job through the shared write router; refused ⇒ snap back   ·   "
+     "undo: the recorder on S, the ONE history on the UI   ·   UI-side HTTP routes read the shown world"),
     ("INSIDE THE TICK", C["pool"],
-     "a per-entity system writes its OWN entity directly   ·   an effect on ANOTHER entity is a command in a per-batch buffer, merged in a fixed order after the phase   ·   "
-     "a read of another entity's data that the phase writes sees LAST tick   ·   create / destroy deferred   ·   shared state per batch   ·   ParallelGuard enforces it   ·   "
-     "GLOBAL systems (spatial build, ingress / egress, playback) get their own parallel algorithm — which ones: census N-4, open"),
-    ("STATICS / READS", C["ink"],
-     "3 unsafe statics fixed (RunModeChoice.PresetCache, UtilityInputNames, UtilityDecisionCatalog)   ·   a managed READ must stop stamping chunk versions (A1-2) "
-     "— today it also feeds false changes to the recorder and egress"),
+     "OWN entity (its parts; a squad job its members) read and written directly   ·   ANOTHER entity: declared types from the tick-start view, declared stable reads live   ·   "
+     "writes to others, add / remove / create / destroy, publishes ⇒ the batch's buffer, played in batch order   ·   callouts, egress marks, rule messages ⇒ follow-ups in batch order   ·   "
+     "HROT_READ_CHECK=1 throws on an undeclared read, =2 lists them"),
+    ("JOB SYSTEM", C["ink"],
+     "ONE pool (frame lane + background lane), no dependency scheduler   ·   ParallelEntities.Run: 32-entity batches carrying the tick context and the current entity   ·   "
+     "EQS's window sized by the same budget   ·   switches: HROT_THREADED_KERNEL=3 · HROT_PARALLEL_SIM=1 · HROT_SIM_THREADS — all OFF by default, 0 B per steady frame"),
 ]
 yy = ty + 16
 import textwrap
@@ -162,13 +160,14 @@ for name, col, body in rows:
 yy += 26
 text(30, yy, "What each mode pays — nothing it does not use", 18, weight="bold")
 yy += 12
-hdr = ["", "world A + S→A sync", "the A lock", "replica R", "worker pool", "fixed-order merge", "joins at a step"]
+hdr = ["", "staging B1 / B2 + pull", "SimJobQueue", "per-entity phases", "tick-start view", "replica R", "joins at a step"]
 vals = [
-    ("① windowed, playing", ["✔ masked, per tick", "✔ ≈ the sync", "if egress / recorder on", "✔", "✔ (57 µs)", "—"]),
-    ("① windowed, stepping", ["✔", "✔", "if on", "✔", "✔", "✔"]),
-    ("② headless live", ["—", "—", "if egress / recorder on", "✔", "✔ (57 µs)", "—"]),
-    ("③ regression / filming", ["windowed only", "windowed only", "if on", "✔", "✔", "✔"]),
-    ("tests (inline)", ["— (read-only view)", "—", "—", "optional", "✔", "—"]),
+    ("① windowed, playing", ["✔ ≈ 4 ms + 4–5 ms", "✔", "✔ Throughput", "✔ masked", "if egress / recorder on", "—"]),
+    ("① windowed, stepping", ["✔", "✔", "✔ Deterministic", "✔", "if on", "✔"]),
+    ("② headless live", ["—", "—", "✔ Throughput", "✔", "if egress / recorder on", "—"]),
+    ("③ regression / filming", ["windowed only", "windowed only", "✔ Deterministic", "✔", "if on", "✔"]),
+    ("--mode all", ["per staged subsystem", "one per kernel", "✔ one worker, in sequence", "✔", "if on", "as ① / ③"]),
+    ("tests (inline)", ["same step, one thread", "inline", "✔", "✔", "—", "—"]),
 ]
 cw = [210, 205, 150, 200, 130, 220, 150]
 xs = [30]
@@ -182,6 +181,7 @@ for r, row in enumerate([("", hdr[1:])] + vals):
     text(xs[0] + 8, ry + 16, label if r else "mode", 12, weight="bold")
     for k, cell in enumerate(cells):
         text(xs[k + 1] + 8, ry + 16, cell, 12, weight="bold" if r == 0 else "normal")
+print("bottom", yy + rh * (len(vals) + 1))
 
 add("</svg>")
 p = Path(__file__).resolve().parent.parent / "docs/img/threading-architecture.svg"

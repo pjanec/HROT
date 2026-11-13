@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1155" viewBox="0 0 1500 1155" font-family="Segoe UI, Helvetica, Arial, sans-serif">
 <defs><marker id="ac2410c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c2410c"/></marker><marker id="a2f6fde" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2f6fde"/></marker><marker id="a7c3aed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/></marker><marker id="a0f8a5f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0f8a5f"/></marker><marker id="ab88a00" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b88a00"/></marker></defs>
 <rect width="1500" height="1155" fill="#ffffff"/>
-<text x="30" y="38" font-size="21" fill="#1f2430" font-weight="bold" text-anchor="start">No races by construction — who writes what, and how each kind of data crosses between the threads</text>
-<text x="30" y="60" font-size="13" fill="#5b6475" font-weight="normal" text-anchor="start">Rule: each world has ONE writer. The UI reads only its own world A; the simulation reads only S. Every crossing below uses one of the mechanisms shown — and only the yellow ones take a lock.</text>
+<text x="30" y="38" font-size="21" fill="#1f2430" font-weight="bold" text-anchor="start">No races by construction — who writes what, and how each kind of data crosses between the threads (AS BUILT)</text>
+<text x="30" y="60" font-size="13" fill="#5b6475" font-weight="normal" text-anchor="start">Rule: each world has ONE writer. The UI reads only its own world A; the simulation reads only S. Every crossing uses one of the mechanisms below — NONE takes a lock (R-4216 / R-4217).</text>
 <rect x="30" y="80" width="330" height="44" rx="5" fill="#fff0e6" stroke="#c2410c" stroke-width="1.3"/>
 <text x="195.0" y="100.0" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="middle">WORLD S — written ONLY by the SIM thread and its pool</text>
 <text x="195.0" y="114.0" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="middle">(own entity directly, other entities by command)</text>
@@ -10,12 +10,12 @@
 <text x="750.0" y="107.5" font-size="13" fill="#1f2430" font-weight="bold" text-anchor="middle">HOW IT CROSSES</text>
 <rect x="1140" y="80" width="330" height="44" rx="5" fill="#e6efff" stroke="#2f6fde" stroke-width="1.3"/>
 <text x="1305.0" y="100.0" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="middle">WORLD A — written ONLY by the MAIN thread</text>
-<text x="1305.0" y="114.0" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="middle">(except the sync, which holds A's lock)</text>
-<text x="30" y="154" font-size="14" fill="#c2410c" font-weight="bold" text-anchor="start">SIM → UI   (the sync runs on the sim thread at the tick's end)</text>
+<text x="1305.0" y="114.0" font-size="12" fill="#1f2430" font-weight="bold" text-anchor="middle">(the pull copies the newest staging buffer in)</text>
+<text x="30" y="154" font-size="14" fill="#c2410c" font-weight="bold" text-anchor="start">SIM → UI   (the sim publishes at the tick's end into a free buffer; the UI pulls at its frame start)</text>
 <rect x="30" y="164" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
 <text x="195.0" y="181.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">components the map, 3-D, overlays draw</text>
 <rect x="420" y="164" width="660" height="26" rx="5" fill="#fff6d6" stroke="#b88a00" stroke-width="1.3"/>
-<text x="750.0" y="181.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">TABLE COPY at the sync — a mask of types, all rows  (≈1.3 ms)</text>
+<text x="750.0" y="181.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">STAGED — a mask of types (the ACTIVE gizmo layers), all rows</text>
 <line x1="362" y1="177.0" x2="418" y2="177.0" stroke="#b88a00" stroke-width="2" marker-end="url(#ab88a00)"/>
 <line x1="1080" y1="177.0" x2="1138" y2="177.0" stroke="#b88a00" stroke-width="2" marker-end="url(#ab88a00)"/>
 <rect x="1140" y="164" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
@@ -23,7 +23,7 @@
 <rect x="30" y="196" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
 <text x="195.0" y="213.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">the selected / inspected units' components</text>
 <rect x="420" y="196" width="660" height="26" rx="5" fill="#fff6d6" stroke="#b88a00" stroke-width="1.3"/>
-<text x="750.0" y="213.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">ROW COPY at the sync — types × selected entities  (µs)</text>
+<text x="750.0" y="213.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">STAGED — rows of the selected entities, types outside the mask</text>
 <line x1="362" y1="209.0" x2="418" y2="209.0" stroke="#b88a00" stroke-width="2" marker-end="url(#ab88a00)"/>
 <line x1="1080" y1="209.0" x2="1138" y2="209.0" stroke="#b88a00" stroke-width="2" marker-end="url(#ab88a00)"/>
 <rect x="1140" y="196" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
@@ -31,19 +31,19 @@
 <rect x="30" y="228" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
 <text x="195.0" y="245.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">small per-tick singletons: GlobalTime, traces</text>
 <rect x="420" y="228" width="660" height="26" rx="5" fill="#fff6d6" stroke="#b88a00" stroke-width="1.3"/>
-<text x="750.0" y="245.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">COPIED BY VALUE at the sync</text>
+<text x="750.0" y="245.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">STAGED BY VALUE (a refilled managed one value-copied — N-9)</text>
 <line x1="362" y1="241.0" x2="418" y2="241.0" stroke="#b88a00" stroke-width="2" marker-end="url(#ab88a00)"/>
 <line x1="1080" y1="241.0" x2="1138" y2="241.0" stroke="#b88a00" stroke-width="2" marker-end="url(#ab88a00)"/>
 <rect x="1140" y="228" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
 <text x="1305.0" y="245.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">their copies in A</text>
 <rect x="30" y="260" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
-<text x="195.0" y="277.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">derived maps: NetworkEntityMap</text>
+<text x="195.0" y="277.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">values only the sim can compute: save gate, args</text>
 <rect x="420" y="260" width="660" height="26" rx="5" fill="#fff6d6" stroke="#b88a00" stroke-width="1.3"/>
-<text x="750.0" y="277.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">REBUILT in A from the copied ids  (0.76 ms)</text>
+<text x="750.0" y="277.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">READOUTS — built after the tick, only when changed, staged</text>
 <line x1="362" y1="273.0" x2="418" y2="273.0" stroke="#b88a00" stroke-width="2" marker-end="url(#ab88a00)"/>
 <line x1="1080" y1="273.0" x2="1138" y2="273.0" stroke="#b88a00" stroke-width="2" marker-end="url(#ab88a00)"/>
 <rect x="1140" y="260" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
-<text x="1305.0" y="277.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">A's own map</text>
+<text x="1305.0" y="277.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">the UI's readouts (no sim object)</text>
 <rect x="30" y="292" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
 <text x="195.0" y="309.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">changing service state: cluster cache, clock</text>
 <rect x="420" y="292" width="660" height="26" rx="5" fill="#f1eaff" stroke="#7c3aed" stroke-width="1.3"/>
@@ -67,23 +67,23 @@
 <line x1="362" y1="369.0" x2="418" y2="369.0" stroke="#7c3aed" stroke-width="2" marker-end="url(#a7c3aed)"/>
 <line x1="1080" y1="369.0" x2="1138" y2="369.0" stroke="#7c3aed" stroke-width="2" marker-end="url(#a7c3aed)"/>
 <rect x="1140" y="356" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
-<text x="1305.0" y="373.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">a lease per sync</text>
+<text x="1305.0" y="373.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">a lease per publish</text>
 <rect x="30" y="388" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
-<text x="195.0" y="405.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">logs: shots, detonations, edit outcomes, squad reports</text>
+<text x="195.0" y="405.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">logs, edit outcomes, undo steps, squad reports</text>
 <rect x="420" y="388" width="660" height="26" rx="5" fill="#fff6d6" stroke="#b88a00" stroke-width="1.3"/>
-<text x="750.0" y="405.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">FORWARDED — the new entries copied at the sync</text>
+<text x="750.0" y="405.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">PACKET FIFO — tick-tagged, drained in order, none lost on a skip</text>
 <line x1="362" y1="401.0" x2="418" y2="401.0" stroke="#b88a00" stroke-width="2" marker-end="url(#ab88a00)"/>
 <line x1="1080" y1="401.0" x2="1138" y2="401.0" stroke="#b88a00" stroke-width="2" marker-end="url(#ab88a00)"/>
 <rect x="1140" y="388" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
-<text x="1305.0" y="405.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">A's own logs</text>
+<text x="1305.0" y="405.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">A's logs, the ONE undo history</text>
 <rect x="30" y="420" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
-<text x="195.0" y="437.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">events on S's bus (hits, deaths, outcomes)</text>
+<text x="195.0" y="437.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">events on S's buses (incl. the orchestration bus)</text>
 <rect x="420" y="420" width="660" height="26" rx="5" fill="#fff6d6" stroke="#b88a00" stroke-width="1.3"/>
-<text x="750.0" y="437.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">FORWARDED into A's bus at the sync — each reader gets each once</text>
+<text x="750.0" y="437.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">BUS PAIR — down per tick exactly once; the UI's publishes ride up</text>
 <line x1="362" y1="433.0" x2="418" y2="433.0" stroke="#b88a00" stroke-width="2" marker-end="url(#ab88a00)"/>
 <line x1="1080" y1="433.0" x2="1138" y2="433.0" stroke="#b88a00" stroke-width="2" marker-end="url(#ab88a00)"/>
 <rect x="1140" y="420" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
-<text x="1305.0" y="437.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">A's bus</text>
+<text x="1305.0" y="437.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">A's bus + the UI's own read models</text>
 <rect x="30" y="452" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
 <text x="195.0" y="469.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">remote nodes' gizmo streams (CGF, SimHost …)</text>
 <rect x="420" y="452" width="660" height="26" rx="5" fill="#f1eaff" stroke="#7c3aed" stroke-width="1.3"/>
@@ -96,7 +96,7 @@
 <rect x="1140" y="518" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
 <text x="1305.0" y="535.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">edits: move, delete, spawn, orders, rules</text>
 <rect x="420" y="518" width="660" height="26" rx="5" fill="#e3f6ee" stroke="#0f8a5f" stroke-width="1.3"/>
-<text x="750.0" y="535.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">COMMAND — a thread-safe queue, drained at the tick's start (Input), validated; refused ⇒ the edit outcome</text>
+<text x="750.0" y="535.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">JOB — the ONE SimJobQueue, drained between ticks; the existing write code runs on S; refused ⇒ the outcome</text>
 <line x1="1138" y1="531.0" x2="1082" y2="531.0" stroke="#0f8a5f" stroke-width="2" marker-end="url(#a0f8a5f)"/>
 <line x1="418" y1="531.0" x2="364" y2="531.0" stroke="#0f8a5f" stroke-width="2" marker-end="url(#a0f8a5f)"/>
 <rect x="30" y="518" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
@@ -104,23 +104,23 @@
 <rect x="1140" y="550" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
 <text x="1305.0" y="567.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">drag / rotate / place</text>
 <rect x="420" y="550" width="660" height="26" rx="5" fill="#e3f6ee" stroke="#0f8a5f" stroke-width="1.3"/>
-<text x="750.0" y="567.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">a GHOST in A every frame — the drop is ONE command</text>
+<text x="750.0" y="567.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">a GHOST in A every frame — the drop ONE job via the shared write router; refused ⇒ snap back</text>
 <line x1="1138" y1="563.0" x2="1082" y2="563.0" stroke="#0f8a5f" stroke-width="2" marker-end="url(#a0f8a5f)"/>
 <line x1="418" y1="563.0" x2="364" y2="563.0" stroke="#0f8a5f" stroke-width="2" marker-end="url(#a0f8a5f)"/>
 <rect x="30" y="550" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
 <text x="195.0" y="567.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">applied by the sim thread</text>
 <rect x="1140" y="582" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
-<text x="1305.0" y="599.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">run controls: play, pause, step, Run-to</text>
+<text x="1305.0" y="599.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">run controls · sim-side HTTP · review (R-4220 ⏳)</text>
 <rect x="420" y="582" width="660" height="26" rx="5" fill="#e3f6ee" stroke="#0f8a5f" stroke-width="1.3"/>
-<text x="750.0" y="599.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">COMMANDS — the clock lives with the simulation</text>
+<text x="750.0" y="599.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">JOBS — the clock lives with the simulation; UI-side routes read the shown world</text>
 <line x1="1138" y1="595.0" x2="1082" y2="595.0" stroke="#0f8a5f" stroke-width="2" marker-end="url(#a0f8a5f)"/>
 <line x1="418" y1="595.0" x2="364" y2="595.0" stroke="#0f8a5f" stroke-width="2" marker-end="url(#a0f8a5f)"/>
 <rect x="30" y="582" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
 <text x="195.0" y="599.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">applied by the sim thread</text>
 <rect x="1140" y="614" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
-<text x="1305.0" y="631.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">settings the sim reads (viewport, debug toggles)</text>
+<text x="1305.0" y="631.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">undo / redo</text>
 <rect x="420" y="614" width="660" height="26" rx="5" fill="#e3f6ee" stroke="#0f8a5f" stroke-width="1.3"/>
-<text x="750.0" y="631.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">RIDE WITH THE COMMANDS — copied to S once per tick</text>
+<text x="750.0" y="631.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">JOBS — the recorder on S takes the before-snapshot; the history stays on the UI</text>
 <line x1="1138" y1="627.0" x2="1082" y2="627.0" stroke="#0f8a5f" stroke-width="2" marker-end="url(#a0f8a5f)"/>
 <line x1="418" y1="627.0" x2="364" y2="627.0" stroke="#0f8a5f" stroke-width="2" marker-end="url(#a0f8a5f)"/>
 <rect x="30" y="614" width="330" height="26" rx="5" fill="#fbfcfe" stroke="#c9cfd9" stroke-width="1.3"/>
@@ -135,9 +135,9 @@
 <text x="1305.0" y="698.0" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">selection, menus, camera, order form,</text>
 <text x="1305.0" y="711.5" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">effects, panel layout — written directly</text>
 <rect x="30" y="736" width="1440" height="30" rx="5" fill="#fff6d6" stroke="#b88a00" stroke-width="1.3"/>
-<text x="750.0" y="755.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">⚠ READS MUST BE READS: a managed-component read and a singleton read stop returning a writable ref / stamping the chunk (A1-2)  ·  the 3 unsafe statics get a lock / Concurrent / Lazy  ·  a Debug guard throws on a write to S off the sim thread</text>
+<text x="750.0" y="755.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">✔ READS ARE READS: a managed read never stamps (R-4210)  ·  managed components immutable, replaced whole  ·  the STRICT world guard: 0 hits over the full 1 000-man session (no S read off the sim thread, no A write by the sim)</text>
 <rect x="30" y="776" width="1440" height="30" rx="5" fill="#e3f6ee" stroke="#0f8a5f" stroke-width="1.3"/>
-<text x="750.0" y="795.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">INSIDE THE TICK (the same rule one level down): a per-entity system writes its OWN entity  ·  other entities by command, merged in a fixed order  ·  their data read as LAST tick  ·  ParallelGuard</text>
+<text x="750.0" y="795.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">INSIDE THE TICK: OWN entity direct  ·  others by command in the batch's buffer, played in batch order  ·  their data from the tick-start view  ·  follow-ups in batch order  ·  HROT_READ_CHECK</text>
 <text x="30" y="836" font-size="17" fill="#1f2430" font-weight="bold" text-anchor="start">The gizmos — the WHOLE gizmo block runs on the main thread over world A (R-4211: no split by kind)</text>
 <rect x="30.0" y="850" width="466.6666666666667" height="210" rx="7" fill="#e6efff" fill-opacity="0.55" stroke="#2f6fde" stroke-width="1.4"/>
 <text x="44.0" y="872" font-size="14" fill="#2f6fde" font-weight="bold" text-anchor="start">ONE BLOCK — main thread, every frame</text>
@@ -164,23 +164,23 @@
 <text x="530.6666666666667" y="1030" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">(it now runs on the main thread's ~16 ms frame)</text>
 <text x="530.6666666666667" y="1047" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
 <rect x="1003.3333333333334" y="850" width="466.6666666666667" height="210" rx="7" fill="#e3f6ee" fill-opacity="0.55" stroke="#0f8a5f" stroke-width="1.4"/>
-<text x="1017.3333333333334" y="872" font-size="14" fill="#0f8a5f" font-weight="bold" text-anchor="start">WHAT IT WRITES — commands only</text>
+<text x="1017.3333333333334" y="872" font-size="14" fill="#0f8a5f" font-weight="bold" text-anchor="start">WHAT IT WRITES — jobs only</text>
 <text x="1017.3333333333334" y="894" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">input → the tool's FSM every frame → a GHOST in A</text>
-<text x="1017.3333333333334" y="911" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">→ the commit is ONE COMMAND to S</text>
+<text x="1017.3333333333334" y="911" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">→ the commit is ONE JOB to S</text>
 <text x="1017.3333333333334" y="928" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
-<text x="1017.3333333333334" y="945" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">⛔ today the drag writes SimTransform every frame</text>
-<text x="1017.3333333333334" y="962" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">(EntityDragGizmo.cs:278) — that becomes the ghost</text>
+<text x="1017.3333333333334" y="945" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">✔ built: the preview is a ghost re-applied after</text>
+<text x="1017.3333333333334" y="962" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">each pull; a refused commit snaps back</text>
 <text x="1017.3333333333334" y="979" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
 <text x="1017.3333333333334" y="996" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">headless nodes (CGF, SimHost) have no main-thread</text>
 <text x="1017.3333333333334" y="1013" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">presentation: their gizmo stream is produced in</text>
 <text x="1017.3333333333334" y="1030" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">their own tick and sent over the network, as today</text>
-<text x="1017.3333333333334" y="1047" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start"></text>
+<text x="1017.3333333333334" y="1047" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">threaded --mode all: an unstaged subsystem draws nothing</text>
 <rect x="30" y="1074" width="1440" height="30" rx="5" fill="#eef0f4" stroke="#c9cfd9" stroke-width="1.3"/>
 <text x="750.0" y="1093.75" font-size="11.5" fill="#1f2430" font-weight="normal" text-anchor="middle">the gizmo MODULE also runs non-gizmo world WRITERS (action dispatch: Delete / LoadZone, effect + wreck spawn, lifespan) — those are simulation and stay in the tick</text>
 <rect x="30" y="1118" width="14" height="14" fill="#fff6d6" stroke="#b88a00"/>
-<text x="50" y="1130" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">copied at the sync, under A's lock (the only lock)</text>
+<text x="50" y="1130" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">staged by the sim into a free buffer, pulled by the UI — no lock</text>
 <rect x="420" y="1118" width="14" height="14" fill="#f1eaff" stroke="#7c3aed"/>
 <text x="440" y="1130" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">published / shared — an atomic reference swap or a lease, no lock</text>
 <rect x="880" y="1118" width="14" height="14" fill="#e3f6ee" stroke="#0f8a5f"/>
-<text x="900" y="1130" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">a command — the UI's only way into S</text>
+<text x="900" y="1130" font-size="12" fill="#1f2430" font-weight="normal" text-anchor="start">a job on the SimJobQueue — the UI's only way into S</text>
 </svg>
