@@ -15,8 +15,9 @@ public sealed record TownPlanResult(string TerrainFolder, TerrainSaveResult Save
 /// </summary>
 public static class TownPlanGenerator
 {
+    /// <param name="bridgeNet">the host's bridge-net builder (<c>Hrot.Traffic.BridgeNetBuilder</c>) — the bridges' SUMO net; null ⇒ road for the vehicles' net only</param>
     /// <param name="terrainsRoot">where terrains live (<c>assets/terrain</c>; the shared building templates and recipes are found beside it)</param>
-    public static async Task<TownPlanResult> GenerateAsync(TownPlan plan, string terrainsRoot, CancellationToken ct = default)
+    public static async Task<TownPlanResult> GenerateAsync(TownPlan plan, string terrainsRoot, IBridgeNet? bridgeNet = null, CancellationToken ct = default)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         string groundName = plan.Name + "-ground";
@@ -36,7 +37,14 @@ public static class TownPlanGenerator
             File.WriteAllText(Path.Combine(scenarioDir, "scenario.json"), BlockLayout.Serialize(TownPlanGround.ScenarioDom(plan, groundName)));
 
             var catalog = new TerrainCatalog(new[] { terrainsRoot });
-            var saved = TerrainBake.SaveAs(scenarioDir, target, plan.Name, catalog.ResolveDefinition, recipeRoots, bakeNavtiles: false);
+            var saved = TerrainBake.SaveAs(scenarioDir, target, plan.Name, catalog.ResolveDefinition, recipeRoots, bakeNavtiles: false, bridgeNet: bridgeNet);
+            // a template the SHARED folder (assets/buildings, beside the terrains) already holds is not kept in the terrain too: no template lives in two places (TerrainWorldTests.UI1_*)
+            string shared = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(terrainsRoot))!, "buildings"), own = Path.Combine(target, "buildings");
+            if (Directory.Exists(own) && Directory.Exists(shared))
+            {
+                foreach (var f in Directory.GetFiles(own)) if (File.Exists(Path.Combine(shared, Path.GetFileName(f)))) File.Delete(f);
+                if (!Directory.EnumerateFileSystemEntries(own).Any()) Directory.Delete(own);
+            }
             return new TownPlanResult(target, saved, importer.LastReport, sw.Elapsed.TotalSeconds);
         }
         finally

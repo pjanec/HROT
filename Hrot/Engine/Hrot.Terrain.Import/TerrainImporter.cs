@@ -72,7 +72,7 @@ public sealed partial class TerrainImporter : ITerrainImporter
             Stage("heights");
 
             // the net is copied UNCHANGED (D1) and placed by an anchor: terrain local = net − anchor, anchor = sumoAnchor + the corner (I-a)
-            string? netFile = null;
+            string? netFile = null, roadsFile = null;
             double ax = m.AnchorX + swX, ay = m.AnchorY + swY;
             List<TerrainWoods.RoadSegment> roads = new();
             if (set.RoadsNet is string net)
@@ -80,6 +80,9 @@ public sealed partial class TerrainImporter : ITerrainImporter
                 netFile = name + ".net.xml";
                 File.Copy(net, Path.Combine(tmp, netFile));
                 roads = NetRoads.Read(net, ax, ay);
+                // ⭐ CE-6001 (§18k) — and the VEHICLES' road network from the same net, so a bridge (T-7a) has road nodes to snap to
+                roadsFile = name + ".roads.json";
+                File.WriteAllText(Path.Combine(tmp, roadsFile), NetRoadNetwork.Read(net, ax, ay).ToJsonString(), new System.Text.UTF8Encoding(false));
             }
             else rep.Warnings.Add("the input set has no roads/roads.net.xml — the terrain has no SUMO net");
             progress?.Report(new ImportProgress("roads", 1));
@@ -107,7 +110,7 @@ public sealed partial class TerrainImporter : ITerrainImporter
 
             string worldFile = name + ".world.geojson";
             TerrainFolderWriter.WriteWorld(Path.Combine(tmp, worldFile), Describe(set), width, height, heightsFile, water, veg.Woods, built, walls, veg.LoneTrees);
-            TerrainFolderWriter.WriteTerrainJson(Path.Combine(tmp, "terrain.json"), name, worldFile, m.Frame, swX, swY, netFile, ax, ay);
+            TerrainFolderWriter.WriteTerrainJson(Path.Combine(tmp, "terrain.json"), name, worldFile, m.Frame, swX, swY, netFile, ax, ay, roadsFile);
             progress?.Report(new ImportProgress("write", 1));
             Stage("write");
             ct.ThrowIfCancellationRequested();

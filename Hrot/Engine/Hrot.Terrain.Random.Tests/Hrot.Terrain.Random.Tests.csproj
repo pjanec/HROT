@@ -21,6 +21,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Terrain.Random\Hrot.Terrain.Random.csproj" />
+    <!-- CE-6001: the bridges are road in BOTH nets — the rail passes the host's own bridge-net builder -->
+    <ProjectReference Include="..\Hrot.Traffic\Hrot.Traffic.csproj" />
     <!-- the opt-in budget rail loads the imported terrain through the node's own residency (R-4192) -->
     <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
   </ItemGroup>

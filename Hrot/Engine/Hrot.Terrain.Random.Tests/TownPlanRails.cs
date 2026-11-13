@@ -43,6 +43,9 @@ public sealed class TownPlanRails : IDisposable
             Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(target, rel))!);
             File.Copy(f, Path.Combine(target, rel));
         }
+        // the shared building templates (assets/buildings) sit beside the terrains, as on a node's NAS
+        string sharedBuildings = Path.Combine(_staging, "buildings");
+        if (!Directory.Exists(sharedBuildings)) { Directory.CreateDirectory(sharedBuildings); foreach (var f in Directory.GetFiles(Path.Combine(TownPlanTests.Repo, "assets", "buildings"), "*.json")) File.Copy(f, Path.Combine(sharedBuildings, Path.GetFileName(f))); }
         var world = new EntityRepository();
         var residency = new TerrainResidency(_staging, new RoadNetworkHolder());
         var nav = new SwitchableNavmeshProvider();
@@ -142,5 +145,42 @@ public sealed class TownPlanRails : IDisposable
         // …the open fields west of the ring road are not built up (the picture's three bands)
         int fields = world.Buildings.Count(b => b.Position.X < 480);
         Assert.True(fields < 60, $"{fields} buildings in the west fields");
+    }
+
+    /// <summary>
+    /// ⭐ CE-6001 (§18k T-7a, "a bridge is road in BOTH nets") — on the committed terrain: it declares the vehicles' road network AND the SUMO net; each bridge's ends snap to road nodes and the bridge segment (appended after the base's) is the
+    /// ONLY thing joining the two banks in the road graph; the SUMO net carries both directions' edges of each bridge. 🔴 Red-proof: <c>TownPlanGenerator</c> not given the <c>BridgeNetBuilder</c> (regenerate) ⇒ no bridge edge in the net.
+    /// </summary>
+    [Fact]
+    public void TheBridges_AreRoadInBothNets_TheRoadGraphJoinsTheBanksOnlyByThem_AndTheSumoNetHasTheirEdges()
+    {
+        var def = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(TownPlanTests.TerrainFolder, "terrain.json")))!;
+        Assert.NotNull(def["sumoNet"]); Assert.NotNull(def["roadNetworks"]);
+        var roads = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(TownPlanTests.TerrainFolder, (string)def["roadNetworks"]![0]!)))!;
+        var nodes = roads["nodes"]!.AsArray().Select(n => (Id: (int)n!["id"]!, X: (double)n["position"]!["x"]!, Y: (double)n["position"]!["y"]!)).ToList();
+        var segs = roads["segments"]!.AsArray().Select(g => (A: (int)g!["startNodeId"]!, B: (int)g["endNodeId"]!)).ToList();
+        int bridges = Plan.Bridges.Length;
+        int Nearest(double x, double y) { var n = nodes.OrderBy(q => (q.X - x) * (q.X - x) + (q.Y - y) * (q.Y - y)).First(); Assert.True(Math.Sqrt((n.X - x) * (n.X - x) + (n.Y - y) * (n.Y - y)) <= 25, $"no road node within 25 m of ({x:F0}, {y:F0})"); return n.Id; }
+        bool Connected(int a, int b, int segCount)
+        {
+            var adj = new Dictionary<int, List<int>>();
+            foreach (var (u, v) in segs.Take(segCount)) { (adj.TryGetValue(u, out var l1) ? l1 : adj[u] = new()).Add(v); (adj.TryGetValue(v, out var l2) ? l2 : adj[v] = new()).Add(u); }
+            var seen = new HashSet<int> { a }; var q = new Queue<int>(new[] { a });
+            while (q.Count > 0) { int c = q.Dequeue(); if (c == b) return true; foreach (int nx in adj.GetValueOrDefault(c) ?? new()) if (seen.Add(nx)) q.Enqueue(nx); }
+            return false;
+        }
+        foreach (var b in Plan.Bridges)
+        {
+            int west = Nearest(b.From[0], b.From[1]), east = Nearest(b.To[0], b.To[1]);
+            Assert.True(Connected(west, east, segs.Count), "the road graph does not join the banks over the bridge");
+            Assert.False(Connected(west, east, segs.Count - bridges), "the banks are joined without the bridge (the river would be road)");
+        }
+        string net = File.ReadAllText(Path.Combine(TownPlanTests.TerrainFolder, (string)def["sumoNet"]!["file"]!));
+        var keys = Plan.BridgeEntities().Select(e => e.Guid.ToString("D")).ToList();
+        foreach (var key in keys)
+        {
+            var (there, back) = Hrot.Traffic.BridgeNetBuilder.EdgeIds(key);
+            Assert.Contains($"<edge id=\"{there}\"", net); Assert.Contains($"<edge id=\"{back}\"", net);
+        }
     }
 }

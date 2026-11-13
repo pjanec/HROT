@@ -152,6 +152,25 @@ namespace Fdp.Toolkit.Terrain.Tests
                 Assert.False(fallen.PathExists(from, to, (uint)layer), $"{layer}: a fallen bridge still carries");
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-6001</c> (§18k T-7a for a SAVED terrain) — <c>TerrainBake.SaveAs</c> folds the bridge's ROAD into the saved terrain: its segment is appended to the saved road network (the base's indices stay).
+        /// 🔴 Red-proof: skip the fold in <c>SaveAs</c> ⇒ the saved roads have the base's two segments only.
+        /// </summary>
+        [Fact]
+        public void SaveAs_FoldsTheBridgesRoad_IntoTheSavedRoadNetwork()
+        {
+            _f.WithRoads();
+            File.WriteAllText(Path.Combine(_f.ScenarioDir, "scenario.json"), _f.Scenario((G1, River()), (G2, Bridge())).ToJsonString());
+            string target = Path.Combine(_f.Assets, "terrain", "saved-t");
+            TerrainBake.SaveAs(_f.ScenarioDir, target, "saved-t", _f.Resolve, new[] { _f.Recipes }, bakeNavtiles: false);
+            var roads = JsonNode.Parse(File.ReadAllText(Path.Combine(target, "roads.json")))!;
+            var segs = roads["segments"]!.AsArray();
+            Assert.Equal(3, segs.Count);                                 // the base's WEST and EAST roads + the bridge, appended
+            Assert.Equal(2, (int)segs[2]!["id"]!);
+            Assert.Equal(1, (int)segs[2]!["startNodeId"]!);              // snapped to the west road's end node and the east road's start node
+            Assert.Equal(2, (int)segs[2]!["endNodeId"]!);
+        }
+
         // ── a scatter is deterministic ────────────────────────────────────────────────────────────────────────────
 
         /// <summary>
