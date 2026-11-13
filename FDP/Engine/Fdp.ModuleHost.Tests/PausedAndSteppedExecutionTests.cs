@@ -238,6 +238,51 @@ namespace Fdp.ModuleHost.Tests
             Assert.Equal(0, history.Overflow);
             kernel.Dispose(); world.Dispose();
         }
+
+        /// <summary>A background module slower than its own timeout: each run waits, then creates one entity through its command buffer.</summary>
+        [TickMode(TickPolicy.WhenTimeAdvances)]
+        private sealed class SlowerThanItsTimeout : IEcsModule
+        {
+            public int Runs;
+            public string Name => nameof(SlowerThanItsTimeout);
+            public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(10).WithTimeout(20);
+            public void Tick(ISimulationView view, float deltaTime)
+            {
+                Thread.Sleep(150);                                  // past its 20 ms budget, as a loaded machine makes any module
+                view.GetCommandBuffer().CreateEntity();
+                Interlocked.Increment(ref Runs);
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ F-3 (CE-4503) — a STEP never discards a run on the wall clock: a background module slower than its timeout, stepped, has
+        /// every run's output played back, and no timeout reaches its circuit breaker. 📌 Measured: a stepped 1 000-man run at 8 threads
+        /// logged "NavigationSolver timed out after 100ms. Task abandoned" and its world differed from the 1-thread run's.
+        /// 🔴 Red-proof: dispatch with <c>deterministic: false</c> — the runs time out, their entities never arrive.
+        /// </summary>
+        [Fact]
+        public void F3_ASteppedRun_IsNeverAbandonedOnTheWallClock_ItsOutputArrives()
+        {
+            var world = new EntityRepository();
+            world.RegisterComponent<GlobalTime>();
+            world.SetSingletonUnmanaged(new GlobalTime());
+            var kernel = new ModuleHostKernel(world, new EventAccumulator());
+            var clock = new ScriptedClock();                       // Deterministic: every frame is a step
+            kernel.SetTimeController(clock);
+            var module = new SlowerThanItsTimeout();
+            kernel.RegisterModule(module);
+            kernel.InitializeForTest();
+            int before = world.EntityCount;
+
+            for (int i = 0; i < 4; i++) Frame(kernel, clock, 0.1f);   // four steps, each a new 10 Hz slot: four runs
+            Frame(kernel, clock, 0.1f);                                // harvest the last
+
+            Assert.True(Volatile.Read(ref module.Runs) >= 4, $"runs {module.Runs}");
+            Assert.Equal(Volatile.Read(ref module.Runs), world.EntityCount - before);   // every run's entity, none discarded
+            var stats = kernel.GetExecutionStats().Single(m => m.ModuleName == nameof(SlowerThanItsTimeout));
+            Assert.Equal(0, stats.FailureCount);                                         // the breaker saw no timeout
+            kernel.Dispose(); world.Dispose();
+        }
     }
 
     /// <summary>
