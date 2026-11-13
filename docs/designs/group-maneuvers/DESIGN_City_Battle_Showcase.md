@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD — every decision APPROVED by the user in chat (2026-11-13, §10 D-1…D-17, D-R); F-0 (fix the flaky behaviours) first
-updated: 2026-11-13 (rev 3: §9 points at the as-built parallel rule, §11 every item a tracker row in Area S, W/B lanes)
+updated: 2026-11-13 (rev 4: §11 O-1 CE-6003 built — as built in Peek and Fire §9.9) · (rev 3: §9 points at the as-built parallel rule, §11 every item a tracker row in Area S, W/B lanes)
 current-answer: the whole file — §2 the picture · §3 phases (overlapping) · §3a momentum · §3b the air gate · §3c civilians · §4 forces · §5 the breach drill · §6 classes · §7 sequences · §8 who runs what · §9 the parallel rules · §11 the work · §12 testing
 stale-below: nothing
 known-rot: none
@@ -18,7 +18,8 @@ related-designs:
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the air assault, the air defence and the strike aircraft used in phase 3
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars, smoke and the observer chain the recon quadcopter joins
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS room / building clearing the platoons use in phase 4
-  - docs/blueprints/RESUME_Coordinator_Destructible_Buildings.md — OWNS the breach / collapse path the obstacle removal (§11 O-1) reuses
+  - docs/blueprints/RESUME_Coordinator_Destructible_Buildings.md — OWNS the breach / collapse path; the obstacle removal (§11 O-1) shares its scaled distance (BreachRule), not its rows
+  - docs/DESIGN_Peek_And_Fire.md — OWNS static obstacles as terrain (§9, R-242…R-244); §9.9 is the AS-BUILT obstacle removal (CE-6003): the blast law, the Health owner's teardown, the blade's seam
 -->
 
 # DESIGN — the city battle showcase: ~1 000 men taking and holding a town, decided by their own commanders
@@ -307,7 +308,7 @@ graph TD
 ```
 *What the picture shows that prose hid:* every NEW system is a SimHost or CGF system in an EXISTING scheduled place — none needs a new host or a
 private loop; and every cross-entity effect (an order, a removal, a new wreck, a wave) leaves its system as an event, a command-buffer write or an
-ELM creation — the shapes §9 requires. ⚠ Which node destroys a dead obstacle (its owner) — CE-6003 measures it; the bake runs on every node.
+ELM creation — the shapes §9 requires. ✅ Which node destroys a dead obstacle: the node that owns its Health (`HealthOwnership.AppliesHere`), through the one teardown (`DestroyEntityCommand`) — CE-6003, [Peek and Fire §9.9](../../DESIGN_Peek_And_Fire.md); the bake runs on every node.
 
 ## 9. The parallel contract — the AS-BUILT rule binds every new system *(user, 2026-11-13; superseded my own paraphrase the same day)*
 
@@ -363,7 +364,7 @@ B's CE-7012 (the bulldozer's ClearObstacle) stands on them.
 |---|---|---|---|---|
 | T-1 | **CE-6001** | **the town** — an authored layout of the terrain-authoring blocks (old town + square + town hall, residential belt, industrial edge, ring road, fields, hill) + a river + two bridges, fixed seed, hand-adjusted, saved as a terrain | Terrain Authoring §8, §12, §18f–§18k (the random-terrain pipeline, recipes, block layout, bridges as road); ⛔ no OSM | W |
 | T-2 | **CE-6002** | D-R ✅: water impassable to ground units — ⭐ MEASURE first (Terrain Authoring §10 left it open), fix only if water is walkable | navmesh bake, `TerrainWorld.SurfaceTypeAt`, `RubbleMound` (CE-3438) | W |
-| O-1 | **CE-6003** | **obstacle removal**: an obstacle type carries `Health`; the existing blast damage reaches it; at ≤ 0 the obstacle entity is destroyed ⇒ the existing obstacle bake rebakes sight, fire and navmesh on every node | `AreaEffectSystem` (Health in reach), `HealthApplicationSystem`, `StaticObstacleBakeSystem`, the obstacle types 8806–8809 | W |
+| O-1 | **CE-6003** ✅ BUILT `2026-11-13` | **obstacle removal**: an obstacle type carries `Health` (TKB `MaxHealth`); a blast drains it by charge × closeness (⚠ DEVIATION, measured: NOT the person / hull law — it gave a block the same 80 hp for every warhead); at ≤ 0 its Health owner removes it through the ELM teardown ⇒ the existing obstacle bake rebakes sight, fire and navmesh on every node; the blade's seam is `ObstacleDamage.Damage` per tick of contact (CE-7012). As built: [Peek and Fire §9.9](../../DESIGN_Peek_And_Fire.md) | `AreaEffectSystem` (+ `AssessObstacle`), `HealthApplicationSystem`, NEW `ObstacleRemovalSystem` + `ObstacleDamage`, `StaticObstacleBakeSystem`, the obstacle types 8806–8809 | W |
 | O-1b | **CE-6004** | the obstacle bake's 0.5 s WALL-CLOCK debounce (R-244) under the deterministic stepped run — measure; a removal must land at the same tick at every thread count | `StaticObstacleBake.cs:52,167`, `stepped-hash.py` — ⏳ with CE-6012 | W |
 | O-2 | **CE-6005** | wreck → obstacle for heavy vehicles (tanks, IFVs), created through the ELM (multi-frame, acked) | `Health.Current ≤ 0` (as `WreckSpawnSystem` reads it), the obstacle types, the bake | W |
 | V-1a | **CE-6006** | the **bulldozer** type: catalogue entry (engineering type, tracked mobility, no weapon), an armour profile (small arms bounce, a few RPG hits kill) | `TkbEntityTypes`, `NedTkbCatalog`, `ArmorModel` | W |

@@ -1180,21 +1180,25 @@ namespace Hrot.Map.Definitions.Tkb
             var car = new DISEntityType { Kind = 1, Domain = 1, Category = 81 };
             var feature = new DISEntityType { Kind = 5 };
             // ⭐ T-2 (CE-4429 G-3) — the sizes and materials are the CLUTTER table's (Fdp.Toolkit.Terrain.ClutterTypes): a baked clutter item and the live obstacle of the same name are one box of one material
-            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Car,           TkbEntityTypes.Obstacle_Car,           car);
-            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.SandbagWall,   TkbEntityTypes.Obstacle_SandbagWall,   feature);
-            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.ConcreteBlock, TkbEntityTypes.Obstacle_ConcreteBlock, feature);
-            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Crate,         TkbEntityTypes.Obstacle_Crate,         feature);
+            // ⭐ CE-6003 (city battle O-1, Peek and Fire §9.9) — every obstacle is DESTRUCTIBLE; MaxHealth in Fdp.Toolkit.Combat.ObstacleDamage's unit
+            //   (100 per kg of explosive at contact): a concrete block takes a 6 kg contact charge (the 8 kg demolition charge removes it; a 120 mm
+            //   mortar round, 3 kg, needs two direct hits; an 81 mm, five), a sandbag wall 3 kg, a parked car 1.5 kg (one tank HE round), a crate
+            //   0.6 kg. ⚠ Starter values to tune, like the sizes.
+            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Car,           TkbEntityTypes.Obstacle_Car,           car,     maxHealth: 150f);
+            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.SandbagWall,   TkbEntityTypes.Obstacle_SandbagWall,   feature, maxHealth: 300f);
+            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.ConcreteBlock, TkbEntityTypes.Obstacle_ConcreteBlock, feature, maxHealth: 600f);
+            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Crate,         TkbEntityTypes.Obstacle_Crate,         feature, maxHealth: 60f);
         }
 
-        private static void RegisterObstacle(TkbDatabase tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Type type, long tkbType, DISEntityType dis)
-            => RegisterObstacle(tkbDb, type.Name, tkbType, type.Length, type.Width, type.Height, type.Material, dis);
+        private static void RegisterObstacle(TkbDatabase tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Type type, long tkbType, DISEntityType dis, float maxHealth)
+            => RegisterObstacle(tkbDb, type.Name, tkbType, type.Length, type.Width, type.Height, type.Material, dis, maxHealth);
 
         private static void RegisterObstacle(TkbDatabase tkbDb, string name, long type, float length, float width, float height, string material,
-                                             DISEntityType dis)
+                                             DISEntityType dis, float maxHealth)
         {
             var t = new TkbTemplate(name, type);
             t.DisType = dis;   // ⭐ CE-3148 — the TYPE only: ⛔ no TkbMasterDto, which would list an obstacle in the Add Entity picker as a sided unit
-            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.StaticObstacleDto { Length = length, Width = width, Height = height, Material = material });
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.StaticObstacleDto { Length = length, Width = width, Height = height, Material = material, MaxHealth = maxHealth });
             tkbDb.Register(t);
         }
 

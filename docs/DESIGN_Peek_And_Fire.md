@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-25 (§12.6 R-2078: a hot spot still peeked, no drop indoors, the duel's tasks) · 2026-10-25 (§12 the posted man's one cycle; a look is not a burst — R-2077, CE-2366) · 2026-10-20 (§11 look then shoot, aim at the chest — R-2064, CE-2325…CE-2329) · 2026-10-16 (§10.10 the muzzle line — CE-2218)
+updated: 2026-11-13 (§9.9 O-6: an obstacle can be destroyed — CE-6003, showcase-world) · 2026-10-25 (§12.6 R-2078: a hot spot still peeked, no drop indoors, the duel's tasks) · 2026-10-25 (§12 the posted man's one cycle; a look is not a burst — R-2077, CE-2366) · 2026-10-20 (§11 look then shoot, aim at the chest — R-2064, CE-2325…CE-2329) · 2026-10-16 (§10.10 the muzzle line — CE-2218)
 build-state: P-1–P-7 and P-7a (O1–O5) BUILT 2026-10-09 (§7, §9.7); P-8 (the duel scenario) next; READY-TO-BUILD for the rest of D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 APPROVED 2026-10-09 (R-238); B1's storage rides on Q87 (unit memory, A–G APPROVED 2026-10-09, R-237)
-current-answer: ⭐ §12 THE POSTED MAN'S ONE CYCLE + A LOOK IS NOT A BURST (R-2077) · ⭐ §11 LOOK THEN SHOOT + THE CHEST (R-2064 — supersedes D1's "middle" for a person) · §10 GENERALISATION (R-256 L2: the library's fight-from-cover node, squad-aware) — G1–G8 APPROVED (R-257), READY-TO-BUILD (CE-3158) · §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles
+current-answer: ⭐ §12 THE POSTED MAN'S ONE CYCLE + A LOOK IS NOT A BURST (R-2077) · ⭐ §11 LOOK THEN SHOOT + THE CHEST (R-2064 — supersedes D1's "middle" for a person) · §10 GENERALISATION (R-256 L2: the library's fight-from-cover node, squad-aware) — G1–G8 APPROVED (R-257), READY-TO-BUILD (CE-3158) · §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles (§9.9 O-6: destroyed by a blast or a push, removed by its Health owner — CE-6003)
 stale-below: nothing
 known-rot: §8 B4 "a burned one with nowhere to go waits to cool" — he now peeks from it at a third of the rhythm (§12.6, R-2078) · §4.2 and D13 (§6) — a blind burst now answers only FRESH evidence (≤ 5 s), else the exposure is a look (§12.4 B, R-2077) · D1 (§6) and §10.10's "the middle" for a PERSON — now the CHEST (§11.5 ②③, R-2064); §10.10's "before release" order — the muscle now aims first, then judges the masked line (§11.5 ④)
 known-conflict: DESIGN_Building_Interiors.md §3d P2 / R-217 — "the shot flies from the eye to the middle of the target's silhouette"; D1 here refines the AIM POINT for a partly hidden target (§6 D1, revised R-239)
 related-designs:
+  - designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — OWNS the city battle whose breach drill (§5, §11 O-1) needs an obstacle removed; §9.9 here is how (CE-6003)
   - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) A, B, D: the posted window man fights through PeekAndFire; under fire ducks whatever his health; the next spot a seeded pick
   - docs/blueprints/Architect_Question_96_Movement_Under_Fire.md — ASKED 2026-10-20: D — the move to a hide is crouched at the rush speed
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — §6b: the next hide point must lie inside the man's sector and post set (PC-14); who switches windows by proficiency (PC-15); the watcher's counter-play (PC-16)
@@ -568,6 +569,111 @@ Rails: `EqsVisualizersTests` (IG) — `EqsSensorGizmo_DrawsTheFiltersVerdict_For
 and its threat: 2 green behind it, 4 red), T-VIS1 re-pinned (keyed on the sensor alone); `CoverPointsGizmoTests.CE3143_TheCoverLayer_ShowsTheLivePointsBesideAStandingVehicle`
 (6 dots for a car, none when it drives); `DebugTraceGizmoTests.CE3143_APartFollowsItsUnit_UnderSelectedOrPinned_AndEqsDefaultsToIt`;
 `StaticObstacleTests.P7a_R11` (6 points round a car).
+
+### 9.9 O-6 — an obstacle can be destroyed, and its removal opens the street *(`CE-6003`, showcase-world, built `2026-11-13`)*
+
+> 🔒 User, `2026-11-13` (city battle D-6): *"removal manadatory (even as disappearing)"*. The breach drill of
+> [`DESIGN_City_Battle_Showcase.md`](designs/group-maneuvers/DESIGN_City_Battle_Showcase.md) §5 / §11 O-1 stands on it, and the bulldozer's
+> `ClearObstacle` (brains lane, `CE-7012`) calls the seam below.
+
+```mermaid
+classDiagram
+  class StaticObstacleDto { <<existing TKB descriptor, grows>> + MaxHealth (0 = indestructible) }
+  class ObstacleTkbTranslator { <<existing, grows>> + the ordinary Health when MaxHealth > 0 }
+  class Health { <<existing component>> Current ; Max }
+  class AreaEffectSystem { <<existing, grows>> Assess: an obstacle → AssessObstacle }
+  class ObstacleDamage { <<NEW static, Fdp.Toolkits>> BlastDamage(kg, d) ; NearestPoint ; IsDestructible ; Damage(obstacle, hp, by) }
+  class DamageAssessedEvent { <<existing — the ONE damage path>> }
+  class HealthApplicationSystem { <<existing>> applies on the Health owner }
+  class ObstacleRemovalSystem { <<NEW, Fdp.Toolkits>> Health ≤ 0 and owned → DestroyEntityCommand + TearDown }
+  class NetworkSpawningSystem { <<existing>> the one teardown → ELM }
+  class StaticObstacleBakeSystem { <<existing, unchanged>> the set changed → rebake }
+  class BreachRule { <<existing>> Z = d / ∛kg — the scaled distance the law shares }
+  StaticObstacleDto <.. ObstacleTkbTranslator
+  ObstacleTkbTranslator ..> Health
+  AreaEffectSystem ..> ObstacleDamage : BlastDamage, NearestPoint
+  ObstacleDamage ..> BreachRule : same scaled distance
+  AreaEffectSystem ..> DamageAssessedEvent
+  ObstacleDamage ..> DamageAssessedEvent : Damage (the blade, CE-7012)
+  DamageAssessedEvent ..> HealthApplicationSystem
+  HealthApplicationSystem ..> Health
+  ObstacleRemovalSystem ..> Health : reads
+  ObstacleRemovalSystem ..> NetworkSpawningSystem : DestroyEntityCommand
+  NetworkSpawningSystem ..> StaticObstacleBakeSystem : the entity leaves the set
+```
+*What the picture shows that prose hid: two NEW boxes only — a pure law and a tiny owner system; damage, its owner, the teardown and the
+rebake are all the existing ones. The law sits beside `BreachRule`, not in the person / hull law.*
+
+```mermaid
+sequenceDiagram
+  participant B as a burst (any node owning it) or the blade
+  participant A as AreaEffectSystem / ObstacleDamage.Damage
+  participant H as Health owner: HealthApplicationSystem
+  participant R as Health owner: ObstacleRemovalSystem
+  participant N as NetworkSpawningSystem + ELM (master owner)
+  participant K as StaticObstacleBakeSystem (every node)
+  B->>A: DetonationNotification (kg, burst point)
+  A->>H: DamageAssessedEvent: BlastDamage(kg, distance to the nearest face) × closed barriers
+  H->>H: Health.Current -= damage (next frame, head of Simulation)
+  H->>R: same frame, right after
+  R->>N: Current ≤ 0 → DestroyEntityCommand (a non-owner of the master forwards a DeleteEntityRequest) + TearDown at once
+  N->>N: teardown over frames, the dispose removes every replica
+  K->>K: the obstacle left the Active set → signature changed → 0.5 s wall-clock quiet (R-244) → rebake world, cover, touched navmesh tiles → commit
+```
+*What the picture shows that prose hid: no node bakes because of the damage — every node rebakes because the ENTITY left its world, the same
+trigger as an obstacle placed or moved (§9.2 O2). The removal joins the simulation on the bake's commit, so its tick is wall-clock dependent
+— `CE-6004` measures it under the deterministic run.*
+
+```mermaid
+graph TD
+  PLAN["CoreInfrastructureCapabilities.LiveSimulationPlan (every live-simulation node)"] --> HA["HealthApplication capability: HealthApplicationSystem → BleedOutSystem → ObstacleRemovalSystem (NEW)"]
+  SH["SimHostCoreLogicPack: DamageAssessmentModule"] --> AE["AreaEffectSystem (grows: AssessObstacle)"]
+  PACK["EntityCreationPack (every node)"] --> BAKE["StaticObstacleBakeSystem (unchanged)"]
+  TKB["NedTkbCatalog.RegisterObstacles: MaxHealth car 150 · sandbags 300 · concrete 600 · crate 60"] --> TR["ObstacleTkbTranslator (every node): Health"]
+  AE -->|"DamageAssessedEvent (egress to the owner)"| HA
+  HA -->|"DestroyEntityCommand"| NS["NetworkSpawningSystem → ELM teardown"]
+  NS -->|"entity gone"| BAKE
+  RB["Replay Browser: BakeRecordedObstacles per seek"] -.->|"the recording holds the removal: a seek past it bakes without the prism"| BAKE
+```
+*What the picture shows that prose hid: the remover runs where Health is applied (any node may own an obstacle's Health), never in a role
+pack; the replay needs nothing new — it already rebakes the recorded obstacle set per seek (O-8, `CE-4420`).*
+
+| decision (as built) | why — measured |
+|---|---|
+| **an obstacle type carries the ORDINARY `Health`** (`StaticObstacleDto.MaxHealth`, the translator adds it) — no new damage component | the design's lean (§11 O-1); every damage writer already speaks `Health` |
+| ⭐ **a blast drains it by `ObstacleDamage.BlastDamage` = 100 hp/kg × kg × f(Z)**, Z = d / ∛kg to the obstacle's NEAREST FACE (f = 1 to Z 0.5, 0 at Z 1.5); fragments and bullets do nothing | 📐 **the person / hull law could not be reused — measured (red-proof M1, the obstacle branch off): it gives a concrete block 80 hp for EVERY warhead at its face — the 8 kg charge, an 81 mm, a 120 mm and an M67 alike; its fragments never arrive (the body points lie inside the block's own prism) and only the blast lands.** And its blast (`BlastLethalDamage`) is the same coefficient for every warhead inside its lethal radius (`ReferenceLibrary.Warhead`), and `ArmorModel.BlastSusceptibility(null, …)` is 1 for a platform-less obstacle ⇒ a grenade at contact = an 8 kg charge. Scaled distance is the breach law's (`BreachRule`, CE-4391) |
+| **closed barriers count, the obstacle's own prism never does**: the trace runs to a point 2 cm OUTSIDE the nearest face (as `LineClearToFace` for a wall) | the own-prism problem (handoff risk 1) is avoided by construction. 📐 Measured (M7: trace INTO the block): an obstacle prism is not a closed barrier, so today the offset changes nothing — kept so an obstacle material that is ever a closed barrier stays right |
+| **MaxHealth per type in the TKB** (`NedTkbCatalog`): concrete block 600 (a 6 kg contact charge; the 8 kg demolition charge removes it from 1.4 m; a 120 mm round = 300, 81 mm = 95, M67 = 24) · sandbag wall 300 · car 150 (one 125 mm HE at contact = 340) · crate 60 | 🔒 handoff: *"a demolition charge must remove a concrete block; small mortar fragments should not trivially erase it"*. ⚠ Starter values to tune, like the sizes |
+| **the Health OWNER removes it** (`HealthOwnership.AppliesHere`) through the one teardown (`DestroyEntityCommand`, Entity Creation §3.4c), marked `TearDown` at once (asked ONCE; it leaves the bake's Active set the next frame); offline: the command buffer | an obstacle may be owned anywhere; ⛔ never a direct delete mid-iteration. ⛔ Obstacles only — a dead body / vehicle stays (CE-267 revert, user `2026-09-13`) |
+| **the blade's seam (`CE-7012`): `ObstacleDamage.Damage(repo, obstacle, rate × dt, dozer)` once per tick of contact** | 🔒 *"a push is damage per second while in contact"* — the same `DamageAssessedEvent`, so the owner, the removal and the rebake are shared by construction. The rate is the dozer's (its TKB / behaviour), not the obstacle's |
+| **a `Constructing` obstacle cannot be removed** (the query is Active-only) | R-243: it is not in the simulation before its bake commits |
+| **replay**: nothing new | the removal is in the recording; `BakeRecordedObstacles` rebakes per seek (O-8). Rail below |
+
+| rejected | the one fact that killed it |
+|---|---|
+| the person / hull law with the own prism (`obstacle:<index>`) excluded from the trace | its blast is warhead-independent at contact (one `BlastLethalDamage`), so a grenade erases concrete as a charge does |
+| blast pressure only (`BlastLethalDamage × BlastFalloff`) | same fact: the radius scales with kg, the damage at contact does not |
+| `BreachRule` rows (yes/no by kg and Z) | a yes/no cannot accumulate — two 120 mm rounds and the blade's push both need a pool |
+| a `CombatPlatformDefDto` on the obstacle types (Health + armour through `CombatTkbTranslator`) | it makes an obstacle a combat platform (targeting, armour faces, collider layer) — and the generic law would still run |
+| destroy at 0 inside `HealthApplicationSystem` | that system's rule is *"never destroyed at 0"* (CE-267 revert); a second, obstacle-only system keeps the two rules apart |
+
+⚠ **Known side effect, filed `CE-6013`:** an obstacle now carries `Health`, so a burst that hurts it publishes a `DamageAssessedEvent` with a
+Neutral victim and `ManDowned.PublishIfDowned` fires when it empties — the objective measures (`MeasuresEvidence`, `ObjectiveCensus.IsMan`) read
+those as a Neutral PERSON (civilian harm). Not reachable before this item (no obstacle had Health).
+
+Rails *(the parallel-check set CE-6012 reruns unchanged)*: `Fdp.Toolkits.Tests` — `ObstacleDamageTests` (`CE6003_L1` the law, `A1` the
+charge empties a block its own prism does not shield, `A2` small rounds do not, `R1` the owner removes once / nobody else / never a body, `S1`
+the blade's seam, `H1` 0 B steady); `StaticObstacleTests.CE6003_T1` (a roadblocked gate opens when the obstacle is gone), `CE6003_T2` (the
+translator's Health) · `Hrot.ReplayBrowser.Tests` — `ObstacleRemovalReplayTests.CE6003_ARemovedObstacle_IsGoneAfterASeekPastItsRemoval_AndBackBeforeIt` (its own file: `ReplayBrowserSubsystemTests.cs` is on the parallel programme's list) ·
+`Hrot.ClusterRunner.Integration.Tests` — `RoadblockBlastScenarioTests` on the feature scenario
+`scenarios/showcases/city-battle/features/roadblock-blast` (four hosts, 75 s: no ground or vehicle path through the gate before; one 8 kg charge 0.6 m off a 6 × 1 × 1 m
+concrete barrier removes it on every node by sim 12.4 s; both paths open by 12.9 s; the IFV ordered at 40 s reaches the far side), on the NEW feature terrain `assets/terrain/roadblock-street` (a 3 m wall past both edges with one 6 m gate). 📐 Why a new terrain:
+on `cqb-village` the compound's 4 m gate opened for infantry but never for a vehicle — the vehicle navmesh layer's agent radius is 1.8 m
+(`RecastNavmeshBaker.cs:81`), so a gate under ~4 m is shut to vehicles with or without a roadblock (measured in the twin: the IFV's route stayed `None`). ⚠ And measured there: the IFV swerves round the charge man's body and crosses the wall line
+~7 m off the gate, THROUGH the concrete — vehicle avoidance leaves the navmesh (`CE-6014`, `CarKinematicsSystem`, on the parallel programme's list).
+The twin therefore asserts the ROUTE (closed before, open after, reached) and logs the crossing. ⚠ An obstacle is ONE thing: a long barrier goes
+whole when any face is within reach (the law reads the nearest face) — author a long roadblock as several blocks when a charge should open only part.
+
 
 ## 10. Generalisation — the library's "fight from cover" node *(R-256 L2 · ✅ G1–G8 APPROVED `2026-10-10`, R-257 · READY-TO-BUILD, `CE-3158`)*
 
