@@ -319,12 +319,20 @@ export const TOOLS_CATALOG = [
       "method": "GET",
       "path": "/world/hash"
     },
-    "params": [],
-    "returns": "{ hash, simTime, tick, entities }",
+    "params": [
+      {
+        "name": "byType",
+        "type": "boolean",
+        "required": false,
+        "description": "Also return `types`: one hash per component type (order-free) — compare two runs type by type",
+        "default": false
+      }
+    ],
+    "returns": "{ hash, simTime, tick, entities, types? }",
     "notes": [
       "In a threaded node it hashes the SIMULATION's world (S), between ticks on the sim thread."
     ],
-    "hint": "No params. Example: get_world_hash({}). Two runs that took the same steps with the same edits agree on `hash` exactly when their state is identical — e.g. the same stepped run at 1 / 2 / 4 / 8 sim threads (N-15).",
+    "hint": "Opt: byType (true ⇒ `types`: one hash per component type, to name WHAT differs). Example: get_world_hash({byType:true}). Two runs that took the same steps with the same edits agree on `hash` exactly when their state is identical — e.g. the same stepped run at 1 / 2 / 4 / 8 sim threads (N-15).",
     "manualVerify": false
   },
 
