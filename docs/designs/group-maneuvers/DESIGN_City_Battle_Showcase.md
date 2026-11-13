@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD — every decision APPROVED by the user in chat (2026-11-13, §10 D-1…D-17, D-R); F-0 (fix the flaky behaviours) first
-updated: 2026-11-13 (rev 3: §9 points at the as-built parallel rule, §11 every item a tracker row in Area S, W/B lanes)
+updated: 2026-11-13 (rev 4: §11 the brains items split into buildable rows from measurement (CE-7021…7034); CIV-3 found built)
 current-answer: the whole file — §2 the picture · §3 phases (overlapping) · §3a momentum · §3b the air gate · §3c civilians · §4 forces · §5 the breach drill · §6 classes · §7 sequences · §8 who runs what · §9 the parallel rules · §11 the work · §12 testing
 stale-below: nothing
 known-rot: none
@@ -176,7 +176,7 @@ building whose door can be opened and disappears after a while inside; never fle
 | ≈ 200 civilians in the west belt and the old town (+ a few cars) | **close to the fighting** (shots, explosions near them): **panic** — run AWAY from the danger, or hide in the nearest building whose door opens, disappear inside after a while · **further away**: alarmed (stop, look, keep away), until the fighting comes close | ✅ built (`CivilianHsm` CIV-1 Alarmed, CIV-2 panic / shelter, Civilians §5d–§5e) |
 | civilians who hear the fighting **far away** | **curious**: stop and watch, some walk to a corner / a balcony with a view and film with a phone — until the danger comes close (their fear crosses the alarm threshold), then panic | ⛔ new: a **Watch** mode in `CivilianHsm`, entered from Routine when violence is heard but fear stays below `AlarmAt` (today a distant fight leaves him in Routine; curiosity is drawn only by a casualty within 80 m, CIV-3) |
 | **a few "crazy filmers"** (≈ 5 %) | stay and film even close to the fighting — flee only when hurt or when an explosion lands very close | ⛔ new: a per-civilian **boldness** trait (a scenario-set share) that raises his alarm threshold; ⚠ a phone held up at 150 m can be mistaken for a weapon by a soldier (`ua-armed-identify`) — the engine holds fire on a Neutral (AW-20), so it is tension, not a massacre |
-| a crowd in a street or the square | **fear spreads**: one panics, the people around him panic — the panic travels through the town as a wave, ahead of the fighting | ⚠ CIV-3 READY-TO-BUILD (Civilians §5f) — ⭐ the one civilian piece to build |
+| a crowd in a street or the square | **fear spreads**: one panics, the people around him panic — the panic travels through the town as a wave, ahead of the fighting | ✅ CIV-3 BUILT (`CrowdSystem.cs:400-421`, measured 2026-11-13 — the Civilians design §5f still says ready-to-build) — ⭐ the one civilian piece to build |
 | a driver near the fighting | panics: stops, leaves the car, runs (the abandoned car stays where it stopped — street clutter, not an obstacle) | ⚠ to check: the traffic → civilian handoff (Civilians related: AQ93 §8 — SUMO pedestrians that panic are handed to the civilian HSM) |
 | a civilian in a soldier's line of fire | the shot is held (AW-20) | ✅ built |
 
@@ -230,7 +230,7 @@ classDiagram
   class SquadPlays { <<existing>> SquadDefend · ClearBuilding · BoundingOverwatch … }
   class Soldier { <<existing>> CombatPosture utility · peek and fire · stress }
   class SupportCommand { <<existing HQ>> routes FireSupport · Reinforce · + AIR GATE (NEW): the air threat picture refuses air until the AA is killed }
-  class Civilian { <<existing CivilianHsm>> panic · flee · shelter · vanish inside · + fear spreads (CIV-3, ready to build) }
+  class Civilian { <<existing CivilianHsm>> panic · flee · shelter · vanish inside · + fear spreads (CIV-3, BUILT — CrowdSystem) }
   class DroneTeam { <<NEW>> operator soldier · drone stock · battery cycle · picks targets from the company picture }
   class Quadcopter { <<NEW kinds>> FPV (existing) · Bomber (drop) · Recon (spots) }
   class Jammer { <<NEW>> a vehicle / post: a bubble that breaks drone links }
@@ -356,7 +356,7 @@ ELM creation — the shapes §9 requires. ⚠ Which node destroys a dead obstacl
 ⭐ Two lanes on two VMs (the user, 2026-11-13). **W = `showcase-world`**, made from `ui` (ids `CE-6000…`,
 rulings `R-6000…`): the terrain, the world rules, the bulldozer, the scenario and its content. **B = `showcase-brains`**, made from `exp/threaded-build` (ids `CE-7000…`,
 `R-7000…`): every new behaviour. ⭐ The rows live in the tracker's **Area S** ([tracker](https://github.com/pjanec/HROT/blob/ui/docs/blueprints/Blueprint_Issues_Tracker.md)); the W lane's frames are in
-[`HANDOFF_Ui_To_Showcase_World.md`](../../blueprints/batches/HANDOFF_Ui_To_Showcase_World.md). ⭐ Order inside W: CE-6003 and CE-6006 first —
+[`HANDOFF_Ui_To_Showcase_World.md`](../../blueprints/batches/HANDOFF_Ui_To_Showcase_World.md). The B lane's frames are in [`HANDOFF_Ui_To_Showcase_Brains.md`](../../blueprints/batches/HANDOFF_Ui_To_Showcase_Brains.md). ⭐ Order inside W: CE-6003 and CE-6006 first —
 B's CE-7012 (the bulldozer's ClearObstacle) stands on them.
 
 | id | row | what | reuses | lane |
@@ -375,22 +375,36 @@ B's CE-7012 (the bulldozer's ClearObstacle) stands on them.
 | V-A | **CE-6011** | variants: defender layout, roadblock set, AA / MANPADS positions, civilian density (D-16) | `$variant`, variant forms (Scenario Macros §17) | W |
 | F-0 | **CE-7001** | ⭐ FIRST in B — fix what the grind stands on: CE-2341 · CE-2304 · PL-1 / CE-2264 · CE-3361 · CE-2232 | the existing behaviours | B |
 | C-1 | **CE-7002** | `CompanyCommander`: attack (base of fire / assault / reserve, phase lines, reserve commit) + defend (a block per platoon, fall back); ⚠ `CommandPicture.MaxSubordinates = 6` ⇒ the support element | PlatoonAttack / Defend, EQS, declared reads | B |
+| C-1a | **CE-7021** | the company echelon exists: type, template, standing orders, a picture sized for a company | the platoon template + `AssignSopEvent` | B |
+| C-1d | **CE-7022** | puppet platoons — the commander's test bench (§12 ②) | — | B |
+| C-1b | **CE-7023** | `CompanyAttack` | `PlatoonAttackBehavior` | B |
+| C-1c | **CE-7024** | `CompanyDefend` | `PlatoonDefendBehavior` | B |
 | C-2 | **CE-7003** | support calls — fires, smoke, bulldozer / engineers at a roadblock, drone tasking | SupportCommand, the observer chain | B |
 | C-3 | **CE-7004** | local counterattack, asking the battalion for more — ⭐ MUST-HAVE (§3a) | — | B |
 | C-4 | **CE-7005** | tempo: every company order carries a deadline; escalate at 50 % / 100 % — never "wait" | the HSM's phase timers | B |
 | C-5 | **CE-7006** | the mounted / dismounted handoff | `SquadDismount`, `VehicleFightFromCover` | B |
 | A-1 | **CE-7007** | active defence: shoot and move between a squad's posts; outposts withdraw | `SquadDefend`, the fall-back | B |
+| A-1b | **CE-7032** | outposts withdraw along a planned route (today: one `Back` point) | `BringOpBack` | B |
 | A-2 | **CE-7008** | suppression wears off, leaders rally — first a rail proving whether a squad can be pinned forever | stress, `SquadRecover` | B |
 | A-3 | **CE-7009** | casualty evacuation | `CasualtyCare`, the held-figure carry | B |
 | G-A | **CE-7010** | the air gate in `SupportCommand` (§3b) | `SupportCommandBehavior`, air defence | B |
-| CV-1 | **CE-7011** | civilians: CIV-3 fear spreads, the Watch mode (curious, filming), the boldness trait (≈ 5 % filmers), the panicking driver (§3c) | `CivilianHsm`, the phone held item | B |
+| CV-1 | **CE-7011** | civilians (§3c): Watch (CE-7030), boldness (CE-7031), and a driver who panics from noise, not only when hit (`TrafficPanic.cs:187-200` covers a hit car). ⭐ CIV-3 fear-spreads is ALREADY BUILT (`CrowdSystem.cs:400-421`, measured 2026-11-13) | `CivilianHsm`, the phone held item | B |
+| CV-1a | **CE-7030** | `CivilianMode.Watch`: curious at a distance, some film | `CivilianBehavior`, the phone | B |
+| CV-1b | **CE-7031** | the boldness trait (≈ 5 % filmers) | civilian params | B |
 | V-2 | **CE-7012** | `ClearObstacle`: drive to the blocker, blade down, push → CE-6003 | vehicle drive behaviours | B |
 | R-1 | **CE-7013** | drone team: operator + stock + battery; Bomber and Recon quadcopters; recon joins the observer chain | FPV drone, `DroneImpactSystem`, `PersonObserveFire` | B |
+| R-1a | **CE-7026** | the operator launches (a drone born through the ELM; ⛔ no launch exists — drones are placed airborne) | FPV type + dive brain | B |
+| R-1b | **CE-7027** | the bomber quadcopter (drop) | the impact path | B |
+| R-1c | **CE-7028** | the recon quadcopter → SPOT → FireSupport → the battery | `StaffComposerSystem`, `PersonObserveFire` | B |
 | R-2 | **CE-7014** | anti-drone reaction + the jammer | `ua-drone-shelter` | B |
+| R-2a | **CE-7029** | infantry take cover from drones (vehicles already do) | `ShelterFromAir` | B |
 | S-1 | **CE-2278** *(existing)* | smoke rounds — ⭐ MUST-HAVE on the breach drill's critical path | indirect fire | B |
+| S-1b | **CE-7025** | smoke ROUNDS from the mortars (IF-5) and a FireSupport request that names smoke — ⛔ no smoke round exists today | Indirect Fire IF-5, `SupportCommandBehavior` | B |
 | S-2 | **CE-7015** | unit morale / rout — ⭐ MUST-HAVE; ⛔ waits for the user's AQ101 E-3 / E-4 decision | stress | B |
 | S-3 | **CE-7016** | AI-chosen landing zone for the air assault | `ua-air-assault`, EQS | B |
 | B-1 | **CE-7017** | the full battle on CE-6010's skeleton + the dynamism gate (§12 ⑤) | everything | B |
+| — | **CE-7033** | the dynamism gate as a tool, read from a recording | the recorder | B |
+| — | **CE-7034** | company vs company on a town slice, with deadlines (§12 ④ / ④a) | — | B |
 | FI-1 | **CE-7018** | the interest score for filming at this size | Film Director drafter | B |
 | P-1 | **CE-7019** | recording ON within the budget at this size (D-17) — measured on the battle, handed to the parallel / performance programme (the recorder's 18.7 ms) | Scale Rig, CE-3427, CE-4395 | B (measure) |
 | AD6 | **CE-7020** ⏸ | **later, not priority** (user, 2026-11-13): a radar SAM — a launcher vehicle with its own radar; much is built (radar seeker, chaff, the warning, the radar modality) — the sensor that runs, the vehicle and the engagement are not. When it lands it is the air gate's heaviest threat | Air Operations AD1–AD6, `AirDefenceNodes` | B (later) |
