@@ -322,6 +322,17 @@ pays the ~59 s every time.**
 | ⭐⭐ **prove it in the rail** | `GC.GetAllocatedBytesForCurrentThread()` before/after a steady frame `== 0` (📌 the CE-2394 rails) |
 | ⚠ allocation on a first call, on growth, or on a user action is fine | ⛔ every frame is not |
 
+## ⛔⛔⛔ LANGUAGE-NEUTRAL OUTPUT — **no decimal commas, ever** *(user, `2026-11-13`, R-4221)*
+
+> 🔒 **User, verbatim:** *"There should never ever be decimal commas, it needs to be language neutral"*
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐⭐ **every HROT process is culture-INVARIANT** — logs, HTTP JSON, files, the UI, scripts' output | enforced ONCE for every executable (`InvariantGlobalization` in `Directory.Build.props`), so a new executable cannot forget it |
+| ⛔⛔ **never teach a parser to accept a comma** | 📌 a Czech Windows machine printed `[FrameStats] mean 8,9 ms` and the measuring script read 8 — the fix is the OUTPUT, never a tolerant reader (it hides the defect) |
+| ⭐ **code that formats or parses a number says so explicitly anyway** — `CultureInfo.InvariantCulture`, `ToString("0.0", CultureInfo.InvariantCulture)`, `double.Parse(s, CultureInfo.InvariantCulture)`; ⛔ never `CurrentCulture` / `CurrentUICulture` / `new CultureInfo("cs-CZ")` in production | ⭐ a library can run inside a host that is not ours (a test runner, a tool) |
+| ⭐ **a rail for anything that prints numbers is run under `cs-CZ`** | 📌 the existing precedent: `TreeTests` / `EndToEndTests` (TerrainSynth), `TheEventDetailsViewTests` |
+
 ## ⭐⭐⭐ NEW COMPONENTS — **UNMANAGED when recorded; a managed one is IMMUTABLE and REPLACED whole** *(user, `2026-11-02`)*
 
 > 🔒 **User, verbatim:** *"when creating new components, we should prefer unmanaged ones, for those that are going to be saved into the
