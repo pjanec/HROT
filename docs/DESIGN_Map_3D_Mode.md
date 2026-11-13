@@ -3791,6 +3791,27 @@ drawing must tolerate, not use.*
   the hosts' render source on a view that only received the damage: breach, heap, 0 B and no rebuild on an unchanged table) · `TheBuildingDamagePlanTests` (the plan's building marks,
   the overlay, the hidden strokes; the production 2-D attach: gap and rubble). Frames under `HROT_RAIL_SHOTS` (never git).
 
+### 6ak. CE-6007 — the bulldozer *(showcase world, `2026-11-13`; build-state: BUILT — as-built below)*
+
+Owner of the TYPE: [DESIGN_City_Battle_Showcase.md](designs/group-maneuvers/DESIGN_City_Battle_Showcase.md) §6 `Bulldozer` / D-6 (🔒 user: *"just new bulldozer model … no need to look armored"*); armour in
+[DESIGN_Armour_Hit_Model.md](designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md) (CE-6006).
+
+**INVENTORY** *(`search_graph` `.*(Bulldozer|Dozer|Engineer).*` Class: none before this; `.*VisualFamil.*`: `VisualFamily`, `VisualFamilies`; `scripts/find.sh ShapeKit`)*: a new family, because no existing
+one draws a tracked machine with a blade — Tank / Afv / SpArtillery all carry a turret and a gun, the wheeled kits roll on wheels. ⇒ ⛔ not a re-skinned tank (a
+bulldozer that looks like one is the opposite of the user's *"not armoured-looking"*).
+
+| what | as built |
+|---|---|
+| class | `EntityClassTable` `Bulldozer` = DIS `1.1.*.9.1` (a large tracked utility vehicle, subcategory 1; HROT) ⇒ `VisualFamilies.FamilyOfClass["Bulldozer"] = VisualFamily.Bulldozer` (more specific than `LargeTrackedUtilityVehicle`, which has no family) |
+| size | `ShapeKits.DefaultSize` 8.0 × 4.3 × 4.0 m — a D9: 8 m with the blade, the blade 4.3 m, 4 m to the ROPS roof (the TKB's `Body.Geometry` states the same) |
+| kit | `ShapeKits.Bulldozer`, ~45 parts from METRES (`Dz`, `DzCyl`): two track units (run, front idler, HIGH rear sprocket, slope, top run, fender), the hull with the hood in FRONT (a dozer's engine is forward, behind the radiator grille; the handoff said *"at the back"* — the ripper and final-drive deck are there), exhaust stack and pre-cleaner, an open ROPS cab (floor, seat, four pillars, roof, glass in the upper half only), the blade (mould-board leaning 8°, cutting edge, back brace, end wings) on two push arms outside the tracks with two lift rams, a rear ripper. Construction yellow `#E3B01C` (the TKB colour; `DefaultColour` the same). No articulated part: blade and ripper are drawn lowered (a lift pose would be a part role of its own) |
+| not done | the 2-D family icon (`IconName` null ⇒ the tool glyph; the 2-D symbol is the TKB's `SFGPEVEE-------`); a hit-location kit (`VehicleBody` is generated from the kits for the families in `VehicleBodyParityTests.Families`; the dozer is deliberately outside it — no `bodies.json` profile, so its whole hull is hit) |
+
+Rails: `BulldozerModelRail` — the type resolves to the family, kit and size (red-proof: the family mapping removed ⇒ `Unknown`); every part lies inside the 8 × 4.3 × 4 m box;
+the real frame under `xvfb-run -a` draws side, front and rear three-quarter and top views beside a T-72 and a rifleman for scale, then the dozer alone for the gallery
+(`HROT_RAIL_SHOTS`, never git). The thumbnail is `scripts/thumbnails.py --add-image … --name "Bulldozer (D9-class)"` (atlas page 1, slot 4/1; `EntityTypeCatalogTests` pin the picker line
+and the atlas count).
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |

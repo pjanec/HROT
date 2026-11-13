@@ -49,6 +49,7 @@ namespace Hrot.Map.Common.Tests
 
         [Theory]
         [InlineData(TkbEntityTypes.Infantry_Rifleman, "rifle 5.56")]
+        [InlineData(2002L, "urban rifleman (the feature scenario's squad)")]
         [InlineData(TkbEntityTypes.Infantry_AutomaticRifleman, "squad automatic weapon")]
         [InlineData(TkbEntityTypes.Infantry_MachineGunnerPkm, "PKM 7.62")]
         [InlineData(TkbEntityTypes.Infantry_MarksmanSvd, "SVD marksman rifle")]
