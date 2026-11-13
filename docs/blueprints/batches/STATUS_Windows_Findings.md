@@ -27,12 +27,14 @@ when an item is blocked).
 | gate | command | result |
 |---|---|---|
 | F-1 the committed gate | `HROT_PARALLEL_SIM=1 python3 scripts/stepped-hash.py --threads 1,4` (Release, 1 000 men) | STATE EQUAL, exit 0 |
+| ⭐ F-2 the repeatability table (`scripts/stepped-hash.py --chunk 40` = 240 steps, 1 000-man demo-city, Release, VM) | `--kernel 0` (every switch off) · `--kernel 3` + `HROT_PARALLEL_SIM=1`, each at 1, 1, 1, 4, 8 threads | **switch off:** three 1-thread runs EQUAL · 4 threads: 22 types differ, 100 positions, the entity count (10 755 vs 10 756) · 8 threads: 19 types, 18 positions — ⚠ **the THREAD COUNT changes the shipped product's stepped world** · **mode 3 + every phase:** 1, 1, 1, 4 EQUAL · 8 threads: 8 types, 15 positions. ⭐ Repeatable at a FIXED thread count in both; the 120-step gates (M-7) were too short to see it |
 | F-5 rails | `python3 scripts/test_invariant_culture.py --live <Debug ClusterRunner.dll>` · Core `WindowsScheduling` | **34 executables invariant, 63 test projects not** (red-proved: the targets removed ⇒ the executables listed); **under `cs-CZ` the editor printed `mean 44.1 ms`** (a point); the runtimeconfig carries `System.Globalization.Invariant: true` · 4 / 0; the live log shows `[Scheduling] power throttling: …` |
 
 ## 3. DECISIONS
 
 | # | question | decision | where |
 |---|---|---|---|
+| F-D1 | what makes the switch-off product depend on the thread count? | ⚠ hypothesis under test: EQS's solve WINDOW — its size is the pool's thread count (`N-16`, `105705de9`), its places are solved ahead against the window-start state and committed in order; with one worker there is no window (the serial path). If a later place's solve depends on what an earlier commit in the same tick wrote (the shared-twin cache, the memory stage), the result depends on the window ⇒ on the thread count. 📐 Test: the same series with `HROT_EQS_WORKERS=1` | `EqsSolverSystem.SolveWindow` |
 
 ## 4. OPEN
 
