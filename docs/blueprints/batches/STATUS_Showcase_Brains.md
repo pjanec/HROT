@@ -25,7 +25,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | 6 | CE-7008 suppression wears off · CE-7007 shoot and move · CE-7032 the OP withdraws | ✅ · ✅ · ✅ | `StressModel.QuietSeconds` · `SquadDefend.ShootAndMove` · `PlatoonDefend` OpBack → BreakContact |
 | 7 | CE-7010 the air gate | ⏭ ignored — the user | — |
 | 10 | CE-7012 `ClearObstacle` (the bulldozer) | ✅ | `Brains/ClearObstacleBehavior.cs`; City Battle §6c |
-| 9 | CE-7030 Watch · CE-7031 boldness · CE-7011 | ✅ · ✅ · 🔶 (the noise-panicked driver left) | `CivilianBehavior` Watch state; civilians design §5f CIV-3 marked BUILT |
+| 9 | CE-7030 Watch · CE-7031 boldness · CE-7011 | ✅ · ✅ · ✅ (the noise-panicked driver: `TrafficPanicSystem.Deafened`, R-7005) | `CivilianBehavior` Watch state; civilians design §5f CIV-3 marked BUILT |
 
 ## 2. The gates
 
@@ -47,7 +47,8 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | CE-7030 / 7031: `CivilianHsmTests` `PAR=0` | 29 / 29; red-proof: `Curious` never true ⇒ both red. ⚠ `PAR=1`: every civilian rail (old ones too) throws in the FIXTURE — it skips the serial `CivilianFearSystem` that adds `CivilianState` in production ⇒ added to CE-7035 |
 | CE-7012: `ClearObstacleBehaviorTests` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) · drills + stress + shelter + clear `PAR=1` / `=0` (+ `HROT_WORLD_GUARD=1`) | 2 / 2 · 2 / 2 · 272 / 272 · 272 / 272; red-proof: push by `Current` not `Max` ⇒ both red |
 | CE-2278: `AimAndFireExecutorTests.CE2278_*` + `AmmoChoiceTests` + `WL4_W12e*` + `PersonHandsTests` · `SquadManeuverTests.CE2278_*` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) | 23 / 23 · 2 / 2 · 2 / 2; red-proofs: the executor not re-mounting a smoke order ⇒ red · the smoke arm off ⇒ red. Clean build: `Fdp.Toolkits.Tests` Combat 543 / 543 · drills + stress + clear + shelter 274 / 274 both ways · `Hrot.Core.Tests` 366 / 367 (the pre-existing geo red) |
-| `tracker-counts.py --check` · `rulings-check.py` | OK · 604 / 604 |
+| CE-7011 driver: `Hrot.Traffic.Tests` (after `dotnet restore` — the test project's assets predated a merged reference: the third stale-binary trap) | 85 / 85; red-proof: the noise arm off ⇒ `CE7011_…` red |
+| `tracker-counts.py --check` · `rulings-check.py` | OK · 605 / 605 |
 
 ## 3. The morning report
 
@@ -59,6 +60,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | R-7003 civilians watch / bold are opt-in params | no existing civilian scenario changes |
 | R-7002 shoot and move opt-in below the company, on (25 s) in `CompanyDefend` | no existing defence changes |
 | R-7004 the bulldozer clears ANY obstacle in 10 s of blade contact (`PushSeconds`, a task param) | the handoff's frame; no TKB field yet |
+| R-7005 a SUMO car's driver abandons it within 25 m of a shot or a burst (≤ 2 cars a frame, each once) | closer than the walkers' 50 m: a driver in a running car hears less |
 | R-7001 a smoke request = the `ElementEquipment.Smoke` flag; the gun loads the round its strike names | a request's `Count` is already 1 in production |
 
 | for the user to look at | |

@@ -189,6 +189,37 @@ public sealed class PedestriansPanicIntoCiviliansTests
         Assert.False(h.World.IsAlive(replica));
     }
 
+    /// <summary>⭐⭐ <c>CE-7011</c> (City Battle §3c; lane default R-7005) — a car whose driver HEARS the fight: a shot 10 m from a SUMO car gives it up
+    /// as a hit car is given up (our stopped car keeping its id, its driver out in panic) — with no damage held; a second shot does not give it up
+    /// twice, and a car 60 m away keeps driving. ✅ Red-proof: the noise arm removed ⇒ no request for the car.</summary>
+    [Fact]
+    public void CE7011_AShotBesideACar_ItsDriverAbandonsIt_ACarFarAwayDrivesOn()
+    {
+        using var h = Harness.Start(Walkers);
+        h.Run(60.0);
+        var car = h.Mirror.Cars.First(c => c.NetworkId > 0 && !TrafficReplicas.IsShadow(c));
+        h.Body(car.X + 3f, car.Y + 3f);
+        h.Run(0.5);
+        var replica = h.Mirror.Replicas!.Replicas.Values.First(e => h.World.GetComponentRO<NetworkIdentity>(e).Value == car.NetworkId);
+        var at = h.World.GetComponentRO<SimTransform>(replica).Position;
+
+        h.Shoot(at + new Vector3(10f, 0f, 0f));
+        var requests = h.RunCollecting(1.0);
+        var ours = Assert.Single(requests, r => r.PreAllocatedNetworkId == car.NetworkId);
+        Assert.Equal(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianCar, (long)ours.TkbType);
+        var driver = Assert.Single(requests, r => r.PreAllocatedNetworkId == 0);
+        Assert.Contains("\"Fear\":1", driver.InitialAttributesJson);
+        Assert.Empty(h.Panic.HeldHits);                                                  // noise: no hit to deliver
+        Assert.DoesNotContain(h.Mirror.Cars, c => c.NetworkId == car.NetworkId);         // gone from SUMO's wire
+
+        h.Shoot(at + new Vector3(10f, 0f, 0f));
+        Assert.DoesNotContain(h.RunCollecting(1.0), r => r.PreAllocatedNetworkId == car.NetworkId);   // once
+        // ⭐ every car given up by this noise stood within DriverPanicMetres of the shot (the replica's pose when it was given up)
+        Assert.All(requests.Where(r => r.TkbType == (Fdp.Core.TkbTypeId)Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianCar),
+                   r => Assert.True(Vector2.Distance(new(((SimTransform)r.InitialComponents![0]).Position.X, ((SimTransform)r.InitialComponents![0]).Position.Y), new(at.X + 10f, at.Y))
+                                    <= TrafficPanicSystem.DriverPanicMetres + 15f));
+    }
+
     [Fact]
     public void K5_AReleasedPedestrian_LosesItsReplica_AndIsNotRemade()
     {
