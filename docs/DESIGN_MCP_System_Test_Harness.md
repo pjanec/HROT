@@ -13,6 +13,8 @@ known-rot: §3's classDiagram shows per-endpoint DTO returns (StatusDto, EntityD
 known-conflict: none.
 design-basis: docs/MCP_Integration.md (the wired, verified API) · docs/Editor_Headless_Xvfb.md (headless
   launch) · UX_Feature_Curated_Scenarios.md (curated worlds) · UX_Feature_Layout_Defaults.md (curated UI).
+related-designs:
+  - DESIGN_Debug_Api_Http_Only.md — the AI debug API goes HTTP-ONLY: the MCP server removed, `GET /help` (the guide) rendered from the one route-doc source (R-4223)
 -->
 # DESIGN — the MCP-driven system-test harness
 

@@ -10,6 +10,7 @@ current-answer: this is the DESIGN AS BUILT ON origin/feat/ai-debug-api. It was 
 known-rot: the "New Work / Task Decomposition / Staging" sections describe the original build and are DONE;
   do not treat them as pending. Group A-N endpoint semantics still hold.
 related-designs:
+  - ../../DESIGN_Debug_Api_Http_Only.md — the AI debug API goes HTTP-ONLY: the MCP server removed, `GET /help` (the guide) rendered from the one route-doc source (R-4223)
   - docs/DESIGN_Agent_Shared_View.md — OWNS the 2026-10-23 additions to these endpoint groups: /view, /selection, /marks, the brain / journal / debug / journal-break routes and their /replay twins, /replay/search (R-1029)
 -->
 

@@ -8,6 +8,7 @@ known-rot: nothing known
 known-conflict: none. tools/ai-debug-mcp/SKILL.md documents the SAME surface through the MCP
   server; this document is the direct-HTTP path to it and does not contradict it.
 related-designs:
+  - DESIGN_Debug_Api_Http_Only.md — the AI debug API goes HTTP-ONLY: the MCP server removed, `GET /help` (the guide) rendered from the one route-doc source (R-4223)
   - docs/RUNBOOK_Filming.md — OWNS filming the 3-D map over these routes (/film/shot, /film/capture with /sim/pause and /sim/step)
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS the utility AI demo scenarios and their per-scenario runbook (§5.3 there), which builds on this one.
   - docs/DESIGN_Agent_Shared_View.md — OWNS the routes for what the operator sees (/view, /selection, /marks) and for debugging one unit live and over a recording; a line goes here when they are built
