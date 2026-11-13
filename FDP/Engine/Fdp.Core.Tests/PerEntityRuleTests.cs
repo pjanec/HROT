@@ -232,6 +232,39 @@ public sealed class PerEntityRuleTests
         finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
     }
 
+    /// <summary>⭐ M-7 (CE-4486) — a type declared AFTER this tick's view was taken is still served from the tick start: the phase takes the view
+    /// again (the declaration epoch moved). 📐 Measured (the read-check survey): movement declares its neighbour reads just before its first run,
+    /// so on the first frame they were read LIVE. On one thread the batches run in order, so a live read sees the left neighbour's NEW value.
+    /// 🔴 Red-proof: the epoch test dropped from <c>EnsureLastTickView</c> ⇒ entity i reads i−1's in-phase write.</summary>
+    [Fact]
+    public void M7_ATypeDeclaredAfterTheViewWasTaken_IsReadFromTheTickStart()
+    {
+        try
+        {
+            FdpWorkerPool.Resize(1);
+            ParallelReadCheck.ClearDeclarations();
+            using var w = World(64, out var list);
+            for (int i = 0; i < list.Length; i++) w.AddComponent(list[i], new Tag { From = i });
+            ParallelReadCheck.DeclareUnmanaged<Val>();
+            w.CaptureLastTick();                                          // this tick's view — without Tag
+            ParallelReadCheck.DeclareUnmanaged<Tag>();                    // declared after it (as movement does on its first frame)
+            ParallelEntities.Run(w, list, list.Length, new LeftTagJob { Repo = w, List = list });
+            for (int i = 1; i < list.Length; i++) Assert.Equal(i - 1, w.GetComponentRO<Val>(list[i]).V);   // the left one's tick-start Tag
+        }
+        finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); ParallelReadCheck.ClearDeclarations(); }
+    }
+
+    private struct LeftTagJob : IEntityBatchJob
+    {
+        public EntityRepository Repo; public Entity[] List;
+        public void Execute(Entity e, int index, BatchContext ctx)
+        {
+            Repo.GetComponentRW<Tag>(e).From = 1000 + index;                                   // its own: written in the phase
+            if (index > 0) Repo.GetComponentRW<Val>(e).V = Repo.GetComponentRO<Tag>(List[index - 1]).From;   // the left one's
+        }
+        public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
+    }
+
     /// <summary>⭐ M-6 (CE-4485) — owning an entity owns its PARTS: a job that claims another entity (<see cref="ParallelReadCheck.OwnAlso"/>: a weapon
     /// system the unit controls) writes that entity's part (its turret) directly — visible in the same Execute — the same at 1 / 2 / 4 / 8 threads.
     /// 🔴 Red-proof: the owner test dropped from <c>IsOwnPartOfCurrent</c> ⇒ the part's write is deferred ⇒ the read-back sees the old value.</summary>

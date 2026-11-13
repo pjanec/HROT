@@ -1858,9 +1858,12 @@ namespace Fdp.Core
         public void CaptureLastTick()
         {
             _lastTick ??= new EntityRepository();
+            _lastTickEpoch = ParallelReadCheck.DeclarationEpoch;   // ⭐ M-7 — before the copy: a declaration made during it retakes next time
             _lastTick.SyncFrom(this, ParallelReadCheck.DeclaredMask, includeTransient: true);
             _lastTickFresh = true;
         }
+
+        private int _lastTickEpoch = -1;
 
         private bool _lastTickFresh;
 
@@ -1873,7 +1876,7 @@ namespace Fdp.Core
         /// </summary>
         public void EnsureLastTickView()
         {
-            if (!_lastTickFresh || _lastTick == null) CaptureLastTick();
+            if (!_lastTickFresh || _lastTick == null || _lastTickEpoch != ParallelReadCheck.DeclarationEpoch) CaptureLastTick();   // ⭐ M-7 — a type declared since
         }
 
         /// <summary>A live unmanaged row, with no hook (the read check's own fallback).</summary>

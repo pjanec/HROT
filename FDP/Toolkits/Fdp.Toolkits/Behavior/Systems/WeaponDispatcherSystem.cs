@@ -105,6 +105,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     if (n == _list.Length) Array.Resize(ref _list, _list.Length * 2);
                     _list[n++] = entity;
                 }
+                DeclareTickReads();
                 Fdp.Core.Jobs.ParallelEntities.Run(repo, _list, n, new DispatchJob { System = this, Repo = repo, Dt = deltaTime });
                 return;
             }
@@ -114,8 +115,32 @@ namespace Fdp.Toolkit.Behavior.Systems
         private EntityQuery? _channels;
         private Entity[] _list = new Entity[64];
 
-        private struct DispatchJob : Fdp.Core.Jobs.IEntityBatchJob
+        /// <summary>
+        /// ⭐ M-7 (CE-4486) — what a unit's weapon frame reads on OTHER units that this phase also writes: from the tick-start view. 📐 Measured
+        /// (the read-check survey, 1 000 men, 4 threads): the force level read the TARGET's <see cref="Fdp.Toolkit.Combat.Components.WeaponPosture"/>
+        /// (<c>ForceLevels.AimsAt</c>) while the target's own job wrote it — the engagement mount it chose, kept in the channel, differed in one
+        /// 4-thread run in three. The aim point reads the target's stance intent, which a shooter's own frame writes (<c>StanceRequest</c>).
+        /// </summary>
+        private static void DeclareTickReads()
         {
+            if (s_declared) return;
+            Fdp.Core.ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+            Fdp.Core.ParallelReadCheck.DeclareUnmanaged<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            s_declared = true;
+        }
+        private static bool s_declared;
+
+        private struct DispatchJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.IStableReads
+        {
+            // ⭐ M-7 — what it reads on others that nothing writes while it runs (the survey): who controls a weapon (seats, stations), and a
+            //   target's size for the aim point
+            public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads
+                .Unmanaged<Fdp.Toolkit.Combat.WeaponSystemParams>()
+                .Unmanaged<IsEmbarkedTag>()
+                .Unmanaged<PassengerBuffer>()
+                .Unmanaged<CarrierStations>()
+                .Unmanaged<Fdp.Toolkit.Physics.Components.PhysicsCollider>()
+                .Unmanaged<global::CarKinem.Core.VehicleParams>();
             public WeaponDispatcherSystem System;
             public EntityRepository Repo;
             public float Dt;

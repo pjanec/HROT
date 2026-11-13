@@ -161,8 +161,15 @@ namespace Fdp.Core
         /// <summary>Has anything been declared (no declaration ⇒ no last-tick view to take)?</summary>
         public static bool HasDeclarations { get; private set; }
 
+        /// <summary>⭐ M-7 (CE-4486) — bumped by every NEW declaration: a last-tick view taken under an older epoch lacks the type and is taken
+        /// again (<see cref="EntityRepository.EnsureLastTickView"/>). 📐 Measured (the read-check survey, 1 000 men): a phase that declares
+        /// lazily (movement: before its first run) read its neighbours LIVE on the first frame — the view of that tick predated the declaration.</summary>
+        public static int DeclarationEpoch => System.Threading.Volatile.Read(ref s_epoch);
+        private static int s_epoch;
+
         private static void Set(ref ulong[] bits, int id)
         {
+            if (!s_declaredMask.IsSet(id)) System.Threading.Interlocked.Increment(ref s_epoch);
             s_declaredMask.SetBit(id);
             HasDeclarations = true;
             if ((id >> 6) >= bits.Length) Array.Resize(ref bits, (id >> 6) + 1);
