@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — ✅ the concept APPROVED (R-4205, `2026-11-11`); next S-0 (the architect question for the details + a FDP-DES-012 section) before any build; a proof of concept exists (§7)
 updated: 2026-11-12 (§12 the experiment, exp/threaded-kernel · §13 the shared-state analysis, coordinator · §13.8 the instruments' answer, CE-4436)
-current-answer: ⭐ §14 THE TARGET SHAPE (14.4 POC 3: the node COMPOSED over S works — threaded editor green twice, 0 faults; the cost to finish listed · 14.3 POC 2 as built: the sync, pure reads and the published frame proven; S must be COMPOSED as its own node — a retargeted kernel keeps ~26–28 cached queries on A) · ⭐ §13 SHARED STATE (13.8 the instruments' answer: no blocker but ONE precondition — managed reads stamp chunk versions — and publish per consumer · 13.7 the verdict: no blocker; S-1 = take the presentation out of the node frame first) · ⭐ §12 the overnight experiment's answer (invert the worlds — measured, prototyped; the user to rule) · §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
+current-answer: ⭐ §14.8 AS BUILT (the overnight build, exp/threaded-build) · §14 THE TARGET SHAPE (14.4 POC 3: the node COMPOSED over S works — threaded editor green twice, 0 faults; the cost to finish listed · 14.3 POC 2 as built: the sync, pure reads and the published frame proven; S must be COMPOSED as its own node — a retargeted kernel keeps ~26–28 cached queries on A) · ⭐ §13 SHARED STATE (13.8 the instruments' answer: no blocker but ONE precondition — managed reads stamp chunk versions — and publish per consumer · 13.7 the verdict: no blocker; S-1 = take the presentation out of the node frame first) · ⭐ §12 the overnight experiment's answer (invert the worlds — measured, prototyped; the user to rule) · §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
 stale-below: nothing
 known-rot: none
 known-conflict: FDP/Engine/Fdp.ModuleHost/docs/UserGuide/06_SimulationViewsAndExecutionModes.md shows a two-replica swap in DoubleBufferProvider — the code syncs ONE replica in place (DoubleBufferProvider.cs:63-66); this design does not rely on it
@@ -714,3 +714,45 @@ Both pictures now show §18 of the Parallel Simulation design (the rule inside t
 an effect on another entity is a command merged in a FIXED order, so the result is the same at any thread count — the deterministic mode no longer
 keeps the brains serial; a read of another entity's in-phase-written data sees LAST tick. ⚠ Two details stay OPEN until the census (CE-4449):
 how the last-tick view is made (a small per-type copy, the replica R, or a phase reorder — N-5) and which systems are GLOBAL (N-4).
+
+### 14.8 ⭐ AS BUILT — the threaded node, no lock between the threads *(overnight build N-1…N-8, N-13, CE-4463…CE-4470 / CE-4475, branch `exp/threaded-build`; [status](blueprints/batches/STATUS_Overnight_Threaded_Build.md) D-1…D-34)*
+
+```mermaid
+graph TD
+  subgraph UI["main thread (UI)"]
+    PS[EditorSubsystem.PullStaging]
+    IB[RunInteractionBlock<br/>gizmos over A, once per pulled tick]
+    RP[RunPresentationStep]
+    UQ[UI-side HTTP routes<br/>DebugApiRouteSides]
+    TD[ThreadedScenarioSession / ThreadedEditorLogic<br/>verbs = jobs, reads = readouts]
+  end
+  subgraph SIM["ONE sim worker (SubsystemOrchestrator.StartSimWorker)"]
+    BD[boundary: cluster API sim-side routes, startup load]
+    SS[EditorSubsystem.SimStep<br/>jobs · uplinks · sim HTTP · logic · Run-to · TickNodeFrame · readouts · Publish]
+    OK[other kernels: cgf / simhost / … Update]
+  end
+  ST[(StagingWorlds<br/>2 buffers + packet FIFO + bus pairs)]
+  JQ[(SimJobQueue)]
+  TD -->|Post| JQ
+  JQ -->|Drain, between ticks| SS
+  SS -->|Publish: rows outside the mask, tables, singletons, events| ST
+  ST -->|Pull: latest complete tick| PS
+  PS --> IB --> RP
+  UQ -->|UI-side| PS
+  BD --> SS --> OK
+```
+*What the picture shows that the prose hid: nothing crosses between the threads except the two queues (jobs down, the staging up); every kernel of
+the process is on the one worker, so no static is entered from two threads; the UI never reads a sim-side object — its cluster view, transport,
+door and run-to readout are its OWN, fed by the mirrored orchestration bus and the published readouts.*
+
+| as built | rule it serves | where |
+|---|---|---|
+| UI writes are JOBS on the sim thread (`SimJobs.Run` — a link on world A; single-world hosts run the job inline, unchanged) | one writer of S | `Fdp.Core/Threading/SimJobQueue.cs` |
+| two staging buffers claimed by CAS; the sim SKIPS a publish rather than wait; events / replies ride a tick-tagged FIFO so a skipped tick loses nothing | R-4216 / R-4217 | `StagingWorlds.cs` |
+| every bus is a sim / UI PAIR (events down per tick exactly once, the UI's publishes up between ticks) ⇒ the UI keeps its own read models | D-9 | `StagingWorlds.AddBusPair` |
+| the gizmo block runs on the UI thread over A; a commit goes through the shared write router, which on a threaded world runs S's router as a job | R-4211, U-3 | `EntityWriteRouter.For` |
+| undo: the recorder on S, the ONE history on the UI, steps handed over through the publish queue | U-1 | `ThreadedUndoSink` |
+| a managed singleton refilled in place by its writer is VALUE-copied across worlds (`SnapshotViaClone` + `IValueCopy`) | N-9 — the traffic frame was a live race | `ManagedComponentTable.CopyRowFrom` |
+| ⭐ the strict world guard: 0 distinct hits over the full session (load … save), with the brains a parallel phase too (session 7) | — | status §2 |
+| ⚠ OPEN: the film director and the review source still act on the world they are given; a subsystem with no staging split is not drawn in a threaded `--mode all` | — | status §5 |
+

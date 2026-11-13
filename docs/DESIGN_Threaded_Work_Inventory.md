@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-12
-current-answer: ⭐ §7 THE CRITICAL REVIEW (decisions U-1…U-6, fixes F-1…F-16, plan P-1…P-7, unmeasured) · then §0–§6 — the MEASURED inventory the overnight threaded + parallel build works from
+current-answer: ⭐ §8.5 AS BUILT (the overnight build) · §7 THE CRITICAL REVIEW (decisions U-1…U-6, fixes F-1…F-16, plan P-1…P-7, unmeasured) · then §0–§6 — the MEASURED inventory the overnight threaded + parallel build works from
 stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_Threaded_Simulation_Presentation.md §12 D-12 (on exp/threaded-kernel; "GET routes read A on the main thread") — SUPERSEDED by the user's rule that the debug API sees EVERY component ⇒ routes are SIM-side by default (Q111-E); §14.6 "every frame" vs exp/threaded-poc-4 §14.2.0 "once per tick" — open decision D-1 below
@@ -285,3 +285,19 @@ frame start; events / logs / edit outcomes travel queued with each staging world
 - `--mode all` on one worker → track A.
 - every caller copes with a delayed write result → the write-path POC (CE-4455), track B's first task.
 - 8-core scaling with the per-entity rule (today's measured ceiling is the brain's ~36 ms serial walk — §11.2) → Windows after track C lands.
+
+### 8.5 ⭐ AS BUILT — how the overnight build answered this list *(N-1…N-17, branch `exp/threaded-build`; the decisions D-1…D-35 with their reasons are in the [status file](blueprints/batches/STATUS_Overnight_Threaded_Build.md) §3)*
+
+| item | state | the as-built answer |
+|---|---|---|
+| U-1 undo | ✅ | the recorder on S, the one history on the UI (Threaded Presentation §14.8) |
+| U-2 `--mode all` | ✅ | ONE sim worker for every kernel (`StartSimWorker`); windowed = threaded, headless inline (F-21) |
+| U-3 gizmo commits | ✅ | the shared write router runs S's router as a job |
+| U-6 one determinism setting | ✅ in the build | the per-entity rule makes the result independent of thread count (`ParallelBrainsDeterminismTests`); determinism itself stays the time mode's |
+| F-2 publish in a phase | ✅ | deferred into the batch, played in batch order |
+| F-5 / F-6 / F-8 cross writes, structure, child sensors | ✅ | checked / deferred; child sensors deferred and idempotent while pending; add-once (D-31) |
+| F-9 cover ties · F-10 callout de-dup | ✅ | claim age then index; callouts said after the phase in batch order through the same policy |
+| F-11 squads per squad | ⚠ OPEN | the squad systems still run serially (their per-squad conversion is the next step of the census list) |
+| P-6 `/world/hash` | ✅ partly | `EntityRepository.ContentHash` (+ per-row breakdown) — the in-process gate uses it; ⚠ no HTTP route yet |
+| §1 the 133 UI writes | 🔄 | through jobs / readouts; ⚠ the film director and the review source still open |
+| N-9 managed in place | ✅ | the audit (status file); the traffic frame fixed; egress / grant bookkeeping exempt (sim-thread only) |

@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — options analysed, lean stated; NOT ruled
 updated: 2026-11-12
-current-answer: ⭐ §16 POC 4 as built (one pool; no dependency scheduler) · §13 a job system? (the lean POC 4 tested) · §15 POC 3 as built (the cheap wins) · §14 POC 2 as built (the brain pre-score) · §12 R-4209 the sampled timer · §11 the aggregate (where the time is) · §10 after the experiment (R-4208, the emitter fix) · §9 the AS-BUILT of the overnight experiment (exp/parallel-sim) · §8 interleaving and quantizing (do less per frame) · §7 determinism is a switchable MODE (R-4207) and what per-batch buffers cost · §2 the lean · §1 what exists (measured) · §3 the options · §4 the hazards · §5 the staged plan · §6 open
+current-answer: ⭐ §18.5 THE RULE AND THE BRAINS AS BUILT (overnight build, exp/threaded-build) · §16 POC 4 as built (one pool; no dependency scheduler) · §13 a job system? (the lean POC 4 tested) · §15 POC 3 as built (the cheap wins) · §14 POC 2 as built (the brain pre-score) · §12 R-4209 the sampled timer · §11 the aggregate (where the time is) · §10 after the experiment (R-4208, the emitter fix) · §9 the AS-BUILT of the overnight experiment (exp/parallel-sim) · §8 interleaving and quantizing (do less per frame) · §7 determinism is a switchable MODE (R-4207) and what per-batch buffers cost · §2 the lean · §1 what exists (measured) · §3 the options · §4 the hazards · §5 the staged plan · §6 open
 stale-below: nothing
 related-designs:
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Managed_Reads_Audit.md — CE-4445, the managed-read audit and the default flip (R-4210)
@@ -641,6 +641,94 @@ the flag on (needs §18's per-entity jobs).
 Combat ~2× heavier changes nothing in §18.1's verdict: 2 new cross-entity writes (the brain's order journal `CommandOrderHistory`; squad-level
 `SquadMemberSense`), 3 new last-tick types (`CoverClaim`, `BallisticProjectile`, `NetworkIdentity`); the masked last-tick copy 2.6–2.7 ms on the
 CGF (21 types), 0.7 ms on the SimHost. ⭐ R-4213 built: the per-query timer off by default — BrainTick 59.0 → 54.4 ms (−8 %).
+
+### 18.5 ⭐ AS BUILT — the per-entity rule in the repository, the brains as a parallel phase *(overnight build N-10 / N-11, CE-4472 / CE-4473, branch `exp/threaded-build`; [status](blueprints/batches/STATUS_Overnight_Threaded_Build.md) D-21…D-35)*
+
+```mermaid
+classDiagram
+  class ParallelReadCheck {
+    +AnyPhase : bool
+    +EnterPhase() / ExitPhase()
+    +Defers(repo) : bool
+    +DeclaredMask : BitMask512
+    +CurrentBatch : BatchContext
+    +Survey : bool  (HROT_READ_CHECK=2)
+  }
+  class EntityRepository {
+    +CaptureLastTick()
+    +ContentHash()
+    -IsOwnPartOfCurrent(index)
+    ~reads of ANOTHER entity: last tick
+    ~structural change / publish: to the batch
+  }
+  class ParallelEntities {
+    +Run(repo, entities, n, job)
+  }
+  class BatchContext {
+    +Commands : EntityCommandBuffer
+    +Defer(e, code, value)
+    +Later(IPhaseFollowUp, e, code, arg)
+  }
+  class IEntityBatchJob { <<interface>> }
+  class IStableReads { <<interface>> +DeclareStableReads(PhaseReadSet) }
+  class IPhaseFollowUp { <<interface>> +Apply(repo, e, code, arg) }
+  class BrainTickSystem {
+    +Parallel : bool  (HROT_PARALLEL_SIM / mode 3)
+    -RunParallel()  pre-pass · phase · post-pass
+  }
+  class BrainPhase {
+    +Contribute(key, types, frame, reads)
+    +Prepare(repo)
+  }
+  class BrainReads { +Declare() }
+  ParallelEntities ..> BatchContext : one per batch
+  ParallelEntities ..> ParallelReadCheck : EnterPhase / SetBatch
+  EntityRepository ..> ParallelReadCheck : every hook
+  BrainTickSystem ..> ParallelEntities : the phase
+  BrainTickSystem ..> BrainPhase : the serial pre-pass
+  BrainPhase ..> BrainReads : declarations
+  IEntityBatchJob <|.. BrainTickSystem_BrainJob
+  IStableReads <|.. ThreatEvaluationSystem_EvaluateJob
+  IStableReads <|.. StressSystem_StressJob
+  IPhaseFollowUp <|.. Callouts_SayAfterPhase
+  IPhaseFollowUp <|.. CommandHistoryOf_IncomingOrder
+```
+*What the picture shows that the prose hid: the rule lives in ONE place (the repository's own access paths + the batch), every per-entity
+system reaches it through `ParallelEntities`; the brain adds only a pre-pass, a job and a post-pass; a helper that must touch another unit says
+so through `Later`, a job that reads a stable type through `IStableReads`.*
+
+```mermaid
+sequenceDiagram
+  participant K as ModuleHostKernel
+  participant R as EntityRepository (S)
+  participant B as BrainTickSystem
+  participant P as ParallelEntities
+  participant W as batch threads
+  K->>R: CaptureLastTick() (declared types, changed chunks)
+  K->>B: Execute (Simulation phase)
+  B->>B: pre-pass, tier order: due? finished? relayout? cadence reader
+  B->>B: BrainPhase.Prepare: types, rule tree, part index, cadence wake table
+  B->>P: Run(due units, BrainJob)
+  P->>W: EnterPhase · batches by index
+  W->>R: own entity / own parts: direct · another's declared type: last tick
+  W->>W: add / remove / create / destroy / publish: batch buffer · callouts, incoming orders: Later
+  P->>R: ExitPhase · play the batch buffers in batch order
+  P->>R: the follow-ups (Later) in batch order
+  P->>B: ApplyDeferred per unit: finish · cadence · fault (the serial walk's order)
+```
+
+| as built | why | where |
+|---|---|---|
+| the rule is ALWAYS present (no compile switch); serial code pays one static load (`AnyPhase`) | §18.3 measured the check affordable | `EntityRepository.cs`, `ParallelReadCheck.cs` |
+| an entity's PARTS are its own (`PartMetadata.ParentEntity`) | a brain writes its child sensors (§18.1a own-part) | `IsOwnPartOfCurrent` |
+| inside a phase the world's command buffer IS the batch's | brain code records into `view.GetCommandBuffer()` | `EntityRepository.View.cs` |
+| ⭐ an ADD is deferred ⇒ brain code adds a component WITH ITS FINAL VALUE (add-once), never "add default, then write it" | own-entity adds touch shared counters / logs and their order would follow the threads; 20 helpers converted | D-31 |
+| registration and the per-frame indexes (rule tree, part index, cadence wake table) happen in the serial pre-pass, never inside the phase; a registration inside a phase is a checked defect | the type tables and the indexes are read lock-free by every batch thread | `BrainPhase` |
+| cadenced brains read their events through a per-THREAD step window; the history's window buffers are per lane | one shared buffer would hand threads each other's events | `EventStreamHistory` |
+| cross reads DECLARED: process-wide for brains (`BrainReads` — the survey's result), per JOB for "stable in this phase" (`IStableReads`) | a type stable in the threat phase is written in the brain phase; ⚠ the generator emitting each asset's set (§18.2) is still to do | `BrainReads.cs` |
+| the instrument that finds what is missing: `HROT_READ_CHECK=2` (+ `HROT_READ_CHECK_OUT`) — every undeclared cross read / cross write / in-phase registration recorded with its first site | one rig run names them all (the throwing mode stops at the first) | `ParallelReadCheck.Survey` |
+| ⭐ the gate: same `ContentHash` at 1 / 2 / 4 / 8 threads and across runs (`ParallelBrainsDeterminismTests`); the 300-man rig serial vs parallel behaves the same, 0 crashes, survey clean | — | §6 of the status file for the numbers |
+| cover ties (F-9) by claim age, then entity index | two squad-mates can commit to one point in the same tick | DESIGN_Peek_And_Fire §10.7 |
 
 ## 19. Windows scheduling: power throttling, hybrid cores, console pauses *(user, `2026-11-12`: "what about windows frontend / backend throttling and intel performance cores vs e-cores … i do not want headless mode running in console to be any slower")*
 
