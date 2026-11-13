@@ -196,6 +196,62 @@ public sealed class DemAndRoadsTests : IDisposable
         Assert.True(Math.Abs(j.X - ex) < 0.05 && Math.Abs(j.Y - ey) < 0.05, $"junction at ({j.X}, {j.Y}), expected ({ex:0.###}, {ey:0.###})");
     }
 
+    /// <summary>
+    /// ⭐ CE-6020 — a <c>highway=service</c> street (the streets between blocks of flats, yards, industry) is a road CARS drive. 📐 SUMO's OSM type map gives it
+    /// <c>allow="delivery pedestrian bicycle"</c>: on Týn nad Vltavou 189 of 550 drivable ways became edges with no car lane, and the map drew no road among the
+    /// buildings. 🔴 Red-proof: <see cref="NetconvertRoadBuilder.TypeOverrides"/> without the service type ⇒ the lane disallows <c>passenger</c> ⇒ red.
+    /// </summary>
+    [Fact]
+    public async Task AServiceStreet_CarriesCars()
+    {
+        if (Netconvert.Locate().Problem != null) return;
+        (double lat, double lon)[] pts = { (49.2230, 14.4200), (49.2230, 14.4230), (49.2245, 14.4230) };
+        var (e0, n0) = Utm.FromGeodetic(pts[0].lat, pts[0].lon, 33, false);
+        var frame = new UtmFrame(33, false, Math.Round(e0 / 100) * 100, Math.Round(n0 / 100) * 100);
+        var osm = new System.Text.StringBuilder("<?xml version='1.0' encoding='UTF-8'?>\n<osm version='0.6' generator='test'>\n");
+        for (int i = 0; i < pts.Length; i++)
+            osm.Append(string.Create(CultureInfo.InvariantCulture, $"<node id='{i + 1}' lat='{pts[i].lat}' lon='{pts[i].lon}' version='1'/>\n"));
+        osm.Append("<way id='10' version='1'><nd ref='1'/><nd ref='2'/><tag k='highway' v='residential'/></way>\n");
+        osm.Append("<way id='11' version='1'><nd ref='2'/><nd ref='3'/><tag k='highway' v='service'/></way>\n</osm>\n");
+        string osmFile = Path.Combine(_dir, "s.osm");
+        File.WriteAllText(osmFile, osm.ToString());
+        await new NetconvertRoadBuilder(-1000, -1000, 1000, 1000).BuildAsync(osmFile, frame, Path.Combine(_dir, "roads"), default);
+        var doc = System.Xml.Linq.XDocument.Load(Path.Combine(_dir, "roads", "roads.net.xml"));
+        var service = doc.Root!.Elements("edge").Where(x => (string?)x.Attribute("type") == "highway.service").ToList();
+        Assert.NotEmpty(service);
+        foreach (var lane in service.SelectMany(x => x.Elements("lane")))
+        {
+            string allow = (string?)lane.Attribute("allow") ?? "", disallow = (string?)lane.Attribute("disallow") ?? "";
+            Assert.True((allow.Length == 0 || allow.Contains("passenger")) && !disallow.Contains("passenger"), $"service lane allow='{allow}' disallow='{disallow}'");
+        }
+        Assert.False(File.Exists(Path.Combine(_dir, "roads", "hrot-osm-types.typ.xml")), "the override file is a build input, not left in the roads folder");
+    }
+
+    /// <summary>
+    /// ⭐ CE-6020 — opt-in HARNESS (not a gate): a real town through the SAME composition the editor's OSM wizard uses (<see cref="OsmPipelines.ForAreas"/>), from OSM files on disk.
+    /// <c>HROT_OSM_RUN_DIR</c> holds the downloaded <c>*.osm</c> tiles (merged here by <see cref="OsmXmlMerge"/>) and a <c>box.txt</c> (<c>south west north east</c>); the input set is written to
+    /// <c>HROT_OSM_RUN_OUT</c>. Raw OSM data never enters git — the files live wherever the caller put them.
+    /// </summary>
+    [Fact]
+    public async Task Harness_ImportsAnAreaFromOsmFiles_ThroughTheWizardsPipeline()
+    {
+        string? dir = Environment.GetEnvironmentVariable("HROT_OSM_RUN_DIR"), outDir = Environment.GetEnvironmentVariable("HROT_OSM_RUN_OUT");
+        if (string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(outDir)) return;
+        var parts = Directory.GetFiles(dir, "*.osm").Where(f => !f.EndsWith("merged.osm", StringComparison.Ordinal)).OrderBy(f => f, StringComparer.Ordinal).ToList();
+        string merged = Path.Combine(dir, "merged.osm");
+        OsmXmlMerge.Merge(parts, merged);
+        var b = File.ReadAllText(Path.Combine(dir, "box.txt")).Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(s => double.Parse(s, CultureInfo.InvariantCulture)).ToArray();
+        using var http = new HttpClient();
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("terrain-import-test/1.0");
+        var pipeline = OsmPipelines.ForAreas(new FileOsmSource(merged), CopernicusDem.Online(http, Path.Combine(dir, "dem-tiles")), new DownloadCache(Path.Combine(dir, "cache")));
+        if (Directory.Exists(outDir)) Directory.Delete(outDir, true);
+        await pipeline.WriteInputSetAsync(new GeoBox(b[0], b[1], b[2], b[3]), new OsmImportOptions { Name = Path.GetFileName(outDir) }, outDir,
+            new Warnings(), default);
+        Assert.True(File.Exists(Path.Combine(outDir, "roads", "roads.net.xml")), "no road net written");
+    }
+
+    private sealed class Warnings : IProgress<OsmProgress> { public void Report(OsmProgress p) { if (p.Warning != null) Console.WriteLine("WARNING " + p.Warning); } }
+
     /// <summary>Opt-in live check of the real public bucket (HROT_LIVE_DEM=1): Sněžka, 1 603 m, read from GLO-30 (a surface model ⇒ ± a few m).</summary>
     [Fact]
     public async Task Live_TheRealBucket_ReadsAKnownSummit()
