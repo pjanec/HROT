@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → WINDOWS session: the UNIFIED threaded build, defaults ON — tested before the user's manual tests
 
-**For:** the Windows session (hidden window, `HROT_HIDDEN_WINDOW=1`, always). **From:** coordinator. **Dispatched at `<stamp>`**.
+**For:** the Windows session (hidden window, `HROT_HIDDEN_WINDOW=1`, always). **From:** coordinator. **Dispatched at `9fa354619`**.
 🔒 User, `2026-11-13`: *"windows run and automated test of course first so i can run something what has been tested already at least a bit
 automatically"* (R-4224). ⛔ Autonomous, measure only: a failing step gets one retry, then its error and log tail in the status file, and the
 next step runs.
