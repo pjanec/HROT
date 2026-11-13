@@ -187,7 +187,7 @@ namespace Hrot.SimHost.Tests
             // ⭐ CE-3172 (2026-10-11) — 1 MORE: PossessionSystem (the brain owner's side of possession), first.
             // ⭐ CE-3110 (2026-10-12) — the interaction appliers are NOT pack content (CoreInfrastructureCapabilities.Interactions, every host's plan).
             // ⭐ CE-2291 (2026-10-19) — 1 MORE: ReportingRequirementsSystem (MissionControlModule, after RoeSystem — its twin).
-            Assert.Equal(7,  pack.InputSystems.Count);   // ⭐ CE-2282: +1 (EngagementAreaSystem)
+            Assert.Equal(8,  pack.InputSystems.Count);   // ⭐ F-3 (CE-4503): +1 (UnitCentroidSystem moved here from Simulation) · ⭐ CE-2282: +1 (EngagementAreaSystem)
             Assert.DoesNotContain(pack.InputSystems, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem);
             // ⭐ SimulationSystems: 19. ⚠ Was 18 and RED since `2026-08-19` — Batch 94b added
             //   `BehaviorFrameSystem` to `CognitiveRuntimeModule` (`:57`), which flows in here.
@@ -219,14 +219,14 @@ namespace Hrot.SimHost.Tests
             //   (CoreInfrastructureCapabilities.HealthApplication, declared FIRST by LiveSimulationPlan on every host).
             // ⭐ CE-2176 IF-3 (2026-10-15) — 1 MORE: DetonationMemorySystem (the bursts a fire-mission observer judges).
             // ⭐ CE-2189 (2026-10-15) — 1 MORE: MissileWarningSensingSystem (a missile launched at an aircraft → SensorChange.MissileWarning).
-            Assert.Equal(36, pack.SimulationSystems.Count);   // ⭐ CE-2383: +1 (RuleWakeSystem) · rules ②: +1 (RuleEditSystem — 611684de3 left this count behind) · ⭐ rules V-3: +1 (RuleLeafSampler) · ⭐ rules S2 ⑨: +1 (ExercisePauseOnEndSystem) · ⭐ CE-2372: +1 (CalloutSystem) · ⭐ CE-2375: +1 (OneManCommandSystem) · ⭐ CE-2270: +1 (StressSystem) · ⭐ CE-2368: +1 (RestlessSystem) · ⭐ CE-2360: +1 (GrenadeDangerSystem) · ⭐ AQ96: +1 (UnderFireMoveSystem) · ⭐ CE-2273: +1 (ProficiencyFillSystem) · ⭐ CE-2293: +2 (StaffComposerSystem, StaffInboxSystem) · ⭐ CE-2235: +1 (CivilianFearSystem) · CE-2237: +1 (CrowdSystem)
+            Assert.Equal(35, pack.SimulationSystems.Count);   // ⭐ F-3 (CE-4503): −1 (UnitCentroidSystem → Input) · ⭐ CE-2383: +1 (RuleWakeSystem) · rules ②: +1 (RuleEditSystem — 611684de3 left this count behind) · ⭐ rules V-3: +1 (RuleLeafSampler) · ⭐ rules S2 ⑨: +1 (ExercisePauseOnEndSystem) · ⭐ CE-2372: +1 (CalloutSystem) · ⭐ CE-2375: +1 (OneManCommandSystem) · ⭐ CE-2270: +1 (StressSystem) · ⭐ CE-2368: +1 (RestlessSystem) · ⭐ CE-2360: +1 (GrenadeDangerSystem) · ⭐ AQ96: +1 (UnderFireMoveSystem) · ⭐ CE-2273: +1 (ProficiencyFillSystem) · ⭐ CE-2293: +2 (StaffComposerSystem, StaffInboxSystem) · ⭐ CE-2235: +1 (CivilianFearSystem) · CE-2237: +1 (CrowdSystem)
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Perception.Systems.MissileWarningSensingSystem);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.DetonationMemorySystem);
             Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.Systems.HealthApplicationSystem);
             Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Behavior.Systems.EmbarkationSystem);
             Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Terrain.DoorCommandSystem);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem);
-            Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Squad.Systems.UnitCentroidSystem);   // ⭐ CE-2125 / CE-514
+            Assert.Contains(pack.InputSystems, x => x is Fdp.Toolkit.Squad.Systems.UnitCentroidSystem);   // ⭐ CE-2125 / CE-514; F-3 (CE-4503): Input, first
             // ⭐ CE-3088 — the silent-default rail: the driver's fire assignment is an optional dependency, and the pack (every
             //   Brain host) must PASS it. ✅ Red-proof: drop the argument in CgfLogicPack ⇒ null ⇒ red.
             Assert.NotNull(((Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem)System.Linq.Enumerable.First(pack.SimulationSystems,
@@ -402,7 +402,7 @@ namespace Hrot.SimHost.Tests
             // ⭐ CE-3172 (2026-10-11) — 1 MORE: PossessionSystem (the brain owner's side of possession), first.
             // ⭐ CE-3110 (2026-10-12) — the interaction appliers are NOT pack content (CoreInfrastructureCapabilities.Interactions, every host's plan).
             // ⭐ CE-2291 (2026-10-19) — 1 MORE: ReportingRequirementsSystem (MissionControlModule, after RoeSystem — its twin).
-            Assert.Equal(7,  pack.InputSystems.Count);   // ⭐ CE-2282: +1 (EngagementAreaSystem)
+            Assert.Equal(8,  pack.InputSystems.Count);   // ⭐ F-3 (CE-4503): +1 (UnitCentroidSystem moved here from Simulation) · ⭐ CE-2282: +1 (EngagementAreaSystem)
             Assert.DoesNotContain(pack.InputSystems, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem);
             // ⭐ SimulationSystems: 19. ⚠ Was 18 and RED since `2026-08-19` — Batch 94b added
             //   `BehaviorFrameSystem` to `CognitiveRuntimeModule` (`:57`), which flows in here.
@@ -434,7 +434,7 @@ namespace Hrot.SimHost.Tests
             //   (CoreInfrastructureCapabilities.HealthApplication, declared FIRST by LiveSimulationPlan on every host).
             // ⭐ CE-2176 IF-3 (2026-10-15) — 1 MORE: DetonationMemorySystem (the bursts a fire-mission observer judges).
             // ⭐ CE-2189 (2026-10-15) — 1 MORE: MissileWarningSensingSystem (a missile launched at an aircraft → SensorChange.MissileWarning).
-            Assert.Equal(36, pack.SimulationSystems.Count);   // ⭐ CE-2383: +1 (RuleWakeSystem) · rules ②: +1 (RuleEditSystem — 611684de3 left this count behind) · ⭐ rules V-3: +1 (RuleLeafSampler) · ⭐ rules S2 ⑨: +1 (ExercisePauseOnEndSystem) · ⭐ CE-2372: +1 (CalloutSystem) · ⭐ CE-2375: +1 (OneManCommandSystem) · ⭐ CE-2270: +1 (StressSystem) · ⭐ CE-2368: +1 (RestlessSystem) · ⭐ CE-2360: +1 (GrenadeDangerSystem) · ⭐ AQ96: +1 (UnderFireMoveSystem) · ⭐ CE-2273: +1 (ProficiencyFillSystem) · ⭐ CE-2293: +2 (StaffComposerSystem, StaffInboxSystem) · ⭐ CE-2235: +1 (CivilianFearSystem) · CE-2237: +1 (CrowdSystem)
+            Assert.Equal(35, pack.SimulationSystems.Count);   // ⭐ F-3 (CE-4503): −1 (UnitCentroidSystem → Input) · ⭐ CE-2383: +1 (RuleWakeSystem) · rules ②: +1 (RuleEditSystem — 611684de3 left this count behind) · ⭐ rules V-3: +1 (RuleLeafSampler) · ⭐ rules S2 ⑨: +1 (ExercisePauseOnEndSystem) · ⭐ CE-2372: +1 (CalloutSystem) · ⭐ CE-2375: +1 (OneManCommandSystem) · ⭐ CE-2270: +1 (StressSystem) · ⭐ CE-2368: +1 (RestlessSystem) · ⭐ CE-2360: +1 (GrenadeDangerSystem) · ⭐ AQ96: +1 (UnderFireMoveSystem) · ⭐ CE-2273: +1 (ProficiencyFillSystem) · ⭐ CE-2293: +2 (StaffComposerSystem, StaffInboxSystem) · ⭐ CE-2235: +1 (CivilianFearSystem) · CE-2237: +1 (CrowdSystem)
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Perception.Systems.MissileWarningSensingSystem);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.DetonationMemorySystem);
             Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.Systems.HealthApplicationSystem);

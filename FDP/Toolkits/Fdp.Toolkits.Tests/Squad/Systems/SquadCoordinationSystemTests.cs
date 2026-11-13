@@ -422,6 +422,43 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             Assert.False(CombatEffective.IsInTheFight(_repo, emptied));
         }
 
+        /// <summary>
+        /// ⭐⭐ F-3 (CE-4503) — ONE PASS IS EXACT, so a paused frame computes exactly what the step did: a platoon built BEFORE its squads
+        /// (first in query order) stands at their centres of THIS pass, and a second pass changes nothing. 📐 Measured: the stepped 1 000-man
+        /// world depended on how many paused frames fell between two steps (the HQs parted first). 🔴 Red-proof: place units in query order
+        /// (no sub-unit first) — the platoon reads the squads' old centres.
+        /// </summary>
+        [Fact]
+        public void F3_OnePassIsExact_APlatoonBuiltBeforeItsSquads_StandsAtTheirCentresOfThisPass()
+        {
+            var platoon = _repo.CreateEntity();                       // a LOWER index than its squads: first in query order
+            var w = TacticalDesignation.Wingman;
+            var (alpha, a) = Designated(w, w);
+            var (bravo, b) = Designated(w, w);
+            _repo.AddComponent(platoon, new UnitRoster());
+            _repo.AddComponent(platoon, new UnitEntity());
+            foreach (var sq in new[] { alpha, bravo })
+            {
+                _repo.AddComponent(sq, new UnitSubordinate { Commander = platoon, Designation = w });
+                UnitRoster.Add(ref _repo.GetComponentRW<UnitRoster>(platoon), sq);
+            }
+            foreach (var u in new[] { platoon, alpha, bravo })
+            {
+                _repo.AddComponent(u, new SimTransform { Position = new Vector3(-1, -1, -1) });
+                _repo.SetAuthority<SimTransform>(u, true);
+            }
+            _repo.AddComponent(a[0], new SimTransform { Position = new Vector3(0, 0, 0) });
+            _repo.AddComponent(a[1], new SimTransform { Position = new Vector3(10, 0, 0) });
+            _repo.AddComponent(b[0], new SimTransform { Position = new Vector3(200, 0, 0) });
+            _repo.AddComponent(b[1], new SimTransform { Position = new Vector3(210, 0, 0) });
+
+            var centroid = new UnitCentroidSystem();
+            centroid.Execute(_repo, 0.016f);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(105, 0, 0), _repo.GetComponentRO<SimTransform>(platoon).Position);
+            centroid.Execute(_repo, 0.016f);                          // a paused frame: the same answer
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(105, 0, 0), _repo.GetComponentRO<SimTransform>(platoon).Position);
+        }
+
         /// <summary>⭐ <c>CE-2262</c> SL-0 — a PLATOON stands at its effective SQUADS' centre: a wiped-out squad (its centroid frozen where it
         /// died) no longer pulls it. 🔴 Before: <c>CombatLife.IsAlive</c> on a body-less squad is always true.</summary>
         [Fact]
@@ -442,8 +479,7 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             _repo.AddComponent(b[1], new SimTransform { Position = new Vector3(210, 0, 0) });
 
             var centroid = new UnitCentroidSystem();
-            centroid.Execute(_repo, 0.016f);   // squads first update in query order; run twice so the platoon reads fresh squad centres
-            centroid.Execute(_repo, 0.016f);
+            centroid.Execute(_repo, 0.016f);   // ⭐ F-3 (CE-4503) — one pass: the squads are placed first (⛔ was: run twice)
             Assert.Equal<System.Numerics.Vector3>(new Vector3(105, 0, 0), _repo.GetComponentRO<SimTransform>(platoon).Position);
 
             Kill(b[0]); Kill(b[1]);            // bravo wiped out: its centre stays at (205, 0, 0)
