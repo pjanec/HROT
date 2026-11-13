@@ -14,7 +14,7 @@ known-conflict: ⭐ RESOLVED 2026-10-17 (CE-2235) — docs/TUTORIAL_Behaviour_Co
   Tier 0 is for entities that only move (traffic) and civilians run one CivilianHsm (R-263). ⚠ AQ93 §8 P5 named a single "PanickedCivilian" type — SUPERSEDED here by CV-1
   (one civilian family whose panic is a MODE, not a type).
 related-designs:
-  - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: ≈ 200 civilians panic at the first shots (CIV-2) and the fear spreads (CIV-3, its one civilian build item); no organised evacuation
+  - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: civilians curious at a distance (a NEW Watch mode, some film), panic only when the danger is close (CIV-2), fear spreads (CIV-3), a boldness trait for the few who stay filming; no organised evacuation
   - UX/DESIGN_Initial_State.md — E15: carry stations and HeldItem authored as start state (the Unit form)
   - UX/DESIGN_Editing_UX.md — §1.8 / E15: the carry stations (Hands / Back / Hidden) and WeaponPosture / HeldItem as authored start state
   - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) I-3: a soldier throws a landed frag back through RoundPickUp (AW-8, B-13)

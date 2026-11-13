@@ -168,12 +168,14 @@ so no aircraft and no company has to remember it; and a refused air request is n
 ## 3c. Civilians — the town is alive when the attack starts, and then it PANICS *(🔒 user, `2026-11-13`)*
 
 🔒 *"civilians panicking and evacuating when attack starts is a good idea, add it please"* — then: *"evacuation can hardly be organized under attack"* ·
-*"its sheer panic i guess"* · *"people close to the warfight should simply start running away or trying to hide"*. ⇒ ⭐ **no organised evacuation**: sheer panic — run from the shooting, hide, vanish (R-4035: a panicking civilian hides in a
+*"its sheer panic i guess"* · *"people close to the warfight should simply start running away or trying to hide"* · *"exactly people are curious and start fleeing only if the danger is close (and even then some cracy filmers stay)"*. ⇒ ⭐ **no organised evacuation**: sheer panic — run from the shooting, hide, vanish (R-4035: a panicking civilian hides in a
 building whose door can be opened and disappears after a while inside; never flees indefinitely).
 
 | who | what | state |
 |---|---|---|
 | ≈ 200 civilians in the west belt and the old town (+ a few cars) | **close to the fighting** (shots, explosions near them): **panic** — run AWAY from the danger, or hide in the nearest building whose door opens, disappear inside after a while · **further away**: alarmed (stop, look, keep away), until the fighting comes close | ✅ built (`CivilianHsm` CIV-1 Alarmed, CIV-2 panic / shelter, Civilians §5d–§5e) |
+| civilians who hear the fighting **far away** | **curious**: stop and watch, some walk to a corner / a balcony with a view and film with a phone — until the danger comes close (their fear crosses the alarm threshold), then panic | ⛔ new: a **Watch** mode in `CivilianHsm`, entered from Routine when violence is heard but fear stays below `AlarmAt` (today a distant fight leaves him in Routine; curiosity is drawn only by a casualty within 80 m, CIV-3) |
+| **a few "crazy filmers"** (≈ 5 %) | stay and film even close to the fighting — flee only when hurt or when an explosion lands very close | ⛔ new: a per-civilian **boldness** trait (a scenario-set share) that raises his alarm threshold; ⚠ a phone held up at 150 m can be mistaken for a weapon by a soldier (`ua-armed-identify`) — the engine holds fire on a Neutral (AW-20), so it is tension, not a massacre |
 | a crowd in a street or the square | **fear spreads**: one panics, the people around him panic — the panic travels through the town as a wave, ahead of the fighting | ⚠ CIV-3 READY-TO-BUILD (Civilians §5f) — ⭐ the one civilian piece to build |
 | a driver near the fighting | panics: stops, leaves the car, runs (the abandoned car stays where it stopped — street clutter, not an obstacle) | ⚠ to check: the traffic → civilian handoff (Civilians related: AQ93 §8 — SUMO pedestrians that panic are handed to the civilian HSM) |
 | a civilian in a soldier's line of fire | the shot is held (AW-20) | ✅ built |
@@ -338,7 +340,7 @@ ELM creation — the shapes §9 requires. ⚠ The node that runs `BuildingDamage
 
 | D-R | ✅ **water is impassable to ground units** (the navmesh excludes `Water` surfaces; vehicles path around) — the river forces the bridges | *"river lean approved"* |
 | D-13 | ✅ **dynamic, not static**: overlapping phases, tempo deadlines and escalation, active defence, morale / rout, casualty evacuation, pressure triggers, the dynamism gate (§3, §3a, §12) | *"It needs to be dynamic."* · *"good feedback! definitely add those"* |
-| D-14 | ✅ **civilians panic** when the attack starts — sheer panic, flight and shelter, **no organised evacuation** (§3c) | *"civilians panicking and evacuating when attack starts is a good idea, add it please"* · *"evacuation can hardly be organized under attack"* · *"its sheer panic i guess"* · *"people close to the warfight should simply start running away or trying to hide"* |
+| D-14 | ✅ **civilians panic** when the attack starts — sheer panic, flight and shelter, **no organised evacuation** (§3c) | *"civilians panicking and evacuating when attack starts is a good idea, add it please"* · *"evacuation can hardly be organized under attack"* · *"its sheer panic i guess"* · *"people close to the warfight should simply start running away or trying to hide"* · *"people are curious and start fleeing only if the danger is close (and even then some cracy filmers stay)"* |
 | D-15 | ✅ **the air gate**: the air defence is killed from the ground first; aircraft fly only when the gate opens (§3b) | *"the defense needs killing first before extremely expensive aircraft is let flying there, no?"* |
 | D-16 | ✅ **deterministic mode + scenario variants**: a good seed repeats exactly; variants keep runs different | *"repeatibility - determinism mode ok. scenario variants (existing feature!)can help to avoid having everything same every time"* |
 | D-17 | ✅ **recording ON, always** — the showcase shows the speed WITH recording | *"recording is a mandatory feature as this shows the performance of the system WHILE recording is ON."* |
@@ -359,7 +361,7 @@ ELM creation — the shapes §9 requires. ⚠ The node that runs `BuildingDamage
 | A-2 | **suppression wears off, leaders rally** — first a rail proving whether a squad can be pinned forever | stress, `SquadRecover` | behaviors |
 | A-3 | **casualty evacuation**: drag / carry a casualty back | `CasualtyCare`, the held-figure carry | behaviors |
 | G-A | **the air gate** in `SupportCommand`: the air threat picture from spot reports; an air request with a known AA in reach is refused and becomes an AA-kill task; routes planned away from reported AA | `SupportCommandBehavior`, the observer chain, air defence | behaviors |
-| CV-1 | **civilians panic**: place them; build CIV-3 (fear spreads through a crowd); check the panicking driver (traffic → civilian handoff) | `CivilianHsm` (CIV-2), Civilians §5f | behaviors |
+| CV-1 | **civilians**: place them; build CIV-3 (fear spreads through a crowd); a **Watch** mode (curious at a distance, some film with a phone); a **boldness** trait (≈ 5 % filmers who stay close); check the panicking driver (traffic → civilian handoff) | `CivilianHsm` (CIV-1/2), Civilians §5f, the phone held item | behaviors |
 | L-1 | **lethality as scenario settings** (drone count + battery, accuracy, armour) | the existing parameters | behaviors |
 | **O-1** | `ObstacleHealth`: an obstacle drained by area effects and the blade; at 0 **removed** (its prism leaves the terrain world) | the breach / collapse path | backend (destructible) |
 | O-2 | wreck → obstacle for heavy vehicles (tanks, IFVs), through the ELM | WreckSpawn's detection, StaticObstacle | backend |
