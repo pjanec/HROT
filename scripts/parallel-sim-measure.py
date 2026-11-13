@@ -5,7 +5,7 @@ Runs scripts/scale-rig.py (1000 men, 50 vehicles, 10 aircraft, demo-city, headle
 count with HROT_PARALLEL_SIM=1, and prints the converted systems' ms/frame side by side.
 
     python scripts/parallel-sim-measure.py                      # serial + 1/2/4/8 threads (Deterministic)
-    python scripts/parallel-sim-measure.py --threads 2 6 --mode throughput
+    python scripts/parallel-sim-measure.py --threads 2 6   # ⭐ R-4218: the mode follows what runs (continuous play ⇒ Throughput); no switch
     python scripts/parallel-sim-measure.py --content          # + commit by content (D-5), live and recorded
     python scripts/parallel-sim-measure.py --pin --poc2       # POC 2: each item against a recorded serial baseline
     python scripts/parallel-sim-measure.py --pin --poc3       # POC 3: the same for POC 3's items
@@ -28,10 +28,10 @@ POC2 = [
     ("rec-qtoff",    {"HROT_QUERY_TIMINGS": "0"}),                        # Q-0: the per-query timer's own cost
     ("rec-q1",       {"HROT_BP_STAMP_ON_CHANGE": "1"}),                   # Q-1: blueprint chunks stamped only on a real change
     ("rec-q2",       {"FDP_EGRESS_OFFFRAME": "1"}),                       # Q-2: the state egress off the frame
-    ("rec-thr",      {"HROT_PARALLEL_SIM": "1", "HROT_SIM_MODE": "throughput"}),                               # POC 1's systems, Throughput
-    ("rec-q4",       {"HROT_PARALLEL_SIM": "1", "HROT_SIM_MODE": "throughput", "HROT_BRAIN_PRESCORE": "1"}),   # Q-4: + the brains' pre-score
+    ("rec-thr",      {"HROT_PARALLEL_SIM": "1"}),                               # POC 1's systems, Throughput
+    ("rec-q4",       {"HROT_PARALLEL_SIM": "1"}),   # Q-4: + the brains' pre-score
     ("rec-all",      {"HROT_QUERY_TIMINGS": "0", "HROT_BP_STAMP_ON_CHANGE": "1", "FDP_EGRESS_OFFFRAME": "1",
-                      "HROT_PARALLEL_SIM": "1", "HROT_SIM_MODE": "throughput", "HROT_BRAIN_PRESCORE": "1"}),   # everything together
+                      "HROT_PARALLEL_SIM": "1"}),   # everything together
 ]
 
 
@@ -62,17 +62,17 @@ POC3 = [
     ("rec-timed",    {"HROT_QUERY_SAMPLE": "1"}),                           # T-1: every call timed (POC 2's default)
     ("rec-qoff",     {"HROT_QUERY_TIMINGS": "0"}),                          # T-1: no timer
     ("rec-t2",       {"HROT_EQS_CONFIG_GATE": "1"}),                        # T-2: the EqsSensorConfig change gate
-    ("rec-thr",      {"HROT_PARALLEL_SIM": "1", "HROT_SIM_MODE": "throughput"}),
-    ("rec-t3",       {"HROT_PARALLEL_SIM": "1", "HROT_SIM_MODE": "throughput", "HROT_BRAIN_PRESCORE": "1"}),   # T-3: posture + ranking pre-score
+    ("rec-thr",      {"HROT_PARALLEL_SIM": "1"}),
+    ("rec-t3",       {"HROT_PARALLEL_SIM": "1"}),   # T-3: posture + ranking pre-score
     ("rec-t5",       {"FDP_EGRESS_OFFFRAME": "1", "HROT_PARALLEL_SYNC": "1"}),   # T-5: off-frame egress, its replica synced in parallel
-    ("rec-all",      {"HROT_EQS_CONFIG_GATE": "1", "HROT_PARALLEL_SIM": "1", "HROT_SIM_MODE": "throughput", "HROT_BRAIN_PRESCORE": "1",
+    ("rec-all",      {"HROT_EQS_CONFIG_GATE": "1", "HROT_PARALLEL_SIM": "1",
                       "HROT_BP_STAMP_ON_CHANGE": "1", "FDP_EGRESS_OFFFRAME": "1", "HROT_PARALLEL_SYNC": "1"}),
 ]
 
 
 # ⭐ POC 4 (exp/parallel-sim-4) — the ONE worker pool (J-1) and the parallel loops on it (J-2): everything on with all threads and with one,
 #   against a recorded serial baseline; every node's OS thread count printed (the rig's "threads", from /diagnostics/architecture).
-_ALL = {"HROT_EQS_CONFIG_GATE": "1", "HROT_PARALLEL_SIM": "1", "HROT_SIM_MODE": "throughput", "HROT_BRAIN_PRESCORE": "1",
+_ALL = {"HROT_EQS_CONFIG_GATE": "1", "HROT_PARALLEL_SIM": "1",
         "HROT_BP_STAMP_ON_CHANGE": "1", "FDP_EGRESS_OFFFRAME": "1", "HROT_PARALLEL_SYNC": "1"}
 POC4 = [
     ("rec-serial",   {}),
@@ -84,7 +84,6 @@ POC4 = [
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--threads", type=int, nargs="+", default=[1, 2, 4, 8])
-    ap.add_argument("--mode", choices=["deterministic", "throughput"], default="deterministic")
     ap.add_argument("--out", default="parallel-sim-results")
     ap.add_argument("--pin", action="store_true", help="pass --pin to the rig (Windows)")
     ap.add_argument("--cgf-cpus", type=int, default=0, metavar="N",
@@ -114,11 +113,11 @@ def main():
         return
     runs = {"serial": run("serial", {}, out, rig_args)}
     for t in a.threads:
-        runs[f"par-{t}"] = run(f"par-{t}", {"HROT_PARALLEL_SIM": "1", "HROT_SIM_THREADS": str(t), "HROT_SIM_MODE": a.mode},
+        runs[f"par-{t}"] = run(f"par-{t}", {"HROT_PARALLEL_SIM": "1", "HROT_SIM_THREADS": str(t)},
                                out, rig_args)
     if a.content:
         t = max(a.threads)
-        base = {"HROT_PARALLEL_SIM": "1", "HROT_SIM_THREADS": str(t), "HROT_SIM_MODE": a.mode}
+        base = {"HROT_PARALLEL_SIM": "1", "HROT_SIM_THREADS": str(t)}
         runs[f"par-{t}+cv"] = run(f"par-{t}-cv", dict(base, HROT_CONTENT_VERSION="1"), out, rig_args)
         runs[f"rec-{t}"] = run(f"rec-{t}", base, out, rig_args + ["--record"])
         runs[f"rec-{t}+cv"] = run(f"rec-{t}-cv", dict(base, HROT_CONTENT_VERSION="1"), out, rig_args + ["--record"])

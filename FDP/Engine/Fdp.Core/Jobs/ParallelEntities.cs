@@ -107,6 +107,78 @@ namespace Fdp.Core.Jobs
         internal bool Has(int id) => (id >> 6) < Bits.Length && (Bits[id >> 6] & (1UL << (id & 63))) != 0;
     }
 
+    /// <summary>
+    /// ⭐ R-4218 (CE-4481; implements R-4207, R-4215) — the simulation mode chosen by WHAT IS RUNNING, one value for the whole process: each kernel
+    /// VOTES at its tick boundary (its clock stepped ⇒ Deterministic — stepping, Run-to, filming and the scenario regression all step the clock);
+    /// a harness that needs repeatability PINS Deterministic (<see cref="RequireDeterministic"/>); the process runs Deterministic when ANY kernel
+    /// votes for it or any pin is held, else Throughput. ⇒ every kernel of a <c>--mode all</c> process sees the same value, changed only at a tick
+    /// boundary. 0 B per tick (the votes are a grown array).
+    /// </summary>
+    public static class SimulationModeSelector
+    {
+        private static readonly object s_lock = new();
+        private static bool[] s_votes = new bool[8];
+        private static bool[] s_used = new bool[8];
+        private static int s_pins;
+
+        /// <summary>A kernel takes a voting slot (once, at construction).</summary>
+        public static int Register()
+        {
+            lock (s_lock)
+            {
+                for (int i = 0; i < s_used.Length; i++)
+                    if (!s_used[i]) { s_used[i] = true; s_votes[i] = false; return i; }
+                int n = s_used.Length;
+                Array.Resize(ref s_used, n * 2); Array.Resize(ref s_votes, n * 2);
+                s_used[n] = true;
+                return n;
+            }
+        }
+
+        /// <summary>A kernel gives its slot back (at dispose).</summary>
+        public static void Unregister(int slot)
+        {
+            lock (s_lock) { if (slot >= 0 && slot < s_used.Length) { s_used[slot] = false; s_votes[slot] = false; } }
+        }
+
+        /// <summary>Forgets every vote and pin (a rail isolates itself from kernels other tests left registered).</summary>
+        internal static void ResetForTest()
+        {
+            lock (s_lock) { Array.Clear(s_used); Array.Clear(s_votes); }
+            System.Threading.Volatile.Write(ref s_pins, 0);
+        }
+
+        /// <summary>A harness that needs repeatability holds this while it runs (tests, a regression runner); dispose to release.</summary>
+        public static Pin RequireDeterministic()
+        {
+            System.Threading.Interlocked.Increment(ref s_pins);
+            return new Pin(true);
+        }
+
+        /// <summary>The pin's scope (a struct: no allocation).</summary>
+        public readonly struct Pin : IDisposable
+        {
+            private readonly bool _held;
+            internal Pin(bool held) => _held = held;
+            public void Dispose() { if (_held) System.Threading.Interlocked.Decrement(ref s_pins); }
+        }
+
+        /// <summary>The kernel at <paramref name="slot"/> votes (<paramref name="deterministic"/>: its clock is stepped) and the process mode is set
+        /// from every vote and pin — called at the kernel's tick boundary, before its phases run.</summary>
+        public static SimulationMode Vote(int slot, bool deterministic)
+        {
+            bool any = System.Threading.Volatile.Read(ref s_pins) > 0;
+            lock (s_lock)
+            {
+                if (slot >= 0 && slot < s_votes.Length) s_votes[slot] = deterministic;
+                for (int i = 0; i < s_votes.Length && !any; i++) any = s_used[i] && s_votes[i];
+            }
+            var mode = any ? SimulationMode.Deterministic : SimulationMode.Throughput;
+            ParallelEntities.Mode = mode;
+            return mode;
+        }
+    }
+
     /// <summary>⭐ N-11 — an effect a per-entity job's helper defers to the serial step after the phase (<see cref="BatchContext.Later"/>).</summary>
     public interface IPhaseFollowUp
     {
@@ -138,8 +210,13 @@ namespace Fdp.Core.Jobs
         /// <c>HROT_PARALLEL_SIM=1</c>, read once; tests set it. Off ⇒ every converted system runs its serial path, so before / after is one binary.</summary>
         public static bool Enabled { get; set; } = Environment.GetEnvironmentVariable("HROT_PARALLEL_SIM") == "1";
 
-        /// <summary>The mode the loops run in (set by whoever owns the run: the kernel from the time mode, the tests). Default Deterministic.</summary>
-        public static SimulationMode Mode { get; set; } = Environment.GetEnvironmentVariable("HROT_SIM_MODE") == "throughput" ? SimulationMode.Throughput : SimulationMode.Deterministic;
+        /// <summary>
+        /// ⭐ R-4218 (CE-4481) — the mode the loops run in: ONE value for the process, set by every kernel at its tick boundary from what is running
+        /// (<see cref="SimulationModeSelector"/>): stepped / Run-to / filming / the regression (the clock stepped) or a pinned harness ⇒ Deterministic,
+        /// continuous live play ⇒ Throughput. Default Deterministic (no kernel has ticked yet). ⛔ No environment switch (<c>HROT_SIM_MODE</c> removed).
+        /// A test that drives <see cref="Run{TJob}(EntityRepository, Entity[], int, in TJob)"/> without a kernel sets it directly.
+        /// </summary>
+        public static SimulationMode Mode { get; set; } = SimulationMode.Deterministic;
 
         /// <summary>Entities per batch in Deterministic mode — fixed, so a batch is the same set of entities whatever the thread count.</summary>
         public const int DeterministicBatchSize = 32;

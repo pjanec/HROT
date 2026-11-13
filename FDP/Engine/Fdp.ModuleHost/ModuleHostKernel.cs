@@ -163,6 +163,7 @@ namespace Fdp.ModuleHost
 
         public ModuleHostKernel(EntityRepository liveWorld, EventAccumulator eventAccumulator)
         {
+            _modeSlot = Fdp.Core.Jobs.SimulationModeSelector.Register();   // ⭐ R-4218 — this kernel's vote on the process's simulation mode
             _liveWorld = liveWorld ?? throw new ArgumentNullException(nameof(liveWorld));
             _eventAccumulator = eventAccumulator ?? throw new ArgumentNullException(nameof(eventAccumulator));
             // ⭐⭐ CE-3293 (R-3036 rule 5) — the live world's step windows read this history
@@ -606,6 +607,9 @@ namespace Fdp.ModuleHost
             //   is dispatched only on a step (on a sim-time slot), and a background job is applied only at the next step, after waiting
             //   for it. Live (continuous) play keeps its frame-counted, CPU-easing cadence.
             _steppedFrame   = _timeController?.GetMode() == TimeMode.Deterministic;
+            // ⭐ R-4218 (CE-4481) — the simulation mode from what is running: this clock stepped (stepping, Run-to, filming, the regression)
+            //   ⇒ Deterministic; continuous play ⇒ Throughput — one value for the process (every kernel votes; any Deterministic vote or pin wins)
+            Fdp.Core.Jobs.SimulationModeSelector.Vote(_modeSlot, _steppedFrame);
             _advancingFrame = deltaTime > 0f;
             _frameSimTime   = globalTime.TotalTime;
             // ⭐ CE-3293 (R-3036 rule 7) — the explicit discontinuity is the clock's SnapAndPause (TimelineEpoch); sim time going
@@ -1540,8 +1544,11 @@ namespace Fdp.ModuleHost
         /// background drain thread when their in-flight tasks complete.
         /// </para>
         /// </summary>
+        private readonly int _modeSlot;
+
         public void Dispose()
         {
+            Fdp.Core.Jobs.SimulationModeSelector.Unregister(_modeSlot);
             // Collect all in-flight tasks: active + draining modules
             var allModules = _initialized
                 ? _activeTopology.Modules.Concat(_drainingModules)
