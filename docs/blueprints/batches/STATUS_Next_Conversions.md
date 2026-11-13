@@ -90,3 +90,25 @@ X-3 → 1 · HEAD minus X-2 → 1 · HEAD with only the pack + manoeuvre classes
 
 ⚠ **Process note:** `git checkout <sha> -- <file>` STAGES the old file, so a commit made during a bisect swap carries it. `99febbce8` reverted all
 seven X-1…X-4 source files that way; `<next commit>` restores them from `94205eefd`. Later swaps use `git show <sha>:<file> > <file>` (index untouched).
+
+## X-2 · CE-4517 and X-3 · CE-4518 — built and verified at `HEAD` *(timings: the rig run, next)*
+
+**X-3 — the staff composer is a per-commander phase.** A commander writes only its own `ReportOutbox`; the outbox add is a serial pre-step;
+the heard launches are sorted by commander once a frame (stable insertion sort) and each commander reads its own run by binary search
+(was every unit × every launch); reports go up as managed events, which a phase defers into its batch (`FdpEventBus`, N-10) ⇒ the superiors
+receive them in the serial order; `SentCount` is summed from a per-index slot. Rail `StaffComposerParallelTests.CE4518_…`: 60 commanders,
+120 frames of sitreps and interleaved launches — the parallel reports equal the serial ones, in order, at 4 and 8 threads, and every commander
+whose men heard a launch SPOTs it. 🔴 red-proved: the sort off ⇒ fails (a first version compared serial with parallel only and stayed green
+under the bug — both sides ran the same broken lookup; the absolute assertion is what catches it).
+
+**X-2 — coarse jobs name their batch size (`ICoarseJob`).** The squad phase's widest level is ~100 commanders = 4 batches of the fixed 32 ⇒ at
+most 4 threads; the levels above one batch. Now `SquadJob` takes 2 a batch, the staff `ComposeJob` 4. Result-neutral by §18.7 M-1 (contiguous
+batches merged in batch order = entity order). Rail `ParallelEntitiesTests.CE4517_…`: a coarse job runs in batches of its size in both modes
+and its result equals the fine job's, byte for byte, at 1 / 4 / 8 threads. 🔴 red-proved: the hint ignored ⇒ fails.
+
+| gate at `HEAD` | serial | `HROT_PARALLEL_SIM=1` |
+|---|---|---|
+| `Fdp.Toolkits.Tests` — squad, command, starter pack, threat-eval parallel, frame grid, egress gate, aim-and-fire, weapon dispatcher | 376 / 0 | 376 / 0 |
+| `Fdp.Core.Tests` — ParallelEntities, PerEntityRule | 15 / 0 | 15 / 0 |
+| `Hrot.SimHost.Tests` — the touched classes | 335 / 1 (`CE454`, pre-existing) | — |
+| `Hrot.SimHost.Tests` — SquadManeuver + CgfLogicPack + ScenarioRules | — | 239 / 145 (base: 238 / 146 — pre-existing; replaces the void row above) |

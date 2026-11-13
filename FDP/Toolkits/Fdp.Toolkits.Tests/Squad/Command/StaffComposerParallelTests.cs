@@ -14,7 +14,7 @@ namespace Fdp.Toolkits.Tests.Squad.Command
     /// ⭐ CE-4518 (X-3; docs/DESIGN_Parallel_Simulation.md §18) — the staff composer as a per-commander phase: 60 commanders under one HQ, sitreps on
     /// a timer, launches heard by their men (several per commander per frame, interleaved on the bus) — the reports that go up are the SERIAL ones,
     /// in the same order, at 4 and 8 threads, and <see cref="StaffComposerSystem.SentCount"/> agrees.
-    /// 🔴 Red-proof: the launch lookup without the sort (a commander's run not contiguous) ⇒ launches are lost and the sequences differ.
+    /// 🔴 Red-proof: the launch lookup without the sort (a commander's run not contiguous) ⇒ launches are lost ⇒ the heard = spotted assertion fails.
     /// </summary>
     [Collection("FdpWorkerPool")]
     public sealed class StaffComposerParallelTests
@@ -53,7 +53,7 @@ namespace Fdp.Toolkits.Tests.Squad.Command
             return (w, cs, men);
         }
 
-        private static (List<string> Reports, int Sent) Run(bool parallel, int threads)
+        private static (List<string> Reports, int Sent, HashSet<int> Heard, HashSet<int> Spotted) Run(bool parallel, int threads)
         {
             bool was = ParallelEntities.Enabled;
             ParallelEntities.Enabled = parallel;
@@ -63,6 +63,7 @@ namespace Fdp.Toolkits.Tests.Squad.Command
                 var (w, cs, men) = World(60);
                 var composer = new StaffComposerSystem();
                 var reports = new List<string>();
+                var heard = new HashSet<int>(); var spotted = new HashSet<int>();   // commanders whose men heard a launch / that SPOTted one
                 var rng = new Random(4518);
                 for (int f = 0; f < 120; f++)
                 {
@@ -70,6 +71,7 @@ namespace Fdp.Toolkits.Tests.Squad.Command
                     for (int k = rng.Next(0, 6); k > 0; k--)   // launches heard by random men, interleaved across commanders
                     {
                         int c = rng.Next(cs.Length);
+                        if (f < 80) heard.Add(cs[c].Index);   // its SPOT goes after ReportDelaySeconds (3 s = 30 frames): only those that can arrive
                         w.Bus.Publish(new SoundContactEvent
                         {
                             Observer = men[c][rng.Next(3)], X = rng.Next(0, 4000), Y = rng.Next(0, 4000), Radius = 50f,
@@ -81,10 +83,13 @@ namespace Fdp.Toolkits.Tests.Squad.Command
                     composer.Execute(w, 0.1f);
                     w.Bus.SwapBuffers();
                     foreach (var n in w.ReadManagedEvents<SquadReportNotification>())
+                    {
+                        if (n.Report.Kind == ReportKind.Spot && (n.Report.Equipment & ElementEquipment.IndirectFire) != 0) spotted.Add(n.FromUnit.Index);
                         reports.Add($"{f}:{n.FromUnit.Index}>{n.ToUnit.Index}:{n.Report.Kind}/{n.Report.Subtype}@{n.Report.At.X:0},{n.Report.At.Y:0}");
+                    }
                 }
                 w.Dispose();
-                return (reports, composer.SentCount);
+                return (reports, composer.SentCount, heard, spotted);
             }
             finally { ParallelEntities.Enabled = was; FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
         }
@@ -97,6 +102,9 @@ namespace Fdp.Toolkits.Tests.Squad.Command
             Assert.Contains(serial.Reports, r => r.Contains("Spot"));     // launches went up
             Assert.Contains(serial.Reports, r => r.Contains("Sitrep"));
             Assert.Equal(serial.Reports.Count, serial.Sent);
+            // ⭐ absolute, not only serial = parallel: a commander's FIRST launch always goes up (no earlier one to be the same as)
+            Assert.True(serial.Heard.Count > 20, $"{serial.Heard.Count} commanders heard a launch");
+            Assert.Equal(serial.Heard, serial.Spotted);
             foreach (int t in new[] { 4, 8 })
             {
                 var par = Run(true, t);
