@@ -307,20 +307,27 @@ namespace Hrot.AI.Behaviors.Brains
             var force = world.GetComponentRO<EntityInfo>(self).ForceId;
             float r2 = radius * radius;
             var men = Men.Of(world);
+            // ⭐ M-5 (CE-4484) — the lock covers only the frame's build; the walk writes nothing to the grid (AnyCandidate), so the stress
+            //   phase's men ask it in parallel. 📐 Measured (Windows, real cores): they queued on this lock around the whole walk.
             lock (men)
             {
                 men.Query ??= world.Query().With<EntityInfo>().With<SimTransform>().With<Fdp.Toolkit.Combat.Components.Health>().Build();
                 men.Grid.EnsureFresh(world, men.Query, Men.Member);
-                men.Grid.Circle(new Vector2(at.X, at.Y), radius + MovedSlackMetres);
-                foreach (int k in men.Grid.Found)
-                {
-                    var e = men.Grid.EntityAt(k);
-                    if (e.Equals(self) || !world.IsAlive(e) || world.GetComponentRO<EntityInfo>(e).ForceId != force) continue;
-                    if (Fdp.Toolkit.Combat.Injury.StateOf(world, e) >= Fdp.Toolkit.Combat.InjuryState.Incapacitated) continue;
-                    if (Flat(world.GetComponentRO<SimTransform>(e).Position - at).LengthSquared() < r2) return true;
-                }
             }
-            return false;
+            var friend = new FriendTest { World = world, Self = self, Force = force, At = at, R2 = r2 };
+            return men.Grid.AnyCandidate(new Vector2(at.X, at.Y), radius + MovedSlackMetres, ref friend);
+        }
+
+        /// <summary>The exact rule, applied LIVE to each candidate the grid gives (a friend, alive, not down, within the radius).</summary>
+        private struct FriendTest : Fdp.Toolkit.Spatial.FrameEntityGrid.ICandidateTest
+        {
+            public EntityRepository World; public Entity Self; public ForceId Force; public Vector3 At; public float R2;
+            public bool Test(Entity e)
+            {
+                if (e.Equals(Self) || !World.IsAlive(e) || World.GetComponentRO<EntityInfo>(e).ForceId != Force) return false;
+                if (Fdp.Toolkit.Combat.Injury.StateOf(World, e) >= Fdp.Toolkit.Combat.InjuryState.Incapacitated) return false;
+                return Flat(World.GetComponentRO<SimTransform>(e).Position - At).LengthSquared() < R2;
+            }
         }
 
         /// <summary>⭐ CE-2411 — how far a man may have moved within the frame and still be found where the frame's grid placed him.</summary>
