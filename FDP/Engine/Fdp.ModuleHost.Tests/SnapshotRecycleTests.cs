@@ -96,6 +96,53 @@ namespace Fdp.ModuleHost.Tests
         }
 
         /// <summary>
+        /// The source's version numbers REPEAT with other content — its clock set back (a playback frame, a rewind) and the same chunk rewritten
+        /// at a version the snapshot already holds for it. A version-gated sync would skip it; the source's <see cref="EntityRepository.ContentEpoch"/>
+        /// moved, so the recycled snapshot copies whole. ✅ Red-proof: the epoch check dropped ⇒ the snapshot keeps the old 1.
+        /// </summary>
+        [Fact]
+        public void M4_ASourceWhoseVersionsRepeat_IsCopiedWhole()
+        {
+            var (live, e, mask) = World();
+            using var _ = live;
+            uint v1 = live.GlobalVersion;                         // RPos written at v1
+            live.Tick();
+            var other = live.CreateEntity();
+            live.AddComponent(other, new RVel { X = 3 });        // something else moves the clock on
+            using var provider = new OnDemandProvider(live, new EventAccumulator(), mask, null, 1);
+
+            var view = (EntityRepository)provider.AcquireView();
+            Assert.Equal(1, view.GetComponentRO<RPos>(e).X);
+            provider.ReleaseView(view);
+
+            live.ResetGlobalVersion(v1);                          // the clock set back …
+            live.GetComponentRW<RPos>(e).X = 42;                  // … and the chunk rewritten at the SAME version the snapshot holds
+            live.ResetGlobalVersion(v1 + 5);
+            var again = (EntityRepository)provider.AcquireView();
+            Assert.Equal(42, again.GetComponentRO<RPos>(e).X);
+            provider.ReleaseView(again);
+        }
+
+        /// <summary>The point of the recycle: a source that only ADVANCED is synced incrementally — a chunk nobody changed is not copied again
+        /// (read here through a byte the snapshot holds and the source does not: proof the chunk was skipped, not re-copied).</summary>
+        [Fact]
+        public void M4_AnAdvancedSource_IsSyncedIncrementally()
+        {
+            var (live, e, mask) = World();
+            using var _ = live;
+            live.Tick();                                          // RPos was written BEFORE the version the snapshot syncs at
+            using var provider = new OnDemandProvider(live, new EventAccumulator(), mask, null, 1);
+            var view = (EntityRepository)provider.AcquireView();
+            provider.ReleaseView(view);
+            // behind the version stamp's back (a test seam: no writer does this) — a skipped chunk keeps it, a copied one loses it
+            unsafe { ((RPos*)view.GetTable<RPos>(false).GetRawPointer(e.Index))->X = 77; }
+            live.Tick();
+            var again = (EntityRepository)provider.AcquireView();
+            Assert.Equal(77, again.GetComponentRO<RPos>(e).X);
+            provider.ReleaseView(again);
+        }
+
+        /// <summary>
         /// ⭐ M-4 — <see cref="ComponentTypeRegistry.NeedsClone"/> is read WITHOUT the registry's lock: every managed table's sync asks it, from the
         /// sim thread, the staging publish and the UI's pull at once. 📐 Measured: 3.1 s in 20 s spent in it under contention.
         /// </summary>

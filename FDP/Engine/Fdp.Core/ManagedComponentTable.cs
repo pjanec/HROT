@@ -472,6 +472,13 @@ namespace Fdp.Core
 
         public void SyncFrom(IComponentTable source) => SyncFrom(source, force: false);
 
+        /// <summary>⭐ M-4 (CE-4483) — see <see cref="IComponentTable.InvalidateChunksStampedSince"/>.</summary>
+        public void InvalidateChunksStampedSince(uint version)
+        {
+            for (int i = 0; i < _chunkVersions.Length; i++)
+                if (_chunkVersions[i] >= version) _chunkVersions[i] = NativeChunkTable<byte>.NeverSyncedVersion;
+        }
+
         public void SyncFrom(IComponentTable source, bool force)
         {
              if (source is ManagedComponentTable<T> typedSource)

@@ -103,6 +103,10 @@ namespace Fdp.Core
         /// <see cref="EntityRepository.RecycleForSync"/>: its rows are stale but its memory is kept).</summary>
         void SyncFrom(IComponentTable source, bool force);
 
+        /// <summary>⭐ M-4 (CE-4483) — every chunk stamped at or after <paramref name="version"/> is marked never-equal to any source, so the next
+        /// version-gated sync copies it again (a recycled snapshot: what a module may have written into its view).</summary>
+        void InvalidateChunksStampedSince(uint version);
+
         /// <summary>⭐ EXPERIMENT (POC 2, CE-4439) — copies ONE row (<paramref name="entityIndex"/>) from a source table of the same type, stamping
         /// <paramref name="version"/>: the S→A row copy of the selected / inspected entities.</summary>
         void CopyRowFrom(IComponentTable source, int entityIndex, uint version);

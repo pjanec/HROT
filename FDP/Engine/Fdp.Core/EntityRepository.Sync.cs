@@ -44,30 +44,41 @@ namespace Fdp.Core
                 finally { Array.Clear(_dst, 0, Count); Array.Clear(_src, 0, Count); Count = 0; }
             }
             public bool Force;
-            public void RunBatch(int batch) => _dst[batch].SyncFrom(_src[batch], Force && _dst[batch] is not IManagedChunkedTable);
+            public void RunBatch(int batch) => _dst[batch].SyncFrom(_src[batch], Force);
         }
 
         /// <summary>
-        /// ⭐ M-4 (CE-4483) — hands a SNAPSHOT back to its pool for the next <see cref="SyncFrom"/>, KEEPING its memory: the events are cleared
-        /// now, and the next sync copies every chunk whatever its version and clears the tables it does not copy — the same world a
-        /// <see cref="Clear"/> followed by that sync gives (a background module may have written into its view, so no row is trusted), without
-        /// decommitting every native chunk here and committing it again there (the managed tables are still cleared here — see below). 📐 Measured (Release, 1 000 men, 4 threads, dotnet-trace): the module
-        /// snapshots' Clear on release and the recommit on acquire cost ≈ 1.6 s in 20 s of the sim thread (≈ 18 ms a tick).
-        /// ⛔ Only for a world whose next use is a <see cref="SyncFrom"/> (the snapshot providers' pools); <see cref="SoftClear"/> empties a world.
+        /// ⭐ M-4 (CE-4483) — hands a SNAPSHOT back to its pool for the next <see cref="SyncFrom"/>, KEEPING its content: the next sync is then
+        /// INCREMENTAL — it copies only the chunks the source changed since (the replica pattern of <c>DoubleBufferProvider</c> and the staging
+        /// buffers) — and gives the same world a <see cref="Clear"/> followed by a full sync gave. Two things make that true:
+        /// <list type="number">
+        /// <item>a background module may have WRITTEN into its view, and its writes carry the version the view synced at (or later) — the same
+        /// version an unchanged live chunk may carry ⇒ every chunk stamped since that sync is marked never-equal here, so it is copied again;</item>
+        /// <item>the source may have been REPLACED rather than advanced (a load's clear, a playback frame, a rewind from a snapshot) — its version
+        /// numbers then repeat with other content ⇒ the sync is FULL when the source, its <see cref="ContentEpoch"/> or a non-decreasing
+        /// version differ from the last sync.</item>
+        /// </list>
+        /// 📐 Measured (Release, 1 000 men, 4 threads, dotnet-trace): clearing every snapshot on release and copying it whole on acquire cost
+        /// ≈ 3.7 s in 20 s of the sim thread (≈ 40 ms a tick: the decommit, the recommit, every managed reference chunk).
+        /// ⛔ Only for a world whose next use is a <see cref="SyncFrom"/> (the snapshot providers' pools); <see cref="SoftClear"/> EMPTIES a world.
         /// </summary>
         public void RecycleForSync()
         {
             _clearGeneration++;
             _recycled = true;
             Bus.ClearAll();
-            // ⭐ the MANAGED tables are cleared here as before (cheap: the chunks are kept for reuse, CE-2399), so their next sync stays
-            //   version-gated. 📐 Measured: forcing them instead re-copied every reference chunk (a write-barriered bulk move into old-generation
-            //   arrays) — 1.9 s in 20 s, more than the decommit / commit it saved. The force is for the NATIVE chunk tables only.
-            foreach (var kvp in _componentTables)
-                if (kvp.Value is IManagedChunkedTable) kvp.Value.Clear();
+            foreach (var kvp in _componentTables) kvp.Value.InvalidateChunksStampedSince(_syncedVersion);
         }
 
+        /// <summary>⭐ M-4 (CE-4483) — bumped whenever this world's content or version clock is REPLACED rather than advanced by stamped writes
+        /// (<see cref="Clear"/>, <see cref="SetGlobalVersion"/>, <see cref="ResetGlobalVersion"/>, a <see cref="SyncFrom"/> INTO it): a replica of
+        /// it may skip a chunk by version only while this is unchanged.</summary>
+        public uint ContentEpoch => _contentEpoch;
+        internal uint _contentEpoch;
+
         private bool _recycled;
+        private EntityRepository? _syncSource;              // what this world last synced from, at which epoch and version
+        private uint _syncSourceEpoch, _syncSourceVersion, _syncedVersion = 1;
 
         public void SyncFrom(EntityRepository source, BitMask512? mask = null, bool? includeTransient = null, Type[]? excludeTypes = null)
         {
@@ -114,10 +125,14 @@ namespace Fdp.Core
                 }
             }
 
-            // ⭐ M-4 — a recycled snapshot: every table this sync will NOT copy is emptied (as Clear did); the rest are copied whole below
-            bool force = _recycled;
+            // ⭐ M-4 — a recycled snapshot: incremental while the source only ADVANCED since the last sync, else a full copy; every table this
+            //   sync will NOT copy is emptied (as Clear did)
+            bool recycled = _recycled;
             _recycled = false;
-            if (force)
+            bool force = recycled && !(ReferenceEquals(_syncSource, source) && _syncSourceEpoch == source._contentEpoch
+                                       && source._globalVersion >= _syncSourceVersion);
+            _contentEpoch++;   // this world's content is being replaced
+            if (recycled)
             {
                 foreach (var kvp in _componentTables)
                     if (!effectiveMask.IsSet(kvp.Value.ComponentTypeId) || !source._componentTables.ContainsKey(kvp.Key)) kvp.Value.Clear();
@@ -165,7 +180,7 @@ namespace Fdp.Core
                 
                 // Sync data
                 if (ParallelSync) { _syncPairs.Add(myTable, srcTable); continue; }   // ⭐ POC 3 T-5 — copied in parallel below
-                myTable.SyncFrom(srcTable, force && myTable is not IManagedChunkedTable);   // a managed table was cleared at the recycle
+                myTable.SyncFrom(srcTable, force);
             }
             if (ParallelSync && _syncPairs.Count > 0) { _syncPairs.Force = force; _syncPairs.Run(); }
             
@@ -221,6 +236,7 @@ namespace Fdp.Core
             //    tick"; it only ever synced the version.
             _globalVersion  = source._globalVersion;
             _simulationTick = source._simulationTick;
+            _syncSource = source; _syncSourceEpoch = source._contentEpoch; _syncSourceVersion = source._globalVersion; _syncedVersion = _globalVersion;   // ⭐ M-4
             _lastTickFresh  = false;   // ⭐ N-15 — this world's content was replaced: its last-tick view no longer describes it
         }
 

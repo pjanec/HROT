@@ -228,6 +228,8 @@ namespace Fdp.Core
 
         public void SyncFrom(IComponentTable source) => SyncFrom(source, force: false);
 
+        public void InvalidateChunksStampedSince(uint version) => _data.InvalidateChunksStampedSince(version);
+
         public void SyncFrom(IComponentTable source, bool force)
         {
             if (source is ComponentTable<T> typedSource)

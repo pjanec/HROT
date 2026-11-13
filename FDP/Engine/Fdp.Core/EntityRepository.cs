@@ -378,6 +378,7 @@ namespace Fdp.Core
             ClearAddLogs();   // ⭐ CE-4395 — a version set back must not make an old version's adds read as this one's
             _globalVersion = version;
             _simulationTick = version;
+            _contentEpoch++;   // ⭐ M-4 (CE-4483) — a replica may no longer trust a version match
         }
 
         /// <summary>
@@ -390,6 +391,7 @@ namespace Fdp.Core
             ClearAddLogs();   // ⭐ CE-4395 — a version set back must not make an old version's adds read as this one's
             _globalVersion = version;
             _simulationTick = version;
+            _contentEpoch++;   // ⭐ M-4 (CE-4483) — a replica may no longer trust a version match
         }
         
         /// <summary>
@@ -624,6 +626,7 @@ namespace Fdp.Core
         internal void Clear()
         {
             _clearGeneration++;
+            _contentEpoch++;   // ⭐ M-4 — a replica may no longer trust a version match
             _entityIndex.Clear();
             
             // CRITICAL FIX: We must clear component tables to remove stale references.
