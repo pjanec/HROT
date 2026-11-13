@@ -67,10 +67,14 @@ diagram) is §14.8.*
 | `HROT_SIM_THREADS=<n>` | the pool's budget (default cores − 2) |
 | `HROT_READ_CHECK=1` / `=2` | an undeclared cross-entity read throws / is listed (the survey) |
 
-**Measured (Debug, 4-core VM, 1 000 men — ⚠ not representative; Windows Release pending):** the full scripted session twice with the brains and
-squads parallel at 4 threads — 0 faults, the strict world guard 0 hits · stepped: the same world at 1 / 2 / 4 / 8 threads (7 runs) and at any
-batch size · UI frame ≈ 45 ms flat at 1 / 2 / 4 threads (it no longer waits for the tick) · publish ≈ 4 ms, pull ≈ 4–5 ms, 0 skipped publishes ·
-staging 102 MB · BrainTick 352 / 182 / 135 ms at 1 / 2 / 4 threads · ≈ 800 ms of the tick still serial — the conversions in flight.
+**Measured on real cores** (Windows, Ryzen 7 6800H 8C/16T, Release, 1 000 men — [status](https://github.com/pjanec/HROT/blob/exp/windows-threaded-measure/docs/blueprints/batches/STATUS_Windows_Threaded_Scaling.md)):
+the UI frame while playing **146 ms → ≈ 9 ms** (it no longer waits for the tick, at any thread count) · the sim tick **144 → ≈ 110 ms**, flat from
+4 threads · BrainTick **84.7 → 10.4 ms** (8.2×, 1 → 8 threads), EQS 8.8× · the CGF node as its own process **108.5 → 69.0 ms** (1.57×) · at most
+≈ 5 of 16 logical cores used — the serial systems hold it (Stress 16.4, Callout 10.3, Threat 5.9, Weapons 5.7, StaffComposer 2.8 ms at 8 threads;
+CGF egress 14.6 ms) ⇒ the conversions in flight (CE-4484 / 4485, STEER) · the opt-out verified on every process · staging 93 MB.
+⛔ **Stepped mode was NOT repeatable on Windows even at 1 thread** (4 types differ, positions equal; the thread count adds no difference of its own)
+⇒ CE-4501…CE-4506. (The VM, Debug: the full scripted session twice, 0 faults, the strict guard 0 hits; the same stepped world at 1 / 2 / 4 / 8 threads
+over 7 runs and at any batch size.)
 
 ## 0. The request
 
