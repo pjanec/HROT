@@ -25,7 +25,7 @@ namespace Fdp.Toolkit.Replication.Services
     ///     descriptor where it is"), and every node computes the same pins from the same update;</item>
     ///   <item>when N is this node, a <see cref="Messages.DescriptorAuthorityChanged"/> event.</item>
     /// </list>
-    /// <para>Idempotent: applying the same (E, K, N) again changes nothing — ⭐ and WRITES nothing (CE-4519: no table version moves on a repeat).</para>
+    /// <para>Idempotent: applying the same (E, K, N) again changes nothing.</para>
     /// </summary>
     public sealed class OwnershipApplier
     {
@@ -46,8 +46,7 @@ namespace Fdp.Toolkit.Replication.Services
             if (!repo.IsAlive(entity)) return;
 
             DescriptorOwnership ownership;
-            bool hadRecord = repo.HasManagedComponent<DescriptorOwnership>(entity);
-            if (hadRecord)
+            if (repo.HasManagedComponent<DescriptorOwnership>(entity))
                 ownership = repo.GetComponent<DescriptorOwnership>(entity);
             else
                 ownership = new DescriptorOwnership();
@@ -80,12 +79,8 @@ namespace Fdp.Toolkit.Replication.Services
                 : repo.HasComponent<NetworkAuthority>(entity) ? repo.GetComponentRO<NetworkAuthority>(entity).PrimaryOwnerId : -1;
 
             // ── 1. The record ──────────────────────────────────────────────────────────────────────────
-            //    ⭐ CE-3442 / CE-4519 (X-4) — a REPEAT (the record already says so, and 3a pinned nothing) writes nothing: every Set moves the
-            //    table's version, and the egress visit gate read any move as "authority arrived somewhere" ⇒ a full scan of every gated
-            //    translator. 📐 Measured on the 1 000-man CGF: ~5 updates a frame, repeats included ⇒ 5 205 of 5 281 full scans, 0 skipped.
-            bool same = hadRecord && map.Count == ownership.Map.Count && previousOwner == newOwnerNodeId && ownership.Map.ContainsKey(packedKey);
             map[packedKey] = newOwnerNodeId;
-            if (!same) repo.SetManagedComponent(entity, ownership with { Map = map });
+            repo.SetManagedComponent(entity, ownership with { Map = map });
 
             // ── 2. The claim, on the exact component ids the descriptor maps to (translator targets + group links).
             //    No map ⇒ the claim is not touched (safe default).
@@ -118,9 +113,8 @@ namespace Fdp.Toolkit.Replication.Services
             {
                 if (repo.HasComponent<NetworkAuthority>(entity))
                 {
-                    ref readonly var was = ref repo.GetComponentRO<NetworkAuthority>(entity);
-                    if (was.PrimaryOwnerId != newOwnerNodeId)   // ⭐ CE-4519 — a repeat writes nothing (as the record above)
-                        repo.SetComponent(entity, new NetworkAuthority(newOwnerNodeId, was.LocalNodeId));
+                    int existingLocal = repo.GetComponentRO<NetworkAuthority>(entity).LocalNodeId;
+                    repo.SetComponent(entity, new NetworkAuthority(newOwnerNodeId, existingLocal));
                 }
                 else
                 {

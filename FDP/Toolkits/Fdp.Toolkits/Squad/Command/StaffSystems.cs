@@ -54,13 +54,7 @@ namespace Fdp.Toolkit.Squad.Command
 
         private readonly bool _gateOnAuthority;
         private EntityQuery? _commanders;
-        // ⭐ CE-4518 (X-3) — this frame's heard launches, SORTED by the commander's index: a commander reads only its own run (binary search),
-        //   instead of every unit walking every launch (O(units × launches)), and a phase thread reads it without a lock. Grown, never shrunk.
-        private (Entity Commander, SoundContactEvent Heard)[] _launches = new (Entity, SoundContactEvent)[16];
-        private int _launchCount;
-        private Entity[] _units = new Entity[64];
-        private int[] _sent = new int[64];
-
+        private readonly System.Collections.Generic.List<(Entity Commander, SoundContactEvent Heard)> _launches = new();
 
         /// <param name="gateOnAuthority">the pack's execution gate (as <c>SquadCoordinationSystem</c>): only commanders whose brain this
         /// node owns.</param>
@@ -91,65 +85,23 @@ namespace Fdp.Toolkit.Squad.Command
                 }
 
             // ⭐ CE-2309 (HQ-1) — this frame's heard launches, by the listener's commander
-            _launchCount = 0;
+            _launches.Clear();
             if (repo.Bus.IsRegistered<SoundContactEvent>())
                 foreach (var heard in repo.ReadEvents<SoundContactEvent>())
-                    if (IsLaunch(repo, in heard, out var commander))
-                    {
-                        if (_launchCount == _launches.Length) Array.Resize(ref _launches, _launches.Length * 2);
-                        _launches[_launchCount++] = (commander, heard);
-                    }
-            // ⭐ stable by commander (insertion sort: a handful a frame, and Array.Sort is not stable — a commander's launches keep the bus order)
-            for (int i = 1; i < _launchCount; i++)
-            {
-                var x = _launches[i]; int j = i - 1;
-                while (j >= 0 && _launches[j].Commander.Index > x.Commander.Index) { _launches[j + 1] = _launches[j]; j--; }
-                _launches[j + 1] = x;
-            }
+                    if (IsLaunch(repo, in heard, out var commander)) _launches.Add((commander, heard));
 
-            // ⭐ CE-4518 (X-3) — the serial step: who sends, and their outbox exists (a structural add, never inside the phase)
             _commanders ??= repo.Query().With<UnitRoster>().With<UnitSubordinate>().WithOwnedWhen<BehaviorState>(_gateOnAuthority).Build();
-            int n = 0;
             foreach (var unit in _commanders)
             {
                 if (!Sends(repo, unit)) continue;
                 if (!repo.HasComponent<ReportOutbox>(unit)) repo.AddComponent(unit, new ReportOutbox());
-                if (n == _units.Length) { Array.Resize(ref _units, n * 2); Array.Resize(ref _sent, n * 2); }
-                _units[n++] = unit;
-            }
-            if (n == 0) return;
-            var job = new ComposeJob { System = this, Repo = repo, Now = now };
-            // ⭐ The per-entity rule (docs/DESIGN_Parallel_Simulation.md §18): a commander writes only ITS OWN ReportOutbox; it reads its squad's
-            //   picture, its members and its contacts (nothing this phase writes); its reports go up as managed events, which a phase defers into
-            //   its batch (FdpEventBus, N-10) and plays back in batch order ⇒ the superiors receive them in the serial order.
-            if (Fdp.Core.Jobs.ParallelEntities.Enabled) Fdp.Core.Jobs.ParallelEntities.Run(repo, _units, n, in job);
-            else for (int i = 0; i < n; i++) job.Execute(_units[i], i, null!);
-            int sent = 0;
-            for (int i = 0; i < n; i++) { sent += _sent[i]; _sent[i] = 0; }
-            SentCount += sent;
-        }
-
-        /// <summary>⭐ CE-4518 — one commander's whole compose (SPOT, launch, support, SITREP, casevac, flush): its own outbox only.</summary>
-        private struct ComposeJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.ICoarseJob
-        {
-            /// <summary>⭐ CE-4517 — a job is a whole commander's compose: 4 a batch (~100 commanders ⇒ ~25 batches, not 4).</summary>
-            public int BatchSize => 4;
-            public StaffComposerSystem System;
-            public EntityRepository Repo;
-            public SimInstant Now;
-
-            public void Execute(Entity unit, int index, Fdp.Core.Jobs.BatchContext ctx)
-            {
-                var repo = Repo; var now = Now;
                 ComposeSpot(repo, unit, now);
-                System.ComposeLaunch(repo, unit, now);
+                ComposeLaunch(repo, unit, now);
                 ComposeSupport(repo, unit, now);
                 ComposeSitrep(repo, unit, now);
                 ComposeCasevac(repo, unit, now);
-                System._sent[index] = Flush(repo, unit, now);
+                Flush(repo, unit, now);
             }
-
-            public void ApplyDeferred(EntityRepository repo, in Fdp.Core.Jobs.Deferred d) { }
         }
 
         /// <summary>A commander that has a live superior to report to.</summary>
@@ -250,12 +202,8 @@ namespace Fdp.Toolkit.Squad.Command
         /// same launch (within <see cref="LaunchSameMetres"/>, <see cref="LaunchSameSeconds"/>) once.</summary>
         private void ComposeLaunch(EntityRepository repo, Entity unit, SimInstant now)
         {
-            // ⭐ CE-4518 — the unit's run of the sorted launches (lower bound by index, then while the commander is this unit)
-            int lo = 0, hi = _launchCount;
-            while (lo < hi) { int mid = (lo + hi) >> 1; if (_launches[mid].Commander.Index < unit.Index) lo = mid + 1; else hi = mid; }
-            for (int i = lo; i < _launchCount && _launches[i].Commander.Index == unit.Index; i++)
+            foreach (var (commander, heard) in _launches)
             {
-                var (commander, heard) = _launches[i];
                 if (!commander.Equals(unit)) continue;
                 var at = new Vector3(heard.X, heard.Y, heard.Z);
                 ref var outbox = ref repo.GetComponentRW<ReportOutbox>(unit);
@@ -412,13 +360,10 @@ namespace Fdp.Toolkit.Squad.Command
             return f >= GreenFraction ? StatusColour.Green : f >= AmberFraction ? StatusColour.Amber : StatusColour.Red;
         }
 
-        /// <returns>How many reports went (CE-4518: summed by the caller — the phase writes no shared counter).</returns>
-        private static int Flush(EntityRepository repo, Entity unit, SimInstant now)
+        private void Flush(EntityRepository repo, Entity unit, SimInstant now)
         {
-            ref readonly var queued = ref repo.GetComponentRO<ReportOutbox>(unit);   // E-4 — read first; writable only to send
-            if (queued.Queued.Count == 0) return 0;
             ref var outbox = ref repo.GetComponentRW<ReportOutbox>(unit);
-            int sent = 0;
+            if (outbox.Queued.Count == 0) return;
             var superior = repo.GetComponentRO<UnitSubordinate>(unit).Commander;
             bool muted = outbox.MutedUntil > now;
             int keep = 0;
@@ -429,10 +374,9 @@ namespace Fdp.Toolkit.Squad.Command
                          && (outbox.Posture != ReportingPosture.Silent || q.Report.Kind == ReportKind.Contact);
                 if (!goes) { outbox.Queued.Items[keep++] = q; continue; }
                 repo.Bus.PublishManaged(new SquadReportNotification { FromUnit = unit, ToUnit = superior, Subject = q.Subject, Report = q.Report, SentAt = now });
-                sent++;
+                SentCount++;
             }
             outbox.Queued.Count = keep;
-            return sent;
         }
     }
 

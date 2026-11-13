@@ -24,6 +24,7 @@ namespace Fdp.Toolkits.Tests.Squad.Command
             var w = new EntityRepository();
             w.RegisterComponent<UnitRoster>(); w.RegisterComponent<UnitSubordinate>(); w.RegisterComponent<ReportOutbox>();
             w.RegisterComponent<ReportingRequirements>(); w.RegisterComponent<SimTransform>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();   // the composer's query (WithOwnedWhen ⇒ With when ungated)
             w.Bus.RegisterManaged<SquadReportNotification>();
             w.Bus.Register<SoundContactEvent>();
             var hq = w.CreateEntity();
@@ -44,6 +45,7 @@ namespace Fdp.Toolkits.Tests.Squad.Command
                     men[c][m] = man;
                 }
                 w.AddComponent(cmd, roster);
+                w.AddComponent(cmd, new Fdp.Toolkit.Behavior.Components.BehaviorState());
                 w.AddComponent(cmd, new UnitSubordinate { Commander = hq });
                 w.AddComponent(cmd, new ReportingRequirements { SitrepEverySeconds = 0.5f + (c % 4) * 0.25f });
                 cs[c] = cmd;
