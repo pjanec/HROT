@@ -166,6 +166,8 @@ namespace Hrot.Core.Tkb
             yield return C("LargeWheeledUtilityVehicle", "Large Wheeled Utility Vehicle", "1.1.*.7");
             yield return C("SmallTrackedUtilityVehicle", "Small Tracked Utility Vehicle", "1.1.*.8");
             yield return C("LargeTrackedUtilityVehicle", "Large Tracked Utility Vehicle", "1.1.*.9");
+            // ⭐ CE-6006 (showcase world, D-6) — the bulldozer: a large tracked utility vehicle (a D9) with its own subcategory, so the 3-D map draws a dozer, not a box
+            yield return C("Bulldozer", "Bulldozer (HROT)", "1.1.*.9.1");
             yield return C("Mortar", "Mortar", "1.1.*.10");
             yield return C("Car", "Car", "1.1.*.81");
             // ⭐ Weapon systems WS-1 (R-2016, docs/designs/weapons/DESIGN_Weapon_Systems.md §5) — a weapon that is an entity: Category 50

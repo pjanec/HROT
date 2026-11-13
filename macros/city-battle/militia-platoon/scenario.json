@@ -1,0 +1,1625 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "Kind": "macro",
+    "description": "What: CE-6009 (city battle M-1) - a MILITIA PLATOON, the defender's kit: the rifle platoon's shape (platoon 305 @Platoon, six squads of six) of insurgent fighters (2003). Params: side (default Hostile), name, key (its RefKey).",
+    "Anchor": {
+      "Position": [
+        0,
+        0,
+        0
+      ],
+      "Heading": 0
+    },
+    "Params": [
+      {
+        "Name": "side",
+        "TypeId": "ForceId",
+        "Default": "Hostile"
+      },
+      {
+        "Name": "name",
+        "TypeId": "string",
+        "Default": "Militia Platoon"
+      },
+      {
+        "Name": "key",
+        "TypeId": "string",
+        "Default": "Platoon"
+      }
+    ]
+  },
+  "entities": {
+    "c6009b00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Militia Platoon",
+        "ForceId": "Friend"
+      },
+      "RefKey": {
+        "Value": "Platoon"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side",
+          "EntityInfo.Name": "name",
+          "RefKey.Value": "key"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -15.0,
+          0.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad 1",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          -15.0,
+          1.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 1 Leader",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000002",
+        "Designation": "SquadLeader"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          -17.0,
+          0.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 1 MG",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000002",
+        "Designation": "MachineGunner"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          -13.0,
+          0.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 1 Grenadier",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000002",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          -19.0,
+          -1.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 1 Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000002",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          -15.0,
+          -1.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 1 Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000002",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          -11.0,
+          -1.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 1 Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000002",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000009": {
+      "SimTransform": {
+        "Position": [
+          0.0,
+          0.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad 2",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          0.0,
+          1.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 2 Leader",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000009",
+        "Designation": "SquadLeader"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          -2.0,
+          0.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 2 MG",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000009",
+        "Designation": "MachineGunner"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          2.0,
+          0.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 2 Grenadier",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000009",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          -4.0,
+          -1.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 2 Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000009",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          0.0,
+          -1.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 2 Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000009",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000015": {
+      "SimTransform": {
+        "Position": [
+          4.0,
+          -1.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 2 Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000009",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000016": {
+      "SimTransform": {
+        "Position": [
+          15.0,
+          0.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad 3",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000017": {
+      "SimTransform": {
+        "Position": [
+          15.0,
+          1.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 3 Leader",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000016",
+        "Designation": "SquadLeader"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000018": {
+      "SimTransform": {
+        "Position": [
+          13.0,
+          0.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 3 MG",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000016",
+        "Designation": "MachineGunner"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000019": {
+      "SimTransform": {
+        "Position": [
+          17.0,
+          0.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 3 Grenadier",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000016",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000020": {
+      "SimTransform": {
+        "Position": [
+          11.0,
+          -1.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 3 Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000016",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000021": {
+      "SimTransform": {
+        "Position": [
+          15.0,
+          -1.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 3 Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000016",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000022": {
+      "SimTransform": {
+        "Position": [
+          19.0,
+          -1.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 3 Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000016",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000023": {
+      "SimTransform": {
+        "Position": [
+          -15.0,
+          -12.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad 4",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000024": {
+      "SimTransform": {
+        "Position": [
+          -15.0,
+          -10.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 4 Leader",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000023",
+        "Designation": "SquadLeader"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000025": {
+      "SimTransform": {
+        "Position": [
+          -17.0,
+          -12.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 4 MG",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000023",
+        "Designation": "MachineGunner"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000026": {
+      "SimTransform": {
+        "Position": [
+          -13.0,
+          -12.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 4 Grenadier",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000023",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000027": {
+      "SimTransform": {
+        "Position": [
+          -19.0,
+          -13.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 4 Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000023",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000028": {
+      "SimTransform": {
+        "Position": [
+          -15.0,
+          -13.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 4 Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000023",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000029": {
+      "SimTransform": {
+        "Position": [
+          -11.0,
+          -13.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 4 Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000023",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000030": {
+      "SimTransform": {
+        "Position": [
+          0.0,
+          -12.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad 5",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000031": {
+      "SimTransform": {
+        "Position": [
+          0.0,
+          -10.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 5 Leader",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000030",
+        "Designation": "SquadLeader"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000032": {
+      "SimTransform": {
+        "Position": [
+          -2.0,
+          -12.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 5 MG",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000030",
+        "Designation": "MachineGunner"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000033": {
+      "SimTransform": {
+        "Position": [
+          2.0,
+          -12.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 5 Grenadier",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000030",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000034": {
+      "SimTransform": {
+        "Position": [
+          -4.0,
+          -13.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 5 Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000030",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000035": {
+      "SimTransform": {
+        "Position": [
+          0.0,
+          -13.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 5 Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000030",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000036": {
+      "SimTransform": {
+        "Position": [
+          4.0,
+          -13.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 5 Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000030",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000037": {
+      "SimTransform": {
+        "Position": [
+          15.0,
+          -12.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad 6",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000038": {
+      "SimTransform": {
+        "Position": [
+          15.0,
+          -10.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 6 Leader",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000037",
+        "Designation": "SquadLeader"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000039": {
+      "SimTransform": {
+        "Position": [
+          13.0,
+          -12.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 6 MG",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000037",
+        "Designation": "MachineGunner"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000040": {
+      "SimTransform": {
+        "Position": [
+          17.0,
+          -12.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 6 Grenadier",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000037",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000041": {
+      "SimTransform": {
+        "Position": [
+          11.0,
+          -13.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 6 Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000037",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000042": {
+      "SimTransform": {
+        "Position": [
+          15.0,
+          -13.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 6 Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000037",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009b00-0000-4000-8000-000000000043": {
+      "SimTransform": {
+        "Position": [
+          19.0,
+          -13.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Squad 6 Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009b00-0000-4000-8000-000000000037",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    }
+  }
+}

@@ -1213,6 +1213,23 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal((Fdp.Toolkit.Motion.CanopyKind.Round, 1.5f), (chute.Canopy, chute.OpenSeconds));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-6005</c> (city battle O-2, Peek and Fire §9.10) — the WRECK obstacle type (8819: a car-body box, 600 hp — the 8 kg charge clears
+        /// it, CE-6003) and the heavy types that leave one (M1, T-72, Bradley); a light car (the HMMWV) does not. 🔴 Red-proof: drop the Bradley
+        /// from the heavy list ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE6005_TheHeavyTypes_LeaveAWreckObstacle_ALightCarDoesNot()
+        {
+            var db = BuildDatabase();
+            var wreck = db.GetByType(TkbEntityTypes.Obstacle_Wreck).GetDescriptor<StaticObstacleDto>()!;
+            Assert.Equal(("car-body", 600f), (wreck.Material, wreck.MaxHealth));
+            Assert.Null(db.GetByType(TkbEntityTypes.Obstacle_Wreck).GetDescriptor<TkbMasterDto>());   // never in the Add Entity picker
+            foreach (var heavy in new[] { TkbEntityTypes.Tank_M1Abrams, TkbEntityTypes.Tank_T72, TkbEntityTypes.IFV_Bradley })
+                Assert.Equal(TkbEntityTypes.Obstacle_Wreck, db.GetByType(heavy).GetDescriptor<WreckObstacleDto>()?.ObstacleType);
+            Assert.Null(db.GetByType(TkbEntityTypes.Truck_HMMWV).GetDescriptor<WreckObstacleDto>());
+        }
+
         private static TkbDatabase BuildDatabase()
         {
             var db = new TkbDatabase();

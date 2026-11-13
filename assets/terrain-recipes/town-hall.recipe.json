@@ -1,0 +1,9 @@
+{
+ "id": "town-hall",
+ "radius": 48,
+ "elements": [
+  { "type": "row", "from": [-40, 0], "to": [40, 0], "templates": ["office-4f"], "count": [1, 1], "offset": 12, "jitter": 0, "minSpacing": 4 },
+  { "type": "group", "items": [ { "type": "car", "area": { "center": [0, -22], "size": [60, 8], "count": [2, 3] }, "facing": "along" } ] }
+ ],
+ "ui": { "chip": "Urban", "line": "the town hall on its square (CE-6001)" }
+}

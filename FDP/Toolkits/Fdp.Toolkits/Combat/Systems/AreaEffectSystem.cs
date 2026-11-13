@@ -166,6 +166,9 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (repo.GetComponentRO<Health>(e).Current <= 0f) continue;
                 var tf = repo.GetComponentRO<SimTransform>(e);
                 if (Vector2.Distance(new Vector2(burst.X, burst.Y), new Vector2(tf.Position.X, tf.Position.Y)) > reach + 2f) continue;
+                // ⭐⭐ CE-6003 (city battle O-1, Peek and Fire §9.9) — a destructible OBSTACLE is terrain: blast by charge and closeness, never the
+                //   person / hull law below (its own prism would shield its body points, and that law's blast is the same for every warhead)
+                if (TerrainObstacles.IsObstacle(repo, e)) { AssessObstacle(repo, in evt, w, burst, e, in tf, world, record); continue; }
 
                 var stance = HitModel.LogicalStance(repo, e);
                 float hull = PhysicsColliderReaders.HullHeight(repo, e);
@@ -262,6 +265,33 @@ namespace Fdp.Toolkit.Combat.Systems
             BreachDoors(repo, in evt, w, burst, terrain, doors, record);
             BreachWalls(repo, in evt, w, burst, terrain, doors, record);   // ⭐ CE-4391 S-1 (B-5) — the walls, by the same detonation
             log.Add(record);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-6003</c> (city battle O-1, 📄 docs/DESIGN_Peek_And_Fire.md §9.9) — a burst on a destructible static obstacle: <see cref="ObstacleDamage.BlastDamage"/>
+        /// at the distance to the obstacle's NEAREST FACE (its box, not body points), through the closed barriers on the line to that face — traced to a
+        /// point 2 cm outside it, so the obstacle's own prism is never crossed (as <see cref="LineClearToFace"/> does for a wall). A non-lethal warhead
+        /// (stun, gas, smoke) or a kinetic round (no explosive) does nothing. ONE <see cref="DamageAssessedEvent"/> to its Health owner, as for everyone.
+        /// </summary>
+        private void AssessObstacle(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst, Entity e,
+            in SimTransform tf, IWorldQuery? world, DetonationRecord record)
+        {
+            if (NonLethalEffectOf(w.Kind) != HitEffect.Kinetic || w.ExplosiveKg <= 0f || !repo.HasComponent<ObstacleShape>(e)) return;
+            var near = ObstacleDamage.NearestPoint(tf.Position, TerrainObstacles.Yaw(tf.Rotation), in repo.GetComponentRO<ObstacleShape>(e), burst);
+            float d = Vector3.Distance(burst, near);
+            float raw = ObstacleDamage.BlastDamage(w.ExplosiveKg, d);
+            if (raw <= 0f) return;
+            float barrier = 1f;
+            if (d > 0.05f && world != null)
+            {
+                world.Trace(burst, near + (burst - near) * (0.02f / d), TracePurpose.Fire, _traces);
+                barrier = AreaEffect.ClosedBarrierTransmission(_traces);
+            }
+            float damage = raw * barrier;
+            if (damage <= 0f) return;
+            repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = damage, Source = evt.Shooter, OriginalSource = evt.OriginalShooter });
+            record.Effects.Add(new DetonationEffect(e, "Obstacle", 0, d, 0f, 0f, 0f, 0f, raw / (ObstacleDamage.DamagePerKg * w.ExplosiveKg), barrier, 1f,
+                damage, damage, barrier < 1f ? "a barrier" : null) { At = tf.Position });
         }
 
         /// <summary>⭐ <c>CE-3210</c> (HL-10) — at most this many fragment marks per man per burst (the ring holds 24).</summary>

@@ -1,0 +1,62 @@
+{
+  "type": "FeatureCollection",
+  "hrot": {
+    "schemaVersion": 1,
+    "bounds": [
+      0,
+      0,
+      200,
+      100
+    ],
+    "groundZ": 0,
+    "description": "CE-6003 (city battle O-1) feature terrain: flat ground 200 x 100 m cut in two by a 3 m concrete wall at x = 100 that runs past both edges, with ONE 6 m gate (y 47..53) - the street a roadblock closes. With the gate blocked no ground path joins the two halves; with it open a vehicle (navmesh agent radius 1.8 m) passes. Used by scenarios/showcases/city-battle/features/roadblock-blast. Local metres, X east, Y north, Z up."
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "kind": "wall",
+        "label": "Wall south",
+        "height": 3.0,
+        "material": "concrete",
+        "thickness": 0.4
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            100,
+            -2
+          ],
+          [
+            100,
+            47
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "kind": "wall",
+        "label": "Wall north",
+        "height": 3.0,
+        "material": "concrete",
+        "thickness": 0.4
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            100,
+            53
+          ],
+          [
+            100,
+            102
+          ]
+        ]
+      }
+    }
+  ]
+}

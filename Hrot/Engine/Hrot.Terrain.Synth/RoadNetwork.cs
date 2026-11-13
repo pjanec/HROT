@@ -87,6 +87,29 @@ public sealed class RoadNetwork
         return net;
     }
 
+    /// <summary>
+    /// ⭐ CE-6001 (showcase world, docs/DESIGN_Terrain_Authoring.md §18l) — a network of exactly these AUTHORED polylines, each segment one edge of its class (nodes shared where two polylines meet at the same point, to 0.01 m), no villages: the roads of a town
+    /// plan. Pure and deterministic; the class decides lanes, speed and width as for a generated road.
+    /// </summary>
+    public static RoadNetwork FromPolylines(SynthProfile p, IReadOnlyList<(RoadClass Class, IReadOnlyList<(double X, double Y)> Points)> polylines)
+    {
+        var net = new RoadNetwork(p, new Dictionary<RoadClass, double>());
+        var ids = new Dictionary<(long, long), string>();
+        string Node(double x, double y)
+        {
+            var key = ((long)Math.Round(x * 100), (long)Math.Round(y * 100));
+            return ids.TryGetValue(key, out var id) ? id : ids[key] = net.AddNode(x, y);
+        }
+        foreach (var (cls, pts) in polylines)
+            for (int i = 1; i < pts.Count; i++)
+            {
+                string a = Node(pts[i - 1].X, pts[i - 1].Y), b = Node(pts[i].X, pts[i].Y);
+                if (a != b) net.AddEdge(a, b, cls);
+            }
+        net.BuildHash();
+        return net;
+    }
+
     public static RoadNetwork Generate(SynthProfile p, Rng rng)
     {
         var adjust = new Dictionary<RoadClass, double>();

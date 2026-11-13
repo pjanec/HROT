@@ -108,6 +108,11 @@ public class EditorCapabilitiesTests : IDisposable
     /// ⭐ CE-4013 — the simulation systems the plan's cross-role infrastructure contributes, in plan order (UnitHierarchy → EQS results →
     /// Interactions), asked of the capabilities themselves rather than copied: a new applier joins the tail without editing this rail.
     /// </summary>
+    /// <summary>⭐ CE-6003 — the shared plan HEAD's systems, in order, read from the capability itself (HealthApplicationSystem, BleedOutSystem,
+    /// ObstacleRemovalSystem) — the head is pinned FIRST by the rails below, its contents by the capability.</summary>
+    private static IEnumerable<Type> HealthApplicationHead()
+        => new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.HealthApplication().Systems.Select(s => s.GetType()).ToArray();
+
     private static IEnumerable<Type> InfrastructureSimulationTail()
     {
         var input = new List<IEcsModuleSystem>(); var sim = new List<IEcsModuleSystem>(); var post = new List<IEcsModuleSystem>();
@@ -207,8 +212,8 @@ public class EditorCapabilitiesTests : IDisposable
         //       muscle tier and before the infrastructure tail. 📄 DESIGN_Thermal_And_Acoustic_Sensing.md §7.
         // ⭐⭐ CE-2144 (R-2008) — HealthApplicationSystem left CgfLogicPack for the shared plan HEAD: it is FIRST, ahead of the Brain.
         // ⭐ CE-2155 (R-2011 I3) — the bleed-out rides the same capability, right behind it.
-        Type[] expectedSim = new[] { typeof(Fdp.Toolkit.Combat.Systems.HealthApplicationSystem),
-                                     typeof(Fdp.Toolkit.Combat.Systems.BleedOutSystem) }
+        // ⭐ CE-6003 — the head is DERIVED from the capability's own list (HealthApplicationSystem first, then BleedOut, ObstacleRemoval), as the tail is
+        Type[] expectedSim = HealthApplicationHead()
             .Concat(handSim)
             .Concat(new[] { typeof(Fdp.Toolkit.Perception.Signatures.ThermalHeatSystem),
                             typeof(Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem) })
@@ -294,8 +299,7 @@ public class EditorCapabilitiesTests : IDisposable
         //   against it by Key. That is what stopped the hosted Stride editor registering two
         //   UnitHierarchySystems and dying on [SingleInstance] in BeginRun().
         Assert.Equal(
-            new[] { typeof(Fdp.Toolkit.Combat.Systems.HealthApplicationSystem),   // ⭐ CE-2144 — the shared plan head, first
-                    typeof(Fdp.Toolkit.Combat.Systems.BleedOutSystem) }           // ⭐ CE-2155 — the same capability's bleed-out
+            HealthApplicationHead()   // ⭐ CE-2144 the shared plan head, first · CE-2155 its bleed-out · CE-6003 its obstacle removal (derived)
                .Concat(cgf.SimulationSystems.Select(s => s.GetType()))
                .Concat(InfrastructureSimulationTail()),   // ⭐ CE-4013 — derived, as above
             sim.Select(s => s.GetType()));

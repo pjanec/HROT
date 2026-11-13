@@ -1877,6 +1877,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         VisualFamily.WeaponSystem => new Color(84, 92, 70, 255),
         VisualFamily.SpArtillery => new Color(112, 120, 82, 255),
         VisualFamily.AttackJet => new Color(122, 128, 118, 255),
+        VisualFamily.Bulldozer => new Color(227, 176, 28, 255),   // ⭐ CE-6007 — construction yellow (the TKB's own colour wins)
         _ => new Color(180, 120, 200, 255),
     };
 
