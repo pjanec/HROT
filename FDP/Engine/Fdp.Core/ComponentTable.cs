@@ -226,11 +226,13 @@ namespace Fdp.Core
         internal (int DirtyChunks, long CommittedBytes) ProbeStats(IComponentTable source)
             => (source is ComponentTable<T> s ? _data.CountDirtyChunks(s._data) : 0, _data.GetMemoryStats().CommittedBytes);
 
-        public void SyncFrom(IComponentTable source)
+        public void SyncFrom(IComponentTable source) => SyncFrom(source, force: false);
+
+        public void SyncFrom(IComponentTable source, bool force)
         {
             if (source is ComponentTable<T> typedSource)
             {
-                _data.SyncDirtyChunks(typedSource._data);
+                _data.SyncDirtyChunks(typedSource._data, force);
             }
             #if FDP_PARANOID_MODE
             else

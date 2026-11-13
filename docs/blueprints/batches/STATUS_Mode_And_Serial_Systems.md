@@ -37,6 +37,9 @@ Branch `exp/threaded-build`. Rulings R-4218 / R-4219 (R-4207, R-4215).
 | M-D3 | how does the kernel know "stepped / Run-to / filming / regression"? | ⭐ all four STEP the clock: Run-to is the ACK-gated stepped run (`RunToController`), the director and the verify run advance by `StepBy` (`DirectorRunner.cs:730/986`) ⇒ the clock's `TimeMode.Deterministic` (`_steppedFrame`, already computed for CE-3292) is the one signal — no per-feature flag | `ModuleHostKernel` |
 | M-D4 | "one value for the process" when kernels disagree for a tick (`--mode all`, slaves switching on the master's event) | ⭐ any Deterministic vote wins — the safe direction; a harness pin likewise | `SimulationModeSelector.Vote` |
 | M-D5 | "the tests ⇒ Deterministic" | ⭐ an explicit counted pin (`RequireDeterministic`), held by the headless test harness; rails that run `ParallelEntities` without a kernel set the mode directly (unchanged) — ⚠ a test kernel in continuous play votes Throughput, which M-1 shows is the same result | `HeadlessTestExecutor` |
+| M-D6 | `NeedsClone` under the registry lock — make the lookup lock-free how? | ⭐ a `bool[MAX_COMPONENT_TYPES]` written ONLY under the lock (registration, `SetNeedsClone`, `Clear`), read with `Volatile.Read`; the dictionary stays the authority for an out-of-range id — the CE-2389 pattern the per-T id already uses | `ComponentType.cs` |
+| M-D7 | stop the snapshots' clear / recommit churn — skip unchanged chunks? | ⭐ NO version skipping: a snapshot takes the live version at sync, so a background module's write into its view carries the same version as an unchanged live chunk and would SURVIVE a version-gated sync (proved by the rail's red). ⭐ Recycle instead: keep the memory, clear the events, and the next sync copies EVERY chunk (`force`) and empties every table it does not copy — the world a Clear + sync gave, minus the decommit / commit. A new `RecycleForSync`, ⛔ not `SoftClear` (that one EMPTIES a world: the scenario file service, playback); used only by the two pools whose next use is always a sync | `EntityRepository.Sync.cs`, `SnapshotPool`, `OnDemandProvider` |
+| M-D8 | the callouts' serial say-pass — parallelise it? | ⭐ no: it is order-dependent BY DESIGN (AQ105 E — who spoke first in the 10 m / 2 s window; N-11's serial follow-up). Its cost was the algorithm: the no-echo check walked every speaker per call ⇒ the CE-2411 per-frame grid (`FrameEntityGrid`, as `UnderFire.FriendNear`), radius + `MovedSlackMetres`, each candidate re-read live with the exact 3-D rule | `Callouts.cs` |
 | M-D2 | does any host keep SERIAL brains and want parallel scoring (M-3's precondition)? | ⭐ no — measured in code: the pre-score needs `HROT_PARALLEL_SIM=1`, which itself makes the brains a parallel phase (`BrainTickSystem.Parallel`), so it ran only under the measuring switch `HROT_SERIAL_BRAINS=1`; by design R-4214 ① puts the per-entity brain rule in both modes | `BrainTickSystem.cs`, R-4214 |
 
 ## 4. BUGS FIXED
@@ -70,6 +73,21 @@ Branch `exp/threaded-build`. Rulings R-4218 / R-4219 (R-4207, R-4215).
 | · the rest (≈ 66 small) | ≈ 120 | ≈ 18 | mostly serial | — |
 | `TogglableInputGroup` (31: ray casts, fire processing, ingress) | 171 → 179 | 5.3 → 5.4 | ray casts on the pool | `FireProcessingSystem` writes the struck |
 | `TogglablePostSimulationGroup` (movement, ballistics) | 39 → 42 | 8.6 → 8.1 | movement ✅ phase | — |
+
+### M-4b — the sim thread by `dotnet-trace` (Release, 4 threads, playing, 20 s ≈ 90 ticks; ms in the 20 s)
+
+| where | ms | per tick | what it is | ⭐ done |
+|---|---|---|---|---|
+| `ComponentTypeRegistry.NeedsClone` (under every managed table's `SyncDirtyChunks`) | **2 258** (+ 813 on the UI thread) | ≈ 25 | the global registry LOCK, taken per table per sync — the sim's module-snapshot syncs and staging publish against the UI's pull; ⚠ grows with the threads that contend | ✅ read lock-free (M-D6) |
+| `OnDemandProvider.AcquireView` / `HarvestEntry → Clear` (module snapshots) | 2 977 / 778 | ≈ 33 / 9 | every release CLEARED the snapshot (decommitting every chunk) and every acquire committed it again (`EnsureChunkAllocated` ≈ 900) | ✅ recycled (M-D7) |
+| `StagingWorlds.Publish` | 1 708 | ≈ 19 | the UI's copy; 1 030 of it was the `NeedsClone` lock | ✅ by M-D6 |
+| `HrotNodeContext.StepTimeline` (the live timeline's lanes) | 767 | ≈ 8 | serial on the sim thread | ranked (next) |
+| brains · callouts · weapon dispatcher · stress · squads | 2 852 · 1 344 · 1 297 · 1 182 · 1 041 | | callouts: 986 of 1 344 is the SERIAL say-pass after the phase, of which `SaidNearby` walked every speaker per call (548) | ✅ `SaidNearby` from a grid (M-D8) |
+| `EqsSolverSystem` | 9 221 — on .NET pool threads, NOT the sim thread | | background module ≈ ½ core continuous + its window on the pool | — |
+
+⭐⭐ **Why 4 threads were slower than 1 on the 4-core VM:** ① the registry lock above — more threads syncing, more contention; ② the machine is
+oversubscribed: sim thread + 3 pool workers + the UI thread + EQS on the .NET pool = 6 busy threads on 4 cores (the pool's default budget is
+cores − 2 for this reason; `HROT_SIM_THREADS=4` overrides it).
 
 ⭐⭐ **The Release reading changes the plan:** every kernel system together is ~120 ms of a **222 ms** Release tick at 4 threads, and the tick got
 WORSE with threads (192 → 222) while the systems shrank (group 141 → 101). ⇒ the largest serial cost in Release is OUTSIDE the systems — being

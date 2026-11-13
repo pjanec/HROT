@@ -99,6 +99,10 @@ namespace Fdp.Core
         /// </summary>
         void SyncFrom(IComponentTable source);
 
+        /// <summary>⭐ M-4 (CE-4483) — the same, and with <paramref name="force"/> every chunk is copied whatever its version (a recycled snapshot,
+        /// <see cref="EntityRepository.RecycleForSync"/>: its rows are stale but its memory is kept).</summary>
+        void SyncFrom(IComponentTable source, bool force);
+
         /// <summary>⭐ EXPERIMENT (POC 2, CE-4439) — copies ONE row (<paramref name="entityIndex"/>) from a source table of the same type, stamping
         /// <paramref name="version"/>: the S→A row copy of the selected / inspected entities.</summary>
         void CopyRowFrom(IComponentTable source, int entityIndex, uint version);

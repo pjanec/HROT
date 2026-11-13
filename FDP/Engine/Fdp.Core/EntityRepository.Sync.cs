@@ -43,8 +43,26 @@ namespace Fdp.Core
                 try { Jobs.FdpWorkerPool.Shared.Run(this, Count); }
                 finally { Array.Clear(_dst, 0, Count); Array.Clear(_src, 0, Count); Count = 0; }
             }
-            public void RunBatch(int batch) => _dst[batch].SyncFrom(_src[batch]);
+            public bool Force;
+            public void RunBatch(int batch) => _dst[batch].SyncFrom(_src[batch], Force);
         }
+
+        /// <summary>
+        /// ⭐ M-4 (CE-4483) — hands a SNAPSHOT back to its pool for the next <see cref="SyncFrom"/>, KEEPING its memory: the events are cleared
+        /// now, and the next sync copies every chunk whatever its version and clears the tables it does not copy — the same world a
+        /// <see cref="Clear"/> followed by that sync gives (a background module may have written into its view, so no row is trusted), without
+        /// decommitting every chunk here and committing it again there. 📐 Measured (Release, 1 000 men, 4 threads, dotnet-trace): the module
+        /// snapshots' Clear on release and the recommit on acquire cost ≈ 1.6 s in 20 s of the sim thread (≈ 18 ms a tick).
+        /// ⛔ Only for a world whose next use is a <see cref="SyncFrom"/> (the snapshot providers' pools); <see cref="SoftClear"/> empties a world.
+        /// </summary>
+        public void RecycleForSync()
+        {
+            _clearGeneration++;
+            _recycled = true;
+            Bus.ClearAll();
+        }
+
+        private bool _recycled;
 
         public void SyncFrom(EntityRepository source, BitMask512? mask = null, bool? includeTransient = null, Type[]? excludeTypes = null)
         {
@@ -91,6 +109,15 @@ namespace Fdp.Core
                 }
             }
 
+            // ⭐ M-4 — a recycled snapshot: every table this sync will NOT copy is emptied (as Clear did); the rest are copied whole below
+            bool force = _recycled;
+            _recycled = false;
+            if (force)
+            {
+                foreach (var kvp in _componentTables)
+                    if (!effectiveMask.IsSet(kvp.Value.ComponentTypeId) || !source._componentTables.ContainsKey(kvp.Key)) kvp.Value.Clear();
+            }
+
             // 1. Sync EntityIndex
             // This copies critical structural data (Generations, IsActive, Masks)
             _entityIndex.SyncFrom(source._entityIndex);
@@ -133,9 +160,9 @@ namespace Fdp.Core
                 
                 // Sync data
                 if (ParallelSync) { _syncPairs.Add(myTable, srcTable); continue; }   // ⭐ POC 3 T-5 — copied in parallel below
-                myTable.SyncFrom(srcTable);
+                myTable.SyncFrom(srcTable, force);
             }
-            if (ParallelSync && _syncPairs.Count > 0) _syncPairs.Run();
+            if (ParallelSync && _syncPairs.Count > 0) { _syncPairs.Force = force; _syncPairs.Run(); }
             
             // 3. Sync specific singleton tables required by SoD background solvers.
             // Only the EQS solver (EqsSolverSystem) reads singletons from a SoD snapshot:
