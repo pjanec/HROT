@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (second VM lane): AUTONOMOUS — the review source on the simulation side (R-4220)
 
-**For:** a backend VM session (the second one — the first is on CE-4480…CE-4488). **From:** coordinator. **Dispatched at `<stamp>`** — scope frozen.
+**For:** a backend VM session (the second one — the first is on CE-4480…CE-4488). **From:** coordinator. **Dispatched at `bdefd8917`** — scope frozen.
 🔒 User, `2026-11-13`: *"yes, write the design and the handoff for the other backend VM lane."*
 
 ## ⛔⛔⛔ Never stop — the overnight contract
