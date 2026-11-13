@@ -1,175 +1,150 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -40 1720 1560" width="1032" height="936" font-family="Helvetica, Arial, sans-serif">
-  <!-- City battle town plan v2 (sketch for approval). 1 unit = 1 m, north up, the terrain's 1500 m square (corner frame). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -40 1740 1560" width="1044" height="936" font-family="Helvetica, Arial, sans-serif">
+  <!-- City battle town plan v3 (2-D sketch for approval). 1 unit = 1 m, north up, the terrain's 1500 m square (corner frame).
+       Read like a map: filled zones are built-up land (darker = denser); streets on top; the gaps between streets in a zone are its blocks. -->
   <defs>
-    <pattern id="field" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(12)">
-      <rect width="40" height="40" fill="#e9efd8"/><line x1="0" y1="0" x2="0" y2="40" stroke="#d6e0bd" stroke-width="2"/>
+    <pattern id="field" width="60" height="60" patternUnits="userSpaceOnUse" patternTransform="rotate(9)">
+      <rect width="60" height="60" fill="#e9efd8"/><line x1="0" y1="0" x2="0" y2="60" stroke="#dbe4c4" stroke-width="2"/>
     </pattern>
-    <pattern id="orchard" width="14" height="14" patternUnits="userSpaceOnUse">
-      <rect width="14" height="14" fill="#dfe8c8"/><circle cx="7" cy="7" r="3" fill="#8fb26a"/>
-    </pattern>
-    <pattern id="allot" width="18" height="12" patternUnits="userSpaceOnUse">
-      <rect width="18" height="12" fill="#e4ebcc" stroke="#c9d4a8" stroke-width="1"/>
-    </pattern>
+    <pattern id="allot" width="16" height="11" patternUnits="userSpaceOnUse"><rect width="16" height="11" fill="#e1e9c6" stroke="#c6d2a0" stroke-width="1"/></pattern>
   </defs>
-
   <rect x="0" y="0" width="1500" height="1500" fill="url(#field)"/>
 
-  <!-- hill (east bank) -->
-  <g fill="none" stroke="#b5a77f" stroke-width="2">
-    <path d="M1250 470 C1330 430 1450 460 1490 560 C1500 700 1480 860 1400 930 C1320 960 1260 900 1240 800 C1225 700 1200 560 1250 470z"/>
-    <path d="M1300 540 C1360 520 1430 560 1445 640 C1450 740 1420 820 1370 840 C1320 850 1290 790 1285 720 C1280 650 1270 580 1300 540z"/>
-    <path d="M1345 620 C1380 610 1405 650 1405 700 C1400 750 1380 770 1355 765 C1330 755 1325 700 1330 660 C1332 640 1335 625 1345 620z"/>
-  </g>
-  <text x="1330" y="705" font-size="22" fill="#7a6a40">HILL</text>
-  <text x="1300" y="735" font-size="15" fill="#7a6a40">AA · mortars</text>
-
-  <!-- woods / copses -->
+  <!-- woods, hedgerows, tracks -->
   <g fill="#9cbf7a">
-    <path d="M60 180 q60 -40 120 0 q30 60 -40 80 q-90 10 -80 -80z"/>
-    <path d="M250 1380 q70 -30 110 20 q-20 60 -80 50 q-60 -20 -30 -70z"/>
-    <path d="M1180 1300 q80 -40 140 10 q10 70 -70 80 q-90 0 -70 -90z"/>
-    <path d="M1200 180 q90 -30 150 30 q-10 60 -90 60 q-80 -20 -60 -90z"/>
+    <path d="M40 140 q70 -50 140 -5 q35 70 -45 95 q-100 10 -95 -90z"/><path d="M200 1390 q80 -35 125 25 q-25 65 -90 55 q-65 -25 -35 -80z"/>
+    <path d="M1220 1330 q85 -40 145 15 q5 70 -75 80 q-95 -5 -70 -95z"/><path d="M1230 150 q95 -35 155 30 q-10 65 -95 60 q-85 -20 -60 -90z"/>
   </g>
-  <!-- hedgerows -->
-  <g stroke="#7fa35c" stroke-width="5" fill="none" stroke-dasharray="14 6">
-    <path d="M0 520 L330 560"/><path d="M120 900 L400 1010"/><path d="M200 300 L420 240"/>
+  <g stroke="#7fa35c" stroke-width="5" fill="none" stroke-dasharray="14 6"><path d="M0 560 L300 600"/><path d="M60 980 L300 1080"/><path d="M120 330 L330 280"/></g>
+  <g stroke="#cbb994" stroke-width="4" fill="none"><path d="M260 790 L230 560 L170 330"/><path d="M260 790 L250 1050 L300 1280"/><path d="M110 795 L90 1150"/></g>
+
+  <!-- hill -->
+  <g fill="none" stroke="#b5a77f" stroke-width="2">
+    <path d="M1300 480 C1380 440 1480 470 1495 570 C1500 700 1485 860 1410 930 C1340 960 1290 900 1275 800 C1262 700 1250 560 1300 480z"/>
+    <path d="M1340 550 C1395 530 1450 570 1460 650 C1462 740 1435 815 1390 835 C1345 845 1320 790 1318 720 C1315 650 1310 585 1340 550z"/>
+    <path d="M1375 625 C1405 615 1425 655 1425 700 C1420 748 1402 765 1380 760 C1358 752 1354 700 1358 660 C1360 640 1365 628 1375 625z"/>
   </g>
-  <!-- farm tracks -->
-  <g stroke="#cbb994" stroke-width="4" fill="none">
-    <path d="M300 760 L260 520 L200 300"/><path d="M300 760 L280 1000 L350 1250"/><path d="M130 770 L100 1100"/>
+  <text x="1355" y="705" font-size="20" fill="#7a6a40">HILL</text><text x="1330" y="730" font-size="14" fill="#7a6a40">AA · mortars</text>
+
+  <!-- river -->
+  <path d="M1095 0 C1060 260 1150 470 1100 690 S1050 1010 1105 1500" fill="none" stroke="#7fb2d9" stroke-width="36"/>
+  <text x="1120" y="380" font-size="20" fill="#3d78a8" transform="rotate(80 1120 380)">river</text>
+
+  <!-- ZONES, outer to inner -->
+  <!-- ribbons along the roads out + villa quarters (detached houses, gardens) -->
+  <g fill="#f1e6cf">
+    <path d="M330 760 L520 740 L540 800 L330 815z"/>                              <!-- ribbon on the west road -->
+    <path d="M450 190 L560 300 L640 360 L560 420 L470 330 L400 230z"/>              <!-- villas on the north-west road -->
+    <path d="M360 540 L520 520 L520 740 L360 740z"/>                                <!-- villa quarter west -->
+    <path d="M300 1430 L420 1240 L480 1270 L360 1460z"/>                            <!-- ribbon on the south-west road -->
+    <path d="M1010 120 L1060 120 L1055 380 L1000 380z"/>                            <!-- ribbon on the north road -->
+    <path d="M1135 640 L1270 630 L1280 850 L1140 860z"/>                            <!-- bridgehead suburb -->
+    <path d="M1130 1160 L1260 1185 L1250 1260 L1130 1235z"/>                        <!-- south bridge suburb -->
+  </g>
+  <!-- postwar estates (slab blocks) -->
+  <path d="M400 960 L560 980 L600 1120 L470 1220 L380 1120z" fill="#e6dccb"/>
+  <g fill="#c8b89c"><rect x="420" y="990" width="70" height="16"/><rect x="430" y="1040" width="80" height="16"/><rect x="520" y="1010" width="16" height="70"/>
+    <rect x="440" y="1100" width="80" height="16"/><rect x="420" y="1150" width="16" height="50"/><rect x="540" y="1100" width="16" height="60"/></g>
+  <!-- industry along the railway and the river -->
+  <path d="M800 1160 L1060 1130 L1070 1360 L880 1380 L760 1290z" fill="#d9d3cc" stroke="#b9b0a6" stroke-width="2"/>
+  <g fill="#b4aca2"><rect x="850" y="1200" width="90" height="50"/><rect x="960" y="1190" width="70" height="40"/><rect x="900" y="1280" width="120" height="45"/></g>
+  <rect x="610" y="420" width="90" height="70" fill="url(#allot)"/>
+  <!-- 19th-century belt: continuous perimeter blocks right outside the old walls, every landward side -->
+  <path d="M1070 330 L960 300 L840 335 L760 310 L660 365 L600 470 L540 560 L525 690 L470 770 L545 830 L565 935 L625 1040 L700 1110 L820 1150 L960 1132 L1072 1122z" fill="#e3c9a4"/>
+  <!-- old town: densest -->
+  <path d="M722 705 L762 602 L842 548 L932 518 L1052 540 L1076 652 L1072 832 L1022 922 L922 977 L832 952 L762 882 L730 800z" fill="#cfa77a"/>
+
+  <!-- RAILWAY: branch line to the station south of the belt, siding into industry -->
+  <path d="M0 1360 C260 1290 470 1210 690 1170" fill="none" stroke="#555" stroke-width="5"/>
+  <path d="M0 1360 C260 1290 470 1210 690 1170" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="10 10"/>
+  <path d="M660 1176 C760 1170 860 1190 940 1260" fill="none" stroke="#555" stroke-width="3"/>
+  <rect x="660" y="1140" width="70" height="20" fill="#a05a3c"/><text x="650" y="1130" font-size="14" fill="#444">station</text>
+
+  <!-- STREETS -->
+  <g fill="none" stroke="#fbf7ee" stroke-linecap="round" stroke-linejoin="round">
+    <!-- main roads out (widest) -->
+    <g stroke-width="11">
+      <path d="M700 760 C600 768 520 772 420 780 S180 790 0 800"/>                         <!-- W, to the next village -->
+      <path d="M735 585 C660 500 580 420 500 320 S360 130 300 0"/>                         <!-- NW -->
+      <path d="M735 895 C660 980 590 1060 500 1180 S330 1420 280 1500"/>                   <!-- SW -->
+      <path d="M1000 548 C1015 420 1025 260 1035 0"/>                                       <!-- N along the river -->
+      <path d="M1000 935 C1025 1050 1040 1200 1045 1500"/>                                  <!-- S along the river -->
+      <path d="M1065 735 C1160 732 1300 715 1500 700"/>                                     <!-- E over bridge N -->
+      <path d="M1040 1170 C1180 1200 1340 1240 1500 1265"/>                                 <!-- E over bridge S -->
+    </g>
+    <!-- the old wall line, now a boulevard (partial, irregular, ends at the river) -->
+    <path stroke-width="9" d="M1062 505 L932 482 L822 517 L732 577 L692 692 L702 822 L742 907 L822 982 L932 1012 L1066 992"/>
+    <!-- 19th-century belt streets: perpendicular to the main roads and joining them, not one loop -->
+    <g stroke-width="6">
+      <path d="M560 560 C620 600 650 640 672 690"/><path d="M600 470 C650 520 690 545 720 560"/><path d="M700 410 C720 460 740 500 770 540"/>
+      <path d="M820 345 C830 410 840 460 850 515"/><path d="M940 340 C945 400 950 450 960 510"/><path d="M700 410 C780 380 880 360 1000 360"/>
+      <path d="M545 650 C600 655 630 665 668 680"/><path d="M530 860 C590 850 630 845 672 835"/><path d="M560 960 C620 930 660 915 705 905"/>
+      <path d="M640 1040 C680 1000 720 970 760 950"/><path d="M760 1110 C780 1060 800 1020 815 975"/><path d="M880 1140 C885 1080 890 1040 895 990"/>
+      <path d="M980 1130 C985 1070 990 1030 995 985"/><path d="M640 1040 C720 1090 820 1120 1000 1110"/><path d="M540 700 C520 620 540 560 600 470"/>
+      <path d="M700 1170 C705 1100 740 1060 760 1110"/>                                     <!-- station street towards the core -->
+    </g>
+    <!-- old town lanes (crooked, short) -->
+    <g stroke-width="5">
+      <path d="M760 600 C800 640 830 670 850 690"/><path d="M880 552 C885 600 890 640 900 682"/><path d="M990 575 C970 620 960 650 960 680"/>
+      <path d="M1045 650 C1010 670 990 680 975 690"/><path d="M712 720 C760 715 800 712 845 712"/><path d="M720 830 C770 800 810 780 845 760"/>
+      <path d="M800 905 C830 860 850 820 865 770"/><path d="M940 925 C935 860 940 810 945 770"/><path d="M1060 840 C1030 800 1000 780 975 765"/>
+      <path d="M770 650 C830 600 900 580 990 575"/><path d="M760 870 C850 900 960 890 1040 860"/>
+    </g>
+    <!-- villa and estate streets (curving, looser) -->
+    <g stroke-width="5">
+      <path d="M470 270 C520 320 560 340 600 380"/><path d="M520 250 C510 300 520 360 560 410"/><path d="M380 600 C430 640 470 650 520 650"/>
+      <path d="M370 700 C430 690 470 680 520 690"/><path d="M440 540 C430 600 430 650 440 740"/><path d="M400 1000 C470 990 520 1000 560 1040"/>
+      <path d="M1150 680 C1200 670 1240 665 1270 660"/><path d="M1150 800 C1200 795 1240 790 1275 790"/><path d="M1205 640 C1205 720 1210 780 1210 855"/>
+    </g>
   </g>
 
-  <!-- river (flows north to south, east of the old core) -->
-  <path d="M1085 0 C1040 260 1140 470 1080 690 S1030 1010 1090 1500" fill="none" stroke="#7fb2d9" stroke-width="34"/>
-  <text x="1105" y="420" font-size="20" fill="#3d78a8" transform="rotate(80 1105 420)">river</text>
-
-  <!-- quarters (fills under the streets) -->
-  <path d="M780 600 L900 575 L1035 610 L1060 700 L1030 850 L930 880 L800 860 L760 740z" fill="#e8d2b0" stroke="#c9a87a" stroke-width="2"/>
-  <path d="M520 460 L770 560 L760 735 L520 735 L470 600z" fill="#efe1c8"/>
-  <path d="M520 770 L760 770 L790 865 L700 960 L500 960 L470 860z" fill="#efe1c8"/>
-  <path d="M560 300 L700 420 L760 540 L600 470 L500 360z" fill="#f3ead8"/>
-  <path d="M330 940 L480 900 L500 1060 L360 1080z" fill="#f3ead8"/>
-  <path d="M760 1045 L975 995 L1010 1240 L820 1260z" fill="#d9d3cc" stroke="#b9b0a6" stroke-width="2"/>
-  <path d="M1110 640 L1220 630 L1230 800 L1115 810z" fill="#f3ead8"/>
-  <rect x="380" y="470" width="110" height="80" fill="url(#allot)"/>
-  <path d="M300 560 L440 580 L430 700 L290 690z" fill="url(#orchard)"/>
-
-  <!-- railway with station and the industrial strip -->
-  <!-- branch line: ends at the station; a siding into the industry -->
-  <path d="M0 1330 C300 1250 520 1130 720 1062" fill="none" stroke="#555" stroke-width="5"/>
-  <path d="M0 1330 C300 1250 520 1130 720 1062" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="10 10"/>
-  <path d="M680 1080 C760 1080 840 1100 900 1160" fill="none" stroke="#555" stroke-width="3"/>
-  <rect x="690" y="1072" width="60" height="18" fill="#a05a3c"/>
-  <text x="660" y="1112" font-size="15" fill="#444">station</text>
-
-  <!-- house rows: brown casing under streets = continuous street frontage (core) / dotted = detached houses -->
-  <g fill="none" stroke="#b07a4f" stroke-width="22" stroke-linecap="butt">
-    <path d="M790 740 C820 735 830 730 845 728"/>
-    <path d="M860 660 C880 630 900 612 930 600"/>
-    <path d="M960 680 C990 650 1010 630 1020 620"/>
-    <path d="M975 760 C1000 790 1005 820 1010 850"/>
-    <path d="M845 790 C820 820 805 840 800 860"/>
-    <path d="M920 600 C940 640 945 660 950 678"/>
-    <path d="M790 660 C810 700 820 715 840 725"/>
-    <path d="M880 765 C895 800 905 830 930 878"/>
-    <path d="M980 730 L1030 720"/>
-  </g>
-  <g fill="none" stroke="#c49a6c" stroke-width="16" stroke-dasharray="12 9">
-    <!-- 19th-century quarter NW (grid, rotated) -->
-    <path d="M540 520 L760 600"/><path d="M520 590 L760 660"/><path d="M510 660 L755 715"/>
-    <path d="M590 500 L560 730"/><path d="M670 540 L650 735"/>
-    <!-- 19th-century quarter SW -->
-    <path d="M500 800 L780 800"/><path d="M490 870 L760 880"/><path d="M510 935 L700 940"/>
-    <path d="M580 775 L560 955"/><path d="M670 775 L660 955"/>
-    <!-- east bank suburb -->
-    <path d="M1120 670 L1220 665"/><path d="M1125 760 L1225 760"/>
-  </g>
-  <g fill="#c49a6c">
-    <!-- villas along the north-west road -->
-    <rect x="565" y="335" width="16" height="14"/><rect x="600" y="370" width="16" height="14"/><rect x="540" y="380" width="16" height="14"/>
-    <rect x="640" y="410" width="16" height="14"/><rect x="580" y="425" width="16" height="14"/><rect x="510" y="340" width="16" height="14"/>
-    <!-- blocks of flats (south-west fringe) -->
-    <rect x="350" y="960" width="60" height="16"/><rect x="350" y="1000" width="60" height="16"/><rect x="420" y="950" width="16" height="60"/><rect x="380" y="1040" width="70" height="16"/>
-  </g>
-
-  <!-- streets -->
-  <g fill="none" stroke="#fbf7ee" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
-    <!-- R1 west main road to the next village (farmstead on it) -->
-    <path d="M840 728 C700 742 600 744 480 752 S200 765 0 785"/>
-    <!-- R2 north-west road -->
-    <path d="M860 660 C780 560 700 450 600 370 S330 150 230 0"/>
-    <!-- R3 south-west road -->
-    <path d="M845 790 C760 870 640 980 500 1120 S260 1400 180 1500"/>
-    <!-- R4 north along the river -->
-    <path d="M960 600 C985 470 995 300 1015 0"/>
-    <!-- R5 south along the river -->
-    <path d="M940 875 C975 990 990 1100 1000 1500"/>
-    <!-- core lanes (crooked) -->
-    <path d="M790 740 C800 700 820 680 860 660"/><path d="M930 600 C945 640 950 660 960 680"/>
-    <path d="M975 760 C1000 800 1003 830 1010 850"/><path d="M880 765 C900 810 910 840 930 878"/>
-    <path d="M800 860 C840 850 880 870 930 878"/><path d="M1020 620 C990 650 975 665 960 680"/>
-    <!-- grid streets -->
-    <path d="M540 520 L760 600"/><path d="M520 590 L760 660"/><path d="M510 660 L755 715"/><path d="M590 500 L560 730"/><path d="M670 540 L650 735"/>
-    <path d="M500 800 L780 800"/><path d="M490 870 L760 880"/><path d="M510 935 L700 940"/><path d="M580 775 L560 955"/><path d="M670 775 L660 955"/>
-    <path d="M720 1062 L700 960"/>
-    <!-- east bank -->
-    <path d="M1135 715 C1250 710 1350 700 1500 690"/><path d="M1120 670 L1220 665"/><path d="M1125 760 L1225 760"/><path d="M1175 665 L1180 805"/>
-    <path d="M1125 1158 C1250 1180 1380 1215 1500 1235"/>
-  </g>
-  <g fill="none" stroke="#cbb994" stroke-width="1.5">
-    <path d="M840 728 C700 742 600 744 480 752 S200 765 0 785"/>
-  </g>
-
-  <!-- market square (trapezoid) + town hall + church -->
-  <path d="M850 688 L962 678 L978 752 L842 762z" fill="#f0e6cf" stroke="#9a7a50" stroke-width="2"/>
-  <rect x="884" y="690" width="44" height="22" fill="#8a4b2e"/>
-  <text x="868" y="732" font-size="14" fill="#5a3a20">town hall</text>
-  <text x="868" y="750" font-size="12" fill="#7a5a3a">market square</text>
-  <path d="M992 694 h26 v-12 h10 v12 h20 v10 h-20 v26 h-10 v-26 h-26z" fill="#6b5a7a"/>
-  <text x="988" y="748" font-size="13" fill="#4b3a5a">church</text>
+  <!-- market square + town hall + church -->
+  <path d="M845 690 L960 678 L978 752 L838 765z" fill="#f0e6cf" stroke="#9a7a50" stroke-width="2"/>
+  <rect x="880" y="692" width="44" height="22" fill="#8a4b2e"/>
+  <text x="862" y="734" font-size="13" fill="#5a3a20">town hall</text><text x="858" y="752" font-size="11" fill="#7a5a3a">market square</text>
+  <path d="M1000 694 h24 v-12 h10 v12 h18 v10 h-18 v26 h-10 v-26 h-24z" fill="#6b5a7a"/><text x="994" y="660" font-size="13" fill="#4b3a5a">church</text>
 
   <!-- bridges -->
-  <g stroke="#666" stroke-width="13"><line x1="1048" y1="718" x2="1132" y2="715"/><line x1="1052" y1="1150" x2="1128" y2="1159"/></g>
-  <g stroke="#fbf7ee" stroke-width="7"><line x1="1030" y1="722" x2="1135" y2="715"/><line x1="1000" y1="1150" x2="1128" y2="1159"/></g>
-  <text x="1046" y="700" font-size="14" fill="#333">bridge N</text>
-  <text x="1046" y="1135" font-size="14" fill="#333">bridge S</text>
+  <g stroke="#666" stroke-width="15"><line x1="1072" y1="736" x2="1132" y2="733"/><line x1="1080" y1="1178" x2="1130" y2="1186"/></g>
+  <g stroke="#fbf7ee" stroke-width="9"><line x1="1062" y1="736" x2="1140" y2="733"/><line x1="1040" y1="1172" x2="1140" y2="1188"/></g>
+  <text x="1070" y="718" font-size="13" fill="#333">bridge N</text><text x="1060" y="1158" font-size="13" fill="#333">bridge S</text>
 
-  <!-- farmstead on R1 -->
-  <g fill="#b07a4f"><rect x="110" y="745" width="30" height="16"/><rect x="150" y="745" width="14" height="30"/><rect x="112" y="795" width="26" height="12"/></g>
-  <text x="90" y="735" font-size="13" fill="#5a3a20">farmstead</text>
+  <!-- farmstead on the west road -->
+  <g fill="#b07a4f"><rect x="100" y="770" width="30" height="16"/><rect x="140" y="770" width="14" height="30"/><rect x="102" y="815" width="26" height="12"/></g>
+  <text x="80" y="760" font-size="13" fill="#5a3a20">farmstead</text>
 
-  <!-- the battle overlay: where the radials enter the built-up area -->
-  <g fill="none" stroke="#c0392b" stroke-width="3" stroke-dasharray="10 8">
-    <path d="M500 330 C470 460 455 600 470 760 S480 1000 520 1110"/>
-  </g>
-  <g font-size="22" fill="#c0392b" font-weight="bold"><text x="468" y="760">✕</text><text x="566" y="398">✕</text><text x="508" y="1110">✕</text></g>
-  <text x="300" y="250" font-size="14" fill="#c0392b">defenders' main line: the edge of the town, roadblocks ✕ on the three west roads</text>
-  <text x="40" y="620" font-size="20" fill="#6a7a4a">OPEN FIELDS (attack approach) →</text>
+  <!-- battle overlay -->
+  <path d="M470 180 C400 340 350 520 345 700 S360 1000 400 1240" fill="none" stroke="#c0392b" stroke-width="3" stroke-dasharray="10 8"/>
+  <g font-size="22" fill="#c0392b" font-weight="bold"><text x="340" y="788">✕</text><text x="452" y="268">✕</text><text x="418" y="1235">✕</text></g>
+  <text x="120" y="455" font-size="13" fill="#c0392b">defenders' main line: the town's western edge,</text>
+  <text x="120" y="472" font-size="13" fill="#c0392b">roadblocks ✕ on the three west roads</text>
+  <text x="20" y="650" font-size="19" fill="#6a7a4a">OPEN FIELDS →</text>
 
-  <!-- quarter labels -->
-  <g font-size="15" fill="#5a4a30">
-    <text x="800" y="625">OLD TOWN</text>
-    <text x="560" y="625" transform="rotate(14 560 625)">19th-c quarter</text>
-    <text x="545" y="905">19th-c quarter</text>
-    <text x="520" y="320">villas</text>
-    <text x="300" y="935">flats</text>
-    <text x="790" y="1160">industry</text>
-    <text x="380" y="465">allotments</text>
-    <text x="300" y="715">orchard</text>
-    <text x="1130" y="830">suburb</text>
+  <!-- zone labels -->
+  <g font-size="14" fill="#4a3a20">
+    <text x="760" y="640" font-weight="bold">OLD TOWN</text>
+    <text x="560" y="830" transform="rotate(-80 560 830)">19th-century belt</text>
+    <text x="800" y="400">19th-century belt</text>
+    <text x="420" y="360">villas</text><text x="380" y="580">villas</text>
+    <text x="420" y="950">estate</text>
+    <text x="880" y="1360">industry</text>
+    <text x="610" y="412">allotments</text>
+    <text x="1150" y="880">suburb</text>
+    <text x="700" y="550" font-size="12" fill="#7a5a3a">boulevard (old walls)</text>
   </g>
 
-  <!-- frame, scale, north -->
+  <!-- frame, north, scale, legend -->
   <rect x="0" y="0" width="1500" height="1500" fill="none" stroke="#888" stroke-width="2"/>
-  <g transform="translate(1540,1380)"><line x1="0" y1="0" x2="0" y2="-60" stroke="#333" stroke-width="3"/><text x="-7" y="-68" font-size="20">N</text></g>
+  <g transform="translate(1550,1380)"><line x1="0" y1="0" x2="0" y2="-60" stroke="#333" stroke-width="3"/><text x="-7" y="-68" font-size="20">N</text></g>
   <g transform="translate(1530,1460)"><line x1="0" y1="0" x2="100" y2="0" stroke="#333" stroke-width="4"/><text x="20" y="22" font-size="15">100 m</text></g>
-  <g font-size="14" fill="#333" transform="translate(1520,60)">
-    <text y="0" font-weight="bold">legend</text>
-    <rect y="12" width="40" height="10" fill="#b07a4f"/><text x="48" y="22">terraced rows</text>
-    <rect y="34" width="40" height="10" fill="#c49a6c"/><text x="48" y="44">detached houses</text>
-    <rect y="56" width="40" height="8" fill="#fbf7ee" stroke="#ccc"/><text x="48" y="64">street</text>
-    <line x1="0" y1="82" x2="40" y2="82" stroke="#555" stroke-width="5"/><text x="48" y="87">railway</text>
-    <rect y="98" width="40" height="10" fill="#d9d3cc"/><text x="48" y="108">industry</text>
+  <g font-size="13" fill="#333" transform="translate(1520,40)">
+    <text y="0" font-weight="bold">built-up land</text>
+    <rect y="12" width="36" height="12" fill="#cfa77a"/><text x="44" y="23">old town (terraced)</text>
+    <rect y="32" width="36" height="12" fill="#e3c9a4"/><text x="44" y="43">19th-c blocks</text>
+    <rect y="52" width="36" height="12" fill="#f1e6cf"/><text x="44" y="63">villas / ribbons</text>
+    <rect y="72" width="36" height="12" fill="#e6dccb"/><text x="44" y="83">estate</text>
+    <rect y="92" width="36" height="12" fill="#d9d3cc"/><text x="44" y="103">industry</text>
+    <rect y="112" width="36" height="9" fill="#fbf7ee" stroke="#bbb"/><text x="44" y="121">street</text>
+    <line x1="0" y1="138" x2="36" y2="138" stroke="#555" stroke-width="5"/><text x="44" y="143">railway</text>
   </g>
-  <text x="0" y="-14" font-size="22" font-weight="bold" fill="#333">City battle — town plan v2 (2-D sketch for approval, 1.5 km)</text>
+  <text x="0" y="-14" font-size="22" font-weight="bold" fill="#333">City battle — town plan v3 (2-D sketch for approval, 1.5 km)</text>
 </svg>
