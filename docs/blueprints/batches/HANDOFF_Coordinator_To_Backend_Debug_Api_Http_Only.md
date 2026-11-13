@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (VM): AUTONOMOUS — the AI debug API HTTP-only, self-describing (R-4223)
 
-**For:** a backend VM lane, ⛔ **not before the threading / parallelization programme (`exp/threaded-build` + `exp/next-conversions`, CE-4462…CE-4522) is merged into the lanes** — it rewrites the same `DebugApiHost` route table (route sides, new routes). **From:** coordinator. **Dispatched at `<stamp>`** — scope frozen.
+**For:** a backend VM lane, ⛔ **not before the threading / parallelization programme (`exp/threaded-build` + `exp/next-conversions`, CE-4462…CE-4522) is merged into the lanes** — it rewrites the same `DebugApiHost` route table (route sides, new routes). **From:** coordinator. **Dispatched at `042e4c965`** — scope frozen.
 🔒 User, `2026-11-13`: *"ok, lets drop the MCP"* · *"unify and share, no duplication of information, we can keep generating but from single
 source"* · *"guide generation is still ok but i guess this is what the GET help would return"*.
 
