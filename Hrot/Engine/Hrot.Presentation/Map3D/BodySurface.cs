@@ -15,17 +15,92 @@ public enum SurfaceKind { Plain = 0, Woodland = 1, Fleck = 2, Face = 3, Desert =
 /// </summary>
 public sealed class BodySurface
 {
-    /// <summary>The surface function (<see cref="LitShader.UseSurface"/>): plain unless <c>bodyPattern</c> says otherwise.</summary>
-    public const string Glsl = @"
-uniform int bodyPattern;   // 0 plain, 1 woodland, 2 fleck, 3 face, 4 desert
-uniform vec3 tone1;        // camouflage tones · a face: the hair (brows, beard)
-uniform vec3 tone2;        //                  · a face: the iris
-uniform vec3 tone3;        //                  · a face: the lips
-uniform float patternSeed;
-uniform vec3 faceAxis;     // the side of the head the face is on, and the top of the head (part frame)
-uniform vec3 faceUp;
-uniform vec4 faceLook;     // eye spacing, mouth half-width, beard (0 none, 1 moustache, 2 beard), brow half-height
-uniform vec3 faceMood;     // CE-1177 (U16): brow lift (+ raised, - knitted), mouth open, eye squint; zero = calm
+    /// <summary>The surface function (<see cref="LitShader.UseSurface"/>): plain unless <c>bodyPattern</c> says otherwise.
+    /// ⭐ CE-4555 (§6ak D-5) — in the INSTANCED program the same parameters come from the instance (<see cref="Pack"/> writes them, the
+    /// <c>#ifdef INSTANCED</c> block reads them); the face's axes come from a table of <see cref="AxesOf"/> by <see cref="FaceOn"/>.</summary>
+    public static readonly string Glsl = InstancedParameters() + UniformGlsl;
+
+    private static string InstancedParameters()
+    {
+        static string V(Vector3 v) => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"vec3({v.X:R}, {v.Y:R}, {v.Z:R})");
+        var axis = new string[4]; var up = new string[4];
+        for (int i = 0; i < 4; i++) { var (a, u) = AxesOf((FaceOn)i); axis[i] = V(a); up[i] = V(u); }
+        return "\n#ifdef INSTANCED\n"
+             + "const vec3 bodyFaceAxes[4] = vec3[4](" + string.Join(", ", axis) + ");\n"
+             + "const vec3 bodyFaceUps[4] = vec3[4](" + string.Join(", ", up) + ");\n"
+             + "#define bodyPattern int(instData0.x + 0.5)\n"
+             + "#define patternSeed instData0.y\n"
+             + "#define faceAxis bodyFaceAxes[int(instData0.z + 0.5)]\n"
+             + "#define faceUp bodyFaceUps[int(instData0.z + 0.5)]\n"
+             + "#define tone1 instData1.rgb\n#define tone2 instData2.rgb\n#define tone3 instData3.rgb\n"
+             + "#define faceMood vec3(instData1.w, instData2.w, instData3.w)\n"
+             + "#define faceLook instData4\n"
+             + "#else\n"
+             + "uniform int bodyPattern;\nuniform vec3 tone1;\nuniform vec3 tone2;\nuniform vec3 tone3;\nuniform float patternSeed;\n"
+             + "uniform vec3 faceAxis;\nuniform vec3 faceUp;\nuniform vec4 faceLook;\nuniform vec3 faceMood;\n"
+             + "#endif\n";
+    }
+
+    /// <summary>
+    /// ⭐ CE-4555 — instance data (<see cref="CamouflageData"/>, <see cref="FaceData"/>, <see cref="PlainData"/>) set as THIS surface's uniforms on the
+    /// per-draw program: the batch's per-draw path (a driver that refused the instanced program, and the rail that compares the two pictures) draws
+    /// exactly what the instanced program draws.
+    /// </summary>
+    public void Apply(LitShader shader, in LitInstanceData d)
+    {
+        var kind = (SurfaceKind)(int)(d.D0.X + 0.5f);
+        Kind(shader, kind);
+        if (kind == SurfaceKind.Plain) return;
+        SetRaw(shader, _tone1, ref _t1, new Vector3(d.D1.X, d.D1.Y, d.D1.Z));
+        SetRaw(shader, _tone2, ref _t2, new Vector3(d.D2.X, d.D2.Y, d.D2.Z));
+        SetRaw(shader, _tone3, ref _t3, new Vector3(d.D3.X, d.D3.Y, d.D3.Z));
+        if (kind != SurfaceKind.Face)
+        {
+            if (d.D0.Y != _s) { _s = d.D0.Y; Raylib.SetShaderValue(shader.Shader, _seed, _s, ShaderUniformDataType.Float); }
+            return;
+        }
+        var mood = new Vector3(d.D1.W, d.D2.W, d.D3.W);
+        if (mood != _mood) { _mood = mood; Raylib.SetShaderValue(shader.Shader, _faceMood, mood, ShaderUniformDataType.Vec3); }
+        var (axis, up) = AxesOf((FaceOn)(int)(d.D0.Z + 0.5f));
+        if (axis != _axis) { _axis = axis; Raylib.SetShaderValue(shader.Shader, _faceAxis, axis, ShaderUniformDataType.Vec3); }
+        if (up != _up) { _up = up; Raylib.SetShaderValue(shader.Shader, _faceUp, up, ShaderUniformDataType.Vec3); }
+        if (d.D4 != _look) { _look = d.D4; Raylib.SetShaderValue(shader.Shader, _faceLook, d.D4, ShaderUniformDataType.Vec4); }
+    }
+
+    private static void SetRaw(LitShader shader, int loc, ref Vector3 last, Vector3 v)
+    {
+        if (v == last) return;
+        last = v;
+        Raylib.SetShaderValue(shader.Shader, loc, v, ShaderUniformDataType.Vec3);
+    }
+
+    /// <summary>⭐ CE-4555 — nothing painted, as instance data.</summary>
+    public static LitInstanceData PlainData => default;
+
+    /// <summary>⭐ CE-4555 (§6ak D-5) — camouflage <paramref name="kind"/> as instance data (the same parameters <see cref="Camouflage"/> sets as uniforms).</summary>
+    public static LitInstanceData CamouflageData(SurfaceKind kind, Color t1, Color t2, Color t3, float seed) => new()
+    {
+        D0 = new Vector4((int)kind, seed, 0f, 0f),
+        D1 = new Vector4(t1.R / 255f, t1.G / 255f, t1.B / 255f, 0f),
+        D2 = new Vector4(t2.R / 255f, t2.G / 255f, t2.B / 255f, 0f),
+        D3 = new Vector4(t3.R / 255f, t3.G / 255f, t3.B / 255f, 0f),
+    };
+
+    /// <summary>⭐ CE-4555 (§6ak D-5) — a face as instance data (the same parameters <see cref="Face"/> sets as uniforms).</summary>
+    public static LitInstanceData FaceData(FaceOn on, in FaceLook look, Color hair, Vector3 mood = default) => new()
+    {
+        D0 = new Vector4((int)SurfaceKind.Face, 0f, (int)(on == FaceOn.None ? FaceOn.Front : on), 0f),
+        D1 = new Vector4(hair.R / 255f, hair.G / 255f, hair.B / 255f, mood.X),
+        D2 = new Vector4(look.EyeColour.R / 255f, look.EyeColour.G / 255f, look.EyeColour.B / 255f, mood.Y),
+        D3 = new Vector4(look.Lips.R / 255f, look.Lips.G / 255f, look.Lips.B / 255f, mood.Z),
+        D4 = new Vector4(look.EyeSpacing, look.MouthHalfWidth, (float)look.Beard, look.BrowHalfHeight),
+    };
+
+    private const string UniformGlsl = @"
+// bodyPattern: 0 plain, 1 woodland, 2 fleck, 3 face, 4 desert · tone1..3: camouflage tones; a face: the hair (brows, beard), the iris, the lips
+// faceAxis / faceUp: the side of the head the face is on, and the top of the head (part frame)
+// faceLook: eye spacing, mouth half-width, beard (0 none, 1 moustache, 2 beard), brow half-height
+// faceMood (CE-1177, U16): brow lift (+ raised, - knitted), mouth open, eye squint; zero = calm
 float bodyHash(vec3 p) { p = fract(p * 0.3183099 + vec3(0.11, 0.23, 0.37)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float bodyNoise(vec3 x)
 {

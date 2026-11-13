@@ -4636,7 +4636,7 @@ public sealed class Map3DFrameRail
         finally { Raylib.UnloadImage(image); }
     }
 
-    private static Vector2 FindOpenGround(Fdp.Toolkit.Terrain.TerrainWorld terrain, IWorldQuery query)
+    internal static Vector2 FindOpenGround(Fdp.Toolkit.Terrain.TerrainWorld terrain, IWorldQuery query)
     {
         var mid = (terrain.BoundsMin + terrain.BoundsMax) / 2f;
         for (float r = 0f; r < 400f; r += 6f)

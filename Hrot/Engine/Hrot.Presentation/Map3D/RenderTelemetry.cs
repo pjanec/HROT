@@ -90,6 +90,15 @@ public static class RenderTelemetry
                     ["triangles"] = Fdp.Toolkit.Vis3D.TerrainDrawStats.Triangles, ["meshes"] = Fdp.Toolkit.Vis3D.TerrainDrawStats.Meshes,
                     ["residentMb"] = Math.Round(Fdp.Toolkit.Vis3D.TerrainDrawStats.ResidentBytes / 1048576.0, 1),
                 },
+                // ⭐ CE-4555 (§6ak.5 ②) — the body layer: instanced draw calls, instances, bodies by screen-size band (CE-4557), doors, the pick's work (CE-4558)
+                ["bodies"] = new JsonObject
+                {
+                    ["drawCalls"] = Fdp.Toolkit.Vis3D.BodyDrawStats.DrawCalls, ["instances"] = Fdp.Toolkit.Vis3D.BodyDrawStats.Instances,
+                    ["drawn"] = Fdp.Toolkit.Vis3D.BodyDrawStats.Bodies, ["doors"] = Fdp.Toolkit.Vis3D.BodyDrawStats.Doors,
+                    ["full"] = Fdp.Toolkit.Vis3D.BodyDrawStats.Full, ["far"] = Fdp.Toolkit.Vis3D.BodyDrawStats.Far, ["hidden"] = Fdp.Toolkit.Vis3D.BodyDrawStats.Hidden,
+                    ["doorsHidden"] = Fdp.Toolkit.Vis3D.BodyDrawStats.DoorsHidden,
+                    ["pickBoxesTested"] = Fdp.Toolkit.Vis3D.BodyDrawStats.PickBoxesTested, ["picks"] = Fdp.Toolkit.Vis3D.BodyDrawStats.Picks,
+                },
                 ["memory"] = new JsonObject
                 {
                     ["workingSetMb"] = Math.Round(Environment.WorkingSet / 1048576.0, 1), ["gcHeapMb"] = Math.Round(GC.GetTotalMemory(false) / 1048576.0, 1),

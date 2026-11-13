@@ -129,6 +129,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         LitShader.UseSurface(BodySurface.Glsl);   // ⭐ CE-1101 (§6r) — the shader paints camouflage and faces
         var shader = LitShader.Shared;
         _surface.BeginFrame(shader);
+        _batch.Begin();   // ⭐ CE-4555
         FacesPainted = CamoPainted = 0;
         var tkb = _tkb();
 
@@ -346,8 +347,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         }
         DrawAmbient(world, tkb, shader, simTime);   // ⭐ CE-4031 (AQ93 §15.8) — SUMO's far people and cars, as ours
         _surface.Plain(shader);   // ⭐ CE-1101 — every later draw (and the next frame's terrain) is plain
-        DrawCarried(world, shader, wreckOf: e => Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e));   // ⭐ CE-1085 — pass 2
+        DrawCarried(world, shader);   // ⭐ CE-1085 — pass 2 (⭐ CE-4555 — no per-frame closure: a wreck is read inside)
         DrawRopes(world, shader, simTime);   // ⭐ CE-1119 (§6w AB-V5) — pass 3: the fast ropes, and the cut ones lying where they fell
+        _batch.Flush(shader, _applySurface ??= d => _surface.Apply(LitShader.Shared, d));   // ⭐ CE-4555 (§6ak.2) — everything above, one instanced call per mesh
+        BodyDrawStats.Record(_batch.DrawCalls, _batch.Instances, BodiesDrawn, DoorsDrawn);
         _teamPartner.Clear();
         _motion.EndFrame(_drawn);
         _motion.EndFrame(_ambientDrawn);
@@ -452,9 +455,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
             var tint = outfit is { } dress && Outfits.ColourOfPart(dress, pi) is { } worn ? worn : PartColour(part.Colour, colour, wreck);   // ⭐ CE-1099
             if (look.Toy && !wreck) tint = part.Colour == ColourRole.Dark ? new Color(200, 90, 15, 255) : BlockFigure.ToyOrange;   // ⭐ CE-1173 (U12)
-            Paint(shader, outfit, pi, part.Face, camoSeed);   // ⭐ CE-1101 (§6r) — the shader paints his camouflage or his face
-            Raylib.DrawMesh(mesh, shader.Tinted(tint), model);
-            _surface.Plain(shader);
+            // ⭐ CE-1101 (§6r) — the shader paints his camouflage or his face; ⭐ CE-4555 (§6ak D-4, D-5) — as this instance's data, into the batch
+            Submit(mesh, model, tint, Paint(outfit, pi, part.Face, camoSeed));
             PartsDrawn++;
             if (part.Face != FaceOn.None) DrawFace(part.Face, placed, look.Soldier, colour, shader, outfit);   // ⭐ CE-1097 (§6o)
             for (int k = 0; k < details; k++)   // ⭐ CE-1099 (§6q) — the outfit's details on this part
@@ -463,14 +465,14 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                     var d = _details[k];
                     var local = Matrix4x4.CreateScale(d.Extent) * Matrix4x4.CreateTranslation(d.Centre);
                     if (d.Turned) local *= BlockFigure.FaceFrame(headFace);
-                    Raylib.DrawMesh(_cube, shader.Tinted(d.Colour), HrotToRaylib.ModelFromHrot(local * placed));
+                    Submit(_cube, HrotToRaylib.ModelFromHrot(local * placed), d.Colour, BodySurface.PlainData);
                     DetailsDrawn++;
                 }
             for (int k = 0; k < stains; k++)   // ⭐ CE-1098 (§6p) — the blood spots on this part
                 if (_stains[k].Part == pi)
                 {
-                    Raylib.DrawMesh(_cube, shader.Tinted(_stains[k].Char ? Charred : _stains[k].Fresh ? BloodFresh : BloodDark),
-                                    HrotToRaylib.ModelFromHrot(BlockFigure.StainDetail(_stains[k], placed)));
+                    Submit(_cube, HrotToRaylib.ModelFromHrot(BlockFigure.StainDetail(_stains[k], placed)),
+                           _stains[k].Char ? Charred : _stains[k].Fresh ? BloodFresh : BloodDark, BodySurface.PlainData);
                     StainsDrawn++;
                 }
         }
@@ -890,13 +892,17 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// the surface below, its spare length coiled at its foot. A rope that stops hanging was CUT: it lies in a heap where it fell for
     /// <see cref="CutRopeSeconds"/>.
     /// </summary>
+    private EntityRepository? _ropeQueryWorld;
+    private EntityQuery? _ropeQuery;
+
     private void DrawRopes(EntityRepository world, LitShader shader, double simTime)
     {
         _ropesNow.Clear();
-        var query = Fdp.Toolkit.World.WorldQuery.Of(world);
+        Fdp.Toolkit.World.IWorldQuery? query = null;   // ⭐ CE-4555 — fetched only when a rope needs it (WorldQuery.Of builds a view each call)
         void Hang(Entity carrier, int index)
         {
             if (_ropesNow.ContainsKey((carrier, index))) return;
+            query ??= Fdp.Toolkit.World.WorldQuery.Of(world);
             var probe = new Fdp.Toolkit.Motion.Descent { Anchor = carrier, AnchorIndex = (byte)index };
             if (!Fdp.Toolkit.Motion.DescentRules.TryAnchor(world, probe, out var top, out _, out _)) return;
             float surface = query != null ? Fdp.Toolkit.Motion.DescentRules.HighestSurface(query, top.X, top.Y) : 0f;
@@ -906,13 +912,20 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             _ropesNow[(carrier, index)] = (top, bottom, length);
         }
         if (world.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.NavigationStatus>())
-            foreach (var c in world.Query().With<Fdp.Toolkit.Navigation.NavigationStatus>().With<SimTransform>().Build())
+        {
+            if (!ReferenceEquals(world, _ropeQueryWorld))   // ⭐ CE-4555 — built once per world (it was built every frame)
+            {
+                _ropeQueryWorld = world;
+                _ropeQuery = world.Query().With<Fdp.Toolkit.Navigation.NavigationStatus>().With<SimTransform>().Build();
+            }
+            foreach (var c in _ropeQuery!)
             {
                 if (world.GetComponentRO<Fdp.Toolkit.Navigation.NavigationStatus>(c).Phase != Fdp.Toolkit.Navigation.NavigationPhase.Roping) continue;
                 int ropes = Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(world, c, out var t) && t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.CarrierDefDto>() is { RopeAnchors.Count: > 0 } def
                     ? def.RopeAnchors.Count : 2;
                 for (int k = 0; k < ropes; k++) Hang(c, k);
             }
+        }
         foreach (var (carrier, index) in _ropeUsers) Hang(carrier, index);
 
         foreach (var (top, bottom, length) in _ropesNow.Values)
@@ -927,13 +940,15 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         foreach (var (key, rope) in _ropesOut)
             if (!_ropesNow.ContainsKey(key))
             {
+                query ??= Fdp.Toolkit.World.WorldQuery.Of(world);
                 float surface = query != null ? Fdp.Toolkit.Motion.DescentRules.HighestSurface(query, rope.Top.X, rope.Top.Y) : rope.Bottom.Z;
                 if (surface > rope.Top.Z) surface = rope.Bottom.Z;
                 _cutRopes.Add((new Vector3(rope.Top.X, rope.Top.Y, surface), rope.Top, rope.Length, simTime));
             }
         _ropesOut.Clear();
         foreach (var (key, rope) in _ropesNow) _ropesOut[key] = rope;
-        _cutRopes.RemoveAll(r => simTime < r.At || simTime - r.At > CutRopeSeconds);
+        for (int i = _cutRopes.Count - 1; i >= 0; i--)   // ⭐ CE-4555 — a loop, not RemoveAll with a capturing lambda (a closure every frame)
+            if (simTime < _cutRopes[i].At || simTime - _cutRopes[i].At > CutRopeSeconds) _cutRopes.RemoveAt(i);
         foreach (var (foot, _, length, _) in _cutRopes)   // lying out in a loose S from where it hung, the rest in a low heap at its end
         {
             float run = MathF.Min(length * 0.5f, 8f);
@@ -1121,7 +1136,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         {
             var model = HrotToRaylib.ModelFromHrot(part.BodyTransform(size, kit.Pivots, MortarPose) * MortarAt * body);
             var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
-            Raylib.DrawMesh(mesh, shader.Tinted(PartColour(part.Colour, colour, false)), model);
+            Submit(mesh, model, PartColour(part.Colour, colour, false), BodySurface.PlainData);
             PartsDrawn++;
         }
         _weaponTips[man] = MortarTip(body);
@@ -1305,7 +1320,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     /// <summary>⭐ CE-1085 (N-3) — pass 2: each carried weapon on its bearer's back as his figure was drawn, stowed; not drawn while he
     /// holds it on his shoulder (the figure's tube is it), nor when its bearer was not drawn.</summary>
-    private void DrawCarried(EntityRepository world, LitShader shader, Func<Entity, bool> wreckOf)
+    private void DrawCarried(EntityRepository world, LitShader shader)
     {
         foreach (var (weapon, bearer, look, size, colour) in _carried)
         {
@@ -1332,12 +1347,12 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 frame = Matrix4x4.CreateTranslation(0f, 0f, -middle) * Carriage.TeamFrame(world.GetComponentRO<SimTransform>(bearer), rear);
                 TeamLoadsDrawn++;
             }
-            bool wreck = wreckOf(weapon);
+            bool wreck = Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, weapon);
             foreach (var part in WeaponKits.Kit(look.Weapon, deployed: false).Parts)
             {
                 var model = HrotToRaylib.ModelFromHrot(part.BodyTransform(size) * frame);
                 var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
-                Raylib.DrawMesh(mesh, shader.Tinted(PartColour(part.Colour, colour, wreck)), model);
+                Submit(mesh, model, PartColour(part.Colour, colour, wreck), BodySurface.PlainData);
                 PartsDrawn++;
             }
             CarriedDrawn++;
@@ -1433,7 +1448,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         _drawn.Add(e);
         var (centre, rotation, half) = DoorLeaf3D.Box(leaf, _doors.Angle(e, target, simTime));
         var model = Matrix4x4.CreateScale(half * 2f) * Matrix4x4.CreateFromQuaternion(rotation) * Matrix4x4.CreateTranslation(centre);
-        Raylib.DrawMesh(_cube, shader.Tinted(DoorLeaf3D.ColourOf(state)), HrotToRaylib.ModelFromHrot(model));   // ⭐ CE-1069 — locked tinted
+        Submit(_cube, HrotToRaylib.ModelFromHrot(model), DoorLeaf3D.ColourOf(state), BodySurface.PlainData);   // ⭐ CE-1069 — locked tinted; ⭐ CE-4555 (D-3) batched
         PartsDrawn++;
         DoorsDrawn++;
         if (hasSelection && world.HasComponent<Hrot.Map.Common.Components.SelectionState>(e))
@@ -1510,29 +1525,48 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// ⭐ CE-1099 (§6q) — in his <paramref name="outfit"/>'s skin and hair; no hair when he has none.
     /// <summary>⭐ CE-1101 (docs/DESIGN_Map_3D_Mode.md §6r) — what the shader paints on part <paramref name="index"/> of a man in
     /// <paramref name="outfit"/>: his face on his head, his side's camouflage on a soldier's uniform (legs, torso, arms), else nothing.</summary>
-    private void Paint(LitShader shader, Outfit? outfit, int index, FaceOn face, float camoSeed)
+    private LitInstanceData Paint(Outfit? outfit, int index, FaceOn face, float camoSeed)
     {
-        if (outfit is not { } o) { _surface.Plain(shader); return; }
+        if (outfit is not { } o) return BodySurface.PlainData;
         if (face != FaceOn.None)
         {
-            _surface.Face(shader, face, o.Face, o.Hair, _expression);
             FacesPainted++;
+            return BodySurface.FaceData(face, o.Face, o.Hair, _expression);
         }
-        else if (o.Camo != CamoPattern.None && index is >= 0 and <= 9 and not BlockFigure.HeadIndex)
+        if (o.Camo != CamoPattern.None && index is >= 0 and <= 9 and not BlockFigure.HeadIndex)
         {
             var (t1, t2, t3) = Outfits.CamoTones(o.Camo);
-            _surface.Camouflage(shader, o.Camo switch
+            CamoPainted++;
+            return BodySurface.CamouflageData(o.Camo switch
             {
                 CamoPattern.Woodland => SurfaceKind.Woodland,
                 CamoPattern.Desert => SurfaceKind.Desert,   // ⭐ CE-1235
                 _ => SurfaceKind.Fleck,
             }, t1, t2, t3, camoSeed);
-            CamoPainted++;
         }
-        else _surface.Plain(shader);
+        return BodySurface.PlainData;
     }
 
     private readonly BodySurface _surface = new();
+
+    /// <summary>⭐ CE-4555 (docs/DESIGN_Map_3D_Mode.md §6ak.1, G-2) — every part, face box, outfit detail, stain and door leaf of the frame, drawn at the
+    /// end of <see cref="Draw3D"/> in one instanced call per mesh (it was one <c>DrawMesh</c> each: tens of thousands at the whole-terrain view).</summary>
+    private readonly LitInstanceBatch _batch = new();
+    private int _cubeBucket, _cylinderBucket, _coneBucket;
+    private Action<LitInstanceData>? _applySurface;   // the per-draw path's surface (built once: no per-frame closure)
+
+    /// <summary>⭐ CE-4555 — draw the batch one <c>DrawMesh</c> per instance, as before it (the rail comparing the two pictures).</summary>
+    public bool ForcePerDraw { get => _batch.ForcePerDraw; set => _batch.ForcePerDraw = value; }
+
+    /// <summary>⭐ CE-4555 — the batch's instanced calls and instances of the last frame (the body layer's draw-call counter, §6ak.5 ②).</summary>
+    public int BatchDrawCalls => _batch.DrawCalls;
+    public int BatchInstances => _batch.Instances;
+
+    /// <summary>⭐ CE-4555 (rails) — the instances the last frame put in the batch, before it was drawn: per mesh (0 cube, 1 cylinder, 2 cone).</summary>
+    internal LitInstanceBatch Batch => _batch;
+
+    private void Submit(Mesh mesh, in Matrix4x4 model, Color colour, in LitInstanceData data)
+        => _batch.Add(mesh.VaoId == _cylinder.VaoId ? _cylinderBucket : mesh.VaoId == _cone.VaoId ? _coneBucket : _cubeBucket, model, colour, data);
 
     /// <summary>⭐ CE-1101 (§6r) — heads painted with a face, and uniform parts painted with camouflage, by the last frame (rails).</summary>
     public int FacesPainted { get; private set; }
@@ -1542,11 +1576,11 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     {
         // ⭐ CE-1172 (People Display U11) — a police officer's cap, or the shield man's riot helmet, instead of hair or a soldier's helmet
         var heads = outfit is { Police: true } police ? BlockFigure.PoliceHead(police.Riot) : BlockFigure.FaceParts(soldier);
-        foreach (var d in heads)
+        for (int i = 0; i < heads.Count; i++)   // ⭐ CE-4555 — an index loop: foreach over the IReadOnlyList boxed an enumerator per head, every frame
         {
+            var d = heads[i];
             if (d.Shade == FaceShade.Hair && outfit?.HairStyle == HairStyle.None) continue;
-            Raylib.DrawMesh(_cube, shader.Tinted(FaceColour(d.Shade, uniform, outfit?.Hair)),
-                            HrotToRaylib.ModelFromHrot(BlockFigure.FaceDetail(d, on, head)));
+            Submit(_cube, HrotToRaylib.ModelFromHrot(BlockFigure.FaceDetail(d, on, head)), FaceColour(d.Shade, uniform, outfit?.Hair), BodySurface.PlainData);
             FaceDetailsDrawn++;
         }
     }
@@ -1654,7 +1688,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     private void DrawPart(Mesh mesh, Matrix4x4 local, Color colour, Matrix4x4 body, LitShader shader)
     {
-        Raylib.DrawMesh(mesh, shader.Tinted(colour), HrotToRaylib.ModelFromHrot(local * body));
+        Submit(mesh, HrotToRaylib.ModelFromHrot(local * body), colour, BodySurface.PlainData);
         PartsDrawn++;
     }
 
@@ -1884,8 +1918,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     public static Color? ParseHex(string? hex)
     {
         if (string.IsNullOrWhiteSpace(hex)) return null;
-        var s = hex.Trim().TrimStart('#');
-        if ((s.Length != 6 && s.Length != 8) || !uint.TryParse(s.AsSpan(0, 6), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var rgb))
+        var s = hex.AsSpan().Trim().TrimStart('#');   // ⭐ CE-4555 — a span: every body's colour is read each frame (0 B)
+        if ((s.Length != 6 && s.Length != 8) || !uint.TryParse(s[..6], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var rgb))
             return null;
         return new Color((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb, (byte)255);
     }
@@ -1902,6 +1936,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         _cube = Raylib.GenMeshCube(1f, 1f, 1f);
         _cylinder = Raylib.GenMeshCylinder(0.5f, 1f, 14);
         _cone = Raylib.GenMeshCone(0.5f, 1f, 14);
+        _cubeBucket = _batch.Register(_cube);           // ⭐ CE-4555 — one bucket per mesh
+        _cylinderBucket = _batch.Register(_cylinder);
+        _coneBucket = _batch.Register(_cone);
         _meshes = true;
     }
 
@@ -1911,6 +1948,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         Raylib.UnloadMesh(_cube);
         Raylib.UnloadMesh(_cylinder);
         Raylib.UnloadMesh(_cone);
+        _batch.Dispose();   // ⭐ CE-4555 — its buffers; the meshes are registered again with them
         _meshes = false;
     }
 }

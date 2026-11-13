@@ -442,4 +442,25 @@ namespace Fdp.Toolkit.Vis3D
         public static long ResidentBytes { get; private set; }
         internal static void Record(int triangles, int meshes, long residentBytes) { Triangles = triangles; Meshes = meshes; ResidentBytes = residentBytes; }
     }
+
+    /// <summary>⭐ CE-4555 / CE-4557 / CE-4558 (docs/DESIGN_Map_3D_Mode.md §6ak.5) — the LAST body layer drawn in this process: its instanced draw calls and
+    /// instances, the bodies by screen-size band, the doors drawn and hidden, and the pick's work — read by <c>GET /diagnostics/render</c>.</summary>
+    public static class BodyDrawStats
+    {
+        public static int DrawCalls { get; private set; }
+        public static int Instances { get; private set; }
+        public static int Bodies { get; private set; }
+        public static int Doors { get; private set; }
+        public static int Full { get; private set; }
+        public static int Far { get; private set; }
+        public static int Hidden { get; private set; }
+        public static int DoorsHidden { get; private set; }
+        /// <summary>Boxes the last pick tested, and picks run since the process started (0 work while nothing moves, D-6).</summary>
+        public static int PickBoxesTested { get; private set; }
+        public static long Picks { get; private set; }
+
+        public static void Record(int drawCalls, int instances, int bodies, int doors) { DrawCalls = drawCalls; Instances = instances; Bodies = bodies; Doors = doors; }
+        public static void RecordBands(int full, int far, int hidden, int doorsHidden) { Full = full; Far = far; Hidden = hidden; DoorsHidden = doorsHidden; }
+        public static void RecordPick(int boxesTested) { PickBoxesTested = boxesTested; Picks++; }
+    }
 }

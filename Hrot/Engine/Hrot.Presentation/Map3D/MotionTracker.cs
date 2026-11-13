@@ -175,8 +175,9 @@ public sealed class MotionTracker
     {
         if (++_sweep < 120 || _states.Count <= drawn.Count) return;
         _sweep = 0;
-        foreach (var e in _states.Keys.ToList())
-            if (!drawn.Contains(e)) _states.Remove(e);
+        _gone.Clear();   // ⭐ CE-4555 — a reused list (was ToList every sweep)
+        foreach (var e in _states.Keys) if (!drawn.Contains(e)) _gone.Add(e);
+        foreach (var e in _gone) _states.Remove(e);
     }
 
     /// <summary>⭐ CE-4031 — forgets keyed bodies not seen for a while (<see cref="Advance(long, Vector3, Quaternion, VisualFamily, Vector3, double)"/>).</summary>
@@ -184,9 +185,12 @@ public sealed class MotionTracker
     {
         if (++_keyedSweep < 120 || _keyed.Count <= drawn.Count) return;
         _keyedSweep = 0;
-        foreach (var k in _keyed.Keys.ToList())
-            if (!drawn.Contains(k)) _keyed.Remove(k);
+        _goneKeys.Clear();
+        foreach (var k in _keyed.Keys) if (!drawn.Contains(k)) _goneKeys.Add(k);
+        foreach (var k in _goneKeys) _keyed.Remove(k);
     }
 
     private static float Wrap(float a) => a % (MathF.PI * 2f);
+    private readonly List<Entity> _gone = new();
+    private readonly List<long> _goneKeys = new();
 }
