@@ -5,7 +5,6 @@ using System.Linq;
 using Fdp.Core;
 using Fdp.Core.FlightRecorder;
 using Fdp.Core.FlightRecorder.Metadata;
-using Fdp.Presentation.Panels.ReplayBrowser;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.ReplayBrowser;
 using Fdp.Toolkit.ReplayBrowser.Federation;
@@ -38,7 +37,7 @@ public enum ReviewSourceKind { None, Merged, Part }
 /// ⭐ The cluster still enters AAR through the ONE door (the master plans the replay); this node's replay module is then an idle LISTENER that cleared the world ONCE on entry
 /// (<c>PlaybackTickSystem.Listen</c>) — so the source fills the world only once the node listens (<c>ready</c>), after which nothing of the replay writes it. ⛔ The recorder is untouched.
 /// </summary>
-public sealed class ReviewSource : IDisposable
+public sealed class ReviewSource : IDisposable, IReviewHost
 {
     private readonly Func<EntityRepository?> _world;
     private readonly Func<TransientMasterBuilder?> _builder;
@@ -53,7 +52,6 @@ public sealed class ReviewSource : IDisposable
     private readonly Func<Hrot.UI.Common.Facades.ITimeTransportFacade?> _facade;
 
     private FederatedReplayManager? _manager;
-    private Fdp.Presentation.Panels.ReplayBrowser.FederationPanel? _panel;
     private PlaybackController? _part;
     private int _partNode;
     private ReviewOpening? _pending;
@@ -97,6 +95,30 @@ public sealed class ReviewSource : IDisposable
         Transport = new ReviewSourceTransport(this);
     }
 
+    // ── ⭐ CE-4496 R-2 (docs/DESIGN_Threaded_Review_Source.md §1.1) — the source as an IReviewHost: the review UI reads the model the ONE builder makes from these facts, and
+    //    commands through a channel (InlineReviewChannel with the switch off; the threaded one in mode 3). ⛔ No UI type holds this source or its manager.
+
+    private int _factsKey;
+    private bool _playing;   // what the last Update saw of ▶ (the facts are the source's own state: no read of the UI's facade per model read)
+
+    /// <summary>⭐ The source's facts for the read model — every value cached here, so reading them is 0 B.</summary>
+    public ReviewHostFacts Facts => new(
+        Kind switch { ReviewSourceKind.Merged => ReviewKind.Merged, ReviewSourceKind.Part => ReviewKind.Part, _ => ReviewKind.None },
+        IsOpen, IsPending, Failure, ExerciseId, _partNode, IsOpen ? CurrentFrame : -1, IsOpen ? TotalFrames : 0,
+        IsOpen && _playing, StatusText(), FaceLabel, IsOpen ? FaceIconKey : null, _factsKey);
+
+    /// <summary>The Federation slider: a node's manual offset (re-seeks every node; the merge follows through <c>OnTimeChanged</c>).</summary>
+    public void SetNodeOffsetTicks(int node, long offsetTicks) => _manager?.SetNodeOffset(node, offsetTicks);
+
+    /// <summary>The group's base wall time (a seek of every node).</summary>
+    public void SetBaseWallTicks(long ticks) => _manager?.SetBaseWallTicks(ticks);
+
+    /// <summary>The <i>Local entities shown from</i> checkbox.</summary>
+    public void SetLocalEntitiesShown(int node, bool shown) => _manager?.SetLocalEntitiesShown(node, shown);
+
+    /// <summary>The primary (clock / timeline) node.</summary>
+    public void SetLocalEntitiesProvider(int node) { try { _manager?.SetLocalEntitiesProvider(node); } catch (ArgumentOutOfRangeException) { } }
+
     // ── what is open ─────────────────────────────────────────────────────────────────────────
 
     /// <summary>A participant group is open (loaded) — Merged or a part.</summary>
@@ -119,9 +141,6 @@ public sealed class ReviewSource : IDisposable
 
     /// <summary>The group's exercise.</summary>
     public Guid? ExerciseId => (_open ?? _pending)?.Group.ExerciseId.Value;
-
-    /// <summary>The Replay Browser's federation switch over the open group (its mode, the node offsets); null when none is open.</summary>
-    public Fdp.Presentation.Panels.ReplayBrowser.FederationPanel? SwitchPanel => _panel;
 
     /// <summary>The manager the Recording info / JSON export windows read (the hidden sandboxes); null when none is open.</summary>
     public FederatedReplayManager? Manager => _manager;
@@ -146,7 +165,7 @@ public sealed class ReviewSource : IDisposable
     /// <summary>Fired when the open group, the kind or the part changes (the status bar and the combo re-read their text).</summary>
     public event Action? Changed;
 
-    private void Raise() { _statusKey = -1; Changed?.Invoke(); }
+    private void Raise() { _statusKey = -1; _factsKey++; Changed?.Invoke(); }
 
     /// <summary>The file the review windows (search, diff) read: the primary participant's (Merged) or the part's.</summary>
     public string[] RecordingFiles()
@@ -218,6 +237,7 @@ public sealed class ReviewSource : IDisposable
     public void Update(double dtSeconds)
     {
         bool inReplay = _inReplay();
+        _playing = _facade() is { IsPaused: false };
         if (_open is not null && !inReplay && _readyOnce) { Close(); return; }
         if (_pending is not null && inReplay && _ready()) { var p = _pending; _pending = null; _readyOnce = true; Load(p); }
         if (_open is not null && Kind == ReviewSourceKind.Part) AdvancePart(dtSeconds);
@@ -243,9 +263,7 @@ public sealed class ReviewSource : IDisposable
         _open = opening;
         _worldDirty = true;   // a group opened: a world boundary — the first merge clears the world and starts a fresh map
         if (_world() is { } w) RepositoryPriming.RegisterDiscoveredComponents(w);   // every recorded component has a table in the resident world (idempotent: the same call a fresh Replay Browser repository gets)
-        _panel = new FederationPanel(_manager) { NodeName = _nodeName };   // ⭐ S3 — the offsets' rows carry the participants' names (Q-B6)
-        _panel.SetMode(ViewMode.Merged);                                    // ⭐ S5 — the group opens MERGED, so the switch shows it (and the Local entities checkboxes, which are Merged's); before the subscription: no re-entry
-        _panel.OnViewModeChanged += OnPanelMode;
+        // ⭐ CE-4496 R-2 — no panel here: the review UI's ONE Federation panel reads the model (ReviewUi); the group opens MERGED.
         _manager.OnTimeChanged += OnManagerTime;
         Kind = ReviewSourceKind.Merged;
         var primary = Primary();
@@ -261,10 +279,9 @@ public sealed class ReviewSource : IDisposable
         _pending = null;
         if (_open is null && _manager is null) return;
         if (_manager is not null) _manager.OnTimeChanged -= OnManagerTime;
-        if (_panel is not null) _panel.OnViewModeChanged -= OnPanelMode;
         _part?.Dispose(); _part = null;
         _manager?.Dispose(); _manager = null;
-        _panel = null; _open = null; _readyOnce = false;
+        _open = null; _readyOnce = false;
         _worldDirty = true; _merger.Reset();   // the world keeps what it shows, but the merger's map no longer describes a group
         Kind = ReviewSourceKind.None;
         Raise();
@@ -283,7 +300,6 @@ public sealed class ReviewSource : IDisposable
         _part?.Dispose(); _part = null;
         _worldDirty = true;   // the world held a part: a world boundary
         Kind = ReviewSourceKind.Merged;
-        if (_panel is not null && _panel.ActiveMode != ViewMode.Merged) { _panel.OnViewModeChanged -= OnPanelMode; _panel.SetMode(ViewMode.Merged); _panel.OnViewModeChanged += OnPanelMode; }
         if (Primary()?.Playback is { TotalFrames: > 0 } pb)
             _manager.SetBaseWallTicks(pb.GetFrameMetadata(Math.Clamp(atFrame, 0, pb.TotalFrames - 1)).WallClockTicks);
         else RefillMerged();
@@ -302,22 +318,10 @@ public sealed class ReviewSource : IDisposable
         _partNode = node;
         _part = new PlaybackController(part.Path);
         Kind = ReviewSourceKind.Part;
-        if (_panel is not null)
-        {
-            _panel.OnViewModeChanged -= OnPanelMode;
-            if (_panel.ActiveMode != ViewMode.SingleNode) _panel.SetMode(ViewMode.SingleNode);
-            _panel.OnViewModeChanged += OnPanelMode;
-        }
         try { _manager.SetLocalEntitiesProvider(node); } catch (ArgumentOutOfRangeException) { }
         _partClockTicks = wall;
         FillPartAt(FrameAtOrBefore(_part, wall));
         Raise();
-    }
-
-    private void OnPanelMode(ViewMode mode)
-    {
-        if (mode == ViewMode.Merged) SelectMerged();
-        else SelectPart(_manager?.LocalEntitiesProviderNodeId ?? _open?.Parts[0].Node ?? 0);
     }
 
     // ── filling the ONE world ────────────────────────────────────────────────────────────────
@@ -418,7 +422,7 @@ public sealed class ReviewSource : IDisposable
     internal PlaybackController? ActivePlayback => Kind == ReviewSourceKind.Part ? _part : Primary()?.Playback;
     internal Hrot.UI.Common.Facades.ITimeTransportFacade? Facade => _facade();
 
-    internal void SeekFrame(int frame)
+    public void SeekFrame(int frame)
     {
         var pb = ActivePlayback;
         if (pb is null || pb.TotalFrames <= 0) return;
@@ -427,7 +431,7 @@ public sealed class ReviewSource : IDisposable
         _manager?.SetBaseWallTicks(pb.GetFrameMetadata(frame).WallClockTicks);   // → OnManagerTime → the merge
     }
 
-    internal void StepFrame(int delta)
+    public void StepFrame(int delta)
     {
         var pb = ActivePlayback;
         if (pb is null || delta == 0) return;
@@ -512,12 +516,6 @@ public sealed class ReviewSource : IDisposable
             return _faceLabel;
         }
     }
-
-    /// <summary>⭐ The Source menu's <i>Offsets…</i> line was clicked: the host opens the Federation window (the manual offset sliders). Nothing subscribed ⇒ nothing happens.</summary>
-    public event Action? OffsetsRequested;
-
-    /// <summary>Raises <see cref="OffsetsRequested"/>.</summary>
-    public void RequestOffsets() => OffsetsRequested?.Invoke();
 
     /// <summary>The Icons key of the face's glyph: the merged sitemap (teal) or the open part's role.</summary>
     public string FaceIconKey => Kind == ReviewSourceKind.Part ? RoleKeyOf(_partNode) : "review/merged";

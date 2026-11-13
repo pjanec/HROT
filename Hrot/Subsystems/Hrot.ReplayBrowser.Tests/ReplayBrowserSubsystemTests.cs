@@ -704,7 +704,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             Assert.True(source.Completion.Wait(TimeSpan.FromSeconds(30)));
             Assert.Equal(2, source.Index.TotalFrames);
 
-            var cursor = new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _subsystem.Manager, () => _subsystem.Manager!.LocalEntitiesProviderNodeId);
+            var cursor = new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _subsystem.Manager != null ? _subsystem.Review : null, () => _subsystem.Manager!.LocalEntitiesProviderNodeId);
             Assert.Equal((1_000_000L, 2_000_000L), (cursor.ExtentFrom, cursor.ExtentTo));
             cursor.Seek(2_000_000L);
             Assert.Equal(1, _subsystem.PrimaryNodeCurrentFrame());
@@ -739,7 +739,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         _subsystem.Initialize(HeadlessConfig());
         var path = MakeOneFrameRecording(nodeId: 1, Guid.NewGuid());   // one unit, network id 100
         _subsystem.LoadFdpViaManager(path);
-        var cursor = new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _subsystem.Manager, () => _subsystem.Manager!.LocalEntitiesProviderNodeId);
+        var cursor = new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _subsystem.Manager != null ? _subsystem.Review : null, () => _subsystem.Manager!.LocalEntitiesProviderNodeId);
         cursor.Seek(1_000_000L);
         int frame = _subsystem.PrimaryNodeCurrentFrame();
 
@@ -1954,7 +1954,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         }
         var manager = Fdp.Toolkit.ReplayBrowser.Federation.FederatedReplayManager.LoadGroup(new[] { path });
         var panel = new Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel(
-            manager, () => 1, new StubExportService(), new StubFileDialogService(),
+            Fdp.Toolkit.ReplayBrowser.Federation.InlineReviewChannel.OverManager(manager), () => 1, new StubExportService(), new StubFileDialogService(),
             new Fdp.Toolkit.ReplayBrowser.PlaybackHistoryTracker(), new InspectorState());
         return (manager, panel);
     }

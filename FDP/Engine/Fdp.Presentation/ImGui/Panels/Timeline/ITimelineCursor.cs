@@ -121,12 +121,12 @@ public interface ITimelineCursor
 }
 
 /// <summary>
-/// ⭐ <c>CE-1302</c> (§9 D1) — the Replay Browser's cursor: it fronts <see cref="FederatedReplayManager"/>, the path its own scrubber
-/// takes (<c>SetBaseWallTicks</c> seeks every node). The index is one node's recording, so a seek subtracts that node's offset.
+/// ⭐ <c>CE-1302</c> (§9 D1) — the Replay Browser's cursor: it fronts the review (⭐ CE-4496 R-2: its published model and its commands, ⛔ no manager), the path its own scrubber
+/// takes (<c>SetBaseWallTicks</c> seeks every node). The index is the primary node's recording, so a seek subtracts that node's offset.
 /// </summary>
 public sealed class FederatedReplayCursor : ITimelineCursor
 {
-    private readonly Func<FederatedReplayManager?> _manager;
+    private readonly Func<Fdp.Toolkit.ReplayBrowser.Federation.IReviewChannel?> _review;
     private readonly Func<int> _nodeId;
 
     private readonly Func<bool>? _isPlaying;
@@ -138,14 +138,14 @@ public sealed class FederatedReplayCursor : ITimelineCursor
     /// <param name="simAxis">⭐ <c>CE-3330</c> T13 — whether the viewer's axis is Sim (the Replay Browser keeps its own, R-3058).</param>
     /// <param name="checkpoints">⭐ CE-1467 (a) — the recording's checkpoints (its ⚑ marks); null = none drawn.</param>
     /// <param name="notes">⭐ CE-1467 (a) — the recording's notes as the ruler draws them (read beside the files); null = none.</param>
-    public FederatedReplayCursor(Func<FederatedReplayManager?> manager, Func<int> nodeId, Func<bool>? isPlaying = null, Action? togglePlay = null,
+    public FederatedReplayCursor(Func<Fdp.Toolkit.ReplayBrowser.Federation.IReviewChannel?> review, Func<int> nodeId, Func<bool>? isPlaying = null, Action? togglePlay = null,
         Func<Fdp.Core.FlightRecorder.ReplayTimeMap?>? timeMap = null, Func<bool>? simAxis = null,
         Func<System.Collections.Generic.IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>>? checkpoints = null,
         Func<System.Collections.Generic.IReadOnlyList<TimelineNote>>? notes = null)
     {
         _checkpoints = checkpoints;
         _notes = notes;
-        _manager = manager;
+        _review = review;
         _nodeId = nodeId;
         _isPlaying = isPlaying;
         _togglePlay = togglePlay;
@@ -182,32 +182,31 @@ public sealed class FederatedReplayCursor : ITimelineCursor
     }
 
     public bool IsPlaying => _isPlaying?.Invoke() ?? false;
-    public bool CanPlay => _togglePlay != null && Playback != null;
+    public bool CanPlay => _togglePlay != null && Row != null;
     public void TogglePlay() => _togglePlay?.Invoke();
 
-    private Fdp.Core.FlightRecorder.PlaybackController? Playback =>
-        _manager() is { } m && m.Contexts.TryGetValue(_nodeId(), out var ctx) ? ctx.Playback : null;
+    /// <summary>The node's participant row (with frames), or null.</summary>
+    private Fdp.Toolkit.ReplayBrowser.Federation.ReviewParticipant? Row =>
+        _review()?.Model.Participant(_nodeId()) is { TotalFrames: > 0 } p ? p : null;
 
-    public long ExtentFrom => Playback is { TotalFrames: > 0 } p ? p.GetFrameMetadata(0).WallClockTicks : 0;
-    public long ExtentTo => Playback is { TotalFrames: > 0 } p ? p.GetFrameMetadata(p.TotalFrames - 1).WallClockTicks : 0;
+    public long ExtentFrom => Row is { } p ? _review()!.Model.WallTicksAt(0) : 0;
+    public long ExtentTo => Row is { } p ? _review()!.Model.WallTicksAt(p.TotalFrames - 1) : 0;
 
     public long Now
     {
         get
         {
-            var m = _manager();
-            if (m == null || !m.Contexts.TryGetValue(_nodeId(), out var ctx) || ctx.Playback == null) return 0;
-            return ctx.CurrentFrame >= 0 ? ctx.Playback.GetFrameMetadata(ctx.CurrentFrame).WallClockTicks : ExtentFrom;
+            if (Row is not { } p) return 0;
+            return p.CurrentFrame >= 0 ? _review()!.Model.WallTicksAt(p.CurrentFrame) : ExtentFrom;
         }
     }
 
-    public bool CanSeek => Playback != null;
+    public bool CanSeek => Row != null;
 
     public void Seek(long ticks)
     {
-        var m = _manager();
-        if (m == null || Playback == null) return;
-        long offset = m.NodeOffsets.TryGetValue(_nodeId(), out long o) ? o : 0L;
-        m.SetBaseWallTicks(ticks - offset);
+        var r = _review();
+        if (r == null || Row is not { } p) return;
+        r.SetBaseWallTicks(ticks - p.OffsetTicks);
     }
 }

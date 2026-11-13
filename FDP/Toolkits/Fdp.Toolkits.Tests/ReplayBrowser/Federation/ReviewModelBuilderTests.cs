@@ -190,5 +190,66 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             Assert.NotSame(c, d);
             Assert.True(d.TryByNode(42, typeof(NetworkIdentity), out _));
         }
+
+        /// <summary>
+        /// ⭐ CE-4496 R-2 — the request collector: a key asked every frame makes ONE new request (then none, 0 B steady); a new tolerance for the same attribute makes a new one;
+        /// a key unasked for <see cref="ReviewRequestCollector.KeepFrames"/> frames is dropped. 🔴 Red-proof: <c>EndFrame</c> returning a request every frame ⇒ the "no new request" asserts red.
+        /// </summary>
+        [Fact]
+        public void TheCollector_MakesARequestOnlyWhenTheAskedSetChanges_AndAllocatesNothingSteady()
+        {
+            var c = new ReviewRequestCollector();
+            var item = new ReplicaWatchItem("ObjectiveStatus.ProgressCur", 0, true, 0.5, 0u, "Progress");
+            c.AskByNode(42, typeof(DummyPosition)); c.AskWatch(42, item);
+            var first = c.EndFrame();
+            Assert.NotNull(first);
+            Assert.Single(first!.ByNode); Assert.Single(first.Watch);
+            for (int i = 0; i < 3; i++) { c.AskByNode(42, typeof(DummyPosition)); c.AskWatch(42, item); Assert.Null(c.EndFrame()); }   // warm
+
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 30; i++) { c.AskByNode(42, typeof(DummyPosition)); c.AskWatch(42, item); c.EndFrame(); }
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.Same(first, c.Current);
+
+            c.AskByNode(42, typeof(DummyPosition)); c.AskWatch(42, item with { Tolerance = 10 });
+            var retuned = c.EndFrame();
+            Assert.NotNull(retuned);
+            Assert.Equal(10, retuned!.Watch[0].Item.Tolerance);
+
+            for (int i = 0; i <= ReviewRequestCollector.KeepFrames; i++) { c.AskByNode(42, typeof(DummyPosition)); c.EndFrame(); }   // the watch key is no longer asked for
+            Assert.Empty(c.Current.Watch);
+            Assert.Single(c.Current.ByNode);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4496 R-2 — the inline channel: commands apply to the manager at once; the model is the SAME instance while nothing changed and moves after a command; a By-node view appears
+        /// once the frame that asked for it ended. 🔴 Red-proof: <c>InlineReviewChannel.StepFrame</c> not forwarding ⇒ the frame assert red.
+        /// </summary>
+        [Fact]
+        public void TheInlineChannel_AppliesCommandsAtOnce_AndItsModelFollows()
+        {
+            using var m = FederatedReplayManager.LoadGroup(new[] { Record(1, 42, owns: true, 3), Record(2, 42, owns: false, 3) });
+            m.SetBaseWallTicks(1_000_000L);
+            var ch = InlineReviewChannel.OverManager(() => m, views: Views());
+            var a = ch.Model;
+            Assert.Same(a, ch.Model);
+            Assert.True(a.IsMerged);
+            Assert.Equal(0, a.Primary!.CurrentFrame);
+
+            ch.StepFrame(+1);
+            Assert.Equal(1, ch.Model.Primary!.CurrentFrame);
+            ch.SetNodeOffsetTicks(2, 3 * TimeSpan.TicksPerMillisecond);
+            Assert.Equal(3d, ch.Model.Participant(2)!.OffsetMs, 3);
+            ch.SetLocalEntitiesShown(2, false);
+            Assert.False(ch.Model.Participant(2)!.LocalShown);
+            ch.SeekFrame(2);
+            Assert.Equal(2, ch.Model.Primary!.CurrentFrame);
+
+            ch.Requests.AskByNode(42, typeof(DummyPosition));
+            Assert.False(ch.Model.TryByNode(42, typeof(DummyPosition), out _));   // asked, not yet requested
+            ch.EndFrame();
+            Assert.True(ch.Model.TryByNode(42, typeof(DummyPosition), out var view));
+            Assert.NotNull(view);
+        }
     }
 }

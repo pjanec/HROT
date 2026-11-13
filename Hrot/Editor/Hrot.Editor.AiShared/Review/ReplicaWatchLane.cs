@@ -16,12 +16,12 @@ namespace Hrot.Editor.AiShared.Review;
 public sealed class ReplicaWatchLane : IDisposable
 {
     private readonly ReplicaViews _views;
-    private readonly Func<FederatedReplayManager?> _manager;
+    private readonly IReviewView _review;   // ⭐ CE-4496 R-2 — the files, offsets and primary come from the published model (§2: file-only work reads the model, never the live manager)
     private readonly Func<int?> _selection;
     private readonly Func<int, string?> _unitName;
     private readonly Func<int, string?> _nodeName;
 
-    private (FederatedReplayManager? m, int net, long offsets, int watch) _key;
+    private (bool on, Guid? exercise, int primary, int net, long offsets, int watch) _key;
     private CancellationTokenSource? _cts;
     private volatile IReadOnlyList<ReplicaSpan>? _done;
     private IReadOnlyList<ReplicaSpan> _spans = Array.Empty<ReplicaSpan>();
@@ -30,15 +30,15 @@ public sealed class ReplicaWatchLane : IDisposable
     private int _version;
 
     /// <param name="watch">The session's watch (per unit items + the lane's threshold).</param>
-    /// <param name="manager">The merged view's manager, or null outside the merged view (no lane).</param>
+    /// <param name="review">The review's view: the lane exists only while its model is MERGED.</param>
     /// <param name="selection">The selected unit's network id, or null.</param>
     /// <param name="unitName">The unit's name for the lane's label (null ⇒ its id).</param>
     /// <param name="nodeName">A node's name for the tooltip (null ⇒ <c>node N</c>).</param>
-    public ReplicaWatchLane(ReplicaViews views, ReplicaWatchList watch, Func<FederatedReplayManager?> manager, Func<int?> selection, Func<int, string?>? unitName = null, Func<int, string?>? nodeName = null)
+    public ReplicaWatchLane(ReplicaViews views, ReplicaWatchList watch, IReviewView review, Func<int?> selection, Func<int, string?>? unitName = null, Func<int, string?>? nodeName = null)
     {
         _views = views ?? throw new ArgumentNullException(nameof(views));
         Watch = watch ?? throw new ArgumentNullException(nameof(watch));
-        _manager = manager ?? throw new ArgumentNullException(nameof(manager));
+        _review = review ?? throw new ArgumentNullException(nameof(review));
         _selection = selection ?? throw new ArgumentNullException(nameof(selection));
         _unitName = unitName ?? (_ => null);
         _nodeName = nodeName ?? (_ => null);
@@ -54,7 +54,7 @@ public sealed class ReplicaWatchLane : IDisposable
     public IReadOnlyList<ReplicaWatchItem> Items => _items;
 
     /// <summary>The lane exists: merged view, a selected unit, ≥ 1 watched item.</summary>
-    public bool Active => _key.m != null && _items.Count > 0;
+    public bool Active => _key.on && _items.Count > 0;
 
     /// <summary>The lane's label: <c>Replica watch · &lt;unit&gt;</c>.</summary>
     public string Label => _label;
@@ -63,7 +63,7 @@ public sealed class ReplicaWatchLane : IDisposable
     public int Version => _version;
 
     /// <summary>A scan is running.</summary>
-    public bool Scanning => _cts != null && _done == null && _key.m != null;
+    public bool Scanning => _cts != null && _done == null && _key.on;
 
     /// <summary>⭐ The lane's gear was clicked: the host's settings popup (<see cref="ReplicaWatchSettings"/>) opens on the next frame. Read-and-cleared by <see cref="TakeSettingsRequest"/>.</summary>
     public void OpenSettings() => _settingsRequested = true;
@@ -77,8 +77,8 @@ public sealed class ReplicaWatchLane : IDisposable
     /// <summary>The selected unit's name (or <c>unit N</c>).</summary>
     public string UnitLabel => _unitName(Unit) ?? ("unit " + Unit);
 
-    /// <summary>In the merged view (a manager exists).</summary>
-    public bool Merged => _manager() != null;
+    /// <summary>In the merged view.</summary>
+    public bool Merged => _review.Model.IsMerged;
 
     /// <summary>The unit selected now (0 = none) — the lane's settings and the eye act on it.</summary>
     public int Unit => _selection() ?? 0;
@@ -95,27 +95,27 @@ public sealed class ReplicaWatchLane : IDisposable
     /// <summary>Once a frame: restarts the scan when the (group, unit, offsets, watch) key moved, lands a finished one. 0 B when nothing changed.</summary>
     public void Update()
     {
-        var m = _manager();
+        var m = _review.Model;
         int net = _selection() ?? 0;
         var items = net > 0 ? Watch.ItemsOf(net) : Array.Empty<ReplicaWatchItem>();
-        if (m == null || net <= 0 || items.Count == 0)
+        if (!m.IsMerged || net <= 0 || items.Count == 0)
         {
-            if (_key.m != null || _spans.Count > 0 || _items.Count > 0) { Cancel(); _key = default; _spans = Array.Empty<ReplicaSpan>(); _items = Array.Empty<ReplicaWatchItem>(); _version++; }
+            if (_key.on || _spans.Count > 0 || _items.Count > 0) { Cancel(); _key = default; _spans = Array.Empty<ReplicaSpan>(); _items = Array.Empty<ReplicaWatchItem>(); _version++; }
             return;
         }
         long offsets = 17;
-        foreach (var kv in m.NodeOffsets) offsets = offsets * 31 + kv.Key * 1_000_003L + kv.Value;
-        var key = (m, net, offsets, Watch.Version);
+        var parts = m.Participants;
+        for (int i = 0; i < parts.Count; i++) offsets = offsets * 31 + parts[i].Node * 1_000_003L + parts[i].OffsetTicks;
+        var key = (true, m.Facts.ExerciseId, m.PrimaryNode, net, offsets, Watch.Version);
         if (key != _key)
         {
             Cancel();
             _key = key;
             _label = "Replica watch · " + (_unitName(net) ?? ("unit " + net));
             _spans = Array.Empty<ReplicaSpan>(); _items = items.ToArray(); _version++;
-            var paths = new List<string>();
-            foreach (var ctx in m.Contexts.Values) if (ctx.CurrentFdpPath is { } p) paths.Add(p);
-            var off = new Dictionary<int, long>(m.NodeOffsets);
-            int primary = m.LocalEntitiesProviderNodeId;
+            var paths = m.ParticipantPaths;   // immutable model data: safe to hand to the scan
+            var off = m.NodeOffsets;
+            int primary = m.PrimaryNode;
             var scanItems = _items; double threshold = Watch.ThresholdSeconds;
             var cts = _cts = new CancellationTokenSource();
             var token = cts.Token;
@@ -123,7 +123,7 @@ public sealed class ReplicaWatchLane : IDisposable
             {
                 try
                 {
-                    var found = _views.ScanWatchSpans(paths.ToArray(), off, primary, net, scanItems, threshold, token);
+                    var found = _views.ScanWatchSpans(paths, off, primary, net, scanItems, threshold, token);
                     if (!token.IsCancellationRequested) _done = found;
                 }
                 catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException or ObjectDisposedException) { /* a file that cannot be re-read: no lane */ }

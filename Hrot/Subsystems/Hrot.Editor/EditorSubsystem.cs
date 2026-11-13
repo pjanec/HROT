@@ -382,6 +382,7 @@ namespace Hrot.Editor
         private Hrot.Editor.AiShared.Review.FileReview? _fileReview;
         // ⭐ R-5 / V6 — the source of the ONE world while a participant group with no part of this node is open (Merged / a part), and the editor's ONE AAR transport over it
         private Fdp.Toolkit.ReplayBrowser.Federation.ReplicaViews? _replicaViews;                          // ⭐ G-7 S5 — the merged view's lens (By node, the lane)
+        private Fdp.Toolkit.ReplayBrowser.Federation.IReviewChannel? _reviewChannel;                       // ⭐ CE-4496 R-2 — what the review UI reads / commands through (inline; threaded in mode 3)
         private Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection? _byNodeSection;
         private Hrot.Editor.AiShared.Review.ReplicaWatchLane? _replicaLane;
         private Hrot.Editor.AiShared.Review.ReplicaWatchKit? _watchKit;   // ⭐ §6.13 — the eye + the lane's settings popup
@@ -5875,13 +5876,19 @@ namespace Hrot.Editor
                 var reviewSource = ReviewSourceOf();
                 // ⭐ G-7 S5 (I5, I7) — the merged view's lens: Details ▸ a component ▸ By node, the Replica differs lane's data, the "local to <node>" tag. ONE ReplicaViews over the merge's own ownership rule (the same map).
                 _replicaViews = new Fdp.Toolkit.ReplayBrowser.Federation.ReplicaViews(new Fdp.Toolkit.ReplayBrowser.Federation.OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap), reviewSerializer);
-                _byNodeSection = new Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection(_replicaViews, () => reviewSource.MergedManager,
+                // ⭐ CE-4496 R-2 (docs/DESIGN_Threaded_Review_Source.md §1.1) — the review UI's ONE channel: the panels read its model and command through it; ⛔ none of them holds the manager.
+                //   Switch OFF: inline over the source (same thread). ReviewUi holds the ONE Federation panel and the Offsets… request (UI-only).
+                var reviewChannel = new Fdp.Toolkit.ReplayBrowser.Federation.InlineReviewChannel(reviewSource, new Fdp.Toolkit.ReplayBrowser.Federation.ReviewModelBuilder(_replicaViews));
+                _reviewChannel = reviewChannel;
+                var reviewUi = new Hrot.Editor.Review.ReviewUi(reviewChannel);
+                windowManager.RegisterFrameOverlay(() => reviewChannel.EndFrame());
+                _byNodeSection = new Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection(reviewChannel,
                     e => _world is { } w && w.IsAlive(e) && w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) ? w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value : 0,
                     reviewSource.NameOf);
                 _byNodeSection.Watch = ReplicaWatch;   // ⭐ RW-6 — the header eye and the attribute view share the session's watch
                 _fdpEntityInspector.Reflector.ComponentFooter = _byNodeSection.Draw;
                 _fdpEntityInspector.EntityNote = reviewSource.LocalOriginNote;
-                _replicaLane = new Hrot.Editor.AiShared.Review.ReplicaWatchLane(_replicaViews, ReplicaWatch, () => reviewSource.MergedManager, SelectedNetworkId,
+                _replicaLane = new Hrot.Editor.AiShared.Review.ReplicaWatchLane(_replicaViews, ReplicaWatch, reviewChannel, SelectedNetworkId,
                     n => _world is { } w && Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(w, n) is { IsNull: false } u && w.HasComponent<EntityInfo>(u) ? w.GetComponentRO<EntityInfo>(u).Name.ToString() : null);
                 _watchKit = new Hrot.Editor.AiShared.Review.ReplicaWatchKit(_replicaLane, () => _world, () => _byNodeSection);
                 // ⭐ R-5 / V6 — while a participant group is open the analysis reads ITS file and a seek drives ITS transport; otherwise the own part (below)
@@ -5896,7 +5903,7 @@ namespace Hrot.Editor
                     Blueprints:     _blueprintRegistry,
                     Reader:         _ownPartReplay.Reader,
                     History:        () => _reviewTransport?.Waypoints,     // ⭐ R-6 / V7 — a hit is a history waypoint
-                    Merged:         () => reviewSource.MergedManager,       // ⭐ G-7 S5 (I6) — in Merged the search runs per participant file …
+                    Review:         reviewChannel,                         // ⭐ G-7 S5 (I6) — in Merged the search runs per participant file (CE-4496: read from the model) …
                     Ownership:      new Fdp.Toolkit.ReplayBrowser.Federation.OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap)));   // … keeping the components each node owned (the merge's own map)
                 var reviewBundle = new Hrot.Editor.AiShared.Review.ReviewBundle(_fileReview.Host(Hrot.Editor.AiShared.Review.ReviewLayout.Perspective, "editor_review_", EditorWindowColor.TitleBar, () => _world));
                 Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { reviewBundle }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
@@ -5915,13 +5922,13 @@ namespace Hrot.Editor
                 if (windowManager.MainToolbar is { } aarToolbar)
                 {
                     _aarTransport.RegisterInto(aarToolbar);
-                    _reviewSourceCombo = new Hrot.Editor.Review.ReviewSourceToolbarCombo(reviewSource);
+                    _reviewSourceCombo = new Hrot.Editor.Review.ReviewSourceToolbarCombo(reviewUi);
                     _reviewSourceCombo.RegisterInto(aarToolbar);
                 }
-                _reviewStatus = Hrot.Editor.Review.ReviewSourceStatusSection.Register(windowManager.StatusBar, reviewSource);   // D9 — the bar's LEFT end
-                _reviewFederation = new Hrot.Editor.Review.ReviewFederationWindowHost(reviewSource, w => windowManager.RegisterWindow(w), Hrot.Editor.AiShared.Review.ReviewLayout.Perspective, EditorWindowColor.TitleBar);   // G-7 S5 — the Source menu's Offsets… opens it
+                _reviewStatus = Hrot.Editor.Review.ReviewSourceStatusSection.Register(windowManager.StatusBar, reviewUi);   // D9 — the bar's LEFT end
+                _reviewFederation = new Hrot.Editor.Review.ReviewFederationWindowHost(reviewUi, w => windowManager.RegisterWindow(w), Hrot.Editor.AiShared.Review.ReviewLayout.Perspective, EditorWindowColor.TitleBar);   // G-7 S5 — the Source menu's Offsets… opens it
                 var reviewTimeline = _fileReview.TimelinePanel;
-                reviewSource.Changed += () => reviewTimeline.SetManager(reviewSource.Manager);
+                reviewSource.Changed += () => reviewTimeline.SetReview(reviewSource.IsOpen ? reviewChannel : null);
                 if (_editorApp is { } reviewApp) reviewApp.RecordingOpened += id => reviewSource.OnRecordingOpened(id);   // ⭐ THE one branch where a recording opens: a group with no part of this node ⇒ the source
                 windowManager.RegisterFrameOverlay(() =>
                 {

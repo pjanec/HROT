@@ -138,6 +138,10 @@ public sealed class TheReviewSourceTests : IDisposable
                 ready: () => Ready, inReplay: () => InReplay, selection: () => Selected, select: n => { Selects.Add(n); return true; }, nodeName: names, facade: () => Facade.Object);
         }
 
+        private ReviewUi? _ui;
+        /// <summary>⭐ CE-4496 R-2 — the review UI over this source, as the editor composes it (switch off): an inline channel, the ONE Federation panel.</summary>
+        public ReviewUi Ui => _ui ??= new ReviewUi(new InlineReviewChannel(Source, new ReviewModelBuilder(null)));
+
         public void Open(Guid exercise)
         {
             Assert.True(Source.OnRecordingOpened(exercise));
@@ -195,7 +199,7 @@ public sealed class TheReviewSourceTests : IDisposable
         FourParticipants();
         using var rig = new Rig(_root, _serializer);
         rig.Open(_exercise);
-        var panel = rig.Source.SwitchPanel!;
+        var panel = rig.Ui.Panel;
 
         Assert.Equal(0, ProgressOfNet(rig.World, 100));
         Assert.Equal(rig.Source.NameOf(2), panel.NameOf(2));           // the participants' names (Q-B6), not a second naming
@@ -462,8 +466,8 @@ public sealed class TheReviewSourceTests : IDisposable
         using var rig = new Rig(_root, _serializer);
         rig.Open(_exercise);
         var segment = new AarTransportSegment(new ReplayTransportSelector(new Mock<IReplayTransport>().Object, rig.Source), () => true, () => rig.Source.Kind == ReviewSourceKind.Merged);
-        var combo = new ReviewSourceToolbarCombo(rig.Source);
-        var status = new ReviewSourceStatusSection(rig.Source);
+        var combo = new ReviewSourceToolbarCombo(rig.Ui);
+        var status = new ReviewSourceStatusSection(rig.Ui);
         using var frame = UiFrameHarness.Begin(1240, 140);
         new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
         for (int i = 0; i < 4; i++)
@@ -523,11 +527,11 @@ public sealed class TheReviewSourceTests : IDisposable
 
         Assert.Equal(new[] { ("local to SimHost-2", 902), ("local to SimHost-4", 904) }, LocalsInWorld(rig.Source, rig.World));   // ⭐ one from each node, each tagged with its own
 
-        rig.Source.SwitchPanel!.SetLocalEntitiesShown(4, false);                                                            // the checkbox
+        rig.Ui.Panel.SetLocalEntitiesShown(4, false);                                                            // the checkbox
         Assert.Equal(new[] { ("local to SimHost-2", 902) }, LocalsInWorld(rig.Source, rig.World));
         Assert.NotEqual(int.MaxValue, ProgressOfNet(rig.World, 300));                                                      // its networked unit stays
 
-        rig.Source.SwitchPanel!.SetLocalEntitiesShown(4, true);
+        rig.Ui.Panel.SetLocalEntitiesShown(4, true);
         Assert.Equal(2, LocalsInWorld(rig.Source, rig.World).Count);
         Assert.Null(rig.Source.LocalOriginNote(Entity.Null));
     }
@@ -539,7 +543,7 @@ public sealed class TheReviewSourceTests : IDisposable
         FourParticipants();
         using var rig = new Rig(_root, _serializer, names: n => n switch { 2 => "CGF-1", 3 => "CGF-2", 4 => "SimHost-1", _ => "Player-1" });
         rig.Open(_exercise);
-        var panel = rig.Source.SwitchPanel!;
+        var panel = rig.Ui.Panel;
         panel.CaptureLayout = true;
         using var frame = UiFrameHarness.Begin(420, 400);
         new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
@@ -547,12 +551,12 @@ public sealed class TheReviewSourceTests : IDisposable
         {
             ImGui.SetNextWindowPos(Vector2.Zero); ImGui.SetNextWindowSize(new Vector2(420, 400));
             ImGui.Begin("Source", ImGuiNET.ImGuiWindowFlags.NoCollapse);
-            ReviewSourceSwitch.Draw(rig.Source);
+            ReviewSourceSwitch.Draw(rig.Ui);
             ImGui.End();
         });
         Draw();
 
-        Assert.Equal(ViewMode.Merged, panel.ActiveMode);                                       // the group opens Merged: the switch shows it
+        Assert.Equal(ReviewKind.Merged, rig.Ui.Model.Kind);                                     // the group opens Merged: the switch shows it (CE-4496: the model says so)
         Assert.Equal(new[] { 2, 3, 4, 5 }, panel.LocalsRows.Select(r => r.Node).ToArray());    // ⭐ one checkbox per participant …
         Assert.All(panel.LocalsRows, r => Assert.True(r.On));                                  // … every node's on by default
         Assert.Single(panel.LocalsRows.Select(r => r.X).Distinct());                           // aligned: ONE x (the mockup's column of boxes)
@@ -581,12 +585,12 @@ public sealed class TheReviewSourceTests : IDisposable
         FourParticipants();
         using var rig = new Rig(_root, _serializer, names: n => n switch { 2 => "CGF-1", 3 => "CGF-2", 4 => "SimHost-1", _ => "Player-1" });
         rig.Open(_exercise);
-        var panel = rig.Source.SwitchPanel!;
+        var panel = rig.Ui.Panel;
         panel.CaptureLayout = true;
-        int offsetsAsked = 0; rig.Source.OffsetsRequested += () => offsetsAsked++;
+        int offsetsAsked = 0; rig.Ui.OffsetsRequested += () => offsetsAsked++;
         var registered = new List<Fdp.Presentation.WindowManager.ManagedWindow>();
-        var host = new ReviewFederationWindowHost(rig.Source, registered.Add, "Review", Vector4.One);
-        Assert.Single(registered);   // the window over the open group's panel, registered once
+        var host = new ReviewFederationWindowHost(rig.Ui, registered.Add, "Review", Vector4.One);
+        Assert.Empty(registered);    // ⭐ CE-4496 R-2 — the window over the review's ONE panel is registered on the first Offsets…, once
         ReviewSourceSwitch.CaptureLayout = true;
         try
         {
@@ -598,7 +602,7 @@ public sealed class TheReviewSourceTests : IDisposable
                 ImGui.SetNextWindowPos(Vector2.Zero); ImGui.SetNextWindowSize(new Vector2(460, 330));
                 ImGui.Begin("Source", ImGuiNET.ImGuiWindowFlags.NoDecoration | ImGuiNET.ImGuiWindowFlags.NoMove | ImGuiNET.ImGuiWindowFlags.NoSavedSettings);
                 long b0 = GC.GetAllocatedBytesForCurrentThread();
-                ReviewSourceSwitch.Draw(rig.Source);
+                ReviewSourceSwitch.Draw(rig.Ui);
                 drawBytes = GC.GetAllocatedBytesForCurrentThread() - b0;
                 ImGui.End();
             });
@@ -645,10 +649,13 @@ public sealed class TheReviewSourceTests : IDisposable
         finally { ReviewSourceSwitch.CaptureLayout = false; }
 
         // Offsets… asks the host; the host's window hosts the panel with NO radio and NO checkboxes (they are in the menu)
-        Assert.False(host.Window!.IsOpen);          // closed until asked for
-        rig.Source.RequestOffsets();
+        Assert.Null(host.Window);                   // not there until asked for
+        rig.Ui.RequestOffsets();
         Assert.Equal(1, offsetsAsked);
+        Assert.Single(registered);
         Assert.True(host.Window!.IsOpen);           // Offsets… opened the Federation window
+        rig.Ui.RequestOffsets();
+        Assert.Single(registered);                  // … registered once
         Assert.False(panel.ShowModeRadio); Assert.False(panel.ShowLocals);
     }
 
@@ -687,8 +694,20 @@ public sealed class TheReviewSourceTests : IDisposable
         return Entity.Null;
     }
 
-    private ByNodeSection ByNode(Rig rig) => new(new ReplicaViews(new OwnershipSource(), _serializer), () => rig.Source.MergedManager,
-        e => rig.World.IsAlive(e) && rig.World.HasComponent<NetworkIdentity>(e) ? rig.World.GetComponent<NetworkIdentity>(e).Value : 0, rig.Source.NameOf);
+    /// <summary>⭐ CE-4496 R-2 — the section over the review's channel (inline, with the replica lens), as the editor composes it.</summary>
+    private (ByNodeSection Section, InlineReviewChannel Channel) ByNode(Rig rig)
+    {
+        var channel = new InlineReviewChannel(rig.Source, new ReviewModelBuilder(new ReplicaViews(new OwnershipSource(), _serializer)));
+        return (new ByNodeSection(channel, e => rig.World.IsAlive(e) && rig.World.HasComponent<NetworkIdentity>(e) ? rig.World.GetComponent<NetworkIdentity>(e).Value : 0, rig.Source.NameOf), channel);
+    }
+
+    /// <summary>A view as a drawn frame gets it: asked this frame, in the model after the frame's end (the request rides up only when it changes).</summary>
+    private static ReplicaView? ViewNow(ByNodeSection section, InlineReviewChannel channel, Entity e, Type t)
+    {
+        section.ViewOf(e, t);
+        channel.EndFrame();
+        return section.ViewOf(e, t);
+    }
 
     /// <summary>
     /// ⭐ G-7 S5 (I5, M-5) — Details ▸ a component ▸ <i>By node</i>: the OWNER (CGF-A, from the recorded ownership) first, then each replica; the replica that believes 7 more is marked DIFFERING (amber, Δ 7), the one that
@@ -700,20 +719,20 @@ public sealed class TheReviewSourceTests : IDisposable
         ReplicaGroup();
         using var rig = new Rig(_root, _serializer);
         rig.Open(_exercise);
-        var section = ByNode(rig);
+        var (section, channel) = ByNode(rig);
         var unit = UnitOf(rig.World, 100);
 
-        var view = section.ViewOf(unit, typeof(ObjectiveStatus))!;
+        var view = ViewNow(section, channel, unit, typeof(ObjectiveStatus))!;
 
         Assert.Equal(2, view.OwnerNode);
         Assert.Equal(new[] { 2, 3, 4 }, view.Rows.Select(r => r.NodeId).ToArray());
         Assert.Equal(new[] { true, false, false }, view.Rows.Select(r => r.IsOwner).ToArray());
         Assert.Equal(new[] { false, false, true }, view.Rows.Select(r => r.Differs).ToArray());        // ⭐ only node 4's copy differs from the owner's
         Assert.Equal(7d, view.Rows[2].Delta, 3);
-        Assert.Null(section.ViewOf(Entity.Null, typeof(ObjectiveStatus)));
+        Assert.Null(ViewNow(section, channel, Entity.Null, typeof(ObjectiveStatus)));
 
         rig.Source.SelectPart(3);
-        Assert.Null(section.ViewOf(unit, typeof(ObjectiveStatus)));                                    // a part: no By node
+        Assert.Null(ViewNow(section, channel, unit, typeof(ObjectiveStatus)));                                    // a part: no By node
     }
 
     [SkippableFact]
@@ -723,7 +742,7 @@ public sealed class TheReviewSourceTests : IDisposable
         ReplicaGroup();
         using var rig = new Rig(_root, _serializer, names: n => n switch { 2 => "CGF-1 (Brain)", 3 => "SimHost-1 (Muscle)", _ => "IG-1 (Map2D)" });
         rig.Open(_exercise);
-        var section = ByNode(rig);
+        var (section, channel) = ByNode(rig);
         section.Capture = true;
         var panel = new Fdp.Presentation.Panels.EntityInspectorPanel();
         panel.Reflector.ComponentFooter = section.Draw;
@@ -738,6 +757,7 @@ public sealed class TheReviewSourceTests : IDisposable
             ImGui.Begin("Details", ImGuiNET.ImGuiWindowFlags.NoCollapse);
             panel.DrawComponentsFor(session, unit);
             ImGui.End();
+            channel.EndFrame();   // the frame's asks become the request (the editor's frame overlay does this)
         });
 
         var rows = section.Rows;   // the LAST component drawn (ObjectiveStatus sorts last) — three rows
@@ -763,7 +783,7 @@ public sealed class TheReviewSourceTests : IDisposable
         ReplicaGroup();
         using var rig = new Rig(_root, _serializer, names: n => n switch { 2 => "CGF-1 (Brain)", 3 => "SimHost-1 (Muscle)", _ => "IG-1 (Map2D)" });
         rig.Open(_exercise);
-        var section = ByNode(rig);
+        var (section, channel) = ByNode(rig);
         section.Capture = true;
         var watch = new ReplicaWatchList();
         section.Watch = watch;
@@ -788,6 +808,7 @@ public sealed class TheReviewSourceTests : IDisposable
             ImGui.Begin("Details", ImGuiNET.ImGuiWindowFlags.NoCollapse);
             section.DrawAttribute(unit, watch.ItemsOf(100)[0]);
             ImGui.End();
+            channel.EndFrame();
         });
         Assert.Equal(new[] { 2, 3, 4 }, section.Rows.Select(r => r.Node).ToArray());
         Assert.Equal(new[] { false, false, true }, section.Rows.Select(r => r.Amber).ToArray());

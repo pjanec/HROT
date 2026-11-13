@@ -56,7 +56,7 @@ public sealed class FederationPanelBuildsItsModelTests : IDisposable
     public void TheDump_CarriesEachNodesOffset()
     {
         using var manager = MakeTwoNodeManager(1, 2);
-        var panel = new FederationPanel(manager);
+        var panel = new FederationPanel(InlineReviewChannel.OverManager(manager));
         panel.SetNodeOffset(2, 500L);
 
         var vm = panel.BuildViewModel("federation-test", "federation");
@@ -88,7 +88,7 @@ public sealed class FederationPanelBuildsItsModelTests : IDisposable
     public void TheOffsetSlider_WritesSetNodeOffsetInMs_ReSeeksLive_AndMovesOnlyThatNodesFrame()
     {
         using var manager = FederatedReplayManager.LoadGroup(new[] { MakeThreeFrameRecording(1), MakeThreeFrameRecording(2) });
-        var panel = new FederationPanel(manager);
+        var panel = new FederationPanel(InlineReviewChannel.OverManager(manager));
         int changed = 0;
         manager.OnTimeChanged += () => changed++;
 
@@ -116,14 +116,14 @@ public sealed class FederationPanelBuildsItsModelTests : IDisposable
     public void TheDump_CarriesTheRowNamesAndTheOffsetsInMs()
     {
         using var manager = MakeTwoNodeManager(1, 2);
-        var panel = new FederationPanel(manager) { NodeName = n => n == 1 ? "Brain" : "Muscle" };
+        var panel = new FederationPanel(InlineReviewChannel.OverManager(manager)) { NodeName = n => n == 1 ? "Brain" : "Muscle" };
         panel.SetNodeOffsetMs(2, -40d);
 
         var vm = panel.BuildViewModel("federation-test", "federation");
 
         Assert.Contains(vm.Nodes, n => n.NodeId == 1 && n.Name == "Brain" && n.OffsetMs == 0d);
         Assert.Contains(vm.Nodes, n => n.NodeId == 2 && n.Name == "Muscle" && n.OffsetMs == -40d && n.OffsetTicks == -400_000L);
-        Assert.Equal("Node 7", new FederationPanel(manager).NameOf(7));        // no role known ⇒ Node N
+        Assert.Equal("Node 7", new FederationPanel(InlineReviewChannel.OverManager(manager)).NameOf(7));        // no role known ⇒ Node N
     }
 
     /// <summary>
@@ -134,7 +134,7 @@ public sealed class FederationPanelBuildsItsModelTests : IDisposable
     public void TheLocalEntitiesCheckbox_DefaultsOn_WritesTheManagerPerNode_AndIsInTheDump()
     {
         using var manager = MakeTwoNodeManager(1, 2);
-        var panel = new FederationPanel(manager) { NodeName = n => n == 1 ? "CGF-1" : "SimHost-1" };
+        var panel = new FederationPanel(InlineReviewChannel.OverManager(manager)) { NodeName = n => n == 1 ? "CGF-1" : "SimHost-1" };
         int changed = 0;
         manager.OnTimeChanged += () => changed++;
         Assert.True(panel.IsLocalEntitiesShown(1) && panel.IsLocalEntitiesShown(2));

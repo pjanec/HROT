@@ -29,8 +29,15 @@ public sealed record ReplaySearchResultRowViewModel(int FrameIndex, long WallClo
 /// <summary>⭐ R-6 / V7 (docs/UX/DESIGN_Review_Perspective.md §4 V7) — one search hit as the Event Timeline draws it: the frame it is at, the entity handle (of the throwaway reader, as the results grid shows it) and what matched.</summary>
 public readonly record struct SearchHit(int Frame, Entity Entity, string Context, long NetworkId = 0);
 
-/// <summary>⭐ G-7 S5 (I6) — what makes the search FEDERATED: the merged view's manager (null outside it ⇒ the single-file search) and the <see cref="FederatedSearch"/> that runs per participant file, owned components only, unioned by network id.</summary>
-public sealed record FederatedSearchSource(FederatedSearch Search, Func<FederatedReplayManager?> Manager);
+/// <summary>
+/// ⭐ G-7 S5 (I6) — what makes the search FEDERATED: the review's published model (merged ⇒ per participant file; anything else or null ⇒ the single-file search) and the <see cref="FederatedSearch"/> that runs
+/// per participant file, owned components only, unioned by network id. ⭐ CE-4496 R-2 — the files, offsets and primary come from the model (§2: file-only work), ⛔ never the live manager.
+/// </summary>
+public sealed record FederatedSearchSource(FederatedSearch Search, Func<ReviewReadModel?> Model)
+{
+    /// <summary>The model while it is merged, else null.</summary>
+    public ReviewReadModel? Merged() => Model() is { IsMerged: true } m ? m : null;
+}
 
 /// <summary>⭐ One lifecycle-match row, projected by hand.</summary>
 public sealed record ReplaySearchLifecycleRowViewModel(int EntityIndex, int EntityGeneration, int StartFrame, int EndFrame, string MatchContext);
@@ -601,9 +608,9 @@ public sealed class ReplaySearchPanel
     /// </summary>
     internal void StartSearch()
     {
-        var federatedManager = Federated?.Manager();   // ⭐ G-7 S5 (I6) — the merged view searches EVERY participant file
+        var federatedModel = Federated?.Merged();   // ⭐ G-7 S5 (I6) — the merged view searches EVERY participant file
         string path = CurrentFilePath ?? string.Empty;
-        if (federatedManager != null) path = federatedManager.Contexts.TryGetValue(federatedManager.LocalEntitiesProviderNodeId, out var pc) ? pc.CurrentFdpPath ?? string.Empty : string.Empty;
+        if (federatedModel != null) path = federatedModel.Participant(federatedModel.PrimaryNode)?.Path ?? string.Empty;
         if (string.IsNullOrEmpty(path))
         {
             _statusLine = "No recording loaded.";
@@ -683,11 +690,11 @@ public sealed class ReplaySearchPanel
             var pred = (SearchPredicateDto)dto;
             // ⭐ G-7 S5 (I6) — what the federated search needs, captured on the UI thread: each participant's file, the offsets, the primary node
             (int Node, string Path)[]? parts = null; Dictionary<int, long>? offsets = null; int primaryNode = 0;
-            if (federatedManager != null)
+            if (federatedModel != null)
             {
                 var list = new List<(int, string)>();
-                foreach (var kv in federatedManager.Contexts) if (kv.Value.CurrentFdpPath is { } fp) list.Add((kv.Key, fp));
-                parts = list.ToArray(); offsets = new Dictionary<int, long>(federatedManager.NodeOffsets); primaryNode = federatedManager.LocalEntitiesProviderNodeId;
+                foreach (var p in federatedModel.Participants) if (p.Path is { } fp) list.Add((p.Node, fp));
+                parts = list.ToArray(); offsets = new Dictionary<int, long>(federatedModel.NodeOffsets); primaryNode = federatedModel.PrimaryNode;
             }
             var federated = Federated?.Search;
             _searchTask = Task.Run(() =>

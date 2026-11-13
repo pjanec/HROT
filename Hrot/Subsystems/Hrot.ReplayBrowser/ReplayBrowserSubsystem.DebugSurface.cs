@@ -105,7 +105,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
             CreateOrReplaceFederationPanel();
 
             OnManagerTimeChanged();
-            _timelinePanel?.SetManager(_manager);
+            _timelinePanel?.SetReview(Review);
             _playbackHistory.Clear();
             IsPlaying = false;
             LocalLoop = null;   // ⭐ CE-3329 §12n — a new recording starts unlooped
@@ -133,7 +133,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         _transientMaster?.Dispose();
         _transientMaster = null;
         _merger = null;
-        _timelinePanel?.SetManager(null);
+        _timelinePanel?.SetReview(null);
         _playbackHistory.Clear();
         _extraction = null;
         _eventsCapturedAt = null;
