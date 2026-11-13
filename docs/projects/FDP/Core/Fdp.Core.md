@@ -646,6 +646,7 @@ reissued, allowing stale references to be detected in O(1).
 |---|---|
 | `int Index` | Entity slot in the ECS array. |
 | `ushort Generation` | Stale-reference guard. Starts at 1, never 0. |
+| *(private)* `ushort _zero` | ⭐ R-4222 (CE-4507) — the two bytes after `Generation`, always zero: an `Entity` has no undefined bytes (size 8). Private, so no UI or serializer shows it. |
 | `ulong PackedValue` | `(Generation << 32) | Index`. For ECB serialization. |
 | `bool IsNull` | True when `Index < 0 || Generation == 0`. |
 | `static Entity Null` | Null sentinel value. |

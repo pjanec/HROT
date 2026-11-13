@@ -855,8 +855,24 @@ sets disjoint by construction (the squads' argument: one commander per man), and
 | ⭐ module snapshots RECYCLED: kept, synced incrementally; chunks a module wrote are invalidated; a source REPLACED rather than advanced (`ContentEpoch`) is copied whole | each acquire copied every chunk of every table (≈ 30 ms a tick at 1 000 men) | `EntityRepository.RecycleForSync`, M-D7 |
 | the registry's clone flag read lock-free | every managed table's sync took the global lock (≈ 25 ms a tick under contention) | `ComponentTypeRegistry.NeedsClone`, M-D6 |
 | ⭐ the world hash counts FIELD bytes only (the managed layout) | two identical stepped runs differed only in padding — the gate compared history, not state | `EntityRepository.ContentHash`, M-D9 |
-| ⚠ still open: padding of a struct written INTO an opaque byte buffer (`Entity`'s 2 bytes inside `WeaponChannel.State`) | the only difference left between 4-thread runs (3 in 7) | R-4222 → `Entity` gets an explicit zero field (CE-4507) |
+| ⭐ `Entity` has no undefined bytes: an explicit private always-zero field after `Generation` (size 8, hidden from every UI: they reflect public fields) | padding inside an opaque byte buffer (`WeaponChannel.State`) differed between runs — ⛔ was the "still open" row here | R-4222, CE-4507 (`d8e47f3c0`) |
 | ⭐ the gate: the stepped 1 000-man run, every phase on, 1 / 2 / 4 / 8 threads ⇒ state equal (`EntityGuid` aside) | — | `scratchpad stepped-hash.py` → `scripts/stepped-hash.py` (CE-4501) |
+
+### 18.8 ⭐ AS BUILT — what the squad drills taught under parallel brains: "own entity" covers its ADDS *(E-2 / E-3, CE-4508 / CE-4509; [status](blueprints/batches/STATUS_Entity_Padding_And_Squad_Drills.md))*
+
+⭐ The drills ran in the kernel's frame order (E-2), serial and with `HROT_PARALLEL_SIM=1`: 78 of 228 red with parallel brains. ⛔ **None was the
+accepted one-tick delay (R-4212).** Every one was the per-entity rule broken for a structural change on the job's OWN entity: the add is
+deferred to the merge (it cannot be made in parallel), and the job's own later reads did not see it.
+
+| the rule, as built | why (measured) | where |
+|---|---|---|
+| ⭐⭐ a MANAGED component a job adds to its own entity reads back to that job until the merge (`Has`, `Get`) | `SubordinateOrders.Record` (a read-modify-write) kept only the tick's LAST order — the plays re-sent the others (orders counted twice) | `BatchContext.RememberOwnManaged`, `EntityRepository.OwnPendingManaged` |
+| ⭐⭐ an UNMANAGED add reads back through `TryGetOwnPendingAdd<T>` — never by `ref` (the value is not in the world's storage yet); an "add if absent, else mutate" helper builds on it | `ReportQueue.Enqueue`'s second report of a tick replaced the first (a hall's RoomClear lost to its Foothold) | `EntityRepository.TryGetOwnPendingAdd` |
+| ⭐⭐ a CHILD created inside a phase is dressed in the SAME buffer: `EqsChildSensor.Ensure` hands back the pending child; ⚠ a buffer entity has a NEGATIVE index — test it with `!= default`, never `IsNull` | the survey and danger-area sensors landed bare and stayed so — never requested, never solved | `EqsChildSensor`, `WorldSurveyChildSensor`, `DangerAreaChildSensor` |
+| ⭐ R-195 holds in the production order: an SOP wakes on the frame `RecentSenses` RECORDS a change (Input, one frame after the event was readable), as well as on the event's own frame | woken only on the event's frame it read an unchanged `RecentSenses` and reacted on its 0.2 s cadence — up to 17 frames late (serial too) | `BrainTickSystem.TickSopSlots`, `RecentSenses.RecordedAt` |
+
+⭐ The drills: **228 / 228 serial and with parallel brains.** Rails: `PerEntityRuleTests.E3_*` (1 / 2 / 4 / 8 threads), `DangerAreaSensorSystemTests.E3_…`,
+the drills themselves (12 red without the R-195 wake).
 
 ## 19. Windows scheduling: power throttling, hybrid cores, console pauses *(user, `2026-11-12`: "what about windows frontend / backend throttling and intel performance cores vs e-cores … i do not want headless mode running in console to be any slower")*
 
