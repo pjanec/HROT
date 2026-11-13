@@ -58,7 +58,8 @@ def one_run(a, threads, k):
                 s.post("/sim/step", {"count": n}, timeout=600); return
             for _ in range(n // a.probe):
                 s.post("/sim/step", {"count": a.probe}, timeout=600)
-                probes.append(data(s.get("/world/hash?byType=1", timeout=600)).get("types") or {})
+                d = data(s.get("/world/hash?byType=1&rows=" + a.rows + ("&bytes=1" if a.bytes else ""), timeout=600))
+                probes.append({"types": d.get("types") or {}, "rows": d.get("rows") or {}})
 
         step(a.chunk)
         s.post(f"/entities/{men[3]}/order", {"kind": "move", "x": 150, "y": 150})   # the same edit at the same step
@@ -114,9 +115,12 @@ def main():
                        if (base.get("rows") or {}).get(n, "").split("@")[0] != (r.get("rows") or {}).get(n, "").split("@")[0]), key=int)
         differs |= bool(types)
         for i, (pb, pr) in enumerate(zip(base.get("probes") or [], r.get("probes") or [])):
-            first = sorted(n for n in set(pb) | set(pr) if pb.get(n) != pr.get(n) and n not in RANDOM_BY_DESIGN)
+            first = sorted(n for n in set(pb["types"]) | set(pr["types"]) if pb["types"].get(n) != pr["types"].get(n) and n not in RANDOM_BY_DESIGN)
             if first:
-                print(f"run 0 vs {k}: first parts after step {(i + 1) * a.probe}: {first}", flush=True); break
+                moved = sorted((n for n in set(pb["rows"]) | set(pr["rows"])
+                                if pb["rows"].get(n, "").split("@")[0] != pr["rows"].get(n, "").split("@")[0]), key=int)
+                print(f"run 0 vs {k}: first parts after step {(i + 1) * a.probe}: {first} · {a.rows} rows: "
+                      + " ".join(f"#{n}" for n in moved[:30]), flush=True); break
         print(f"run 0 vs {k} ({t} threads): {len(types)} type(s) differ {types[:40]} · {a.rows} rows differ: {len(rows)} "
               + " ".join(f"#{n}" for n in rows[:30]), flush=True)
         if a.bytes:
