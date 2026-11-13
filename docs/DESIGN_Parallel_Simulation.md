@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — options analysed, lean stated; NOT ruled
-updated: 2026-11-12
-current-answer: ⭐ §18.5 THE RULE AND THE BRAINS AS BUILT (overnight build, exp/threaded-build) · §16 POC 4 as built (one pool; no dependency scheduler) · §13 a job system? (the lean POC 4 tested) · §15 POC 3 as built (the cheap wins) · §14 POC 2 as built (the brain pre-score) · §12 R-4209 the sampled timer · §11 the aggregate (where the time is) · §10 after the experiment (R-4208, the emitter fix) · §9 the AS-BUILT of the overnight experiment (exp/parallel-sim) · §8 interleaving and quantizing (do less per frame) · §7 determinism is a switchable MODE (R-4207) and what per-batch buffers cost · §2 the lean · §1 what exists (measured) · §3 the options · §4 the hazards · §5 the staged plan · §6 open
+updated: 2026-11-13 (§18.8 next conversions as built)
+current-answer: ⭐ §18.8 the next conversions as built (shared locks, coarse jobs, the staff phase) · §18.5 THE RULE AND THE BRAINS AS BUILT (overnight build, exp/threaded-build) · §16 POC 4 as built (one pool; no dependency scheduler) · §13 a job system? (the lean POC 4 tested) · §15 POC 3 as built (the cheap wins) · §14 POC 2 as built (the brain pre-score) · §12 R-4209 the sampled timer · §11 the aggregate (where the time is) · §10 after the experiment (R-4208, the emitter fix) · §9 the AS-BUILT of the overnight experiment (exp/parallel-sim) · §8 interleaving and quantizing (do less per frame) · §7 determinism is a switchable MODE (R-4207) and what per-batch buffers cost · §2 the lean · §1 what exists (measured) · §3 the options · §4 the hazards · §5 the staged plan · §6 open
 stale-below: nothing
 related-designs:
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Managed_Reads_Audit.md — CE-4445, the managed-read audit and the default flip (R-4210)
@@ -857,6 +857,48 @@ sets disjoint by construction (the squads' argument: one commander per man), and
 | ⭐ the world hash counts FIELD bytes only (the managed layout) | two identical stepped runs differed only in padding — the gate compared history, not state | `EntityRepository.ContentHash`, M-D9 |
 | ⚠ still open: padding of a struct written INTO an opaque byte buffer (`Entity`'s 2 bytes inside `WeaponChannel.State`) | the only difference left between 4-thread runs (3 in 7) | R-4222 → `Entity` gets an explicit zero field (CE-4507) |
 | ⭐ the gate: the stepped 1 000-man run, every phase on, 1 / 2 / 4 / 8 threads ⇒ state equal (`EntityGuid` aside) | — | `scratchpad stepped-hash.py` → `scripts/stepped-hash.py` (CE-4501) |
+
+### 18.8 ⭐ AS BUILT — the next conversions: shared locks, coarse jobs, the staff phase *(X-1…X-4, CE-4516…CE-4519; branch `exp/next-conversions`; [status](blueprints/batches/STATUS_Next_Conversions.md))*
+
+```mermaid
+classDiagram
+  class ParallelEntities { +Run(repo, entities, n, job) BatchSize(count, threads, coarse) }
+  class ICoarseJob { <<interface>> +BatchSize int }
+  class SquadJob { BatchSize = 2 }
+  class ComposeJob { BatchSize = 4 }
+  class PartIndex { +PartsOf(view, parent, dest) +PrepareFrame(repo) -IsFreshWithoutLate(repo) }
+  class FrameEntityGrid { +AnySegmentCandidate~T~(a, b, pad, test) +AnyCandidate~T~(at, r, test) }
+  class LineOfFire { BlockedByFriendly() BlockedByNeutral() }
+  ICoarseJob <|.. SquadJob
+  ICoarseJob <|.. ComposeJob
+  ParallelEntities ..> ICoarseJob : reads once per job type
+  LineOfFire ..> FrameEntityGrid : lock only Refresh, walk lock-free
+  SquadJob ..> PartIndex : PartsOf, lock-free once prepared
+```
+*What the picture shows that the prose hid: every one of these was a SHARED structure read by a per-entity phase — the parallelism was there, the
+threads queued behind one lock (`LineOfFire`'s bodies, `PartIndex`) or one batch (the fixed 32 over ~100 commanders).*
+
+```mermaid
+sequenceDiagram
+  participant S as SquadCoordinationSystem (serial)
+  participant P as PartIndex
+  participant W as squad jobs (pool)
+  S->>P: PrepareFrame (lock, build, publish stamps AFTER the build)
+  S->>W: ParallelEntities.Run(level, SquadJob, batch 2)
+  W->>P: PartsOf, fresh and no late part, so no lock
+  W-->>S: batches merged in batch order
+```
+*What it shows: the index is made fresh BEFORE the phase, so no read inside it can take the build path; a part added later (late add) keeps the
+locked path.*
+
+| as built | why (measured: 1 000 men, VM 4 cores, Release) | where |
+|---|---|---|
+| ⭐ `LineOfFire` locks only the frame's build; the walk is `FrameEntityGrid.AnySegmentCandidate<T>` with the rule as a struct test | ~73 % of each weapon-phase thread was the line-of-fire check under ONE `lock (bodies)` — 4 threads were SLOWER than 1. After: 20.1 → 9.4 ms at 4 threads (14.6 at 1) | X-1, CE-4516 |
+| ⭐ `PartIndex.PartsOf` reads lock-free when the index is fresh with no late part; stamps published after the build (`Volatile`); squads prepare it serially | ~45 % of the squad jobs' time and much of the brains' was `PartsOf` under one lock. BrainTick 39 → 24 ms, squads 5.2 → 4.1 ms | X-2, CE-4517 |
+| ⭐ `ICoarseJob` — a coarse job names its batch size (squads 2, staff 4) | the widest squad level is ~100 commanders = 4 batches of 32; result-neutral (§18.7 M-1) — rail `CE4517_ACoarseJob_*` byte-for-byte at 1/4/8 | X-2, CE-4517 |
+| ⭐ the staff composer is a per-commander phase; launches sorted by commander once, read by binary search | it was fully serial and O(units × launches); 3.6 → 2.3 ms; rail: parallel reports = serial, in order, and every heard launch SPOTted | X-3, CE-4518 |
+| ⭐ the egress gate's H1 per entity; managed inputs by reference; repeat ownership updates write nothing | the gate skipped 0 (5 205 of 5 281 full scans forced by an ownership write somewhere); now full 30, skipped 75 % — [Egress §5c](DESIGN_Egress_Change_Detection.md) | X-4, CE-4519 |
+| the frame | **140.9 → 99.6 ms** at 4 threads (14.2 → ~20 fps); 135.4 ms at 1 thread | |
 
 ## 19. Windows scheduling: power throttling, hybrid cores, console pauses *(user, `2026-11-12`: "what about windows frontend / backend throttling and intel performance cores vs e-cores … i do not want headless mode running in console to be any slower")*
 
