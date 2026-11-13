@@ -184,9 +184,12 @@ namespace Fdp.Toolkit.Squad.Systems
             return true;
         }
 
-        private struct SquadJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.IStableReads
+        private struct SquadJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.IStableReads, Fdp.Core.Jobs.ICoarseJob
         {
             public SquadCoordinationSystem System;
+            /// <summary>⭐ CE-4517 — a job is a whole squad (merge, sensing, fire distribution): 2 squads a batch, so a level of ~100 is ~50
+            /// batches, not 4.</summary>
+            public int BatchSize => 2;
             public void Execute(Entity commander, int index, Fdp.Core.Jobs.BatchContext ctx)
             {
                 var repo = System._phaseRepo!;
