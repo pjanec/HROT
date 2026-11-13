@@ -109,7 +109,9 @@ namespace Hrot.SimHost.Tests
             world.AddComponent(commander, new Fdp.Core.CommandHierarchy.UnitRoster());
             world.AddComponent(commander, default(Fdp.Toolkit.Squad.SquadCognitiveState));
 
-            long[] seen = { 100L, 200L };
+            // ⭐ the contacts are LIVE entities: since CE-3046 the pack's threat evaluation forgets a remembered target that does not exist
+            //   (📐 raw ids 100 / 200 were forgotten before the squad merge ran, so the pool came out empty)
+            long[] seen = { (long)world.CreateEntity().PackedValue, (long)world.CreateEntity().PackedValue };
             foreach (long contact in seen)
             {
                 var m = world.CreateEntity();
@@ -118,7 +120,7 @@ namespace Hrot.SimHost.Tests
                 Fdp.Core.CommandHierarchy.UnitRoster.Add(
                     ref world.GetComponentRW<Fdp.Core.CommandHierarchy.UnitRoster>(commander), m);
                 Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(
-                    ref world.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(m), contact, 10f, 0f, 0.5f, tick: 1);
+                    ref world.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(m), contact, 10f, 0f, 5f, tick: 1);   // above the forget line (0.5), which a frame of decay crosses
             }
 
             // ⭐ the production mapper list and the CGF gate, as CgfSubsystem builds them
