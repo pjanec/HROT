@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (VM): AUTONOMOUS — the mode set by what is running, the pre-score retired, the serial systems converted
 
-**For:** a backend VM session (the lane that wrote the note). **From:** coordinator. **Dispatched at `<stamp>`** — scope frozen at that sha.
+**For:** a backend VM session (the lane that wrote the note). **From:** coordinator. **Dispatched at `ffc802ab2`** — scope frozen at that sha.
 
 🔒 User, `2026-11-13`: *"yes, approved, write the handoff"* — approving the coordinator's leans on the note's D1–D5 (recorded as R-4218 / R-4219).
 
