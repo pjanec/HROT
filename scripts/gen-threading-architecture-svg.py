@@ -76,7 +76,7 @@ x, y = lane(0, 2)
 box(x + 8, y + 24, 215, 30, C["poolf"], C["pool"], "brains · squads (per squad) · movement ✔", 10.5)
 box(x + 228, y + 24, 212, 30, C["bg2f"], C["bg2"], "background lane: EQS window ✔", 10.5)
 box(x + 8, y + 58, 215, 32, C["poolf"], C["pool"], "threat · stress · callouts · rays ✔\nweapons, the toggled group ⏳", 10)
-box(x + 228, y + 58, 212, 32, C["bg2f"], C["bg2"], "replica R: egress scan,\nrecorder capture ✔", 10)
+box(x + 228, y + 58, 212, 32, C["bg2f"], C["bg2"], "replica R: egress scan ✔\n(recorder: capture on the tick)", 10)
 text(x + 8, y + 112, "BrainTick 352 / 182 / 135 ms at 1 / 2 / 4 threads (Debug VM)", 11, C["sub"])
 text(x + 8, y + 127, "≈ 800 ms of the tick still serial — the next conversions ⏳", 11, C["sub"])
 
@@ -95,7 +95,7 @@ text(x + 8, y + 93, "Windows: EcoQoS / power throttling OFF, QuickEdit off ✔ (
 x, y = lane(1, 2)
 box(x + 8, y + 24, 215, 30, C["poolf"], C["pool"], "the same per-entity phases as ①", 10)
 box(x + 228, y + 24, 104, 66, C["bg2f"], C["bg2"], "egress scan\non R ✔", 10)
-box(x + 336, y + 24, 104, 66, C["bg2f"], C["bg2"], "recorder\ncapture on R ✔", 10)
+box(x + 336, y + 24, 104, 66, C["bg2f"], C["bg2"], "recorder: capture\non the tick, file\nwrite async ✔", 10)
 box(x + 8, y + 58, 215, 32, C["poolf"], C["pool"], "background solvers (EQS) ✔", 10)
 text(x + 8, y + 112, "own entity written directly; others by command,", 11, C["sub"])
 text(x + 8, y + 127, "played in batch order; their data read from the tick-start view", 11, C["sub"])
@@ -123,7 +123,7 @@ text(30, ty, "The strategies — what holds in every mode", 18, weight="bold")
 rows = [
     ("WORLDS", C["sim"],
      "S — the simulation, ONE writer (the sim worker and its pool)   ·   A — the UI's world, ONE writer (the main thread), the same object for life   ·   "
-     "B1 / B2 — two staging buffers (102 MB at 1 000 men)   ·   the tick-start view (11 MB) for cross-entity reads   ·   R — the replica for egress / recorder"),
+     "B1 / B2 — two staging buffers (102 MB at 1 000 men)   ·   the tick-start view (11 MB) for cross-entity reads   ·   R — the replica for off-frame egress; the recorder captures on the tick and writes its file asynchronously"),
     ("CROSSINGS", C["bg2"],
      "DOWN: one SimJobQueue — UI writes, run controls, sim-side HTTP, the UI's bus publishes, review commands (R-4220 ⏳)   ·   UP: the staging — masked tables (the active "
      "gizmo layers), the selected rows, singletons, and a tick-tagged packet FIFO: events, logs, edit outcomes, undo steps, the bus pair, readouts — exactly once, in order"),
@@ -162,9 +162,9 @@ text(30, yy, "What each mode pays — nothing it does not use", 18, weight="bold
 yy += 12
 hdr = ["", "staging B1 / B2 + pull", "SimJobQueue", "per-entity phases", "tick-start view", "replica R", "joins at a step"]
 vals = [
-    ("① windowed, playing", ["✔ ≈ 4 ms + 4–5 ms", "✔", "✔ Throughput", "✔ masked", "if egress / recorder on", "—"]),
+    ("① windowed, playing", ["✔ ≈ 4 ms + 4–5 ms", "✔", "✔ Throughput", "✔ masked", "if off-frame egress on", "—"]),
     ("① windowed, stepping", ["✔", "✔", "✔ Deterministic", "✔", "if on", "✔"]),
-    ("② headless live", ["—", "—", "✔ Throughput", "✔", "if egress / recorder on", "—"]),
+    ("② headless live", ["—", "—", "✔ Throughput", "✔", "if off-frame egress on", "—"]),
     ("③ regression / filming", ["windowed only", "windowed only", "✔ Deterministic", "✔", "if on", "✔"]),
     ("--mode all", ["per staged subsystem", "one per kernel", "✔ one worker, in sequence", "✔", "if on", "as ① / ③"]),
     ("tests (inline)", ["same step, one thread", "inline", "✔", "✔", "—", "—"]),
