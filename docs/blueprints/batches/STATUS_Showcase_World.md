@@ -180,3 +180,26 @@ is on the parallel list ⇒ the rails are in their own file.
 nothing ⇒ reverted, not shipped. The twin asserts the hierarchy on the brain node and says why.
 **Also:** my three twins moved to DDS domains 176 / 177 / 178 — 186 / 187 sat in `TheClusterAiDebugSurfaceAnswersTests`' 181–189 range (my CE-6003 / CE-6005 miss).
 **Ids:** CE-6015. No previews (`thumbnails.py` needs a live editor).
+
+## CE-6008 — lethality as scenario settings
+
+Started at `9042c73aa` (CE-6009 + the dozer merge). **As built:** [`DESIGN_City_Battle_Showcase.md` §4b](../../designs/group-maneuvers/DESIGN_City_Battle_Showcase.md).
+⭐ **No code** — what already exists is exposed as content; what does not is filed.
+
+| knob | where it lives (measured) | as built |
+|---|---|---|
+| **accuracy** | `SkillAmplifier` (World Environment) → `ProficiencyFillSystem` → `CombatProficiency.SideTiers` (replicated, `dtCombatProficiency`) → `HitModel.Sigma` × `ProficiencyOf.SpreadFactor` | ✅ a 0 s trigger `SetSkillAmplifier {side, tiers}` per side — ⚠ needs `fireIfTrueWhenArmed: true` (CE-4166: a condition true when armed is not an edge; measured, without it nothing fired) |
+| **drone count** | the scenario's entities / macros / variants | ✅ content |
+| **battery** | `FlightParams.EnduranceSeconds` — TKB, `NoScenario` | ⛔ filed CE-6016 |
+| **armour** | the TKB platform (`CombatTkb.PlatformOf`); R-4018 forbids a scenario-named TKB | ⛔ filed CE-6016 (a new World Environment component needs `GlobalComponentIds.cs`, on the parallel list) |
+
+| # | command | result | `--no-build` |
+|---|---|---|---|
+| 1 | `dotnet build Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/... --no-restore` · `dotnet test … --no-build --filter "FullyQualifiedName~LethalityAccuracyScenarioTests"` | **1 / 0 / 0**, twice — both gunners fire 30; tiers +2 / −2 on SimHost; Red Target (Friend +2's lane) lost **45**, Blue Target (Hostile −2's) **12.5** | ✅ |
+
+| red-proof (data mutation, applied, tested, restored) | result |
+|---|---|
+| both tiers 0 in the staged trigger | 🔴 — 35 vs 35 lost, tiers 0 on SimHost |
+| (measured before the fix) the trigger without `fireIfTrueWhenArmed` | 🔴 — the amplifier never set |
+
+**Ids:** CE-6016. Tree clean after the runs (`git status`). The new rail's domain is 179.

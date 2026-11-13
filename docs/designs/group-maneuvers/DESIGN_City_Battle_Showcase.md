@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD — every decision APPROVED by the user in chat (2026-11-13, §10 D-1…D-17, D-R); F-0 (fix the flaky behaviours) first
-updated: 2026-11-13 (rev 6: §4a the force macros, CE-6009 built) · (rev 5: §11 O-2 CE-6005 built — Peek and Fire §9.10) · (rev 4: §11 O-1 CE-6003 built — as built in Peek and Fire §9.9) · (rev 3: §9 points at the as-built parallel rule, §11 every item a tracker row in Area S, W/B lanes)
-current-answer: the whole file — §2 the picture · §3 phases (overlapping) · §3a momentum · §3b the air gate · §3c civilians · §4 forces · §4a the force macros (as built) · §5 the breach drill · §6 classes · §7 sequences · §8 who runs what · §9 the parallel rules · §11 the work · §12 testing
+updated: 2026-11-13 (rev 7: §4b lethality settings, CE-6008 built) · (rev 6: §4a the force macros, CE-6009 built) · (rev 5: §11 O-2 CE-6005 built — Peek and Fire §9.10) · (rev 4: §11 O-1 CE-6003 built — as built in Peek and Fire §9.9) · (rev 3: §9 points at the as-built parallel rule, §11 every item a tracker row in Area S, W/B lanes)
+current-answer: the whole file — §2 the picture · §3 phases (overlapping) · §3a momentum · §3b the air gate · §3c civilians · §4 forces · §4a the force macros (as built) · §4b lethality settings (as built) · §5 the breach drill · §6 classes · §7 sequences · §8 who runs what · §9 the parallel rules · §11 the work · §12 testing
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -235,6 +235,30 @@ the battle plays; what reads the hierarchy elsewhere (the command display on the
 Rails: `Hrot.SimHost.Tests.CityBattleMacrosTests` (M1–M3) · `Hrot.ClusterRunner.Integration.Tests.MacroPlatoonScenarioTests` on
 `scenarios/showcases/city-battle/features/macro-platoon`.
 
+## 4b. Lethality as scenario settings — as built *(`CE-6008`, showcase-world, `2026-11-13`)*
+
+```mermaid
+graph TD
+  T["a scenario Trigger (ScenarioTime 0): SetSkillAmplifier {side, tiers −2…+2}"] -->|"CGF: SkillVerbs → World Environment"| A["SkillAmplifier (per side)"]
+  A -->|"ProficiencyFillSystem, every man with a brain"| P["CombatProficiency.SideTiers (replicated)"]
+  P -->|"the node resolving the shot"| S["HitModel.Sigma × ProficiencyOf.SpreadFactor (2.5 … 1.0 … 0.65)"]
+  S --> H["hits per round"]
+  D["drone count"] -->|"content: entities / macros / variants"| C["the scenario file"]
+  B["drone battery: FlightParams.EnduranceSeconds"]:::gap -.->|"TKB only (NoScenario) — CE-6016"| X["no scenario knob"]
+  R["armour: CombatPlatformDef (TKB)"]:::gap -.->|"TKB only; R-4018: a scenario names no TKB — CE-6016"| X
+  classDef gap stroke:#c00,stroke-dasharray:4
+```
+*What the picture shows that prose hid:* of the four knobs, ONE (accuracy) already IS a scenario setting end to end and one (drone count) is just
+content; the other two have NO path from a scenario file today — the dashed edges.
+
+| knob | as built | why |
+|---|---|---|
+| **accuracy** | ✅ a 0 s trigger with `SetSkillAmplifier` per side — no code. Feature `features/lethality-accuracy`: two identical lanes, Friend +2 vs Hostile −2 | ⭐ the existing mechanism (SR-100); it moves a man's proficiency by preset steps, so the spread goes ×0.65 … ×2.5 and every other proficiency effect (exposure, delay) follows |
+| **drone count** | ✅ content — the number of drone entities a scenario / macro / variant places | nothing to expose |
+| **battery, armour** | ⛔ NOT exposed — filed `CE-6016` | both live only in the TKB (`FlightParams` is `NoScenario`; `CombatTkb.PlatformOf`); a scenario-level scale needs a NEW recorded-unmanaged World Environment component (lean: `LethalitySettings { DroneEnduranceScale, ArmourScale }`) — a new id in `GlobalComponentIds.cs`, which the parallel programme is editing ⇒ held for CE-6012's merge |
+
+Rail: `Hrot.ClusterRunner.Integration.Tests.LethalityAccuracyScenarioTests`.
+
 ## 5. The roadblock breach drill — removal is mandatory
 
 ![The breach drill](city-battle-breach-drill.svg)
@@ -400,7 +424,7 @@ B's CE-7012 (the bulldozer's ClearObstacle) stands on them.
 | O-2 | **CE-6005** ✅ BUILT `2026-11-13` | wreck → obstacle for heavy vehicles (M1, T-72, Bradley — `WreckObstacleDto`), created through the ELM (multi-frame, acked) by the dead vehicle's Health owner, ONCE (an alive→dead crossing); a SEPARATE obstacle (type 8819, 600 hp) on the hulk, which stays. As built: [Peek and Fire §9.10](../../DESIGN_Peek_And_Fire.md) | `Health.Current ≤ 0` (as `WreckSpawnSystem` reads it), the creation request, the obstacle bake, CE-6003's removal | W |
 | V-1a | **CE-6006** | the **bulldozer** type: catalogue entry (engineering type, tracked mobility, no weapon), an armour profile (small arms bounce, a few RPG hits kill) | `TkbEntityTypes`, `NedTkbCatalog`, `ArmorModel` | | W · ✅ **AS BUILT `2026-11-13`**: type `Engineer_Bulldozer = 112` (class `Bulldozer` 1.1.*.9.1, tracked, no weapon, crew abstract); armour 50 / 40 / 40 / 35 mm, health 1000 ⇒ small arms and the 12.7 AP are 0 %, the RPG-7 100 % at 400 ⇒ the third kills ([Armour Hit Model](../vehicle-tactics/DESIGN_Armour_Hit_Model.md), "bulldozer's profile") |
 | V-1b | **CE-6007** | the bulldozer's **3-D model** (tracked chassis, engine block, cab, articulated blade — NOT armoured-looking), gallery thumbnail — the ONE UI-side item the user allowed | `ShapeKit`, `VisualFamily`, `scripts/thumbnails.py` | | W · ✅ **AS BUILT `2026-11-13`**: a new family `Bulldozer` + `ShapeKits.Bulldozer` (tracks with a high rear sprocket, hood in FRONT, open ROPS cab, blade on push arms with rams, rear ripper; the blade is drawn lowered, not articulated) — [Map 3-D §6ak](../../DESIGN_Map_3D_Mode.md); thumbnail in the atlas |
-| L-1 | **CE-6008** | lethality as scenario settings (drone count + battery, accuracy, armour) | the existing parameters | W |
+| L-1 | **CE-6008** ✅ BUILT `2026-11-13` — as built §4b | lethality as scenario settings (drone count + battery, accuracy, armour): accuracy = the side skill amplifier by trigger, drone count = content; battery + armour have no scenario path ⇒ CE-6016 | the existing parameters | W |
 | M-1 | **CE-6009** ✅ BUILT `2026-11-13` — as built §4a | company / platoon macros (side, kit, entry point); the waves inserted by trigger | Scenario Macros, `InsertMacro` | W |
 | B-0 | **CE-6010** | the scenario skeleton `showcases/city-battle`: the forces of §4 by macro, prepared positions (sandbags, roadblocks), the 5 km fog, recording ON, civilians placed; the scripted top of §3 | everything above | W |
 | — | **CE-6012** | the world lane's code meets the parallel checks: CE-6003 / CE-6005's rails and the feature scenarios rerun with the three checks once the lane is merged with `exp/threaded-build`; then CE-6004 | the checks | W |

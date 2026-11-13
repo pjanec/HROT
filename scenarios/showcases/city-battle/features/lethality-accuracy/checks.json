@@ -1,0 +1,28 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 - CE-6008 lethality-accuracy (see scenario.json's header). The outcome (hits by side) is judged by the rail LethalityAccuracyScenarioTests; the grammar judges the targets hold their spots.",
+  "runFor": 40,
+  "golden": false,
+  "anchors": {},
+  "expect": [
+    {
+      "name": "Red Target holds its spot",
+      "on": "near",
+      "who": "Red Target",
+      "point": [
+        400,
+        300
+      ],
+      "within": 5
+    },
+    {
+      "name": "Blue Target holds its spot",
+      "on": "near",
+      "who": "Blue Target",
+      "point": [
+        480,
+        300
+      ],
+      "within": 5
+    }
+  ]
+}
