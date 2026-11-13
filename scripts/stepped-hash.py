@@ -51,13 +51,24 @@ def one_run(a, threads, k):
         if len(men) < 6:
             raise RuntimeError(f"only {len(men)} entities with a network id")
         s.post("/preview/enter", {"startPaused": True}, timeout=300)
-        s.post("/sim/step", {"count": a.chunk}, timeout=600)
+        probes = []
+
+        def step(n):   # --probe K: the same steps in pieces of K, the world hashed by type after each (where a run first parts)
+            if not a.probe:
+                s.post("/sim/step", {"count": n}, timeout=600); return
+            for _ in range(n // a.probe):
+                s.post("/sim/step", {"count": a.probe}, timeout=600)
+                probes.append(data(s.get("/world/hash?byType=1", timeout=600)).get("types") or {})
+
+        step(a.chunk)
         s.post(f"/entities/{men[3]}/order", {"kind": "move", "x": 150, "y": 150})   # the same edit at the same step
-        s.post("/sim/step", {"count": a.chunk * 2}, timeout=600)
+        step(a.chunk * 2)
         s.post(f"/entities/{men[5]}/order", {"kind": "hold"})
-        s.post("/sim/step", {"count": a.chunk * 3}, timeout=600)
+        step(a.chunk * 3)
         q = "/world/hash?byType=1&rows=" + a.rows + ("&bytes=1" if a.bytes else "")
-        return data(s.get(q, timeout=600))
+        r = data(s.get(q, timeout=600))
+        if a.probe: r["probes"] = probes
+        return r
     finally:
         s.stop()
 
@@ -73,6 +84,7 @@ def main():
     ap.add_argument("--port", type=int, default=8131)
     ap.add_argument("--out", default=os.path.join(__import__("tempfile").gettempdir(), "hrot-stepped-hash"), help="the runs' logs (outside the repository)")
     ap.add_argument("--save", help="write every run's result to this JSON file")
+    ap.add_argument("--probe", type=int, default=0, help="step in pieces of K steps (K divides --chunk) and hash after each: names the first piece where a run parts from run 0")
     ap.add_argument("--dll", default=os.path.join(REPO, "Hrot/Runner/Hrot.ClusterRunner/bin/Release/net8.0/Hrot.ClusterRunner.dll"))
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
@@ -84,7 +96,7 @@ def main():
         except Exception as ex:   # a failed run is reported, never read as a difference
             res[k] = (t, {"error": str(ex)})
         t_, r = res[k]
-        print(f"run {k}: {t_} thread(s) " + json.dumps({kk: v for kk, v in r.items() if kk not in ("types", "rows")}), flush=True)
+        print(f"run {k}: {t_} thread(s) " + json.dumps({kk: v for kk, v in r.items() if kk not in ("types", "rows", "probes")}), flush=True)
     if a.save:
         with open(a.save, "w") as fh:
             json.dump({str(k): v for k, (_, v) in res.items()}, fh)
@@ -101,6 +113,10 @@ def main():
         rows = sorted((n for n in set(base.get("rows") or {}) | set(r.get("rows") or {})
                        if (base.get("rows") or {}).get(n, "").split("@")[0] != (r.get("rows") or {}).get(n, "").split("@")[0]), key=int)
         differs |= bool(types)
+        for i, (pb, pr) in enumerate(zip(base.get("probes") or [], r.get("probes") or [])):
+            first = sorted(n for n in set(pb) | set(pr) if pb.get(n) != pr.get(n) and n not in RANDOM_BY_DESIGN)
+            if first:
+                print(f"run 0 vs {k}: first parts after step {(i + 1) * a.probe}: {first}", flush=True); break
         print(f"run 0 vs {k} ({t} threads): {len(types)} type(s) differ {types[:40]} · {a.rows} rows differ: {len(rows)} "
               + " ".join(f"#{n}" for n in rows[:30]), flush=True)
         if a.bytes:
