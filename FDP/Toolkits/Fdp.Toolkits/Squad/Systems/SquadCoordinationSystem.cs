@@ -195,8 +195,9 @@ namespace Fdp.Toolkit.Squad.Systems
                 System.Coordinate(repo, commander, System._phaseTick, System._phaseNow);
             }
             public void ApplyDeferred(EntityRepository repo, in Fdp.Core.Jobs.Deferred d) { }
-            // what a squad's step reads on units OUTSIDE its squad (the contacts it scores, their sides) that nothing writes while the phase runs
-            public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) { }
+            // what a squad's step reads on units OUTSIDE its squad that nothing writes while the phase runs — measured: the survey of the 1 000-man
+            // stepped editor run (HROT_READ_CHECK=2) names one: a contact's sound signature, read by the heard-vs-seen merge (ThreatEvaluationSystem.ClassesOf)
+            public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads.Unmanaged<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>();
         }
 
         /// <summary>⭐ <c>CE-2283</c> slice M-1 — the fighting-position changes this driver raises (and their per-man memory).</summary>
