@@ -135,8 +135,8 @@ in a world): 6 in-place write sites in 4 types; everything else replaces whole (
 ## 5. OPEN
 | item | why open | what it needs |
 |---|---|---|
-| the film director in mode 3 | it ticks on the UI thread but writes checkpoints / restores / steps on the world and the kernel directly (`EditorSubsystem` director host) | a split: its run-control half as sim jobs with a pending state, its camera / capture half on the UI |
-| the review source (`ReviewSourceOf`) in mode 3 | it clears and reads the world it is given (A) | the same split |
+| the film director in mode 3 — ✅ its RUN-CONTROL half `2026-11-13` | the checkpoint write and the restore (put-back + clock snap) now run on the SIMULATION world as sim jobs; the verify run already polls the clock to the mark (load / preview / step go through the threaded facades, N-5 / N-6) | Director / Verify / Checkpoint suites 70 / 0 |
+| the review source (`ReviewSourceOf`) in mode 3 — OPEN, a DESIGN step | it writes the world it is given (merge, seek, step, part playback) from the UI thread — A in mode 3; ⚠ moving only those writes to sim jobs is NOT enough: its `FederatedReplayManager` raises the UI's events and the timeline / panel read the manager directly | the split: the source and its manager owned by the SIM (world = S, `Update` in the sim step, Seek / Step / Select as sim jobs) and the UI fed a published read model of the manager (frame, total, mode, offsets) — the staging's readout pattern (D-9) — a design in Threaded Presentation §14, then the build |
 | ✅ CLOSED `2026-11-13` — the rule-message id (`ScenarioVerbs.s_messageSeq`) | inside a phase the message is sent by the phase's serial follow-up (`Later`, a ticket into a pending table) and numbered there, in batch order | `ParallelBrainsDeterminismTests.N15_RuleMessagesInAPhase_…` (1/2/4/8; red-proved) |
 | ✅ CLOSED `2026-11-13` — N-9 leftovers | a macro's placement builds NEW requests (`EntityCreationRequest.WithInitialComponents`); the scenario walk writes only what it changed (`8bc6c2a57`) | `MacroExpanderTests.N9_ThePlacementAnswer_…`, red-proved |
 | ⚠ N-15 ② watch item | one stepped session showed a SimTransform-only difference between its 1-thread run and the others; seven later runs (1·2·2, 1·4·8·8) agree | repeat the gate periodically; on a difference, `?rows=SimTransform` names the bodies |
@@ -161,5 +161,5 @@ in a world): 6 in-place write sites in 4 types; everything else replaces whole (
 the stepped product run the same world at 1 / 2 / 4 / 8 threads over seven runs (N-15 ②), `--mode all` threaded 2 min playing alive (N-13),
 the numbers (N-16). Tonight's late finds, each fixed with a rail: D-37 (`--mode all` crash) · D-38 / D-40 (undo after an HTTP edit; undo
 stripping ScenarioIgnoreTag) · D-41 (a stale last-tick view) · D-42 (the PRE-EXISTING movement race) · D-43.
-KEEP GOING (the handoff's last line), in this order: ① ✅ the rule-message id — closed · ② ✅ the EQS window on the pool budget (`105705de9`, 1.9× at 4 threads, result-neutral) · ③ §5 the film director / review source split · ④ ✅ N-9 leftovers (`8bc6c2a57`) · ⑤ the generator emitting each asset's
+KEEP GOING (the handoff's last line), in this order: ① ✅ the rule-message id — closed · ② ✅ the EQS window on the pool budget (`105705de9`, 1.9× at 4 threads, result-neutral) · ③ ✅ the director's checkpoints on S · the REVIEW SOURCE split needs its design first (§5) · ④ ✅ N-9 leftovers (`8bc6c2a57`) · ⑤ the generator emitting each asset's
 cross reads · ⑥ re-run N-15 ② periodically (the watch item).

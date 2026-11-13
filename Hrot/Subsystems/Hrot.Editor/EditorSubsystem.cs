@@ -1741,14 +1741,26 @@ namespace Hrot.Editor
                     // ⭐ CE-3299 B5 (R1, restore design §1k) — a checkpoint file written by the recorder, and put back by the SAME
                     //   sequence the cluster restore runs (PutBack: keyframe, after-restore with this node's step window, the ELM),
                     //   then the clock asked to the mark (D5)
-                    writeCheckpoint: (path, label) => Fdp.Toolkit.Replay.CheckpointFile.Write(_world!, path, label),
+                    // ⭐ N-15 (CE-4477; status §5) — in a threaded node both act on the SIMULATION world (S) as sim jobs: the checkpoint is
+                    //   written between ticks, and the restore's put-back + clock snap run there too; the verify run already waits until the
+                    //   clock reaches the mark (RestoringCheckpoint polls), so the restore answers the mark at once and lands a tick later.
+                    //   ⛔ Was the world it was handed — A, the presentation copy, in mode 3 — and the kernel, from the UI thread.
+                    writeCheckpoint: (path, label) =>
+                    {
+                        if (Staged) PostToSim("director: write checkpoint", () => Fdp.Toolkit.Replay.CheckpointFile.Write(_nodeWorld!, path, label));
+                        else Fdp.Toolkit.Replay.CheckpointFile.Write(_world!, path, label);
+                    },
                     restoreCheckpoint: path =>
                     {
                         var (keyframe, mark) = Fdp.Toolkit.Replay.CheckpointFile.Read(path);
-                        Fdp.Toolkit.Orchestration.Handlers.ReferenceCheckpointHandler.PutBack(
-                            _world!, keyframe, _node!.EventAccumulator, elm == null ? null : elm.OnWorldReplaced,
-                            _kernel!.ResumeAfterRestore);   // ⭐ CE-3316
-                        _timeCommands!.SnapTo(mark.ToGlobalTime());
+                        void PutBack()
+                        {
+                            Fdp.Toolkit.Orchestration.Handlers.ReferenceCheckpointHandler.PutBack(
+                                Staged ? _nodeWorld! : _world!, keyframe, _node!.EventAccumulator, elm == null ? null : elm.OnWorldReplaced,
+                                _kernel!.ResumeAfterRestore);   // ⭐ CE-3316
+                            _timeCommands!.SnapTo(mark.ToGlobalTime());
+                        }
+                        if (Staged) PostToSim("director: restore checkpoint", PutBack); else PutBack();
                         return mark.TotalTime;
                     },
                     // ⭐ CE-4045 H1a (Scenario Regression §10-1, R-4085) — a LIVE run and its recording: loaded by the SAME load as
