@@ -29,6 +29,7 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Squad.SquadCognitiveState>();          // — and its squad's assigned targets
             ParallelReadCheck.DeclareUnmanaged<Fdp.Core.CommandHierarchy.UnitSubordinate>();      // the ROE through his commander (AimAndFireExecutor)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.CoverClaim>();       // a friend's cover claim (R-4208: seen a tick late)
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Replication.Components.TkbIdentity>(); // a contact's template (the threat level's weapon count)
         }
     }
 }

@@ -270,17 +270,24 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem, Fdp.Interfaces.IRepl
         _frame = null;
     }
 
-    // ⭐ One frame object: the car list is the live collection, re-published when the light table changes.
+    // ⭐ N-9 (CE-4471) — ONE frame object, refilled in place from this tick's lists (it owns its data: rows, entity flags, lights) and re-set
+    //   so its version moves; a copy to another world is a value copy (TrafficFrame is SnapshotViaClone + IValueCopy).
     private void Publish(EntityRepository world)
     {
-        if (_frame is null || !ReferenceEquals(_frame.Lights, _lights))
+        var replicas = _replicas!;
+        if (_frame is null)
         {
-            var replicas = _replicas!;
-            _frame = new TrafficFrame(_cars, replicas.IsEntity, _lights, _peds, replicas.IsPedReplica);
+            _frame = new TrafficFrame();
             world.RegisterManagedComponent<TrafficFrame>();
-            world.SetSingletonManaged(_frame);
+            _isEntity = replicas.IsEntity;          // bound with the frame: no delegate per tick
+            _isPedEntity = replicas.IsPedReplica;
         }
+        _frame.Fill(_cars, _isEntity!, _lights, _peds, _isPedEntity);
+        world.SetSingletonManaged(_frame);
     }
+
+    private Func<TrafficCarPose, bool>? _isEntity;
+    private Func<TrafficPedPose, bool>? _isPedEntity;
 
     /// <summary>S2 — a traffic-settings entity this node SERVES: it owns the entity's <c>dtTrafficDemand</c>.</summary>
     private static bool TryServedDemand(EntityRepository world, out TrafficDemand demand)

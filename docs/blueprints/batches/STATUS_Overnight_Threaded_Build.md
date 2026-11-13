@@ -88,6 +88,19 @@ pull). The one `[FAIL]` is a correct refusal: the unsaved check is meaningful on
 | D-33 | callouts the brain makes for OTHER units (squad plays) | ⭐ R-4212 ②: a command, heard a tick later | `Callouts.Say` inside the phase queues a follow-up (`BatchContext.Later` + `IPhaseFollowUp`, played serially in batch order after the command buffers) — the policy and AQ105 E's de-dup (F-10) run in a fixed order | `cee930493` |
 | D-5 | `SimLink` needs a component id | — | `GlobalComponentIds.SimLink = 475` (free in every lane and in every test) | — | `GlobalComponentIds.cs` |
 
+### N-9 (`CE-4471`) — managed components changed in place: the audit and the verdict
+
+Audit (every managed component registered in production code, its policy, its mutable surface, every write site that changes an instance already
+in a world): 6 in-place write sites in 4 types; everything else replaces whole (`with` / new + `Set`) or is a service handle.
+
+| type | policy | sites (file:line) | verdict |
+|---|---|---|---|
+| ⭐ `TrafficFrame` | NoReplay · NodeLocal · **staged to the presentation world** | `TrafficModules.cs` Publish: the frame WAS the module's live `_cars` / `_peds` lists + its `Func`s into the replica table, cleared and refilled every tick | 🔴 a real race in mode 3 (the UI read lists the sim refilled) ⇒ ✅ FIXED: the frame owns its data (rows, entity flags, lights), the writer refills it in place and re-sets it; `SnapshotViaClone` + the new `IValueCopy<T>` ⇒ a table copy into another world copies INTO that world's own instance (0 B once warm) — `ValueCopyTests`, red-proved |
+| `EgressPublicationState` | Transient · NodeLocal · not staged · not recorded | `SmartEgressUtil.cs:156,157,181,199` · `SmartEgressSystem.cs:114,115,127,128` · `EqsSensorConfigEgressTranslator.cs:261,267` | ⚖ EXEMPT — one system family's per-entity BOOKKEEPING on the sim thread only (never copied to another world, never recorded); rebuilding it per publish would allocate per entity per frame (R-2084). The rule's two hazards (a recorded change not detected; a snapshot sharing a mutated object) cannot occur |
+| `OutgoingGrantsPending` | Transient · not staged | `OwnershipRecomputeSystem.cs:115` · `PartialOwnerReclaimSystem.cs:99` · `NedReplicationModule.cs:758` | ⚖ EXEMPT — same reasoning (sim-thread replication bookkeeping) |
+| `MacroExpansionIntent` | Transient · not staged | `MacroExpansionSystem.cs:233-235` (a parked request's components rewritten while the intent is on the entity) | ⚖ load / editor time, sim thread, transient — listed in §5 for its owner |
+| `ActiveMissionPlan` | NoPreview · staged | `SelectionMacro.cs:94` → `ScenarioEntityWalk.cs:34` writes the SAME value back (editor, Collector pass) | ⚖ value-preserving; listed in §5 |
+
 ## 4. BUGS FIXED
 
 | bug | test that catches it |
@@ -101,6 +114,7 @@ pull). The one `[FAIL]` is a correct refusal: the unsaved check is meaningful on
 | the film director in mode 3 | it ticks on the UI thread but writes checkpoints / restores / steps on the world and the kernel directly (`EditorSubsystem` director host) | a split: its run-control half as sim jobs with a pending state, its camera / capture half on the UI |
 | the review source (`ReviewSourceOf`) in mode 3 | it clears and reads the world it is given (A) | the same split |
 | the rule-message id (`ScenarioVerbs.s_messageSeq`) with parallel rule brains | a process-wide atomic counter: two messages published in one tick by rules on different threads may swap ids (the event content, not the world, differs) | a per-world counter advanced in the post-pass, or the id from (rule entity, tick) |
+| N-9 leftovers | `MacroExpansionSystem.cs:233-235` (a parked request's components rewritten in place while the intent is on the entity) · `ScenarioEntityWalk.cs:34` writes an unchanged value into a live `ActiveMissionPlan` (editor) | the owner of macros / the mission walk: build a new parked list / a new plan only when the walk changed something |
 | the generator emitting each asset's cross reads (§18.2) | `BrainReads` is a hand list (from the survey) | the blueprint / BTree / HSM generators emit, per asset, the types read on other entities; `BrainPhase` unions them |
 
 ## 6. NUMBERS

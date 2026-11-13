@@ -246,7 +246,25 @@ namespace Fdp.Core
         /// </summary>
         /// <inheritdoc/>
         public void CopyRowFrom(IComponentTable source, int entityIndex, uint version)
-            => Set(entityIndex, ((ManagedComponentTable<T>)source).GetRO(entityIndex), version);
+        {
+            var value = ((ManagedComponentTable<T>)source).GetRO(entityIndex);
+            // ⭐ N-9 (CE-4471) — a value-copied type is copied INTO this table's own instance (allocated once), never shared across worlds
+            if (value is IValueCopy<T> && ComponentTypeRegistry.NeedsClone(ManagedComponentType<T>.ID)) value = CopyValue(value, GetRO(entityIndex));
+            Set(entityIndex, value, version);
+        }
+
+        /// <summary>⭐ N-9 — <paramref name="source"/> copied into <paramref name="mine"/> when that is this table's own distinct instance of the same
+        /// type (no allocation), else a fresh clone (the first copy).</summary>
+        private static T CopyValue(T source, T? mine)
+        {
+            var copy = (IValueCopy<T>)source;
+            if (mine is not null && !ReferenceEquals(mine, source) && mine.GetType() == source.GetType())
+            {
+                ((IValueCopy<T>)mine).CopyFrom(source);
+                return mine;
+            }
+            return copy.CloneValue();
+        }
 
         public void Set(int entityIndex, T? value, uint version)
         {
@@ -412,7 +430,11 @@ namespace Fdp.Core
                     for (int k = 0; k < _chunkSize; k++)
                     {
                         var srcVal = srcChunk[k];
-                        if (srcVal != null)
+                        if (srcVal is IValueCopy<T>)
+                        {
+                            _chunks[i][k] = CopyValue(srcVal, _chunks[i][k]);   // ⭐ N-9 — into this table's own instance, no allocation once warm
+                        }
+                        else if (srcVal != null)
                         {
                             _chunks[i][k] = FdpAutoSerializer.DeepClone(srcVal);
                         }

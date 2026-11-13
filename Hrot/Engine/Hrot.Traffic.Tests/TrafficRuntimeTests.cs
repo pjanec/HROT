@@ -282,7 +282,7 @@ public sealed class TrafficRuntimeTests
         for (int i = 0; i < 160; i++) Frame(world, mirror, runtime, t += 0.25);   // 40 s of cluster time
         Assert.NotEmpty(mirror.Cars);
         Assert.Equal(505.25, runtime.Session!.StartTime, 2);   // N3 — SUMO started at the cluster time it was first asked at (the first frame with the entity)
-        Assert.Same(mirror.Cars, TrafficFrame.Of(world)!.Cars);
+        Assert.Equal(mirror.Cars, TrafficFrame.Of(world)!.Cars);   // N-9 — the frame owns a copy of this tick's rows
         long steps = runtime.StepsTaken;
 
         for (int i = 0; i < 10; i++) Frame(world, mirror, runtime, t);            // paused

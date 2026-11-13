@@ -402,7 +402,8 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ N-11 (D-6) — read on other men, written by no one while stress steps (measured: the scale-rig survey)
             public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads
                 .Unmanaged<Fdp.Toolkit.Replication.Components.TkbIdentity>()
-                .Unmanaged<StanceIntent>();
+                .Unmanaged<StanceIntent>()
+                .Unmanaged<Fdp.Toolkit.Combat.Gesture>();   // a man's surrender / hands-up gesture (written by his brain, not here)
             public EntityRepository Repo;
             public double Now;
             public void Execute(Entity e, int index, Fdp.Core.Jobs.BatchContext ctx)

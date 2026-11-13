@@ -102,15 +102,19 @@ public sealed class TrafficRoadGizmo : IGlobalStatelessGizmo
                 if (colour.A == 0) continue;
                 draw.DrawSphere(new Vector3(s.Head.X, s.Head.Y, 0f), LightDotPx, colour, 0f, SizeMode.ScreenPixels, Target, RoadLayer, colour);
             }
-        foreach (var car in frame.Cars)
+        var cars = frame.Cars;
+        for (int i = 0; i < cars.Count; i++)
         {
-            if (frame.IsEntity(car)) continue;
+            var car = cars[i];
+            if (frame.IsEntityAt(i)) continue;
             draw.DrawBox2D(new Vector2(car.X, car.Y), new Vector2(car.Length * 0.5f, car.Width * 0.5f), CarFill,
                 car.YawRad * 180f / MathF.PI, 0f, SizeMode.WorldMeters, Target, RoadLayer, CarFill);
         }
-        foreach (var ped in frame.Pedestrians)
+        var peds = frame.Pedestrians;
+        for (int i = 0; i < peds.Count; i++)
         {
-            if (frame.IsPedEntity(ped)) continue;
+            var ped = peds[i];
+            if (frame.IsPedEntityAt(i)) continue;
             draw.DrawSphere(new Vector3(ped.X, ped.Y, 0f), PedestrianDotPx, PedFill, 0f, SizeMode.ScreenPixels, Target, RoadLayer, PedFill);
         }
     }
