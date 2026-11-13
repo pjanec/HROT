@@ -924,7 +924,7 @@ namespace Fdp.ModuleHost
                     {
                         // Safe Execution (Async/FrameSynced)
                         kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
-                        entry.CurrentTask = ExecuteModuleSafe(entry, view, moduleDelta, topology);
+                        entry.CurrentTask = ExecuteModuleSafe(entry, view, moduleDelta, topology, deterministic: _steppedFrame);
                         if (kt != 0) KernelFrameTimings.Stop("dispatch background runs", kt, kb);
                     }
                     
@@ -1010,7 +1010,10 @@ namespace Fdp.ModuleHost
         /// Safely executes a module with timeout and exception handling.
         /// Integrates with circuit breaker for resilience.
         /// </summary>
-        private async Task ExecuteModuleSafe(ModuleEntry entry, ISimulationView view, float dt, KernelExecutionTopology topology)
+        /// <param name="deterministic">⭐ F-3 (CE-4503) — the run was dispatched on a STEPPED frame: it is waited for to its end, never abandoned
+        /// on the wall-clock timeout — a step's result may not depend on how fast the machine is (the stepped harvest already waits,
+        /// <see cref="WaitForRun"/>; the timeout used to discard the output underneath it). Continuous play keeps the hang guard.</param>
+        private async Task ExecuteModuleSafe(ModuleEntry entry, ISimulationView view, float dt, KernelExecutionTopology topology, bool deterministic = false)
         {
             // 1. Check Circuit Breaker
             if (entry.CircuitBreaker != null && !entry.CircuitBreaker.CanRun())
@@ -1062,8 +1065,20 @@ namespace Fdp.ModuleHost
                 }
             }, cts.Token);
             
-            var delayTask = Task.Delay(timeout);
-            var completedTask = await Task.WhenAny(tickTask, delayTask).ConfigureAwait(false); // ⭐ CE-4158 — never post back to the caller's context: WaitForRun blocks on this task
+            // ⭐⭐ F-3 (CE-4503) — 📌 measured: a stepped 1 000-man run at 8 threads logged "NavigationSolver timed out after 100ms. Task
+            //   abandoned" and its world differed from the 1-thread run's — the output a step depends on was thrown away by the wall clock.
+            //   ⇒ a stepped run is awaited whole; an overrun is reported once per module, never a failure for the circuit breaker.
+            long started = deterministic ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+            var completedTask = deterministic
+                ? await Task.WhenAny(tickTask).ConfigureAwait(false)
+                : await Task.WhenAny(tickTask, Task.Delay(timeout)).ConfigureAwait(false); // ⭐ CE-4158 — never post back to the caller's context: WaitForRun blocks on this task
+            if (deterministic && !entry.SteppedOverrunReported
+                && System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds > timeout)
+            {
+                entry.SteppedOverrunReported = true;
+                Console.Error.WriteLine(FormattableString.Invariant(
+                    $"[ModuleHost][STEPPED] Module '{entry.Module.Name}' ran past its {timeout} ms budget on a stepped frame: waited for it (a step never discards a run; reported once)."));
+            }
             
             // 5. Check Result
             if (completedTask == tickTask)
@@ -1442,7 +1457,8 @@ namespace Fdp.ModuleHost
             return (long)Math.Floor(_frameSimTime * hz + 1e-6);
         }
 
-        /// <summary>⭐ CE-3292 — waits for a background run; bounded by the run's own timeout (<c>ExecuteModuleSafe</c> always completes).</summary>
+        /// <summary>⭐ CE-3292 — waits for a background run to its end: a run dispatched on a stepped frame has no timeout (F-3, CE-4503), any other
+        /// is bounded by its own (<c>ExecuteModuleSafe</c> always completes).</summary>
         private static void WaitForRun(Task task)
         {
             try { task.Wait(); }
@@ -2275,6 +2291,8 @@ namespace Fdp.ModuleHost
 
             public ModuleCircuitBreaker? CircuitBreaker { get; set; }
             public int MaxExpectedRuntimeMs { get; set; }
+            /// <summary>⭐ F-3 (CE-4503) — a stepped run past <see cref="MaxExpectedRuntimeMs"/> was reported (once per module).</summary>
+            public bool SteppedOverrunReported;
             public int FailureThreshold { get; set; }
             public int CircuitResetTimeoutMs { get; set; }
 

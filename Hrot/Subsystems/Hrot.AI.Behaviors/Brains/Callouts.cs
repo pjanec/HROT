@@ -134,15 +134,37 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!world.HasComponent<EntityInfo>(man)) return false;
             var force = world.GetComponentRO<EntityInfo>(man).ForceId;
-            foreach (var e in world.Query().With<Utterance>().With<SimTransform>().Build())
+            // ⭐ M-4 (CE-4483) — the speakers near him from ONE per-frame grid (CE-2411, the pattern UnderFire.FriendNear uses), each candidate
+            //   re-read live with the exact rule. 📐 Measured (Release, 1 000 men, dotnet-trace): it walked every Utterance holder — every man
+            //   once he has spoken — per call, in the serial pass after the callout phase: 548 ms in 20 s of the sim thread.
+            var speakers = Speakers.Of(world);
+            lock (speakers)
             {
-                if (e == man) continue;
-                ref readonly var u = ref world.GetComponentRO<Utterance>(e);
-                if (u.Kind != kind || u.Until + RepeatSeconds - SpeakSeconds < now) continue;
-                if (!world.HasComponent<EntityInfo>(e) || world.GetComponentRO<EntityInfo>(e).ForceId != force) continue;
-                if (Vector3.Distance(world.GetComponentRO<SimTransform>(e).Position, at) <= RepeatMetres) return true;
+                speakers.Query ??= world.Query().With<Utterance>().With<SimTransform>().Build();
+                speakers.Grid.EnsureFresh(world, speakers.Query, Speakers.Member);
+                speakers.Grid.Circle(new Vector2(at.X, at.Y), RepeatMetres + UnderFire.MovedSlackMetres);   // flat ≤ 3-D: a superset
+                foreach (int k in speakers.Grid.Found)
+                {
+                    var e = speakers.Grid.EntityAt(k);
+                    if (e == man || !world.IsAlive(e) || !Speakers.Member(world, e)) continue;
+                    ref readonly var u = ref world.GetComponentRO<Utterance>(e);
+                    if (u.Kind != kind || u.Until + RepeatSeconds - SpeakSeconds < now) continue;
+                    if (!world.HasComponent<EntityInfo>(e) || world.GetComponentRO<EntityInfo>(e).ForceId != force) continue;
+                    if (Vector3.Distance(world.GetComponentRO<SimTransform>(e).Position, at) <= RepeatMetres) return true;
+                }
             }
             return false;
+        }
+
+        /// <summary>⭐ M-4 — the per-world grid of everyone who holds an <see cref="Utterance"/> (the set the no-echo rule looks in).</summary>
+        private sealed class Speakers
+        {
+            private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, Speakers> s_of = new();
+            public static Speakers Of(EntityRepository world) => s_of.GetValue(world, static _ => new Speakers());
+            public readonly Fdp.Toolkit.Spatial.FrameEntityGrid Grid = new();
+            public EntityQuery? Query;
+            public static readonly Func<EntityRepository, Entity, bool> Member =
+                static (w, e) => w.HasComponent<Utterance>(e) && w.HasComponent<SimTransform>(e);
         }
     }
 

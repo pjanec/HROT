@@ -53,6 +53,21 @@ namespace Fdp.Core.Threading
         /// <summary>Turns QuickEdit off on the process's console (a no-op without a console).</summary>
         public static bool DisableConsoleQuickEdit() => Api.ClearConsoleQuickEdit();
 
+        /// <summary>
+        /// ⭐ F-5 (CE-4505) — the one start-up line saying what the opt-out DID (the runner's <c>Main</c> logs it once): opted out, failed, the
+        /// default kept (<c>HROT_ECOQOS=1</c>), or not Windows. 📌 The Windows run verified the masks by hand (ControlMask 5 / StateMask 0) because
+        /// the result was ignored.
+        /// </summary>
+        public static string Describe(bool processOptedOut, bool quickEditOff, bool isWindows)
+        {
+            string throttling = !isWindows ? "not Windows (nothing to do)"
+                              : KeepWindowsDefault ? "Windows' default kept (HROT_ECOQOS=1)"
+                              : processOptedOut ? "opted out (execution speed + timer resolution)"
+                              : "the call FAILED — the process may run throttled";
+            string quickEdit = !isWindows ? "-" : quickEditOff ? "off" : "unchanged (no console, or the call failed)";
+            return $"[Scheduling] power throttling: {throttling} · console QuickEdit: {quickEdit}";
+        }
+
         /// <summary>Tests: forget that the process was opted out.</summary>
         public static void ResetForTest() => Interlocked.Exchange(ref s_processDone, 0);
 

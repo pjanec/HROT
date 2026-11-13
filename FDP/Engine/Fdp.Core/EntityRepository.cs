@@ -378,6 +378,7 @@ namespace Fdp.Core
             ClearAddLogs();   // ⭐ CE-4395 — a version set back must not make an old version's adds read as this one's
             _globalVersion = version;
             _simulationTick = version;
+            _contentEpoch++;   // ⭐ M-4 (CE-4483) — a replica may no longer trust a version match
         }
 
         /// <summary>
@@ -390,6 +391,7 @@ namespace Fdp.Core
             ClearAddLogs();   // ⭐ CE-4395 — a version set back must not make an old version's adds read as this one's
             _globalVersion = version;
             _simulationTick = version;
+            _contentEpoch++;   // ⭐ M-4 (CE-4483) — a replica may no longer trust a version match
         }
         
         /// <summary>
@@ -624,6 +626,7 @@ namespace Fdp.Core
         internal void Clear()
         {
             _clearGeneration++;
+            _contentEpoch++;   // ⭐ M-4 — a replica may no longer trust a version match
             _entityIndex.Clear();
             
             // CRITICAL FIX: We must clear component tables to remove stale references.
@@ -1855,9 +1858,12 @@ namespace Fdp.Core
         public void CaptureLastTick()
         {
             _lastTick ??= new EntityRepository();
+            _lastTickEpoch = ParallelReadCheck.DeclarationEpoch;   // ⭐ M-7 — before the copy: a declaration made during it retakes next time
             _lastTick.SyncFrom(this, ParallelReadCheck.DeclaredMask, includeTransient: true);
             _lastTickFresh = true;
         }
+
+        private int _lastTickEpoch = -1;
 
         private bool _lastTickFresh;
 
@@ -1870,7 +1876,7 @@ namespace Fdp.Core
         /// </summary>
         public void EnsureLastTickView()
         {
-            if (!_lastTickFresh || _lastTick == null) CaptureLastTick();
+            if (!_lastTickFresh || _lastTick == null || _lastTickEpoch != ParallelReadCheck.DeclarationEpoch) CaptureLastTick();   // ⭐ M-7 — a type declared since
         }
 
         /// <summary>A live unmanaged row, with no hook (the read check's own fallback).</summary>
@@ -1904,7 +1910,9 @@ namespace Fdp.Core
             if (ParallelReadCheck.OwnsAlso(index)) return true;   // ⭐ F-11 — a member of the squad this job runs (ParallelReadCheck.OwnAlso)
             if (!_entityIndex.GetComponentMask(index).IsSet(GlobalComponentIds.PartMetadata)) return false;
             var table = _tableCache[GlobalComponentIds.PartMetadata];
-            return table != null && ((Entity*)table.GetRawPointer(index))->Index == current;
+            if (table == null) return false;
+            int owner = ((Entity*)table.GetRawPointer(index))->Index;
+            return owner == current || ParallelReadCheck.OwnsAlso(owner);   // ⭐ M-6 (CE-4485) — owning an entity owns its parts (a station weapon's turret)
         }
 
         // F-5 / F-6 — in a phase: a value write on the processed entity's EXISTING component stays direct; a structural change (an add, or anything

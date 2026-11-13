@@ -806,6 +806,58 @@ sequenceDiagram
 | the serial tail stays serial (`UnderFire`, `Rounds`) | they walk one tick's edges by MAN, across squads | — |
 | ⭐ the gate: same world and the same edges at 1 / 2 / 4 / 8 threads, and the serial walk's world and edge set, on a nested hierarchy created out of command order | — | `SquadCoordinationSystemTests.F11_TheSquadsInParallel_GiveTheSerialWorld_AtAnyThreadCount` |
 
+### 18.7 ⭐ AS BUILT — the mode from what runs, the weapon phase, the serial work cut *(M-1…M-7, CE-4480…CE-4486, R-4218 / R-4219; branch `exp/threaded-build`; [status](blueprints/batches/STATUS_Mode_And_Serial_Systems.md) M-D1…M-D12)*
+
+```mermaid
+classDiagram
+  class WeaponDispatcherSystem {
+    -DispatchOne(entity)  the one unit weapon frame, serial or job
+    -DeclareTickReads()  WeaponPosture, StanceIntent
+  }
+  class DispatchJob {
+    Execute: OwnAlso(each weapon it controls) · DispatchOne
+    DeclareStableReads: WeaponSystemParams, IsEmbarkedTag, PassengerBuffer, CarrierStations, PhysicsCollider, VehicleParams
+  }
+  class WeaponSystems {
+    +ControllerOf(weapon)  ONE controller, from seats and possession
+    +Controlled(unit, dest)
+  }
+  class EntityRepository {
+    -IsOwnPartOfCurrent(index)  own, owned, or a PART of either
+    +EnsureLastTickView()  retaken when the declaration epoch moved
+    +RecycleForSync()  a snapshot kept, synced incrementally
+  }
+  class ParallelReadCheck {
+    +DeclarationEpoch
+  }
+  class SimulationModeSelector {
+    +Vote(slot, stepped)
+    +RequireDeterministic() Pin
+  }
+  WeaponDispatcherSystem *-- DispatchJob
+  DispatchJob ..> WeaponSystems : what it claims
+  DispatchJob ..> ParallelReadCheck : OwnAlso
+  EntityRepository ..> ParallelReadCheck : epoch, OwnsAlso
+```
+*What the picture shows that the prose hid: the weapon phase claims only what `ControllerOf` gives it — one controller per weapon makes the units'
+sets disjoint by construction (the squads' argument: one commander per man), and the turret parts follow from "a part of an owned entity is owned".*
+
+| as built | why (measured) | where |
+|---|---|---|
+| ⭐ the MODE is set by what runs: each kernel votes at its tick boundary (its clock stepped ⇒ Deterministic), a harness may pin it; any vote or pin wins; `HROT_SIM_MODE` removed | stepping, Run-to, filming and the regression all step the clock — one signal, no flag per feature (M-D3, M-D4) | `SimulationModeSelector`, `ModuleHostKernel` |
+| the batch size is result-neutral (Throughput's `max(32, n/(threads×4))` = the fixed 32's world) | contiguous batches merged in batch order = entity order | M-1 |
+| `UtilityPrescore` retired (§14 / §15 superseded) | a second mechanism for the brain work, unreachable whenever the brains are a phase | M-3 |
+| ⭐ the weapon dispatcher is a per-entity phase; a job claims the weapon systems its unit controls; a part of an owned entity is owned | disjoint by `ControllerOf`; a station's turret is written directly in the same tick, as serially | `WeaponDispatcherSystem`, `IsOwnPartOfCurrent` |
+| ⭐ the weapon phase's cross reads declared: the target's `WeaponPosture` / `StanceIntent` from the tick start, the controller lookups and the target's size as stable reads | the read-check survey (1 000 men, 4 threads): the force level read the target's posture while the target's job wrote it — the engagement mount differed between 4-thread runs | M-D10 |
+| ⭐ a declaration EPOCH: a view taken before a type was declared is taken again | a phase declaring lazily (movement) read its neighbours LIVE on the first frame | `ParallelReadCheck.DeclarationEpoch`, `EnsureLastTickView` |
+| a deferred publish makes its event stream as a direct one does | a squad phase's publish of an unregistered event threw at the batch's playback | `FdpEventBus.Publish`, M-D11 |
+| `FriendNear` walks the frame grid with no lock (`FrameEntityGrid.AnyCandidate`); the callouts' no-echo check from a per-frame grid | the stress phase's men queued on one lock (1.3× at 8 threads on Windows); the say-pass walked every speaker per call | M-5, M-D8 |
+| ⭐ module snapshots RECYCLED: kept, synced incrementally; chunks a module wrote are invalidated; a source REPLACED rather than advanced (`ContentEpoch`) is copied whole | each acquire copied every chunk of every table (≈ 30 ms a tick at 1 000 men) | `EntityRepository.RecycleForSync`, M-D7 |
+| the registry's clone flag read lock-free | every managed table's sync took the global lock (≈ 25 ms a tick under contention) | `ComponentTypeRegistry.NeedsClone`, M-D6 |
+| ⭐ the world hash counts FIELD bytes only (the managed layout) | two identical stepped runs differed only in padding — the gate compared history, not state | `EntityRepository.ContentHash`, M-D9 |
+| ⚠ still open: padding of a struct written INTO an opaque byte buffer (`Entity`'s 2 bytes inside `WeaponChannel.State`) | the only difference left between 4-thread runs (3 in 7) | R-4222 → `Entity` gets an explicit zero field (CE-4507) |
+| ⭐ the gate: the stepped 1 000-man run, every phase on, 1 / 2 / 4 / 8 threads ⇒ state equal (`EntityGuid` aside) | — | `scratchpad stepped-hash.py` → `scripts/stepped-hash.py` (CE-4501) |
+
 ## 19. Windows scheduling: power throttling, hybrid cores, console pauses *(user, `2026-11-12`: "what about windows frontend / backend throttling and intel performance cores vs e-cores … i do not want headless mode running in console to be any slower")*
 
 Measured: graph + grep for `PowerThrottling|SetProcessInformation|timeBeginPeriod|ThreadPriority|PriorityClass|EcoQoS|CpuSet|EfficiencyClass|ProcessorAffinity`

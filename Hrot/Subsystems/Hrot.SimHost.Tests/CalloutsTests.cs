@@ -79,6 +79,34 @@ namespace Hrot.SimHost.Tests
             Assert.False(Callouts.Say(_w, ambusher, UtteranceKind.CallContact));
         }
 
+        /// <summary>
+        /// ⭐ M-4 (CE-4483) — the no-echo rule (AQ105 E: the same call by a friend within 10 m, 2 s) answered from the per-frame speakers grid,
+        /// in a crowd where everyone has spoken: a man 20 m from a caller still calls; one 9 m off does not; 9 m up (3-D distance 10.8 m) does;
+        /// a speaker who first spoke THIS frame (joined the set after the build) is found; one who moved 3 m within the frame is found.
+        /// ✅ Red-proof: the circle's radius cut to 0.1 m ⇒ every echo is said.
+        /// </summary>
+        [Fact]
+        public void M4_TheNoEcho_FromTheSpeakersGrid_AmongACrowdThatHasSpoken()
+        {
+            var men = new Entity[300];
+            for (int i = 0; i < men.Length; i++) men[i] = Man(1000f + i * 20f);
+            _w.Tick(); Clock(0.1);
+            for (int i = 0; i < men.Length; i++) Assert.True(Callouts.Say(_w, men[i], UtteranceKind.CallMoving), $"man {i}, 20 m from the last caller");
+
+            float x = 1000f + 150 * 20f;
+            Assert.False(Callouts.Say(_w, Man(x + 9f), UtteranceKind.CallMoving));                 // an echo 9 m off
+            var up = Man(x + 6f);
+            _w.GetComponentRW<SimTransform>(up).Position = new Vector3(x + 6f, 0f, 9f);
+            Assert.True(Callouts.Say(_w, up, UtteranceKind.CallMoving));                           // 10.8 m away in 3-D: not an echo
+
+            var fresh = Man(90000f); Man(90015f);
+            Assert.True(Callouts.Say(_w, fresh, UtteranceKind.CallReloading));                     // first speaks THIS frame
+            Assert.False(Callouts.Say(_w, Man(90005f), UtteranceKind.CallReloading));              // … and is found
+
+            _w.GetComponentRW<SimTransform>(men[0]).Position = new Vector3(997f, 0f, 0f);           // the row's first man moved 3 m within the frame
+            Assert.False(Callouts.Say(_w, Man(989f), UtteranceKind.CallMoving));                    // 8 m from where he is now (the next is 31 m)
+        }
+
         /// <summary>A squad: a commander with these men (the first its leader), each under it.</summary>
         private (Entity Commander, SquadPlayContext Ctx) Squad(params Entity[] men)
         {

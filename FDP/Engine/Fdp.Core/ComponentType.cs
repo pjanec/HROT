@@ -105,6 +105,16 @@ namespace Fdp.Core
         private static readonly Dictionary<int, bool> _isRecordable = new Dictionary<int, bool>();
         private static readonly Dictionary<int, bool> _isSaveable = new Dictionary<int, bool>();
         private static readonly Dictionary<int, bool> _needsClone = new Dictionary<int, bool>();
+        // ⭐ M-4 (CE-4483) — the clone flag by id, READ WITHOUT THE LOCK: written only under _lock (registration, SetNeedsClone, Clear), a bool
+        //   write is atomic. 📐 Measured (Release, 1 000 men, 4 threads, dotnet-trace): every managed table's SyncDirtyChunks asked the flag
+        //   under the global lock — the sim thread's kernel syncs and the staging publish against the UI thread's pull — 3.1 s in 20 s, 2.3 s
+        //   of it on the sim thread (≈ 25 ms a tick), and growing with the threads that contend.
+        private static readonly bool[] _needsCloneById = new bool[FdpConfig.MAX_COMPONENT_TYPES];
+        private static void StoreNeedsClone(int id, bool value)
+        {
+            _needsClone[id] = value;
+            if ((uint)id < (uint)_needsCloneById.Length) System.Threading.Volatile.Write(ref _needsCloneById[id], value);
+        }
         /// <summary>Tracks which IDs were assigned via an explicit [ComponentId] attribute.</summary>
         private static readonly HashSet<int> _explicitIds = new HashSet<int>();
         private static int _generation;
@@ -202,7 +212,7 @@ namespace Fdp.Core
                 _isRecordable[id]   = !policy.HasFlag(DataPolicy.NoReplay);
                 System.Threading.Interlocked.Increment(ref _recordableVersion);
                 _isSaveable[id]     = !policy.HasFlag(DataPolicy.NoScenario);
-                _needsClone[id]     = clone;
+                StoreNeedsClone(id, clone);
 
                 return id;
             }
@@ -335,7 +345,7 @@ namespace Fdp.Core
             {
                 if (!_idToType.ContainsKey(typeId))
                     throw new ArgumentOutOfRangeException(nameof(typeId), $"Component type ID {typeId} is not registered.");
-                _needsClone[typeId] = value;
+                StoreNeedsClone(typeId, value);
             }
         }
 
@@ -344,6 +354,7 @@ namespace Fdp.Core
         /// </summary>
         public static bool NeedsClone(int typeId)
         {
+            if ((uint)typeId < (uint)_needsCloneById.Length) return System.Threading.Volatile.Read(ref _needsCloneById[typeId]);   // ⭐ M-4 — no lock
             lock (_lock)
             {
                 return _needsClone.TryGetValue(typeId, out bool v) && v;
@@ -445,6 +456,7 @@ namespace Fdp.Core
                 _isRecordable.Clear();
                 _isSaveable.Clear();
                 _needsClone.Clear();
+                Array.Clear(_needsCloneById, 0, _needsCloneById.Length);
                 _explicitIds.Clear();
                 System.Threading.Interlocked.Increment(ref _generation);
                 System.Threading.Interlocked.Increment(ref _recordableVersion);

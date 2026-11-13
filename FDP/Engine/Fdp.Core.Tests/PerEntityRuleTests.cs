@@ -29,6 +29,7 @@ public sealed class PerEntityRuleTests
     [ComponentId(509)] private struct Tag { public int From; }
     [ComponentId(510)] private struct Doomed { public int X; }
     [EventId(9511)] private struct Ping { public int From; }
+    [EventId(9512)] private struct Unregistered { public int From; }
 
     /// <summary>Each entity reads its LEFT neighbour's <see cref="Val"/> (another entity, declared) and writes its own = neighbour + own index.
     /// Read live, a neighbour in an earlier slot of the same batch has already moved on ⇒ the answer would depend on the batching.</summary>
@@ -230,6 +231,112 @@ public sealed class PerEntityRuleTests
             foreach (int t in new[] { 2, 4, 8 }) Assert.Equal(one, SquadLikeAt(t, own: true));
         }
         finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
+    }
+
+    /// <summary>⭐ M-7 (CE-4486) — a phase publishing an event its world never REGISTERED behaves as a serial publish: the stream is made at the
+    /// publish and the event arrives (in batch order). 📐 Measured: the squad phase's publish threw at the batch's playback ("not registered … Cannot
+    /// playback command") where the serial publish worked. 🔴 Red-proof: the stream not made on the deferred path ⇒ the playback throws.</summary>
+    [Fact]
+    public void M7_APhasePublishesAnUnregisteredEvent_LikeASerialPublish()
+    {
+        try
+        {
+            FdpWorkerPool.Resize(2);
+            using var w = World(100, out var list);
+            ParallelEntities.Run(w, list, list.Length, new PublishUnregisteredJob { Repo = w });
+            w.Bus.SwapBuffers();
+            var got = w.Bus.Read<Unregistered>();
+            Assert.Equal(list.Length, got.Length);
+            for (int i = 0; i < got.Length; i++) Assert.Equal(i, got[i].From);   // batch order = entity order
+        }
+        finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
+    }
+
+    private struct PublishUnregisteredJob : IEntityBatchJob
+    {
+        public EntityRepository Repo;
+        public void Execute(Entity e, int index, BatchContext ctx) => Repo.Bus.Publish(new Unregistered { From = index });
+        public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
+    }
+
+    /// <summary>⭐ M-7 (CE-4486) — a type declared AFTER this tick's view was taken is still served from the tick start: the phase takes the view
+    /// again (the declaration epoch moved). 📐 Measured (the read-check survey): movement declares its neighbour reads just before its first run,
+    /// so on the first frame they were read LIVE. On one thread the batches run in order, so a live read sees the left neighbour's NEW value.
+    /// 🔴 Red-proof: the epoch test dropped from <c>EnsureLastTickView</c> ⇒ entity i reads i−1's in-phase write.</summary>
+    [Fact]
+    public void M7_ATypeDeclaredAfterTheViewWasTaken_IsReadFromTheTickStart()
+    {
+        try
+        {
+            FdpWorkerPool.Resize(1);
+            ParallelReadCheck.ClearDeclarations();
+            using var w = World(64, out var list);
+            for (int i = 0; i < list.Length; i++) w.AddComponent(list[i], new Tag { From = i });
+            ParallelReadCheck.DeclareUnmanaged<Val>();
+            w.CaptureLastTick();                                          // this tick's view — without Tag
+            ParallelReadCheck.DeclareUnmanaged<Tag>();                    // declared after it (as movement does on its first frame)
+            ParallelEntities.Run(w, list, list.Length, new LeftTagJob { Repo = w, List = list });
+            for (int i = 1; i < list.Length; i++) Assert.Equal(i - 1, w.GetComponentRO<Val>(list[i]).V);   // the left one's tick-start Tag
+        }
+        finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); ParallelReadCheck.ClearDeclarations(); }
+    }
+
+    private struct LeftTagJob : IEntityBatchJob
+    {
+        public EntityRepository Repo; public Entity[] List;
+        public void Execute(Entity e, int index, BatchContext ctx)
+        {
+            Repo.GetComponentRW<Tag>(e).From = 1000 + index;                                   // its own: written in the phase
+            if (index > 0) Repo.GetComponentRW<Val>(e).V = Repo.GetComponentRO<Tag>(List[index - 1]).From;   // the left one's
+        }
+        public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
+    }
+
+    /// <summary>⭐ M-6 (CE-4485) — owning an entity owns its PARTS: a job that claims another entity (<see cref="ParallelReadCheck.OwnAlso"/>: a weapon
+    /// system the unit controls) writes that entity's part (its turret) directly — visible in the same Execute — the same at 1 / 2 / 4 / 8 threads.
+    /// 🔴 Red-proof: the owner test dropped from <c>IsOwnPartOfCurrent</c> ⇒ the part's write is deferred ⇒ the read-back sees the old value.</summary>
+    [Fact]
+    public void M6_AJobOwnsThePartsOfWhatItClaims_AndWritesThemDirectly()
+    {
+        try
+        {
+            string one = ClaimedPartsAt(1);
+            Assert.StartsWith("7,", one);                                         // owner 0 read back its write to the claimed entity's part
+            foreach (int t in new[] { 2, 4, 8 }) Assert.Equal(one, ClaimedPartsAt(t));
+        }
+        finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
+    }
+
+    private static string ClaimedPartsAt(int threads)
+    {
+        FdpWorkerPool.Resize(threads);
+        using var w = World(300, out var owners);
+        w.RegisterComponent<Fdp.Tests.EntityCensusTests.CensusPart>();
+        var claimed = new Entity[owners.Length];
+        var parts = new Entity[owners.Length];
+        for (int i = 0; i < owners.Length; i++)
+        {
+            claimed[i] = w.CreateEntity();                                        // the weapon system the owner controls
+            parts[i] = w.CreateEntity();                                          // … and its turret part
+            w.AddComponent(parts[i], new Fdp.Tests.EntityCensusTests.CensusPart { ParentEntity = claimed[i] });
+            w.AddComponent(parts[i], new Val { V = -1 });
+        }
+        ParallelEntities.Run(w, owners, owners.Length, new ClaimedPartJob { Repo = w, Claimed = claimed, Parts = parts });
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < owners.Length; i++) sb.Append(w.GetComponentRO<Val>(owners[i]).V).Append(',');
+        return sb.ToString();
+    }
+
+    private struct ClaimedPartJob : IEntityBatchJob
+    {
+        public EntityRepository Repo; public Entity[] Claimed, Parts;
+        public void Execute(Entity e, int index, BatchContext ctx)
+        {
+            ParallelReadCheck.OwnAlso(Claimed[index]);
+            Repo.AddComponent(Parts[index], new Val { V = index + 7 });          // an upsert of the claimed entity's part
+            Repo.GetComponentRW<Val>(e).V = Repo.GetComponentRO<Val>(Parts[index]).V;   // owned ⇒ already there
+        }
+        public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
     }
 
     /// <summary>⭐ N-15 (CE-4477) — a phase reads THIS tick's view even on a world no kernel captures: a view taken last tick, then the world ticks

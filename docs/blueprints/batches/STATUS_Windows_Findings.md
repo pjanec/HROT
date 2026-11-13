@@ -1,0 +1,46 @@
+<!--STATUS
+state: LIVE — in progress
+updated: 2026-11-13
+current-answer: the whole file (NEXT is the resume point)
+related-designs:
+  - HANDOFF_Coordinator_To_Backend_Windows_Findings.md — the work F-1 … F-6 (CE-4501 … CE-4506), dispatched at abc319675
+  - STATUS_Mode_And_Serial_Systems.md — M-D9 / M-D10 / M-D12: the stepped gate's differences measured to their cause (padding, one race)
+  - ../../DESIGN_Parallel_Simulation.md — §18.7 the as-built gate; §19 Windows scheduling
+  - ../DESIGN_Time_Architecture.md — §17 stepped mode waits for background jobs
+-->
+
+# STATUS — what the Windows run found: stepped repeatability, the gate, small fixes
+
+Branch `exp/threaded-build`. Started after the mode + serial-systems batch (its M-7 gate already took F-3's root cause — the order the contract allows
+when an item is blocked).
+
+## 1. DONE
+
+| item | what | commit |
+|---|---|---|
+| F-1 `CE-4501` | ⭐ the stepped gate committed: `scripts/stepped-hash.py` — the one session driver (hidden window on Windows, Xvfb on Linux), the field-bytes hash, `--rows <T> --bytes` names the entities and the bytes that differ, `--kernel 0|3`, exit code 0 / 1 / 2 (equal / differs / a run failed) | (this commit) |
+| F-5 `CE-4505` | ⭐ R-4221 — no output is ever culture-formatted: `InvariantGlobalization` for every non-test Exe/WinExe, set ONCE in a root `Directory.Build.targets` (⚠ not the props: `OutputType` / `IsTestProject` are unknown there); measured first: no production `new CultureInfo("…")` / `CurrentCulture` / `CurrentUICulture`. The `[FrameStats]` parser is one function in the session driver and reads a decimal POINT only (⛔ never taught a comma). `WindowsScheduling.Describe` — the runner logs what the opt-out did, once | `541e48364` |
+| F-3 `CE-4503` (root cause, taken in M-7) | ⭐ the stepped run IS repeatable — the differences were the GATE: `/world/hash` hashed raw rows, padding included, and a padding byte keeps whatever the slot held. 📐 Measured with the row bytes (`?rows=<T>&bytes=1`): `ScenarioClock` bytes 10–12, `Utterance` 1–3 / 10–12 — padding only. With the hash over FIELD bytes, two identical switch-off 1 000-man runs: STATE EQUAL. With every phase on, one real race found by the read-check survey (the weapon phase read the target's `WeaponPosture` live) and fixed; the residual `WeaponChannel` difference is `Entity` padding inside an opaque buffer ⇒ CE-4507 | `STATUS_Mode_And_Serial_Systems` M-D9 / M-D10 / M-D12 |
+
+## 2. GATES
+
+| gate | command | result |
+|---|---|---|
+| F-1 the committed gate | `HROT_PARALLEL_SIM=1 python3 scripts/stepped-hash.py --threads 1,4` (Release, 1 000 men) | STATE EQUAL, exit 0 |
+| ⭐ F-2 the repeatability table (`scripts/stepped-hash.py --chunk 40` = 240 steps, 1 000-man demo-city, Release, VM) | `--kernel 0` (every switch off) · `--kernel 3` + `HROT_PARALLEL_SIM=1`, each at 1, 1, 1, 4, 8 threads | **switch off:** three 1-thread runs EQUAL · 4 threads: 22 types differ, 100 positions, the entity count (10 755 vs 10 756) · 8 threads: 19 types, 18 positions — ⚠ **the THREAD COUNT changes the shipped product's stepped world** · **mode 3 + every phase:** 1, 1, 1, 4 EQUAL · 8 threads: 8 types, 15 positions. ⭐ Repeatable at a FIXED thread count in both; the 120-step gates (M-7) were too short to see it |
+| F-5 rails | `python3 scripts/test_invariant_culture.py --live <Debug ClusterRunner.dll>` · Core `WindowsScheduling` | **34 executables invariant, 63 test projects not** (red-proved: the targets removed ⇒ the executables listed); **under `cs-CZ` the editor printed `mean 44.1 ms`** (a point); the runtimeconfig carries `System.Globalization.Invariant: true` · 4 / 0; the live log shows `[Scheduling] power throttling: …` |
+
+## 3. DECISIONS
+
+| # | question | decision | where |
+|---|---|---|---|
+| F-D1 | what makes the switch-off product depend on the thread count? | ⚠ hypothesis under test: EQS's solve WINDOW — its size is the pool's thread count (`N-16`, `105705de9`), its places are solved ahead against the window-start state and committed in order; with one worker there is no window (the serial path). If a later place's solve depends on what an earlier commit in the same tick wrote (the shared-twin cache, the memory stage), the result depends on the window ⇒ on the thread count. 📐 Test: the same series with `HROT_EQS_WORKERS=1` | `EqsSolverSystem.SolveWindow` |
+
+## 4. OPEN
+
+| item | why | what it needs |
+|---|---|---|
+
+## NEXT (the resume point)
+F-1 (the committed gate) · F-5 (the decimal comma, the opt-out line) · F-2 (the table: switch off / mode 3 × repeatable) · F-4 (1 thread slower than
+off) · F-6 (fold).

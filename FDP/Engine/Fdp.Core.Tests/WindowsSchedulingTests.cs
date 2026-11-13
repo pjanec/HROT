@@ -21,6 +21,24 @@ namespace Fdp.Tests
             public bool ClearConsoleQuickEdit() { Calls.Add(("quickedit", 0, 0)); return true; }
         }
 
+        /// <summary>⭐ F-5 (CE-4505) — the start-up line says what the opt-out DID: opted out, failed, the default kept, or not Windows.</summary>
+        [Fact]
+        public void F5_TheStartUpLine_SaysWhatTheOptOutDid()
+        {
+            bool was = WindowsScheduling.KeepWindowsDefault;
+            try
+            {
+                WindowsScheduling.KeepWindowsDefault = false;
+                Assert.Contains("opted out", WindowsScheduling.Describe(true, true, isWindows: true));
+                Assert.Contains("QuickEdit: off", WindowsScheduling.Describe(true, true, isWindows: true));
+                Assert.Contains("FAILED", WindowsScheduling.Describe(false, false, isWindows: true));
+                Assert.Contains("not Windows", WindowsScheduling.Describe(false, false, isWindows: false));
+                WindowsScheduling.KeepWindowsDefault = true;
+                Assert.Contains("HROT_ECOQOS=1", WindowsScheduling.Describe(false, true, isWindows: true));
+            }
+            finally { WindowsScheduling.KeepWindowsDefault = was; }
+        }
+
         [Fact]
         public void TheProcessAndAThread_OptOutWithTheExactMasks_TheProcessOnce()
         {

@@ -61,6 +61,7 @@ namespace Hrot.Editor.DebugApi
             {
                 new("byType", "boolean", false, "Also return `types`: one hash per component type (order-free) — compare two runs type by type", "false"),
                 new("rows", "string", false, "A component type name: also return `rows`, entity index → that type's row hash @ network id — which entities differ"),
+                new("bytes", "boolean", false, "With `rows`: append each row's raw bytes in hex (`hash@net@hex`) — which BYTES differ between two runs (a field, or padding)", "false"),
             }),
 
         [("GET", "/status")] = new RouteDoc(

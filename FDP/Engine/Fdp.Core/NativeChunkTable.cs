@@ -646,6 +646,18 @@ namespace Fdp.Core
              if (count != 0) Touch(chunkIndex);   // ⭐ CE-2396
         }
 
+        /// <summary>⭐ M-4 (CE-4483) — the version a sync never matches (no world reaches it).</summary>
+        public const uint NeverSyncedVersion = uint.MaxValue;
+
+        /// <summary>⭐ M-4 — every chunk stamped at or after <paramref name="version"/> gets <see cref="NeverSyncedVersion"/>: the next
+        /// <see cref="SyncDirtyChunks"/> copies it again (or decommits it, if the source has none).</summary>
+        public void InvalidateChunksStampedSince(uint version)
+        {
+            int end = UsedChunkBound;
+            for (int i = 0; i < end; i++)
+                if (_chunkVersions[i].Value >= version) _chunkVersions[i].Value = NeverSyncedVersion;
+        }
+
         public void IncrementChunkVersion(int chunkIndex)
         {
             _chunkVersions[chunkIndex].Value++;

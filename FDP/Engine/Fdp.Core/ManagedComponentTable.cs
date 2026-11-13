@@ -384,7 +384,7 @@ namespace Fdp.Core
         /// Uses shallow copy (Array.Copy) for normal components.
         /// Uses deep clone for components marked with DataPolicy.SnapshotViaClone.
         /// </summary>
-        public void SyncDirtyChunks(ManagedComponentTable<T> source)
+        public void SyncDirtyChunks(ManagedComponentTable<T> source, bool force = false)
         {
             // Check if this type requires cloning
             // ⭐ CE-2394 — the per-T cached id (CE-2389, lock-free, re-resolved after a registry Clear); it asked the registry under its lock
@@ -397,7 +397,7 @@ namespace Fdp.Core
             {
                 // Optimization: Version Check
                 uint srcVer = source.GetChunkVersion(i);
-                if (_chunkVersions[i] == srcVer)
+                if (!force && _chunkVersions[i] == srcVer)
                     continue;
 
                 // Liveness check: Does source have data?
@@ -470,11 +470,20 @@ namespace Fdp.Core
             throw new NotSupportedException("Cannot get raw pointer for managed component");
         }
 
-        public void SyncFrom(IComponentTable source)
+        public void SyncFrom(IComponentTable source) => SyncFrom(source, force: false);
+
+        /// <summary>⭐ M-4 (CE-4483) — see <see cref="IComponentTable.InvalidateChunksStampedSince"/>.</summary>
+        public void InvalidateChunksStampedSince(uint version)
+        {
+            for (int i = 0; i < _chunkVersions.Length; i++)
+                if (_chunkVersions[i] >= version) _chunkVersions[i] = NativeChunkTable<byte>.NeverSyncedVersion;
+        }
+
+        public void SyncFrom(IComponentTable source, bool force)
         {
              if (source is ManagedComponentTable<T> typedSource)
              {
-                 this.SyncDirtyChunks(typedSource);
+                 this.SyncDirtyChunks(typedSource, force);
              }
              #if FDP_PARANOID_MODE
              else

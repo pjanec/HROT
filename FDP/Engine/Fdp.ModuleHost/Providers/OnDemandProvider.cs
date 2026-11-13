@@ -112,7 +112,7 @@ namespace Fdp.ModuleHost.Providers
                 
                 // I will try to call `SoftClear()` as instructed. If compiles fail, I'll investigate.
                 
-                snapshot.SoftClear();
+                snapshot.RecycleForSync();   // ⭐ M-4 (CE-4483) — the memory is kept; AcquireView's SyncFrom copies it whole
                 
                 // Return to pool for reuse
                 _pool.Push(snapshot);
