@@ -217,4 +217,50 @@ public sealed class ParallelEntitiesTests
         public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
     }
 
+    /// <summary>The same work as <see cref="TheJob"/>, as a COARSE job (3 a batch), recording each entity's batch.</summary>
+    private struct Coarse : IEntityBatchJob, ICoarseJob
+    {
+        public TheJob Inner;
+        public int[] BatchOf;
+        public int BatchSize => 3;
+        public void Execute(Entity e, int index, BatchContext ctx) { BatchOf[index] = ctx.Batch; Inner.Execute(e, index, ctx); }
+        public void ApplyDeferred(EntityRepository repo, in Deferred d) => Inner.ApplyDeferred(repo, d);
+    }
+
+    private static (string State, string Log, int[] BatchOf) RunCoarseAt(int threads, SimulationMode mode, int n = 600)
+    {
+        FdpWorkerPool.Resize(threads);
+        ParallelEntities.Mode = mode;
+        using var w = World(n, out var target, out var list);
+        var log = new List<int>();
+        var job = new Coarse { Inner = new TheJob { Repo = w, Target = target, Log = log }, BatchOf = new int[n] };
+        ParallelEntities.Run(w, list, n, job);
+        var sb = new System.Text.StringBuilder();
+        foreach (var e in w.Query().With<Counter>().Build()) sb.Append(e.Index).Append(':').Append(w.GetComponentRO<Counter>(e).V).Append(',');
+        return (sb.ToString(), string.Join(",", log), job.BatchOf);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4517 (X-2) — a COARSE job (<see cref="ICoarseJob"/>: one squad, one commander per entity) runs in batches of ITS size in both modes
+    /// (📐 the squad phase's widest level, ~100 commanders, was 4 batches of the fixed 32 ⇒ at most 4 threads), and the result is the fine job's,
+    /// byte for byte, at 1 / 4 / 8 threads — the size is result-neutral (§18.7 M-1: contiguous batches in batch order = entity order).
+    /// 🔴 Red-proof: the hint ignored (s_coarse = 0) ⇒ the batch-of assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE4517_ACoarseJob_RunsInItsOwnBatchSize_AndTheResultIsTheFineJobs()
+    {
+        try
+        {
+            var fine = RunAt(1, SimulationMode.Deterministic, 600);
+            foreach (var mode in new[] { SimulationMode.Deterministic, SimulationMode.Throughput })
+                foreach (int t in new[] { 1, 4, 8 })
+                {
+                    var c = RunCoarseAt(t, mode);
+                    for (int i = 0; i < c.BatchOf.Length; i++) Assert.Equal(i / 3, c.BatchOf[i]);
+                    if (mode == SimulationMode.Deterministic) { Assert.Equal(fine.State, c.State); Assert.Equal(fine.Log, c.Log); }
+                }
+        }
+        finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); ParallelEntities.Mode = SimulationMode.Deterministic; }
+    }
+
 }
