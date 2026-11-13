@@ -136,7 +136,7 @@ namespace Fdp.Toolkit.Squad.Command
             /// (<c>VehicleParams</c>, via <c>Locomotions.Of</c>), can it fire at aircraft (its controlled weapons: <c>PassengerBuffer</c>,
             /// <c>CarrierStations</c>). 📐 The read-check survey (<c>HROT_READ_CHECK=2</c>, 1 000 men, 4 threads) named exactly these three.</summary>
             public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads
-                .Unmanaged<CarKinem.Core.VehicleParams>()
+                .Unmanaged<global::CarKinem.Core.VehicleParams>()
                 .Unmanaged<Fdp.Toolkit.Behavior.Components.PassengerBuffer>()
                 .Unmanaged<Fdp.Toolkit.Behavior.Components.CarrierStations>();
             /// <summary>⭐ CE-4517 — a job is a whole commander's compose: 4 a batch (~100 commanders ⇒ ~25 batches, not 4).</summary>
