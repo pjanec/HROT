@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → WINDOWS session: RERUN on real cores after the conversions (Release, 1 … 12 threads)
 
-**For:** the Windows session (hidden window, `HROT_HIDDEN_WINDOW=1`, always). **From:** coordinator. **Dispatched at `<stamp>`**.
+**For:** the Windows session (hidden window, `HROT_HIDDEN_WINDOW=1`, always). **From:** coordinator. **Dispatched at `58c58f3e5`**.
 🔒 User, `2026-11-13`: *"windows rerun"*. ⛔ Autonomous, measure only: a failing step gets one retry, then its error and log tail in the status
 file, and the next step runs — never stop for a question.
 
