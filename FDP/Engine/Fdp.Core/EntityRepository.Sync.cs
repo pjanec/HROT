@@ -44,14 +44,14 @@ namespace Fdp.Core
                 finally { Array.Clear(_dst, 0, Count); Array.Clear(_src, 0, Count); Count = 0; }
             }
             public bool Force;
-            public void RunBatch(int batch) => _dst[batch].SyncFrom(_src[batch], Force);
+            public void RunBatch(int batch) => _dst[batch].SyncFrom(_src[batch], Force && _dst[batch] is not IManagedChunkedTable);
         }
 
         /// <summary>
         /// ⭐ M-4 (CE-4483) — hands a SNAPSHOT back to its pool for the next <see cref="SyncFrom"/>, KEEPING its memory: the events are cleared
         /// now, and the next sync copies every chunk whatever its version and clears the tables it does not copy — the same world a
         /// <see cref="Clear"/> followed by that sync gives (a background module may have written into its view, so no row is trusted), without
-        /// decommitting every chunk here and committing it again there. 📐 Measured (Release, 1 000 men, 4 threads, dotnet-trace): the module
+        /// decommitting every native chunk here and committing it again there (the managed tables are still cleared here — see below). 📐 Measured (Release, 1 000 men, 4 threads, dotnet-trace): the module
         /// snapshots' Clear on release and the recommit on acquire cost ≈ 1.6 s in 20 s of the sim thread (≈ 18 ms a tick).
         /// ⛔ Only for a world whose next use is a <see cref="SyncFrom"/> (the snapshot providers' pools); <see cref="SoftClear"/> empties a world.
         /// </summary>
@@ -60,6 +60,11 @@ namespace Fdp.Core
             _clearGeneration++;
             _recycled = true;
             Bus.ClearAll();
+            // ⭐ the MANAGED tables are cleared here as before (cheap: the chunks are kept for reuse, CE-2399), so their next sync stays
+            //   version-gated. 📐 Measured: forcing them instead re-copied every reference chunk (a write-barriered bulk move into old-generation
+            //   arrays) — 1.9 s in 20 s, more than the decommit / commit it saved. The force is for the NATIVE chunk tables only.
+            foreach (var kvp in _componentTables)
+                if (kvp.Value is IManagedChunkedTable) kvp.Value.Clear();
         }
 
         private bool _recycled;
@@ -160,7 +165,7 @@ namespace Fdp.Core
                 
                 // Sync data
                 if (ParallelSync) { _syncPairs.Add(myTable, srcTable); continue; }   // ⭐ POC 3 T-5 — copied in parallel below
-                myTable.SyncFrom(srcTable, force);
+                myTable.SyncFrom(srcTable, force && myTable is not IManagedChunkedTable);   // a managed table was cleared at the recycle
             }
             if (ParallelSync && _syncPairs.Count > 0) { _syncPairs.Force = force; _syncPairs.Run(); }
             
