@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (the SECOND VM lane): AUTONOMOUS — the next conversions: what is still serial on real cores
 
-**For:** the free backend VM lane (it built the threaded review source). **From:** coordinator. **Dispatched at `<stamp>`** — scope frozen.
+**For:** the free backend VM lane (it built the threaded review source). **From:** coordinator. **Dispatched at `90416dc3e`** — scope frozen.
 🔒 User, `2026-11-13`: *"yes"* (to the next-conversions batch for the free lane).
 
 ## ⛔⛔⛔ Never stop — the same contract
