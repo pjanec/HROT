@@ -229,6 +229,18 @@ namespace Fdp.Core.Jobs
         }
     }
 
+    /// <summary>
+    /// ⭐ CE-4517 (X-2) — a COARSE job (one squad, one commander: a whole unit's work per entity) names its own batch size. 📐 Measured: the squad
+    /// phase's widest level is ~100 commanders = 4 batches of the fixed 32 ⇒ at most 4 threads, the levels above it ONE batch; the staff phase the
+    /// same. ⭐ Result-neutral (§18.7, M-1): contiguous batches merged in batch order = entity order, whatever the size — so it may be small in
+    /// Deterministic mode too; it is a constant of the job type, never of the thread count.
+    /// </summary>
+    public interface ICoarseJob
+    {
+        /// <summary>Entities per batch (≥ 1). Read once per job type, on a default instance.</summary>
+        int BatchSize { get; }
+    }
+
     /// <summary>⭐ N-11 — an effect a per-entity job's helper defers to the serial step after the phase (<see cref="BatchContext.Later"/>).</summary>
     public interface IPhaseFollowUp
     {
@@ -294,6 +306,10 @@ namespace Fdp.Core.Jobs
         internal static int BatchSize(int count, int threads)
             => Mode == SimulationMode.Deterministic ? DeterministicBatchSize : Math.Max(DeterministicBatchSize, count / Math.Max(1, threads * 4));
 
+        /// <summary>⭐ CE-4517 — a coarse job's own size (<see cref="ICoarseJob"/>) in either mode; else <see cref="BatchSize(int, int)"/>.</summary>
+        internal static int BatchSize(int count, int threads, int coarse)
+            => coarse > 0 ? coarse : BatchSize(count, threads);
+
         private sealed class Runner<TJob> : FdpWorkerPool.IBatchWork where TJob : struct, IEntityBatchJob
         {
             public static readonly Runner<TJob> Instance = new();
@@ -306,6 +322,8 @@ namespace Fdp.Core.Jobs
                 declares.DeclareStableReads(set);
                 return set;
             }
+            // ⭐ CE-4517 — the job type's coarse batch size (0: the default sizing), read once
+            private static readonly int s_coarse = default(TJob) is ICoarseJob c ? Math.Max(1, c.BatchSize) : 0;
             public Entity[] Scratch = new Entity[64];
             private readonly List<BatchContext> _contexts = new();
             private TJob _job;
@@ -321,7 +339,7 @@ namespace Fdp.Core.Jobs
                 if (ParallelReadCheck.HasDeclarations) repo.EnsureLastTickView();
                 var pool = FdpWorkerPool.Shared;
                 _job = job; _entities = entities; _count = count;
-                _batchSize = BatchSize(count, pool.Threads);
+                _batchSize = BatchSize(count, pool.Threads, s_coarse);
                 int batches = (count + _batchSize - 1) / _batchSize;
                 while (_contexts.Count < batches) _contexts.Add(new BatchContext());
                 for (int b = 0; b < batches; b++) { _contexts[b].Reset(); _contexts[b].Batch = b; }

@@ -103,5 +103,83 @@ namespace Fdp.Toolkits.Tests.Spatial
             grid.EnsureFresh(_w, query, All);
             Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
         }
+
+        /// <summary>Accepts the one entity it looks for, and counts what it was offered.</summary>
+        private struct Looking : FrameEntityGrid.ICandidateTest
+        {
+            public Entity Want; public int Offered;
+            public bool Test(Entity e) { Offered++; return e == Want; }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4516</c> (X-1) — the lock-free segment walk (<see cref="FrameEntityGrid.AnySegmentCandidate{T}"/>) the weapon phase's line-of-fire
+        /// checks use from many threads at once: for every entity it answers exactly as <see cref="FrameEntityGrid.Segment"/> does (within reach ⇔
+        /// offered), the late list included; eight threads asking at the same time get the same answers; it allocates nothing.
+        /// 🔴 Red-proof: the late list not walked ⇒ the late joiner is never found.
+        /// </summary>
+        [Fact]
+        public void CE4516_TheLockFreeSegmentWalk_AnswersAsTheSegmentWalk_FromManyThreadsAtOnce()
+        {
+            var rng = new Random(4516);
+            var all = new Entity[400];
+            for (int i = 0; i < all.Length; i++) all[i] = At(rng.NextSingle() * 600f - 300f, rng.NextSingle() * 600f - 300f);
+            var query = _w.Query().With<SimTransform>().Build();
+            var grid = new FrameEntityGrid();
+            grid.EnsureFresh(_w, query, All);
+            _w.DestroyEntity(all[7]);
+            all[7] = At(250f, 250f);                       // a late joiner (recycles the index)
+            grid.EnsureFresh(_w, query, All);
+            Assert.Equal(1, grid.LateCount);
+
+            const int Lines = 300;
+            var a = new Vector2[Lines]; var b = new Vector2[Lines]; var pad = new float[Lines]; var want = new Entity[Lines];
+            var expect = new bool[Lines];
+            for (int q = 0; q < Lines; q++)
+            {
+                want[q] = q % 3 == 0 ? all[7] : all[rng.Next(all.Length)];
+                var w = _w.GetComponentRO<SimTransform>(want[q]).Position;
+                a[q] = new Vector2(rng.NextSingle() * 600f - 300f, rng.NextSingle() * 600f - 300f);
+                b[q] = q % 10 == 0 ? a[q]
+                     : q % 2 == 0 ? new Vector2(w.X + rng.NextSingle() * 60f - 30f, w.Y + rng.NextSingle() * 60f - 30f)   // aimed near its entity
+                     : new Vector2(rng.NextSingle() * 600f - 300f, rng.NextSingle() * 600f - 300f);
+                pad[q] = rng.NextSingle() * 40f;
+                grid.Segment(a[q], b[q], pad[q]);
+                foreach (int k in grid.Found) if (grid.EntityAt(k) == want[q]) expect[q] = true;
+            }
+            int found = 0;
+            for (int q = 0; q < Lines; q++)
+            {
+                var t = new Looking { Want = want[q] };
+                Assert.Equal(expect[q], grid.AnySegmentCandidate(a[q], b[q], pad[q], ref t));
+                if (expect[q]) found++;
+                var every = new Looking { Want = want[q] };
+                Assert.True(grid.AnySegmentCandidate(a[q], b[q], pad[q], ref every, every: true));   // the full scan offers everyone
+            }
+            Assert.True(found > 10, $"only {found} lines reach their entity: the rail would prove little");
+            Assert.Contains(true, ExpectedLate(expect, want, all[7]));
+
+            var wrong = 0;
+            System.Threading.Tasks.Parallel.For(0, 8, new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = 8 }, _ =>
+            {
+                for (int round = 0; round < 20; round++)
+                    for (int q = 0; q < Lines; q++)
+                    {
+                        var t = new Looking { Want = want[q] };
+                        if (grid.AnySegmentCandidate(a[q], b[q], pad[q], ref t) != expect[q]) System.Threading.Interlocked.Increment(ref wrong);
+                    }
+            });
+            Assert.Equal(0, wrong);
+
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int q = 0; q < Lines; q++) { var t = new Looking { Want = want[q] }; grid.AnySegmentCandidate(a[q], b[q], pad[q], ref t); }
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        private static bool[] ExpectedLate(bool[] expect, Entity[] want, Entity late)
+        {
+            var r = new bool[expect.Length];
+            for (int q = 0; q < expect.Length; q++) r[q] = expect[q] && want[q] == late;
+            return r;
+        }
     }
 }
