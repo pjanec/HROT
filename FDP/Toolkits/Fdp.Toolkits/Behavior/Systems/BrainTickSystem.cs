@@ -307,9 +307,6 @@ namespace Fdp.Toolkit.Behavior.Systems
         private void RunParallel(EntityRepository repo, IReadOnlyList<BlueprintTierSpec> tiers, float deltaTime, double now, bool drain)
         {
             BrainPhase.Prepare(repo);   // registrations (structural) and the per-frame indexes brain code reads — never built inside the phase
-            // the kernel takes the last-tick view before every Simulation dispatch once anything is declared; the first parallel tick (the
-            // declarations were just made) takes it here — a host with no kernel (a rail) takes it before each tick itself
-            if (!repo.HasLastTickView) repo.CaptureLastTick();
             int n = 0;
             for (int t = 0; t < tiers.Count; t++)
             {

@@ -128,7 +128,6 @@ namespace Fdp.Toolkit.Squad.Systems
             }
             if (n == 0) return true;
             if (!Disjoint(repo, n, deepest)) return false;
-            if (!repo.HasLastTickView) repo.CaptureLastTick();   // a host with no kernel (a rail) — the kernel takes it before every dispatch
             _phaseRepo = repo; _phaseTick = tick; _phaseNow = now;
             try
             {

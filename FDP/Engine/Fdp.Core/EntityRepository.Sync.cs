@@ -189,6 +189,7 @@ namespace Fdp.Core
             //    tick"; it only ever synced the version.
             _globalVersion  = source._globalVersion;
             _simulationTick = source._simulationTick;
+            _lastTickFresh  = false;   // ⭐ N-15 — this world's content was replaced: its last-tick view no longer describes it
         }
 
         /// <summary>

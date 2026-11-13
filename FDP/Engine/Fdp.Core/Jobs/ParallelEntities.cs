@@ -189,6 +189,9 @@ namespace Fdp.Core.Jobs
             public void Run(EntityRepository repo, Entity[] entities, int count, in TJob job)
             {
                 if (count <= 0) return;
+                // ⭐ N-15 (CE-4477) — every phase reads other entities' declared types from THIS tick's view: taken here when the kernel has not
+                //   taken it since the world last ticked (a world no kernel captures — the editor's preview copy, a rail); free when it has
+                if (ParallelReadCheck.HasDeclarations) repo.EnsureLastTickView();
                 var pool = FdpWorkerPool.Shared;
                 _job = job; _entities = entities; _count = count;
                 _batchSize = BatchSize(count, pool.Threads);

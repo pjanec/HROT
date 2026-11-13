@@ -350,6 +350,7 @@ namespace Fdp.Core
         {
             System.Threading.Interlocked.Increment(ref _globalVersion);
             System.Threading.Interlocked.Increment(ref _simulationTick);
+            _lastTickFresh = false;   // ⭐ N-15 — a new tick: the last-tick view must be taken again before a per-entity phase reads it
             TrimDestructionLog();   // ⭐ CE-3335
         }
 
@@ -1855,6 +1856,21 @@ namespace Fdp.Core
         {
             _lastTick ??= new EntityRepository();
             _lastTick.SyncFrom(this, ParallelReadCheck.DeclaredMask, includeTransient: true);
+            _lastTickFresh = true;
+        }
+
+        private bool _lastTickFresh;
+
+        /// <summary>
+        /// ⭐ N-15 (CE-4477) — the view a per-entity phase reads must be THIS tick's: takes it unless it was already taken since the last
+        /// <see cref="Tick"/> (or a world sync replaced this world's content). The kernel takes it before every Simulation dispatch, so on a kernel
+        /// world this costs nothing; a world no kernel captures (the editor's preview copy, a rail) gets it here. 📌 Measured: the phases used to
+        /// capture only when NO view existed — the preview world kept its FIRST view, entities spawned later were missing from it, and their
+        /// reads fell through to the live rows the other threads were writing ⇒ the stepped run's world hash depended on the thread count.
+        /// </summary>
+        public void EnsureLastTickView()
+        {
+            if (!_lastTickFresh || _lastTick == null) CaptureLastTick();
         }
 
         /// <summary>A live unmanaged row, with no hook (the read check's own fallback).</summary>

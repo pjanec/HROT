@@ -232,6 +232,29 @@ public sealed class PerEntityRuleTests
         finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
     }
 
+    /// <summary>⭐ N-15 (CE-4477) — a phase reads THIS tick's view even on a world no kernel captures: a view taken last tick, then the world ticks
+    /// and its rows change, then a phase runs with no capture of its own ⇒ the cross reads see the NEW rows (the phase takes the view — once a tick).
+    /// 📌 Measured: the editor's preview world kept its FIRST view; entities spawned later were missing and read live ⇒ a thread-count-dependent hash.
+    /// 🔴 Red-proof: drop <c>EnsureLastTickView</c> from <c>ParallelEntities.Run</c> ⇒ the ring reads last tick's stale values ⇒ red.</summary>
+    [Fact]
+    public void N15_APhaseReadsThisTicksView_EvenWhenNoKernelTookIt()
+    {
+        try
+        {
+            FdpWorkerPool.Resize(2);
+            using var w = World(256, out var list);
+            ParallelReadCheck.DeclareUnmanaged<Val>();
+            w.CaptureLastTick();                                                    // last tick's view
+            w.Tick();                                                               // a new tick …
+            for (int i = 0; i < list.Length; i++) w.GetComponentRW<Val>(list[i]).V = 1000 + i;   // … whose rows changed before the phase
+            ParallelEntities.Run(w, list, list.Length, new RingJob { Repo = w, Ring = list, N = list.Length });
+            long l = 1000 + (list.Length - 1);                                     // entity 0 reads its left neighbour (the last) at the NEW value
+            for (int k = 0; k < 50; k++) l = unchecked(l * 31 + k);
+            Assert.Equal(l + 0, w.GetComponentRO<Val>(list[0]).V);
+        }
+        finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
+    }
+
     [Fact]
     public void N10_ASteadyRun_WithTheRuleInPlace_AllocatesNothing()
     {
