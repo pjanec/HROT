@@ -1230,7 +1230,7 @@ R-7001 | docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md | nothing N
 R-7002 | docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md | shoot and move is opt-in below the company
 R-7003 | docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md | watching and boldness are opt-in civilian params
 R-7004 | docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md | ANY obstacle in 10 s of contact
-R-7005 | docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md | a driver abandons his car within 25 m of a shot or a burst
+R-7005 | docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md | when a shot or a burst is within `DriverPanicMetres` 25 m
 R-3001 | docs/DESIGN_Orders_Params_Entity_Classes.md | shared DTO for multiple assets might need different defaults
 R-3002 | docs/DESIGN_Orders_Params_Entity_Classes.md | Param Dto defaults od csharpstruct should be written as initializers, not as attributes
 R-3003 | docs/DESIGN_Weapon_Layers.md | Firing with high angle difference should be possible (like quick fire on suddenly appearing target)
