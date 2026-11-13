@@ -12,7 +12,7 @@ related-designs:
 # HANDOFF — coordinator → WINDOWS session: MEASURE the threaded build on real cores (Release, 1 … 12 threads)
 
 **For:** the Windows session (a place to RUN things — hidden window, `HROT_HIDDEN_WINDOW=1`, always). **From:** coordinator.
-**Dispatched at `<stamp>`**. ⛔ Autonomous: a step that fails is written up and the next step runs — never stop for a question.
+**Dispatched at `488a9f15a`**. ⛔ Autonomous: a step that fails is written up and the next step runs — never stop for a question.
 
 ## Why the VM numbers are not enough
 
