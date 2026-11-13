@@ -2,9 +2,71 @@ using System;
 using System.Numerics;
 using Fdp.Presentation.WindowManager;
 using Fdp.Presentation.Panels.ReplayBrowser;
+using Fdp.Toolkit.ReplayBrowser.Federation;
 using ImGuiNET;
 
 namespace Hrot.Editor.Review;
+
+/// <summary>
+/// ⭐ CE-4496 R-2 (docs/DESIGN_Threaded_Review_Source.md §1.1, §2) — <b>the review's UI side</b>: the channel (the published model + the commands) and the UI-only state every review surface shares —
+/// the ONE <see cref="FederationPanel"/> (its offsets sliders and <i>Local entities</i> checkboxes; it reads the model, so it serves every group without being rebuilt) and the <i>Offsets…</i> request
+/// (a UI event: it opens a window). ⛔ No surface holds the <see cref="ReviewSource"/>: in mode 3 that lives on the sim thread.
+/// </summary>
+public sealed class ReviewUi
+{
+    public ReviewUi(IReviewChannel channel, Func<Hrot.UI.Common.Facades.ITimeTransportFacade?>? facade = null)
+    {
+        Channel = channel ?? throw new ArgumentNullException(nameof(channel));
+        Panel = new FederationPanel(channel) { ShowModeRadio = false, ShowLocals = false };   // the Source menu holds the choice and the checkboxes (ONE control per choice)
+        Transport = new ReviewSourceTransport(channel, facade);
+    }
+
+    /// <summary>⭐ The ONE AAR transport's implementation while a group is open (over the model; a seek / step is a command).</summary>
+    public ReviewSourceTransport Transport { get; }
+
+    private string? _filesFor;
+    private string[] _files = Array.Empty<string>();
+
+    /// <summary>The file the review windows (search, diff) read: the open part's, or the primary participant's in Merged. Cached per file (0 B per frame).</summary>
+    public string[] RecordingFiles()
+    {
+        var m = Model;
+        if (!m.IsOpen) return Array.Empty<string>();
+        string? path = m.Participant(m.Kind == ReviewKind.Part ? m.Facts.PartNode : m.PrimaryNode)?.Path;
+        if (path is null) return Array.Empty<string>();
+        if (!ReferenceEquals(path, _filesFor)) { _filesFor = path; _files = new[] { path }; }
+        return _files;
+    }
+
+    private System.Collections.Generic.Dictionary<int, string>? _localNotes;
+
+    /// <summary>⭐ G-7 S5 (I7, M-6) — <c>"local to SimHost-1"</c> for a LOCAL (no network id) entity of the merge — the node it came from (the model's local origins); null for any other entity. Cached: 0 B per frame.</summary>
+    public string? LocalOriginNote(Fdp.Core.Entity entity)
+    {
+        var m = Model;
+        if (!m.IsMerged || !m.TryGetLocalNode(entity, out int node)) return null;
+        _localNotes ??= new System.Collections.Generic.Dictionary<int, string>();
+        if (!_localNotes.TryGetValue(node, out var note)) _localNotes[node] = note = "local to " + (m.Participant(node)?.Name ?? "Node " + node);
+        return note;
+    }
+
+    public IReviewChannel Channel { get; }
+
+    /// <summary>The model now.</summary>
+    public ReviewReadModel Model => Channel.Model;
+
+    /// <summary>The offsets sliders + the <i>Local entities shown from</i> checkboxes (the Replay Browser's panel, over the same model).</summary>
+    public FederationPanel Panel { get; }
+
+    /// <summary>⭐ The Source menu's <i>Offsets…</i> line was clicked: the host opens the Federation window. Nothing subscribed ⇒ nothing happens.</summary>
+    public event Action? OffsetsRequested;
+
+    /// <summary>Raises <see cref="OffsetsRequested"/>.</summary>
+    public void RequestOffsets() => OffsetsRequested?.Invoke();
+
+    /// <summary>The glyph key of the face: the merged sitemap, or the open part's role.</summary>
+    public string FaceIconKey => Model.Facts.FaceIconKey ?? "review/merged";
+}
 
 /// <summary>
 /// ⭐ R-5 / V6 (docs/UX/DESIGN_Review_Perspective.md §3 D9, mockup <c>review-perspective-visual.svg</c>) — <b>the status bar's SOURCE segment</b>, its own section at the bar's LEFT end
@@ -22,21 +84,21 @@ public sealed class ReviewSourceStatusSection
     /// <summary>The teal of Merged (the mockup's).</summary>
     public static readonly Vector4 Teal = new(0.25f, 0.78f, 0.74f, 1f);
 
-    private readonly ReviewSource _source;
+    private readonly ReviewUi _ui;
     private bool _openRequested;
 
-    public ReviewSourceStatusSection(ReviewSource source) => _source = source ?? throw new ArgumentNullException(nameof(source));
+    public ReviewSourceStatusSection(ReviewUi ui) => _ui = ui ?? throw new ArgumentNullException(nameof(ui));
 
     /// <summary>Registers the section on <paramref name="bar"/> for EVERY perspective (the source is the replay's, not a layout's).</summary>
-    public static ReviewSourceStatusSection Register(StatusBarManager bar, ReviewSource source)
+    public static ReviewSourceStatusSection Register(StatusBarManager bar, ReviewUi ui)
     {
-        var section = new ReviewSourceStatusSection(source);
+        var section = new ReviewSourceStatusSection(ui);
         bar.RegisterSection(SectionId, SortOrder, section.Render);
         return section;
     }
 
     /// <summary>The text now (null ⇒ nothing is drawn).</summary>
-    public string? Text => _source.StatusText();
+    public string? Text => _ui.Model.Facts.StatusText;
 
     /// <summary>Whether the last click asked for the switch (a rail reads it; <see cref="Render"/> consumes it).</summary>
     public bool OpenRequested => _openRequested;
@@ -52,21 +114,22 @@ public sealed class ReviewSourceStatusSection
     public void Render()
     {
         if (Text is not { } text) return;
-        var glyph = NodeEditor.Core.Widgets.Icons.Get(_source.FaceIconKey);   // ⭐ mockup ③ — the same glyph the toolbar's face carries, before the text
+        var model = _ui.Model;
+        var glyph = NodeEditor.Core.Widgets.Icons.Get(_ui.FaceIconKey);   // ⭐ mockup ③ — the same glyph the toolbar's face carries, before the text
         ImGui.TextColored(glyph.Color, glyph.Glyph); ImGui.SameLine(0f, 6f);
-        if (_source.Kind == ReviewSourceKind.Merged) ImGui.TextColored(Teal, text); else ImGui.TextUnformatted(text);
+        if (model.Kind == ReviewKind.Merged) ImGui.TextColored(Teal, text); else ImGui.TextUnformatted(text);
         TextRect = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
-        if (_source.IsOpen && ImGui.IsItemHovered())
+        if (model.IsOpen && ImGui.IsItemHovered())
         {
             ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
             ImGui.SetTooltip(Tooltip);
         }
-        if (_source.IsOpen && ImGui.IsItemClicked(ImGuiMouseButton.Left)) _openRequested = true;
+        if (model.IsOpen && ImGui.IsItemClicked(ImGuiMouseButton.Left)) _openRequested = true;
         if (_openRequested) { ImGui.OpenPopup(PopupId); _openRequested = false; }
         PopupDrawn = false;
         if (!ImGui.BeginPopup(PopupId)) return;
         PopupDrawn = true;
-        ReviewSourceSwitch.Draw(_source);
+        ReviewSourceSwitch.Draw(_ui);
         ImGui.EndPopup();
     }
 }
@@ -75,7 +138,7 @@ public sealed class ReviewSourceStatusSection
 /// ⭐ G-7 S5 follow-up (CE-4354, mockup ③ of <c>docs/UX/better-merge-visual.svg</c>) — <b>the Source menu</b>, shared by the status bar's popup and the toolbar's combo: header <i>Source of the world</i> · <i>Merged — every part</i>
 /// (sitemap, teal) · one row per participant <i>"&lt;name&gt;'s part"</i> with its ROLE icon in its colour (the <c>node/*</c> keys of <c>Icons</c>) · a separator · the <i>Local entities shown from</i> checkboxes (the Federation panel's
 /// ONE <see cref="FederationPanel.DrawLocalEntities"/>) · a separator · <i>Offsets…</i> (expert) which asks the host to open the Federation window. ⛔ There is NO Single-Node / Merged radio: the rows ARE that choice (ONE control per choice).
-/// Draws every frame while open ⇒ 0 B steady (labels cached in <see cref="ReviewSource"/>).
+/// Draws every frame while open ⇒ 0 B steady (the labels are the model's). ⭐ CE-4496 R-2: reads the model, commands through the channel.
 /// </summary>
 public static class ReviewSourceSwitch
 {
@@ -88,28 +151,29 @@ public static class ReviewSourceSwitch
     public static readonly System.Collections.Generic.List<string> DrawnTexts = new();
     public static readonly System.Collections.Generic.List<(string Label, float IconX, float TextX, float Y)> Rows = new();
 
-    public static void Draw(ReviewSource source)
+    public static void Draw(ReviewUi ui)
     {
         if (CaptureLayout) { DrawnTexts.Clear(); Rows.Clear(); }
+        var model = ui.Model;
         ImGui.TextDisabled(Header); Note(Header);
-        if (IconRow("##src_merged", MergedRow, NodeEditor.Core.Widgets.Icons.Get("review/merged"), source.Kind == ReviewSourceKind.Merged)) source.SelectMerged();
-        var parts = source.Participants;
+        if (IconRow("##src_merged", MergedRow, NodeEditor.Core.Widgets.Icons.Get("review/merged"), model.Kind == ReviewKind.Merged)) ui.Channel.SelectMerged();
+        var parts = model.Participants;
         for (int i = 0; i < parts.Count; i++)
         {
-            int node = parts[i].Node;
-            ImGui.PushID(node);
-            if (IconRow("##src_part", source.PartLabel(node), NodeEditor.Core.Widgets.Icons.Get(source.RoleKeyOf(node)), source.Kind == ReviewSourceKind.Part && source.PartNode == node)) source.SelectPart(node);
+            var p = parts[i];
+            ImGui.PushID(p.Node);
+            if (IconRow("##src_part", p.PartLabel, NodeEditor.Core.Widgets.Icons.Get(p.RoleKey), model.Kind == ReviewKind.Part && model.Facts.PartNode == p.Node)) ui.Channel.SelectPart(p.Node);
             ImGui.PopID();
         }
-        if (source.SwitchPanel is { } panel)
+        if (model.IsOpen && parts.Count > 0)
         {
             ImGui.Separator();
             Note(FederationPanel.LocalsHeader);
-            panel.DrawLocalEntities();   // ONE component: the Replay Browser's Federation window draws the same checkboxes
+            ui.Panel.DrawLocalEntities();   // ONE component: the Replay Browser's Federation window draws the same checkboxes
         }
         ImGui.Separator();
         ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
-        if (ImGui.Selectable(OffsetsRow)) source.RequestOffsets();
+        if (ImGui.Selectable(OffsetsRow)) ui.RequestOffsets();
         ImGui.PopStyleColor();
         Note(OffsetsRow);
     }
@@ -137,7 +201,7 @@ public static class ReviewSourceSwitch
 public static class ReviewSourceFace
 {
     /// <summary>Draws the face (<paramref name="width"/> wide) and, on a click, opens <paramref name="popupId"/> under it. Returns the frame's rectangle.</summary>
-    public static (Vector2 Min, Vector2 Max) Draw(ReviewSource source, string label, string popupId, float width)
+    public static (Vector2 Min, Vector2 Max) Draw(ReviewUi ui, string label, string popupId, float width)
     {
         var at = ImGui.GetCursorScreenPos();
         float h = ImGui.GetFrameHeight();
@@ -146,9 +210,9 @@ public static class ReviewSourceFace
         bool hovered = ImGui.IsItemHovered();
         var min = at; var max = at + size;
         var dl = ImGui.GetWindowDrawList();
-        var icon = NodeEditor.Core.Widgets.Icons.Get(source.FaceIconKey);
+        var icon = NodeEditor.Core.Widgets.Icons.Get(ui.FaceIconKey);
         dl.AddRectFilled(min, max, ImGui.GetColorU32(hovered ? ImGuiCol.FrameBgHovered : ImGuiCol.FrameBg), 3f);
-        if (source.Kind == ReviewSourceKind.Merged) dl.AddRect(min, max, ImGui.ColorConvertFloat4ToU32(ReviewSourceStatusSection.Teal with { W = 0.8f }), 3f);
+        if (ui.Model.Kind == ReviewKind.Merged) dl.AddRect(min, max, ImGui.ColorConvertFloat4ToU32(ReviewSourceStatusSection.Teal with { W = 0.8f }), 3f);
         float ty = at.Y + (h - ImGui.GetFontSize()) * 0.5f;
         dl.AddText(new Vector2(at.X + 7f, ty), ImGui.ColorConvertFloat4ToU32(icon.Color), icon.Glyph);
         dl.AddText(new Vector2(at.X + 7f + ImGui.GetFontSize() * 1.6f, ty), ImGui.GetColorU32(ImGuiCol.Text), label);
@@ -168,12 +232,12 @@ public sealed class ReviewSourceToolbarCombo
     public const int SortOrder = 13;
     public const float Width = 220f;
 
-    private readonly ReviewSource _source;
+    private readonly ReviewUi _ui;
 
-    public ReviewSourceToolbarCombo(ReviewSource source) => _source = source ?? throw new ArgumentNullException(nameof(source));
+    public ReviewSourceToolbarCombo(ReviewUi ui) => _ui = ui ?? throw new ArgumentNullException(nameof(ui));
 
     /// <summary>What the combo's face says now: <c>"Merged · 4 participants"</c> / <c>"CGF-1's part"</c> (mockup ③); null while no group is open (nothing is drawn).</summary>
-    public string? Label => _source.IsOpen ? _source.FaceLabel : null;
+    public string? Label => _ui.Model.IsOpen ? _ui.Model.Facts.FaceLabel : null;
 
     /// <summary>Whether the last <see cref="Draw"/> drew the combo (a rail's observation).</summary>
     public bool Drawn { get; private set; }
@@ -189,11 +253,11 @@ public sealed class ReviewSourceToolbarCombo
         Drawn = false; PopupDrawn = false;
         if (Label is not { } label) return;
         Drawn = true;
-        FaceRect = ReviewSourceFace.Draw(_source, label, PopupId, Width);
+        FaceRect = ReviewSourceFace.Draw(_ui, label, PopupId, Width);
         if (ImGui.IsPopupOpen(PopupId)) ImGui.SetNextWindowPos(new Vector2(FaceRect.Min.X, FaceRect.Max.Y));
         if (!ImGui.BeginPopup(PopupId)) return;
         PopupDrawn = true;
-        ReviewSourceSwitch.Draw(_source);
+        ReviewSourceSwitch.Draw(_ui);
         ImGui.EndPopup();
     }
 
@@ -206,43 +270,39 @@ public sealed class ReviewSourceToolbarCombo
 
 /// <summary>
 /// ⭐ G-7 S5 follow-up (mockup ③) — <b>the editor's Federation window</b>: the Replay Browser's own <c>FederationWindow</c> class over the open group's <see cref="FederationPanel"/> (the per-node offset sliders), registered in the Review
-/// perspective and opened by the Source menu's <i>Offsets…</i> line (<see cref="ReviewSource.OffsetsRequested"/>). The panel is created per group (<see cref="ReviewSource.Load"/>), so the window is re-registered under the same id each time —
-/// as the Replay Browser does (<c>RegisterFederationWindow</c>). ⛔ No radio, no checkboxes here: the Source menu holds both (<see cref="FederationPanel.ShowModeRadio"/>, <see cref="FederationPanel.ShowLocals"/>) — ONE control per choice.
+/// perspective and opened by the Source menu's <i>Offsets…</i> line (<see cref="ReviewUi.OffsetsRequested"/>). ⭐ CE-4496 R-2: the panel reads the model, so ONE panel serves every group and the window is
+/// registered once. ⛔ No radio, no checkboxes here: the Source menu holds both (<see cref="FederationPanel.ShowModeRadio"/>, <see cref="FederationPanel.ShowLocals"/>) — ONE control per choice.
 /// </summary>
 public sealed class ReviewFederationWindowHost
 {
     public const string WindowId = "editor_review_federation";
     public const string Title = "Federation (offsets)";
 
-    private readonly ReviewSource _source;
+    private readonly ReviewUi _ui;
     private readonly Action<ManagedWindow> _register;
     private readonly string _perspective;
     private readonly Vector4 _colour;
-    private FederationPanel? _panel;
 
-    public ReviewFederationWindowHost(ReviewSource source, Action<ManagedWindow> register, string perspective, Vector4 colour)
+    public ReviewFederationWindowHost(ReviewUi ui, Action<ManagedWindow> register, string perspective, Vector4 colour)
     {
-        _source = source ?? throw new ArgumentNullException(nameof(source));
+        _ui = ui ?? throw new ArgumentNullException(nameof(ui));
         _register = register ?? throw new ArgumentNullException(nameof(register));
         _perspective = perspective; _colour = colour;
-        source.Changed += Sync;
-        source.OffsetsRequested += Open;
-        Sync();
+        ui.OffsetsRequested += Open;
     }
 
-    /// <summary>The window over the CURRENT group's panel; null while no group is open.</summary>
+    /// <summary>The window over the review's panel; null until first opened (registered lazily, once).</summary>
     public Fdp.Presentation.Windows.ReplayBrowser.FederationWindow? Window { get; private set; }
 
-    private void Sync()
+    /// <summary>Opens the window (the Source menu's <i>Offsets…</i>) — only while a group is open.</summary>
+    public void Open()
     {
-        var panel = _source.SwitchPanel;
-        if (panel is null || ReferenceEquals(panel, _panel)) return;
-        _panel = panel;
-        panel.ShowModeRadio = false; panel.ShowLocals = false;
-        Window = new Fdp.Presentation.Windows.ReplayBrowser.FederationWindow(WindowId, Title, _perspective, panel, _colour) { IsOpen = false };
-        _register(Window);
+        if (!_ui.Model.IsOpen) return;
+        if (Window is null)
+        {
+            Window = new Fdp.Presentation.Windows.ReplayBrowser.FederationWindow(WindowId, Title, _perspective, _ui.Panel, _colour) { IsOpen = false };
+            _register(Window);
+        }
+        Window.IsOpen = true;
     }
-
-    /// <summary>Opens the window (the Source menu's <i>Offsets…</i>).</summary>
-    public void Open() { Sync(); if (Window is not null) Window.IsOpen = true; }
 }

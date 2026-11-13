@@ -242,7 +242,7 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem, Fdp.Interfaces.IRepl
         var k = (owner, src);
         _liveMirrors.Add(k);
         if (!_mirrors.TryGetValue(k, out var mirror)) _mirrors[k] = mirror = new TrafficMirror(_net!.Placement, owner);
-        if (resolve) mirror.Resolve(source, lanes, at, _cars);
+        if (resolve) mirror.Resolve(source, lanes, at, _cars, _net!.Drape);
         if (_lights.Count == 0) _lights = source.TlStateByLane;
     }
 
@@ -251,7 +251,7 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem, Fdp.Interfaces.IRepl
         var k = (owner, src);
         _livePedMirrors.Add(k);
         if (!_pedMirrors.TryGetValue(k, out var mirror)) _pedMirrors[k] = mirror = new TrafficPedMirror(_net!.Placement, owner);
-        if (resolve) mirror.Resolve(peds, at, _peds);
+        if (resolve) mirror.Resolve(peds, at, _peds, _net!.Drape);
     }
 
     private void Stop(EntityRepository world)

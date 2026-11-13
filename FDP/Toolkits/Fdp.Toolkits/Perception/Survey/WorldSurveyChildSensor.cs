@@ -34,15 +34,44 @@ namespace Fdp.Toolkit.Perception.Survey
         {
             if (request is null) throw new ArgumentNullException(nameof(request));
             var existing = EqsChildSensor.Find(world, owner, siteId, key);
-            if (!existing.IsNull) return existing;
+            if (!existing.IsNull)
+            {
+                // ⭐⭐ E-3 (CE-4509) — a child created inside a per-entity phase lands BARE (EqsChildSensor.Ensure defers the creation and returns
+                //   Null, so nothing below ran): it is dressed by the first Ensure that finds it. ⛔ Was: returned "as it is" — never requested,
+                //   never solved (📐 the squad drills under parallel brains: `missing component WorldSurveyRequest`, at any frame budget).
+                if (!world.IsComponentTypeRegistered<SensorTag>() || !world.HasComponent<SensorTag>(existing)) { Register(world); Dress(world, existing, request); }
+                return existing;
+            }
             Register(world);
-            var child = EqsChildSensor.Ensure<WorldSurveyStatus>(world, owner, siteId, Transport(request), key);
-            if (child.IsNull) return child;
+            var child = EqsChildSensor.Ensure<WorldSurveyStatus>(world, owner, siteId, Transport(request), out var pending, key);
+            if (child.IsNull)
+            {
+                // ⭐⭐ E-3 (CE-4509) — created inside a per-entity phase: dressed in the SAME buffer, so it lands complete at the merge
+                if (pending != default) Dress(((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetCommandBuffer(), pending, request);
+                return child;
+            }
+            Dress(world, child, request);
+            return child;
+        }
+
+        // The survey's pieces — on the world, or (deferred) on the command buffer's pending child: the same four, in the same order.
+        private static void Dress(EntityRepository world, Entity child, WorldSurveyRequest request)
+        {
             world.AddComponent(child, new SensorTag { Kind = SensorModality.WorldSurvey });
             world.SetManagedComponent(child, new WorldSurveyAnswer());
             SetRequest(world, child, request);
-            return child;
         }
+
+        private static void Dress(Fdp.Interfaces.IEntityCommandBuffer cmd, Entity pending, WorldSurveyRequest request)
+        {
+            cmd.AddComponent(pending, new SensorTag { Kind = SensorModality.WorldSurvey });
+            cmd.SetManagedComponent(pending, new WorldSurveyAnswer());
+            cmd.SetManagedComponent(pending, request);
+            cmd.SetManagedComponent(pending, Payload(request));
+        }
+
+        private static SensorConfigPayload Payload(WorldSurveyRequest request)
+            => new() { Kind = WorldSurveyRequestJson.Kind, Json = WorldSurveyRequestJson.Encode(request) };
 
         /// <summary>Re-point <paramref name="child"/> with a new request: a new epoch, its answer cleared. False when it is not a live
         /// survey.</summary>
@@ -88,7 +117,7 @@ namespace Fdp.Toolkit.Perception.Survey
         private static void SetRequest(EntityRepository world, Entity child, WorldSurveyRequest request)
         {
             world.SetManagedComponent(child, request);
-            world.SetManagedComponent(child, new SensorConfigPayload { Kind = WorldSurveyRequestJson.Kind, Json = WorldSurveyRequestJson.Encode(request) });
+            world.SetManagedComponent(child, Payload(request));
         }
     }
 

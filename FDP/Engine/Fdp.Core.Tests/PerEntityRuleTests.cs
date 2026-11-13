@@ -339,6 +339,84 @@ public sealed class PerEntityRuleTests
         public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
     }
 
+    /// <summary>⭐⭐ E-3 (CE-4509) — "own entity: direct access" holds for a managed component a job ADDS to its own entity: the add is
+    /// deferred to the merge (structural), and the job reads its own pending value until then — a read-modify-write three times in one Execute
+    /// counts three, at 1 / 2 / 4 / 8 threads. 📐 Measured before: SubordinateOrders.Record on a commander that held none kept only the
+    /// LAST order of the tick (the squad drills under parallel brains re-sent the others). 🔴 Red-proof: drop the own-pending read
+    /// (EntityRepository.OwnPendingManaged / HasManagedCore) ⇒ every owner counts 1.</summary>
+    [Fact]
+    public void E3_AJobReadsItsOwnPendingManagedAdd_AReadModifyWriteKeepsEveryStep()
+    {
+        try
+        {
+            foreach (int t in new[] { 1, 2, 4, 8 }) Assert.Equal(300 * 3, OwnPendingCountAt(t));
+        }
+        finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
+    }
+
+    [ComponentId(502)] public sealed class Tally { public int N; }   // a test-local id (502: free in production and in this project)
+
+    /// <summary>⭐ E-3 (CE-4509) — the unmanaged twin: an "add if absent, else build on the pending add" helper (ReportQueue.Enqueue's shape)
+    /// called three times in one Execute keeps all three, at 1 / 2 / 4 / 8 threads. 🔴 Red-proof: TryGetOwnPendingAdd always false ⇒ 1.</summary>
+    [Fact]
+    public void E3_AnAddIfAbsentHelper_BuildsOnItsOwnPendingAdd()
+    {
+        try
+        {
+            foreach (int t in new[] { 1, 2, 4, 8 })
+            {
+                FdpWorkerPool.Resize(t);
+                using var w = World(300, out var owners);
+                ParallelEntities.Run(w, owners, owners.Length, new PendingAddJob { Repo = w });
+                long sum = 0;
+                foreach (var e in owners) sum += w.HasComponent<Tag>(e) ? w.GetComponentRO<Tag>(e).From : 0;
+                Assert.Equal(300L * 3, sum);
+            }
+        }
+        finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
+    }
+
+    private struct PendingAddJob : IEntityBatchJob
+    {
+        public EntityRepository Repo;
+        public void Execute(Entity e, int index, BatchContext ctx)
+        {
+            for (int k = 0; k < 3; k++)
+            {
+                if (Repo.HasComponent<Tag>(e)) { Repo.GetComponentRW<Tag>(e).From++; continue; }
+                var fresh = Repo.TryGetOwnPendingAdd<Tag>(e, out var pending) ? pending : default;
+                fresh.From++;
+                Repo.AddComponent(e, fresh);                                     // deferred: the pending add the next call builds on
+            }
+        }
+        public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
+    }   // a test-local id (502: free in production and in this project)
+
+    private static int OwnPendingCountAt(int threads)
+    {
+        FdpWorkerPool.Resize(threads);
+        using var w = World(300, out var owners);
+        w.RegisterManagedComponent<Tally>();
+        ParallelEntities.Run(w, owners, owners.Length, new TallyJob { Repo = w });
+        int sum = 0;
+        foreach (var e in owners) sum += w.HasManagedComponent<Tally>(e) ? ((Fdp.ModuleHost.Abstractions.ISimulationView)w).GetManagedComponentRO<Tally>(e).N : 0;
+        return sum;
+    }
+
+    private struct TallyJob : IEntityBatchJob
+    {
+        public EntityRepository Repo;
+        public void Execute(Entity e, int index, BatchContext ctx)
+        {
+            for (int k = 0; k < 3; k++)
+            {
+                int n = Repo.HasManagedComponent<Tally>(e) ? ((Fdp.ModuleHost.Abstractions.ISimulationView)Repo).GetManagedComponentRO<Tally>(e).N : 0;
+                Repo.SetManagedComponent(e, new Tally { N = n + 1 });          // the first is an ADD: deferred to the merge
+            }
+        }
+        public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
+    }
+
     /// <summary>⭐ N-15 (CE-4477) — a phase reads THIS tick's view even on a world no kernel captures: a view taken last tick, then the world ticks
     /// and its rows change, then a phase runs with no capture of its own ⇒ the cross reads see the NEW rows (the phase takes the view — once a tick).
     /// 📌 Measured: the editor's preview world kept its FIRST view; entities spawned later were missing and read live ⇒ a thread-count-dependent hash.

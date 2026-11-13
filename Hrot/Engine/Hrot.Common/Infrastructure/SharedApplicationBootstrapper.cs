@@ -116,6 +116,9 @@ public abstract class SharedApplicationBootstrapper
         plan.Step("context", provides: new[] { "context" }, run: () =>
         {
             context = BuildContext(config, role, networkFactory);
+            // ⭐⭐ CE-3446 (§15) — the threaded node's presentation side, for every host a UI draws: A exists before any registrar binds a world
+            if (config.HasPresentation && Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds)
+                context = context with { Presentation = _presentation = NewStagedPresentation() };
             // ⭐ CE-1446 B0 — a subclass that declares a TimeRole must have BUILT the node with it (BuildReplicatedNode's timeRole argument): a declared
             //   role the clock never got is exactly the silent time-authority split §3.1 warns about.
             if (context.TimeRole != TimeRole)
@@ -422,6 +425,10 @@ public abstract class SharedApplicationBootstrapper
         });
 
         plan.Run(GetType().Name);
+
+        // ⭐⭐ CE-3446 (§15) — A takes the built node (tables, singletons, registrations), its own station, the staging and the job link
+        var ctxForStation = context;
+        context.Presentation?.Compose(context, a => InstallStation(a, ctxForStation));
 
         Context = context;
         return context;
@@ -763,6 +770,40 @@ public abstract class SharedApplicationBootstrapper
 
         public void RegisterSystems(ISystemRegistry registry) => registry.RegisterSystem(_group);
         public void Tick(ISimulationView view, float deltaTime) { }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3446 (§15) — a staged presentation with the UI's own state on A, the same set for every host (the map pack's and the station's):
+    /// the canvas menu, the order form, the station mode and edit gate (A's own, reading A's replay flag), the per-unit debug switches (A's store;
+    /// they ride to S as a job), the selection (store and rows — the UI's systems write them on A).
+    /// </summary>
+    private StagedPresentation? _presentation;
+    private Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? _mapBuildStatus, _stagedMapBuildStatus;
+
+    /// <summary>
+    /// ⭐ CE-3354 ③ / CE-4078 — where the cluster load's 3-D map step polls the host's map build from (null result = no map: resolved). Set by the
+    /// host before <see cref="BootstrapNode"/> (lazy: the map is attached after it). ⭐⭐ CE-3446 — ONE property for every host (four subclasses
+    /// each declared their own); on a threaded node it answers the STAGED view (<see cref="StagedMapBuildStatus"/>): the map is the UI's, the
+    /// load step runs on the sim thread.
+    /// </summary>
+    public Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? MapBuildStatus
+    {
+        get => _mapBuildStatus is null ? null
+             : _presentation is { } staged ? _stagedMapBuildStatus ??= StagedMapBuildStatus.Over(staged, _mapBuildStatus)
+             : _mapBuildStatus;
+        set { _mapBuildStatus = value; _stagedMapBuildStatus = null; }
+    }
+
+    public static StagedPresentation NewStagedPresentation()
+    {
+        var p = new StagedPresentation();
+        p.UiOwnedSingleton<Hrot.Map.Common.Components.CanvasContextMenuState>();
+        p.UiOwnedSingleton<Hrot.Common.Orders.IOrderForm>();
+        p.UiOwnedSingleton<Hrot.Common.Editing.StationMode>();
+        p.UiOwnedSingleton<Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings>();
+        p.UiOwnedSingleton<Hrot.Map.Common.Components.SelectionStore>();
+        p.UiOwnedTable<Hrot.Map.Common.Components.SelectionState>();
+        return p;
     }
 
     /// <summary>

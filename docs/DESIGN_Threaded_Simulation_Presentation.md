@@ -55,21 +55,47 @@ diagram) is §14.8.*
 | the mode set by what is running — a stepped clock votes Deterministic, a harness may pin it, any Deterministic vote wins; `HROT_SIM_MODE` removed; batch size proven not to change the result | R-4207, R-4218 | Parallel Simulation (M-1 / M-2 fold) | ✔ `2026-11-13` |
 | the utility pre-score retired | R-4219 | Parallel Simulation §14 / §15 superseded | ✔ `2026-11-13` |
 | the per-query timer off by default | R-4213 | Parallel Simulation §18.1 | ✔ |
-| Windows: power throttling (EcoQoS) off, QuickEdit off, for every HROT process | Inventory §5a | Parallel Simulation §19 | ✔ built · ⏳ verified on Windows (CE-4493) |
+| Windows: power throttling (EcoQoS) off, QuickEdit off, for every HROT process | Inventory §5a | Parallel Simulation §19 | ✔ built · ✔ verified on Windows (ControlMask 5 / StateMask 0 on every process; the start-up line, CE-4505) |
+| ⭐ a stepped run is the same world at any thread count: a step never abandons a module run on the wall clock; an EveryFrame system computes on a paused frame exactly what the step reads | R-3035 | Time Architecture §17.x | ✔ `2026-11-13` — 6 runs at 1 / 4 / 8 threads equal, switch off AND every phase on (CE-4503) |
+| ⭐ "own entity" covers its ADDS in a phase: a job reads back its own pending managed / unmanaged adds; a child created in a phase lands dressed; R-195's SOP wake on the record frame | R-4212 | Parallel Simulation §18.9 | ✔ `2026-11-13` — the squad drills 228 / 228 serial and parallel (CE-4508 / 4509) |
+| culture-invariant output (no decimal commas) for every executable | R-4221 | `Directory.Build.targets` | ✔ `2026-11-13` (CE-4505) |
 | the review source on the sim side, the UI on a published read model | R-4220 | [`DESIGN_Threaded_Review_Source.md`](DESIGN_Threaded_Review_Source.md) | ⏳ CE-4495…4500 |
 | the still-serial systems (the toggled group, the weapon dispatcher …) as per-entity phases | R-4219 | Parallel Simulation §18.7; the ranking: `STATUS_Mode_And_Serial_Systems.md` M-4 | ✔ `2026-11-13` the weapon dispatcher; the stress phase's lock (`FriendNear`) and the callouts' say-pass walk removed · ⏳ StaffComposer, the CGF egress (STEER order) |
 | the serial work OUTSIDE the systems, by profile: module snapshots recycled + synced incrementally (`ContentEpoch`), the registry's clone flag lock-free; the world hash counts field bytes only; a late declaration retakes the tick-start view; a deferred publish makes its stream | M-4 / M-7 | Parallel Simulation §18.7 | ✔ `2026-11-13` — the stepped 1 000-man gate equal at 1 / 2 / 4 / 8 threads, every phase on |
 | real-core numbers (1…12 threads, Release) | — | `STATUS_Windows_Threaded_Scaling.md` | ⏳ CE-4489…4494 |
 
-| switch (all OFF by default; 0 B per steady frame when off) | turns on |
-|---|---|
-| `HROT_THREADED_KERNEL=3` | the threaded node (the editor): the sim on its worker, the UI on the staging |
-| `HROT_PARALLEL_SIM=1` | the per-entity phases on any node (the lever for separate node processes) |
-| `HROT_SIM_THREADS=<n>` | the pool's budget (default cores − 2) |
-| `HROT_READ_CHECK=1` / `=2` | an undeclared cross-entity read throws / is listed (the survey) |
+| ⭐⭐ the threaded node on EVERY UI-drawn host by construction: the bootstrap composes the staged presentation from `HrotNodeConfig.HasPresentation`; the editor and the player bind hooks | R-4215, user `2026-11-13` | §15 | ✔ `2026-11-13` CE-3446 — multiplayer cycle 10/10 and editor session 11/11, guard 0 |
+| ⭐⭐ every optimisation ON by default in the product, switchable and saved in the user folder; `-m all` serial | R-4224 (U-2, U-3) | §0a.1 below; `PerformanceStartup`, `PerformanceMenu` | ✔ `2026-11-13` |
+
+### 0a.1 ⭐ The switches — ON by default since U-2 *(R-4224)*
+
+| what | default | where to change it | per process |
+|---|---|---|---|
+| **Threaded editor** — the sim on its worker, the UI on the staging (editor, player) | ON | `View ▸ Settings ▸ Performance` (applies on restart) · `HROT_THREADED_KERNEL=0/3` | a headless node never runs it |
+| **Parallel simulation** — the per-entity phases | ON | the same menu · `HROT_PARALLEL_SIM=0/1` | every node, the server and separate CGF / SimHost / orchestrator / traffic nodes included |
+| **Worker threads** | Auto (cores − 2) | the same menu · `HROT_SIM_THREADS=<n>` | |
+| `-m all` (the AI-debug network mode) | SERIAL (both off) | an explicit `HROT_*` still turns them on | |
+| `HROT_READ_CHECK=1` / `=2` | off | — | an undeclared cross-entity read throws / is listed (the survey) |
+
+⭐ Precedence: an explicit `HROT_*` variable > `-m all` serial > the user file (`performance.json` beside the layouts) > ON. Every process logs ONE line at
+start: `[Performance] threaded node ON · parallel simulation ON · worker threads auto (settings)` — the source in brackets says which rule decided.
+The menu's status line says *"restart to apply the saved choice"* while the saved choice differs from what runs.
+
+### 0a.2 ⭐ Manual test sheet *(U-5, CE-4534 — each step was run once by the backend lane; the evidence is named)*
+
+| # | try | expect | if it looks wrong, report |
+|---|---|---|---|
+| 1 | start the editor; read the console's first lines | `[Performance] threaded node ON · parallel simulation ON …` and `[STAGED] the node over S, the presentation over A …` | the two lines |
+| 2 | load a large scenario (`scale-rig-demo-city-1000-2s`), select a unit, Play, Pause, Step ×5, the 3-D view following it | the UI stays smooth while the sim runs; a step advances one frame | `GET /world/hash` before and after; the `[FrameStats]` lines (`HROT_FRAME_STATS=1`) — *lane: the scripted session, 11/11, guard 0* |
+| 3 | while playing: move a unit, delete one, give an order, Undo | each lands within a frame; Undo restores it | the console's `[STAGED]` / `[STAGING]` lines — *lane: `R4_`/`R5_` rails + the session* |
+| 4 | open a recording, review it, film a shot | as before the switch | — *lane: the review rails in mode 3 with the guard* |
+| 5 | `-m server` on one machine, `-m player` on another (or two players); join, deploy, drive a unit, die, respawn, leave by Esc, rejoin | the deploy screen, the map, the unit's movement as before; the player's console says `threaded node ON` | the player's and the server's console — *lane: `scripts/multiplayer-cycle.py`, 10/10, guard 0 in every player* |
+| 6 | `View ▸ Settings ▸ Performance`: untick **Parallel simulation**, restart | the status says *restart to apply* before the restart; after it the start line says `parallel simulation off (settings)` | the file `%LOCALAPPDATA%\HROT\performance.json` — *lane: `PerformanceStartupTests.TheMenu_WritesTheFile_ThatTheNextStartReads`* |
+| 7 | `-m all` | starts serial: `[Performance] threaded node off · parallel simulation off (-m all (serial))`; every window draws | the start line — *lane: the `-m all` gate (U-4)* |
+| ⚠ | anything that looks different with the switches ON than OFF | — | `GET /world/hash` at the same sim time with each setting (stepped runs compare at equal time only) |
 
 **Measured on real cores** (Windows, Ryzen 7 6800H 8C/16T, Release, 1 000 men — [status](https://github.com/pjanec/HROT/blob/exp/windows-threaded-measure/docs/blueprints/batches/STATUS_Windows_Threaded_Scaling.md)):
-the UI frame while playing **146 ms → ≈ 9 ms** (it no longer waits for the tick, at any thread count) · the sim tick **144 → ≈ 110 ms**, flat from
+after the conversions (rerun, [status](https://github.com/pjanec/HROT/blob/exp/windows-threaded-measure/docs/blueprints/batches/STATUS_Windows_Threaded_Rerun.md)): the sim tick **144 → ≈ 75 ms** (1.9×), the CGF node **108.5 → 57.5 ms** (1.79×), stepped runs of equal step count equal at 1 / 4 / 12 threads; first run: the UI frame while playing **146 ms → ≈ 9 ms** (it no longer waits for the tick, at any thread count) · the sim tick **144 → ≈ 110 ms**, flat from
 4 threads · BrainTick **84.7 → 10.4 ms** (8.2×, 1 → 8 threads), EQS 8.8× · the CGF node as its own process **108.5 → 69.0 ms** (1.57×) · at most
 ≈ 5 of 16 logical cores used — the serial systems hold it (Stress 16.4, Callout 10.3, Threat 5.9, Weapons 5.7, StaffComposer 2.8 ms at 8 threads;
 CGF egress 14.6 ms) ⇒ the conversions in flight (CE-4484 / 4485, STEER) · the opt-out verified on every process · staging 93 MB.
@@ -770,6 +796,11 @@ how the last-tick view is made (a small per-type copy, the replica R, or a phase
 
 ### 14.8 ⭐ AS BUILT — the threaded node, no lock between the threads *(overnight build N-1…N-8, N-13, CE-4463…CE-4470 / CE-4475, branch `exp/threaded-build`; [status](blueprints/batches/STATUS_Overnight_Threaded_Build.md) D-1…D-34)*
 
+> ⭐ **CE-3446 (`2026-11-13`) — the composition and the step below are no longer the editor's.** `EditorSubsystem.ComposeInitialPresentationCopy`,
+> `SimStep`, `PullStaging`, `NodeSideInteractionSystems` and `RunInteractionBlock` became the SHARED `StagedPresentation` (composed by
+> `BootstrapNode`) and `MapPresentationStep`; the editor binds hooks, the player runs the same code. ⇒ read **§15** for the classes and the frame;
+> the picture below still shows the threads and the crossings correctly (`EditorSubsystem.SimStep` = `StagedPresentation.Step` with the editor's hooks).
+
 ```mermaid
 graph TD
   subgraph UI["main thread (UI)"]
@@ -808,5 +839,167 @@ door and run-to readout are its OWN, fed by the mirrored orchestration bus and t
 | a managed singleton refilled in place by its writer is VALUE-copied across worlds (`SnapshotViaClone` + `IValueCopy`) | N-9 — the traffic frame was a live race | `ManagedComponentTable.CopyRowFrom` |
 | ⭐ the strict world guard: 0 distinct hits over the full session (load … save), with the brains a parallel phase too (session 7) | — | status §2 |
 | ⭐ in a threaded `--mode all` a subsystem with no staging split draws NOTHING on the main thread — neither its `Draw` passes nor the windows / frame overlays it put in the shared `WindowManager` (each subsystem's registrations carry a draw gate, `WindowManager.RegisteringUnder(() => orchestrator.Draws(sub))`). ⛔ SUPERSEDED: until `2026-11-13` the gate covered only the orchestrator's `DrawWorldAll` / `DrawUIAll` — 📌 measured: CGF's rules watcher (a frame overlay) queried CGF's live world on the main thread while the worker ticked it ⇒ `QueryCandidateIndex.Build` faulted on both threads and the process died | one reader of a live world: the thread that ticks it | `SubsystemOrchestrator.Draws` · `LocalWindowController` (D-37) |
-| ⚠ OPEN: the film director and the review source still act on the world they are given; an unstaged subsystem's windows are absent from a threaded `--mode all` until it has a staging split | — | status §5 |
+| ⭐ the REVIEW SOURCE is sim-side (`2026-11-13`, CE-4495…CE-4499): it merges a participant group into S at the end of the node frame (one call site, both modes); the UI reads a published `ReviewReadModel` and commands through `ThreadedReviewChannel` (sim jobs; the model carried by the staging) — 0 B steady, strict guard silent. ⛔ SUPERSEDED: it ran from a UI frame overlay and merged into A | the review UI holds no manager (railed) | [DESIGN_Threaded_Review_Source](DESIGN_Threaded_Review_Source.md) §1, §4 |
+| ⚠ OPEN: the film director still acts on the world it is given; an unstaged subsystem's windows are absent from a threaded `--mode all` until it has a staging split | — | status §5 |
 
+
+## 15. ⭐⭐ The STAGED PRESENTATION in the shared node frame — every windowed host, by construction *(CE-3446, backend, `2026-11-13`; build-state: BUILT — as-built `2026-11-13`, see §15.5)*
+
+🔒 User, `2026-11-13`: *"of course fix it properly now, no duplications and hacks please, we unify share and parametrize"* · *"if we need different
+behaviour for something, we add parameter to shared bootstrap"*. R-4215: *"There is should be no difference between how player is handled from how
+the others are handled."*
+
+**INVENTORY** (grep, `2026-11-13`; graph re-index in progress — `search_graph` for `StagingWorlds`/`ISimSteppedSubsystem` returned nothing on the
+stale index, ⇒ grep only, re-checked below once it is up): `ISimSteppedSubsystem` — 1 implementer (`EditorSubsystem`); `StagingWorlds` /
+`SimJobQueue` / `SimLink` — composed in 1 place (`EditorSubsystem.ComposeInitialPresentationCopy`, `EditorSubsystem.cs:2977`); `HrotNodeContext.Tick`
+— both hosts (`EditorSubsystem.TickNodeFrame`, `PlayerApplication.Update`); `SharedApplicationBootstrapper.BootstrapNode` — both hosts;
+`MapInteractionPack.Build` — both hosts; its threaded split (`NodeSideInteractionSystems`, `RunInteractionBlock`) — editor only;
+`NodeRunControls.For` — both hosts, the editor overriding it in mode 3 with a UI-side mirror.
+
+⛔ **Measured, the defect:** the presentation half of the threaded node lives in `EditorSubsystem`; `SubsystemOrchestrator.Draws` draws only an
+`ISimSteppedSubsystem` beside the sim worker ⇒ a threaded player shows blank windows (U-3, `STATUS_Unify_Threaded_Defaults_On.md` D-U3).
+
+### 15.1 The classes
+
+```mermaid
+classDiagram
+  class HrotNodeConfig {
+    +PresentationMode Presentation  «NEW: Direct | Staged»
+  }
+  class SharedApplicationBootstrapper {
+    +BootstrapNode(config, role, net) HrotNodeContext
+    -ComposeStagedPresentation(ctx) «NEW, when config.Presentation == Staged»
+  }
+  class HrotNodeContext {
+    +EntityRepository World  «S: the node's»
+    +StagedPresentation? Presentation  «NEW»
+    +EntityRepository PresentationWorld  «NEW: A when staged, else World»
+    +FdpEventBus PresentationEventBus  «NEW: the orchestration mirror when staged»
+    +Tick(beforeKernel, afterKernel)
+  }
+  class StagedPresentation {
+    «NEW, Hrot.Common — the ONE presentation side»
+    +EntityRepository Sim
+    +EntityRepository World  «A»
+    +NetworkEntityMap Map  «A's»
+    +FdpEventBus UiEventBus
+    +ClusterView UiClusterView
+    +SimJobQueue Jobs
+    +StagingWorlds Staging
+    +Post(label, action)
+    +AddTime(dt)
+    +Step(dt) «sim thread: jobs, uplinks, SimBefore, node frame, SimAfter, publish»
+    +Pull() bool «UI thread: pull, map, UiAfterPull»
+    +UiFrame(dt) «UI: single-thread step+pull, or worker time + pull»
+    +UseHostSimWorker() / StepOnHostWorker() bool
+    +SimBefore / NodeFrame / SimAfter / UiAfterPull «host hooks»
+    +UiOwnedSingleton~T~() / UiOwnedTable~T~() «host parameters»
+    +AddReadout~T~(readIfChanged, applyOnUi) «sim → UI, non-world state»
+    +AddUplink~T~(readIfChangedOnUi) Func~T~ «UI → sim»
+  }
+  class StagedMapBuildStatus {
+    «NEW: the load's map step reads the UI's map through an uplink»
+    +Over(presentation, ui) Func~IMapBuildStatus~
+  }
+  class IDeployFlow { «NEW: the flow or its view» }
+  class DeployFlowView { «NEW: readout + verbs as jobs» }
+  class NodeRunControls {
+    +For(node, profile) «the UI's: the mirror when staged»
+    +ForSimSide(node, profile) «NEW: the node's»
+  }
+  class MapPresentationStep {
+    «NEW, Hrot.Presentation — was EditorSubsystem.NodeSideInteractionSystems / RunInteractionBlock»
+    +NodeModule() «the world writers, for the tick»
+    +RunPerPulledTick(dt) / RunEveryFrame(dt)
+    +AddHostUiSystem / AddHostUiSystemFirst / AddLateHostUiSystems «host parameters»
+  }
+  class StagingWorlds { «existing, Fdp.Core» }
+  class SimJobQueue { «existing, Fdp.Core» }
+  class SimLink { «existing: UI writes on A become jobs» }
+  class MapInteraction { «existing, the pack's result — both hosts» }
+  class ISimSteppedSubsystem { «existing» }
+  class EditorSubsystem { «hooks: logic, Run-to, readouts, review, debug API» }
+  class PlayerSubsystem { «hooks: none beyond the frame» }
+  SharedApplicationBootstrapper ..> StagedPresentation : composes
+  HrotNodeContext o-- "0..1" StagedPresentation
+  StagedPresentation *-- StagingWorlds
+  StagedPresentation *-- SimJobQueue
+  StagedPresentation ..> SimLink : installs on A
+  MapPresentationStep ..> MapInteraction : splits
+  MapPresentationStep ..> StagedPresentation : runs over A
+  StagedMapBuildStatus ..> StagedPresentation : AddUplink
+  DeployFlowView ..|> IDeployFlow
+  DeployFlowView ..> StagedPresentation : AddReadout
+  NodeRunControls ..> StagedPresentation : the mirror
+  EditorSubsystem ..|> ISimSteppedSubsystem
+  PlayerSubsystem ..|> ISimSteppedSubsystem
+  EditorSubsystem ..> HrotNodeContext
+  PlayerSubsystem ..> HrotNodeContext
+```
+*What the picture shows that the prose hid: the staging, the job queue and the link already were engine pieces; only their COMPOSITION and the step
+were the editor's. Moving those two into the shared frame is the whole fix — the player gains nothing it would compose itself.*
+
+### 15.2 One frame of a staged host
+
+```mermaid
+sequenceDiagram
+  participant UI as main thread (host Update)
+  participant P as StagedPresentation
+  participant W as host sim worker
+  participant N as HrotNodeContext.Tick
+  UI->>P: AddTime(dt)
+  UI->>P: Pull()
+  P->>P: Staging.Pull(A) · Map.Rebuild(A)
+  P->>UI: UiAfterPull (host: map pack PresentationStep, read models)
+  UI->>UI: draw, windows (read A, write via SimJobs.Run)
+  W->>P: StepOnHostWorker()
+  P->>P: Jobs.Drain(S) · Staging.TakeUplinks(S)
+  P->>W: SimBefore (host: logic pump, sim HTTP routes)
+  P->>N: node frame(dt) (host's Tick with its own hooks)
+  P->>W: SimAfter (host: readouts posted to the staging)
+  P->>P: Staging.Publish(S, tick)
+```
+*What it shows: the host keeps only its HOOKS — the order (jobs before the tick, the publish after, the pull before the UI) is the shared object's.*
+
+### 15.3 Who composes what, per host
+
+```mermaid
+graph TD
+  PR[PerformanceStartup<br/>resolve: threaded node per process] --> GATE[ThreadedKernelGate.ComposedWorlds]
+  GATE --> CFG[host sets HrotNodeConfig.Presentation<br/>Staged when windowed and ComposedWorlds]
+  CFG --> BS[SharedApplicationBootstrapper.BootstrapNode]
+  BS --> SP[StagedPresentation]
+  ED[EditorSubsystem] --> BS
+  PL[PlayerApplication] --> BS
+  HL[headless hosts: CGF, SimHost, traffic, orchestrator] --> BS
+  HL -. Presentation = Direct .-> BS
+  SW[SubsystemOrchestrator sim worker] -->|StepOnHostWorker| SP
+  MAIN[main loop] -->|Update: Pull + UI| SP
+```
+*What it shows: a headless node passes `Direct` and never builds A — the same code without a presentation world (R-4215); a windowed host cannot
+forget the presentation, because the bootstrap builds it from the one parameter.*
+
+### 15.4 Rules
+
+| | |
+|---|---|
+| ⭐⭐ the threaded node is composed ONLY by `BootstrapNode` from `HrotNodeConfig.Presentation` | ⛔ no host builds A, the staging or the job queue itself |
+| ⭐⭐ a host difference is a PARAMETER or a HOOK on the shared object | editor: its logic pump, Run-to, readouts, review model, debug API queue · player: none |
+| ⭐ UI-owned singletons are a parameter with a shared default set (canvas menu, order form, station mode, unit debug settings, selection store) | a host adds its own |
+| ⭐ the map pack's threaded split is the pack's (it knows its members) | ⛔ not re-derived per host |
+| ⭐ the run controls of a staged host read the orchestration MIRROR (`PresentationEventBus`, `UiClusterView`) | `NodeRunControls.For(node)` picks it — every host, by construction |
+| ⭐ proof: `HROT_WORLD_GUARD=1` silent on an editor session and a player + server session | the guard names every UI read of S and every off-thread write |
+| ⭐⭐ non-world state crosses ONLY as a readout (sim → UI) or an uplink (UI → sim), both immutable, a new one only on change | the editor's session / Run-to / review readouts and the deploy flow use the one channel; the 3-D map's build the uplink |
+
+### 15.5 As built *(`2026-11-13`)*
+
+| | where |
+|---|---|
+| the staged presentation, composed by `BootstrapNode` from `HrotNodeConfig.HasPresentation` + `ThreadedKernelGate.ComposedWorlds`; the UI-owned set (canvas menu, order form, station mode, unit debug settings, selection store + rows) | `StagedPresentation.cs`, `SharedApplicationBootstrapper.NewStagedPresentation` |
+| the editor: hooks only (`SimBeforeNodeFrame`, `TickNodeFrame`, `SimAfterNodeFrame`, `UiAfterPull`); its three readouts on `AddReadout` | `EditorSubsystem.BindStagedPresentation` |
+| the player: `HasPresentation = !headless`, `ISimSteppedSubsystem`, `UiFrame` + its map step; its node frame is `HrotNodeContext.Tick()` with no UI work in it | `PlayerApplication.BindStagedPresentation`, `PlayerSubsystem` |
+| the map pack's split | `MapPresentationStep` (both hosts) |
+| ⭐ found by the guard on the first threaded player run (17 distinct hits): the load's map step read the UI's 3-D map from the sim thread ⇒ `StagedMapBuildStatus` over an uplink; `MapBuildStatus` is ONE property on the shared bootstrapper (four subclasses each declared one) | `StagedMapBuildStatus.cs` |
+| ⭐ found by reading: the deploy screen looks the flow up by world (a side table on S) ⇒ `IDeployFlow` / `DeployFlows.Of`, the view staged by the capability that composes the flow | `DeployFlowView.cs`, `GameplayClientPack` |
+| `NodeRunControls.For(node)` is the UI's (the mirror when staged), `ForSimSide(node)` the node's | `NodeRunControls.cs` |
+| rails | `SharedApplicationBootstrapperTests.CE3446_*` (3), `GameplayDeployFlowTests.CE3446_*`, `PerformanceStartupTests` (the player resolves the threaded node) |

@@ -10,7 +10,7 @@ every run with the first, type by type. Two runs that took the same steps agree 
     python scripts/stepped-hash.py --threads 1,1                           # repeatability (same config twice)
     python scripts/stepped-hash.py --threads 4,4 --rows WeaponChannel --bytes   # WHICH entities and WHICH bytes differ
 
-Exit code 0 = state equal (EntityGuid excluded: minted at random for an entity created at run time), 1 = differs, 2 = a run failed.
+Exit code 0 = state equal (EntityGuid excluded: minted at random for an entity created at run time), 1 = differs, 2 = a run failed, or the runs took different numbers of steps (never compared: a different experiment).
 Environment: HROT_PARALLEL_SIM=1 to run every per-entity phase (the gate's usual setting); --kernel 3 (default) runs the threaded node,
 --kernel 0 the product as shipped (every switch off: the repeatability question, F-2).
 """
@@ -37,8 +37,7 @@ def one_run(a, threads, k):
     out = os.path.join(a.out, f"run{k}-t{threads}")
     os.makedirs(out, exist_ok=True)
     os.environ["HROT_SIM_THREADS"] = str(threads)
-    if a.kernel == "0": os.environ.pop("HROT_THREADED_KERNEL", None)   # the product as shipped: no threaded node
-    else: os.environ["HROT_THREADED_KERNEL"] = a.kernel
+    os.environ["HROT_THREADED_KERNEL"] = a.kernel   # explicit either way: since U-2 (CE-4531) the product's DEFAULT is the threaded node
     s = ats.Session(out, a.port)
     if not s.start(a.dll):
         raise RuntimeError("the editor did not answer")
@@ -58,7 +57,8 @@ def one_run(a, threads, k):
                 s.post("/sim/step", {"count": n}, timeout=600); return
             for _ in range(n // a.probe):
                 s.post("/sim/step", {"count": a.probe}, timeout=600)
-                probes.append(data(s.get("/world/hash?byType=1", timeout=600)).get("types") or {})
+                d = data(s.get("/world/hash?byType=1&rows=" + a.rows + ("&bytes=1" if a.bytes else ""), timeout=600))
+                probes.append({"types": d.get("types") or {}, "rows": d.get("rows") or {}})
 
         step(a.chunk)
         s.post(f"/entities/{men[3]}/order", {"kind": "move", "x": 150, "y": 150})   # the same edit at the same step
@@ -80,7 +80,7 @@ def main():
     ap.add_argument("--chunk", type=int, default=20, help="the step chunk (the orders land after 1 and 3 chunks; 6 chunks in all)")
     ap.add_argument("--rows", default="SimTransform", help="a component type: name the entities whose row differs")
     ap.add_argument("--bytes", action="store_true", help="with --rows: print the differing byte offsets of each differing row")
-    ap.add_argument("--kernel", default="3", choices=["0", "3"], help="3 = the threaded node (mode 3); 0 = the product as shipped")
+    ap.add_argument("--kernel", default="3", choices=["0", "3"], help="3 = the threaded node (mode 3, the product default since U-2); 0 = no threaded node")
     ap.add_argument("--port", type=int, default=8131)
     ap.add_argument("--out", default=os.path.join(__import__("tempfile").gettempdir(), "hrot-stepped-hash"), help="the runs' logs (outside the repository)")
     ap.add_argument("--save", help="write every run's result to this JSON file")
@@ -104,6 +104,13 @@ def main():
     if any("error" in r for _, r in res.values()):
         print("A RUN FAILED"); sys.exit(2)
     _, base = res[0]
+    # ⭐ the steer of 2026-11-13 (STEER_Coordinator_To_Backend_Preview_Extra_Step) — runs are compared only at the SAME sim time: a run
+    #   that took a different number of steps is a different experiment, never a state difference (📐 Windows V-4: 2 of 7 runs ended at
+    #   121 steps, and every difference followed from that one step)
+    steps = {k: r.get("simTime") for k, (_, r) in res.items()}
+    if len(set(steps.values())) > 1:
+        print("A RUN TOOK A DIFFERENT NUMBER OF STEPS — not compared: " + " · ".join(f"run {k} simTime {v}" for k, v in steps.items()))
+        sys.exit(2)
     differs = False
     for k, (t, r) in res.items():
         if k == 0:
@@ -114,9 +121,12 @@ def main():
                        if (base.get("rows") or {}).get(n, "").split("@")[0] != (r.get("rows") or {}).get(n, "").split("@")[0]), key=int)
         differs |= bool(types)
         for i, (pb, pr) in enumerate(zip(base.get("probes") or [], r.get("probes") or [])):
-            first = sorted(n for n in set(pb) | set(pr) if pb.get(n) != pr.get(n) and n not in RANDOM_BY_DESIGN)
+            first = sorted(n for n in set(pb["types"]) | set(pr["types"]) if pb["types"].get(n) != pr["types"].get(n) and n not in RANDOM_BY_DESIGN)
             if first:
-                print(f"run 0 vs {k}: first parts after step {(i + 1) * a.probe}: {first}", flush=True); break
+                moved = sorted((n for n in set(pb["rows"]) | set(pr["rows"])
+                                if pb["rows"].get(n, "").split("@")[0] != pr["rows"].get(n, "").split("@")[0]), key=int)
+                print(f"run 0 vs {k}: first parts after step {(i + 1) * a.probe}: {first} · {a.rows} rows: "
+                      + " ".join(f"#{n}" for n in moved[:30]), flush=True); break
         print(f"run 0 vs {k} ({t} threads): {len(types)} type(s) differ {types[:40]} · {a.rows} rows differ: {len(rows)} "
               + " ".join(f"#{n}" for n in rows[:30]), flush=True)
         if a.bytes:

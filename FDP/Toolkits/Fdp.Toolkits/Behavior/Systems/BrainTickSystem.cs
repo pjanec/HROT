@@ -500,6 +500,12 @@ namespace Fdp.Toolkit.Behavior.Systems
             _sopQuery ??= repo.Query().With<SopState>().WithOwnedWhen<BehaviorState>(_gateOnAuthority).Build();
 
             _sopWokenThisFrame.Clear();
+            // ⭐⭐ E-3 (CE-4509; R-195) — a sensing change wakes the SOP on BOTH frames it can be read: the frame its SensorChangedEvent is on the
+            //   bus (a condition reading the event's own data — a report, an inbox) AND the frame RecentSensesSystem (Input) records it, one
+            //   frame later (a condition reading "was hit within N s"). ⛔ SUPERSEDED: the event frame only — the SOP woke to an unchanged
+            //   RecentSenses, its RecentSenses conditions read nothing, and their reaction waited for the 0.2 s cadence (📐 measured: the squad
+            //   drills' contact reactions up to 17 frames late once the harness ran the kernel's frame order).
+            bool senses = repo.IsComponentTypeRegistered<RecentSenses>();
             foreach (var evt in repo.ReadEvents<Fdp.Toolkit.Perception.Events.SensorChangedEvent>()) _sopWokenThisFrame.Add(evt.Unit.Index);
             foreach (var evt in repo.ReadEvents<BehaviorFinishedEvent>()) _sopWokenThisFrame.Add(evt.Entity.Index);
 
@@ -509,7 +515,9 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (sop.SopHash == BehaviorIds.None || sop.SopFaulted != 0) continue;
 
                 // ⭐ CE-2382 (D7) — the SOP slot's cadence is the SAME rule as the task slot's (CadenceGate), on its own fields
-                byte wake = sop.SopWake != 0 || _sopWokenThisFrame.Contains(entity.Index) ? (byte)1 : (byte)0;
+                byte wake = sop.SopWake != 0 || _sopWokenThisFrame.Contains(entity.Index)
+                            || (senses && repo.HasComponent<RecentSenses>(entity) && repo.GetComponentRO<RecentSenses>(entity).RecordedAt(now))
+                            ? (byte)1 : (byte)0;
                 if (!CadenceGate.Due(CadenceMode.Periodic, sop.SopNextTick, wake, now)) continue;
                 sop.SopWake = 0;
                 sop.SopNextTick = CadenceGate.Next(now, SopTickPeriod, entity.Index);   // staggered

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-10
-current-answer: ⭐⭐⭐ 2026-11-11 (c) — gizmo inputs + terrain authoring: "SESSION 2026-11-11 (c)"; before it "SESSION 2026-11-11 (b)". The OSM wizard strand (other ui session): "SESSION 2026-11-10 (c) — THE OSM WIZARD LIVE, E-1…E-3".
+current-answer: ⭐⭐⭐ 2026-11-12 — SUMO heights + ImGui renderer: "SESSION 2026-11-12"; before it 2026-11-11 (c) — gizmo inputs + terrain authoring: "SESSION 2026-11-11 (c)"; before it "SESSION 2026-11-11 (b)". The OSM wizard strand (other ui session): "SESSION 2026-11-10 (c) — THE OSM WIZARD LIVE, E-1…E-3".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-10 (b) — START AT "SESSION 2026-11-10 (b) — DRAWING THE LARGE TERRAIN, D-1…D-4 DONE".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-10 — START AT "SESSION 2026-11-10 — THE OSM TERRAIN WIZARD (CE-4375), BUILT AGAINST THE FAKES".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-09 (b) — START AT "SESSION 2026-11-09 (b) — NEXT_2 A-1…A-10, DONE".
@@ -254,6 +254,17 @@ A-6 RTS checkmark (CE-4347) · A-7 the wheel past the eyes (CE-4348) · A-8 the 
 ✅ **Checked, nothing to do:** backend's flag on `TheStartGateIsComposedOnceTests.AnOrchestratorOnlyProcess_StartOffersOpenNewAndRecording_*` — it passes on a fresh build (it already reads the greyed *New Scenario…* by prefix + tooltip); the red backend saw was a stale `ClusterRunner.Tests` restore (`PlayerSubsystem` not found until `dotnet restore`).
 
 **Traps measured this session:** the frame harness's default font is ASCII-only (`—`, `·` draw as `?`) — a rail that cares initialises `EditorFontService` first (the transfers rails do) · editing a project while a background build of it runs gives phantom "no such member" errors — re-build before believing them · ClusterRunner needed `dotnet restore` after the backend merge (`DeployFlowSystem` / Hrot.Gameplay "not referenced").
+
+## ⭐⭐⭐ SESSION 2026-11-12 — SUMO ROADS ON THE TERRAIN + IMGUI VERTEX-LIMIT FIX, DONE *(state at `ui` `33c7c8a81`, pushed)*
+
+| item | state |
+|---|---|
+| CE-1493 flat SUMO net draped on our ground (`TrafficDrape`, `SumoNetTerrainLoader`) | ✅ 257d48758 / 3308cabb2; hilly 2.9 M tris in 1.6 s |
+| CE-1494 importers write our heights into the net after netconvert (`Hrot.Terrain.InputSet.NetElevation`) | ✅ 6056d49f7; ⚠ OSM path not run against a live import (no network) |
+| CE-1495 own ImGui draw-data renderer honouring `VtxOffset` (`Fdp.Presentation.Raylib.ImGuiRenderer`, `docs/DESIGN_ImGui_Draw_Data_Renderer.md`) | ✅ c9fbd78e4; A/B 6 884 rail frames 0 px differ; ~7 % slower render step; `HROT_IMGUI_RENDERER=rlimgui` = old path |
+| CE-1495 OSM preview LOD (`OsmMapView`: cull, tiny→rect, dash budget, per-layer caps) | ✅ 33c7c8a81; dense rail max 47 k verts < 65 536 |
+
+⚠ Open: `TheBuildingDamagePlanTests…OnADisplayNode` flaky on BOTH renderers (no row yet) · grey junction patches look large on tiny random terrain (unchecked) · Stride inspector edit not compiled (Windows) · `SaveSlotTests.R8` stale "?" expectation.
 
 ## ⭐⭐⭐ SESSION 2026-11-11 (c) — GIZMO INPUTS (G5b) + TERRAIN AUTHORING U-1…U-8, DONE *(state at `ui` `c0271f657`, pushed)*
 

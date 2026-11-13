@@ -4,7 +4,7 @@ class P {
     Raylib.SetTraceLogLevel(TraceLogLevel.Warning);
     Raylib.InitWindow(900, 500, "probe");
     if (!Raylib.IsWindowReady()) { System.Console.WriteLine("WINDOW NOT READY"); return 2; }
-    rlImGui.Setup(true);
+    Fdp.Presentation.Raylib.ImGuiRenderer.Setup(true);
     for (int f = 0; f < 6; f++) {
       Raylib.BeginDrawing(); Raylib.ClearBackground(Color.DarkGray);
       rlImGui.Begin();
@@ -29,7 +29,7 @@ class P {
         }
         ImGui.EndPopup();
       }
-      rlImGui.End(); Raylib.EndDrawing();
+      Fdp.Presentation.Raylib.ImGuiRenderer.End(); Raylib.EndDrawing();
     }
     Raylib.TakeScreenshot("probe_fixed.png");
     rlImGui.Shutdown(); Raylib.CloseWindow();

@@ -3,6 +3,8 @@ state: LIVE
 build-state: APPROVED by the user 2026-11-09 — plan: docs/superpowers/plans/2026-11-09-terrain-synth.md
 updated: 2026-11-09 (source-data session)
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: its T-1 adds an authored TOWN PLAN input to this generator
+  - DESIGN_Terrain_From_OSM.md §5.4 / blueprints/Architect_Question_93_Sumo_Traffic_Node.md §4 E2b — OWN the shared post-netconvert step (`NetElevation`) that writes this tool's heights into `roads/roads.net.xml` (CE-1494; `TerrainSynthesizer.Write` calls it)
   - PLAN_Large_Terrain.md — uses this tool's `full` set as the scale terrain for the load / performance work (scale lane) and the importer (import lane)
   - DESIGN_Terrain_Import_UTM.md §10 — the import input set this tool writes (format, frame, bounds); §10.6 unique buildings; §10.7 the real set's numbers
 -->

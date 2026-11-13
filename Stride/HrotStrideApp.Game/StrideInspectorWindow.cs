@@ -410,7 +410,7 @@ public sealed class StrideInspectorWindow : IDisposable
         // ── 2. Set up ImGui for this window ───────────────────────────────────
         // rlImGui.Setup creates the ImGui context bound to the current GL window.
         // Enables DockingEnable so panels dock inside the dockspace (mirrors clusterrunner).
-        rlImGui.Setup(true); // dark theme
+        Fdp.Presentation.Raylib.ImGuiRenderer.Setup(true); // dark theme
         var io = ImGuiNET.ImGui.GetIO();
         io.ConfigFlags |= ImGuiNET.ImGuiConfigFlags.DockingEnable;
 
@@ -586,7 +586,7 @@ public sealed class StrideInspectorWindow : IDisposable
 
         _timingUi.Stop();
 
-        rlImGui.End();
+        Fdp.Presentation.Raylib.ImGuiRenderer.End();
 
         // ── EndDrawing: GL SwapBuffers — timed separately to detect vsync block ─
         // If this number is ~16ms (≈ 60Hz monitor period) even though SetTargetFPS(0)

@@ -76,7 +76,7 @@ public sealed record ReviewFileServices(
     BlueprintRegistry? Blueprints,
     RecordingFileReader Reader,
     Func<Fdp.Toolkit.ReplayBrowser.PlaybackHistoryTracker?>? History = null,   // R-6 / V7 — the transport's waypoints: a hit is a JUMP, ◀ returns to where you were
-    Func<Fdp.Toolkit.ReplayBrowser.Federation.FederatedReplayManager?>? Merged = null,   // ⭐ G-7 S5 (I6) — the merged view's manager (null outside it): the search then runs per participant file
+    Fdp.Toolkit.ReplayBrowser.Federation.IReviewView? Review = null,   // ⭐ G-7 S5 (I6) / CE-4496 R-2 — the review's view: while its model is MERGED the search runs per participant file (paths, offsets, primary from the model)
     Fdp.Toolkit.ReplayBrowser.Federation.OwnershipSource? Ownership = null);              // … keeping a hit only for the components its node owned (the merge's own rule)
 
 /// <summary>
@@ -118,10 +118,10 @@ public sealed class FileReview
             _s.Behaviors, getSelectedEntity: null, getSelectedNetworkId: _s.Selection)
         { UnavailableReason = Unavailable };
         // ⭐ G-7 S5 (I6) — the federated search: per participant file, owned components only, unioned by network id; a hit's click seeks the primary node's frame and selects the unit BY NETWORK ID
-        if (_s.Merged is { } merged)
+        if (_s.Review is { } review)
         {
             SearchPanel.Federated = new FederatedSearchSource(
-                new Fdp.Toolkit.ReplayBrowser.Federation.FederatedSearch(search, new PredicateCompiler(editService, _s.Behaviors, _s.Blueprints), _s.Ownership ?? new Fdp.Toolkit.ReplayBrowser.Federation.OwnershipSource()), merged);
+                new Fdp.Toolkit.ReplayBrowser.Federation.FederatedSearch(search, new PredicateCompiler(editService, _s.Behaviors, _s.Blueprints), _s.Ownership ?? new Fdp.Toolkit.ReplayBrowser.Federation.OwnershipSource()), () => review.Model);
             SearchPanel.FederatedMatchSelected = SeekToHitUnit;
         }
 

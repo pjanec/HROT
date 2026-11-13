@@ -1,10 +1,11 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — options analysed, lean stated; NOT ruled
-updated: 2026-11-12
-current-answer: ⭐ §18.5 THE RULE AND THE BRAINS AS BUILT (overnight build, exp/threaded-build) · §16 POC 4 as built (one pool; no dependency scheduler) · §13 a job system? (the lean POC 4 tested) · §15 POC 3 as built (the cheap wins) · §14 POC 2 as built (the brain pre-score) · §12 R-4209 the sampled timer · §11 the aggregate (where the time is) · §10 after the experiment (R-4208, the emitter fix) · §9 the AS-BUILT of the overnight experiment (exp/parallel-sim) · §8 interleaving and quantizing (do less per frame) · §7 determinism is a switchable MODE (R-4207) and what per-batch buffers cost · §2 the lean · §1 what exists (measured) · §3 the options · §4 the hazards · §5 the staged plan · §6 open
+updated: 2026-11-13 (§18.8 next conversions as built)
+current-answer: ⭐ §18.8 the next conversions as built (shared locks, coarse jobs, the staff phase) · §18.5 THE RULE AND THE BRAINS AS BUILT (overnight build, exp/threaded-build) · §16 POC 4 as built (one pool; no dependency scheduler) · §13 a job system? (the lean POC 4 tested) · §15 POC 3 as built (the cheap wins) · §14 POC 2 as built (the brain pre-score) · §12 R-4209 the sampled timer · §11 the aggregate (where the time is) · §10 after the experiment (R-4208, the emitter fix) · §9 the AS-BUILT of the overnight experiment (exp/parallel-sim) · §8 interleaving and quantizing (do less per frame) · §7 determinism is a switchable MODE (R-4207) and what per-batch buffers cost · §2 the lean · §1 what exists (measured) · §3 the options · §4 the hazards · §5 the staged plan · §6 open
 stale-below: nothing
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: its §9 binds every new system of that battle to this design's contract (+ the user's static-copy read rule)
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Managed_Reads_Audit.md — CE-4445, the managed-read audit and the default flip (R-4210)
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Parallel_Sim_POC_4.md — CE-4444, POC 4: §13's one pool and the dependency-scheduler measurement
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Parallel_Sim_POC_2.md — CE-4440, POC 2: the serial 70 % on exp/parallel-sim-2
@@ -855,8 +856,74 @@ sets disjoint by construction (the squads' argument: one commander per man), and
 | ⭐ module snapshots RECYCLED: kept, synced incrementally; chunks a module wrote are invalidated; a source REPLACED rather than advanced (`ContentEpoch`) is copied whole | each acquire copied every chunk of every table (≈ 30 ms a tick at 1 000 men) | `EntityRepository.RecycleForSync`, M-D7 |
 | the registry's clone flag read lock-free | every managed table's sync took the global lock (≈ 25 ms a tick under contention) | `ComponentTypeRegistry.NeedsClone`, M-D6 |
 | ⭐ the world hash counts FIELD bytes only (the managed layout) | two identical stepped runs differed only in padding — the gate compared history, not state | `EntityRepository.ContentHash`, M-D9 |
-| ⚠ still open: padding of a struct written INTO an opaque byte buffer (`Entity`'s 2 bytes inside `WeaponChannel.State`) | the only difference left between 4-thread runs (3 in 7) | R-4222 → `Entity` gets an explicit zero field (CE-4507) |
+| ⭐ `Entity` has no undefined bytes: an explicit private always-zero field after `Generation` (size 8, hidden from every UI: they reflect public fields) | padding inside an opaque byte buffer (`WeaponChannel.State`) differed between runs — ⛔ was the "still open" row here | R-4222, CE-4507 (`d8e47f3c0`) |
 | ⭐ the gate: the stepped 1 000-man run, every phase on, 1 / 2 / 4 / 8 threads ⇒ state equal (`EntityGuid` aside) | — | `scratchpad stepped-hash.py` → `scripts/stepped-hash.py` (CE-4501) |
+
+### 18.8 ⭐ AS BUILT — the next conversions: shared locks, coarse jobs, the staff phase *(X-1…X-4, CE-4516…CE-4519; branch `exp/next-conversions`; [status](blueprints/batches/STATUS_Next_Conversions.md))*
+
+```mermaid
+classDiagram
+  class ParallelEntities { +Run(repo, entities, n, job) BatchSize(count, threads, coarse) }
+  class ICoarseJob { <<interface>> +BatchSize int }
+  class SquadJob { BatchSize = 2 }
+  class ComposeJob { BatchSize = 4 }
+  class PartIndex { +PartsOf(view, parent, dest) +PrepareFrame(repo) -IsFreshWithoutLate(repo) }
+  class FrameEntityGrid { +AnySegmentCandidate~T~(a, b, pad, test) +AnyCandidate~T~(at, r, test) }
+  class LineOfFire { BlockedByFriendly() BlockedByNeutral() }
+  ICoarseJob <|.. SquadJob
+  ICoarseJob <|.. ComposeJob
+  ParallelEntities ..> ICoarseJob : reads once per job type
+  LineOfFire ..> FrameEntityGrid : lock only Refresh, walk lock-free
+  SquadJob ..> PartIndex : PartsOf, lock-free once prepared
+```
+*What the picture shows that the prose hid: every one of these was a SHARED structure read by a per-entity phase — the parallelism was there, the
+threads queued behind one lock (`LineOfFire`'s bodies, `PartIndex`) or one batch (the fixed 32 over ~100 commanders).*
+
+```mermaid
+sequenceDiagram
+  participant S as SquadCoordinationSystem (serial)
+  participant P as PartIndex
+  participant W as squad jobs (pool)
+  S->>P: PrepareFrame (lock, build, publish stamps AFTER the build)
+  S->>W: ParallelEntities.Run(level, SquadJob, batch 2)
+  W->>P: PartsOf, fresh and no late part, so no lock
+  W-->>S: batches merged in batch order
+```
+*What it shows: the index is made fresh BEFORE the phase, so no read inside it can take the build path; a part added later (late add) keeps the
+locked path.*
+
+| as built | why (measured: 1 000 men, VM 4 cores, Release) | where |
+|---|---|---|
+| ⭐ `LineOfFire` locks only the frame's build; the walk is `FrameEntityGrid.AnySegmentCandidate<T>` with the rule as a struct test | ~73 % of each weapon-phase thread was the line-of-fire check under ONE `lock (bodies)` — 4 threads were SLOWER than 1. After: 20.1 → 9.4 ms at 4 threads (14.6 at 1) | X-1, CE-4516 |
+| ⭐ `PartIndex.PartsOf` reads lock-free when the index is fresh with no late part; stamps published after the build (`Volatile`); squads prepare it serially | ~45 % of the squad jobs' time and much of the brains' was `PartsOf` under one lock. BrainTick 39 → 24 ms, squads 5.2 → 4.1 ms | X-2, CE-4517 |
+| ⭐ `ICoarseJob` — a coarse job names its batch size (squads 2, staff 4) | the widest squad level is ~100 commanders = 4 batches of 32; result-neutral (§18.7 M-1) — rail `CE4517_ACoarseJob_*` byte-for-byte at 1/4/8 | X-2, CE-4517 |
+| ⭐ the staff composer is a per-commander phase; launches sorted by commander once, read by binary search | it was fully serial and O(units × launches); 3.6 → 2.3 ms; rail: parallel reports = serial, in order, and every heard launch SPOTted | X-3, CE-4518 |
+| ⭐ the egress gate's H1 per entity; managed inputs by reference; repeat ownership updates write nothing | the gate skipped 0 (5 205 of 5 281 full scans forced by an ownership write somewhere); now full 30, skipped 75 % — [Egress §5c](DESIGN_Egress_Change_Detection.md) | X-4, CE-4519 |
+| the frame | **140.9 → 99.6 ms** at 4 threads (14.2 → ~20 fps); 135.4 ms at 1 thread | |
+| ⭐ the plateau, explained (X-5, CE-4520) | half the 4-thread frame is serial: egress 23.4 ms, callouts + ingress + cleanup 9.7 ms, ~40 small systems ~15 ms ⇒ a floor of ≈ 48 ms at any thread count; the scaling phases reach 1.5–1.9× on the VM's 4 shared cores. Levers: egress off the frame ([Egress §7](DESIGN_Egress_Change_Detection.md), CE-3427), the phases' own serial pre-passes, §8 interleaving for the small systems | X-5 |
+
+### 18.9 ⭐ AS BUILT — what the squad drills taught under parallel brains: "own entity" covers its ADDS *(E-2 / E-3, CE-4508 / CE-4509; [status](blueprints/batches/STATUS_Entity_Padding_And_Squad_Drills.md))*
+
+⭐ The drills ran in the kernel's frame order (E-2), serial and with `HROT_PARALLEL_SIM=1`: 78 of 228 red with parallel brains. ⛔ **None was the
+accepted one-tick delay (R-4212).** Every one was the per-entity rule broken for a structural change on the job's OWN entity: the add is
+deferred to the merge (it cannot be made in parallel), and the job's own later reads did not see it.
+
+| the rule, as built | why (measured) | where |
+|---|---|---|
+| ⭐⭐ a MANAGED component a job adds to its own entity reads back to that job until the merge (`Has`, `Get`) | `SubordinateOrders.Record` (a read-modify-write) kept only the tick's LAST order — the plays re-sent the others (orders counted twice) | `BatchContext.RememberOwnManaged`, `EntityRepository.OwnPendingManaged` |
+| ⭐⭐ an UNMANAGED add reads back through `TryGetOwnPendingAdd<T>` — never by `ref` (the value is not in the world's storage yet); an "add if absent, else mutate" helper builds on it | `ReportQueue.Enqueue`'s second report of a tick replaced the first (a hall's RoomClear lost to its Foothold) | `EntityRepository.TryGetOwnPendingAdd` |
+| ⭐⭐ a CHILD created inside a phase is dressed in the SAME buffer: `EqsChildSensor.Ensure` hands back the pending child; ⚠ a buffer entity has a NEGATIVE index — test it with `!= default`, never `IsNull` | the survey and danger-area sensors landed bare and stayed so — never requested, never solved | `EqsChildSensor`, `WorldSurveyChildSensor`, `DangerAreaChildSensor` |
+| ⭐ R-195 holds in the production order: an SOP wakes on the frame `RecentSenses` RECORDS a change (Input, one frame after the event was readable), as well as on the event's own frame | woken only on the event's frame it read an unchanged `RecentSenses` and reacted on its 0.2 s cadence — up to 17 frames late (serial too) | `BrainTickSystem.TickSopSlots`, `RecentSenses.RecordedAt` |
+
+⭐ The drills: **228 / 228 serial and with parallel brains.** Rails: `PerEntityRuleTests.E3_*` (1 / 2 / 4 / 8 threads), `DangerAreaSensorSystemTests.E3_…`,
+the drills themselves (12 red without the R-195 wake).
+
+### 18.10 ⭐ ON BY DEFAULT *(U-2 / U-3, R-4224, `2026-11-13`)*
+
+The per-entity phases (`ParallelEntities.Enabled`) and the worker budget are ON in the product by default on EVERY node — the editor, the player, the
+server and a separate CGF / SimHost / orchestrator / traffic process — resolved once at start by `PerformanceStartup` (an explicit `HROT_*` >
+`-m all` serial > `performance.json` > ON) and switchable in `View ▸ Settings ▸ Performance`. ⭐ Library defaults are unchanged (a test harness keeps
+choosing explicitly). 📄 Threaded Presentation §0a.1.
 
 ## 19. Windows scheduling: power throttling, hybrid cores, console pauses *(user, `2026-11-12`: "what about windows frontend / backend throttling and intel performance cores vs e-cores … i do not want headless mode running in console to be any slower")*
 
@@ -872,6 +939,11 @@ HIDDEN windows — a process Windows treats as background may already have been 
 | background work delays frame work | equal thread priorities | the sim thread AboveNormal; the pool's FRAME lane Normal; its BACKGROUND lane (EQS, egress scan, recorder) BelowNormal |
 | ⭐ Intel hybrid (P- + E-cores) | `Environment.ProcessorCount` counts both; a batch on an E-core finishes later and the whole parallel step waits for it | size the frame lane to the PERFORMANCE cores (`GetSystemCpuSetInformation`, `EfficiencyClass`), let the background lane use the efficiency cores; keep adaptive batches (stragglers absorbed). ⚠ The user's machine is AMD (no E-cores) ⇒ this can be designed and unit-tested, measured only on an Intel hybrid machine |
 | ⭐ a console node FREEZES when someone clicks in its window | QuickEdit mode: a text selection blocks every write to the console ⇒ a thread that logs (a console line per step) stops, and the simulation with it | console hosts turn QuickEdit OFF at start-up (`SetConsoleMode`, clear `ENABLE_QUICK_EDIT_MODE`) |
+
+⭐ **As built and verified on Windows** *(F-5 / F-6, CE-4505 / CE-4506)*: the opt-out lands on every process — ControlMask 5 / StateMask 0 read
+back on each; each runner logs what it did once at start-up (`[Scheduling] power throttling: … · console QuickEdit: …`, `WindowsScheduling.Describe`).
+⚠ Windows' default cost without it varies by day: 1.2–1.4× on `2026-11-13`, ~1.9× earlier — so the opt-out stays on, and a number measured
+without it is not comparable.
 
 ### 11.2 ⭐ Scaling past 4 threads — measured on Windows *(`STATUS_Ui_Windows_Scaling.md` on exp/perf, CE-4451)*
 

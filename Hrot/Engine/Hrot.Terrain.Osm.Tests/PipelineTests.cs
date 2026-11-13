@@ -118,6 +118,32 @@ public class WriteTests
         Assert.Contains("SUMO_HOME is not set properly", warning);
     }
 
+    /// <summary>⭐ AQ93 E2b ("adjust after netconvert") — the OSM import gives the net netconvert wrote (a flat one) the heights of the grid it just wrote: every lane point of the finished
+    /// <c>roads/roads.net.xml</c> carries a z equal to <c>heights/</c> there (within 1 cm). The fake builder stands in for netconvert, which needs the network and an install.
+    /// ✅ Red-proof: the pipeline's <c>NetElevation.Apply</c> call removed ⇒ the lane is 2-D ⇒ red.</summary>
+    [Fact]
+    public async Task TheRoadNet_GetsTheHeightsOfTheGridJustWritten()
+    {
+        using var tmp = new TempDir();
+        var p = Fx.Pipeline(FuncDem.EastSlope(), new FlatNetRoads(), new DownloadCache(tmp.Combine("cache")));
+        string outDir = await p.WriteInputSetAsync(Fx.Box, Fx.Options, tmp.Combine("terrain-input/e2b"), null, default);
+
+        var (info, z) = HeightsGrid.ReadAll(outDir);
+        var sampler = new HeightSampler(info, z);
+        string xml = File.ReadAllText(Path.Combine(outDir, InputSetLayout.RoadsNet));
+        var shape = System.Text.RegularExpressions.Regex.Match(xml, "shape=\"([^\"]*)\"").Groups[1].Value.Split(' ').Select(pt => pt.Split(',')).ToList();
+        Assert.True(shape.Count >= 6, $"the 50 m lane is densified to a point every 10 m: {shape.Count} points");   // 50 m → five runs → 6 points
+        double lo = double.MaxValue, hi = double.MinValue;
+        foreach (var c in shape)
+        {
+            Assert.Equal(3, c.Length);
+            double x = double.Parse(c[0], System.Globalization.CultureInfo.InvariantCulture), y = double.Parse(c[1], System.Globalization.CultureInfo.InvariantCulture), zz = double.Parse(c[2], System.Globalization.CultureInfo.InvariantCulture);
+            Assert.True(Math.Abs(zz - sampler.At(x, y)) < 0.011, $"({x}, {y}): z {zz}, the grid says {sampler.At(x, y)}");
+            lo = Math.Min(lo, zz); hi = Math.Max(hi, zz);
+        }
+        Assert.True(hi - lo > 0.5, $"the lane runs across the slope: {lo}..{hi}");   // anti-vacuity: not a constant 0
+    }
+
     /// <summary>⭐ CE-4409 — a cancelled import is still a cancel, never a "roads failed" warning.</summary>
     [Fact]
     public async Task ACancelledRoadBuild_IsStillACancel_NotAWarning()

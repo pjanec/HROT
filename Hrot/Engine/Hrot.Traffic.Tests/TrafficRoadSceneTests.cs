@@ -59,7 +59,9 @@ public sealed class TrafficRoadSceneTests
         // the carriageway is exactly Sim.Scene's asphalt less the pedestrian ribbons (the walking areas are filled as polygons instead)
         int walkRibbons = RoadMeshBuilder.BuildAll(new SceneFrame(0, 0), net, includeInternal: true)
             .Where(x => TrafficRoadScene.IsSidewalk(net.LanesByHandle.First(l => l.Handle == x.Handle))).Sum(x => x.Mesh.TriangleCount);
-        Assert.Equal(whole.TriangleCount - walkRibbons, road.TriangleCount);
+        // (the scene is laid on the ground now, R-4030: a few triangles at the net's edge, where the ground beyond rises into hills, are cut — never fewer)
+        int expected = whole.TriangleCount - walkRibbons;
+        Assert.InRange(road.TriangleCount, expected, expected + expected / 100);
 
         int walkLanes = net.LanesByHandle.Count(TrafficRoadScene.IsSidewalk);
         Assert.True(walkLanes > 500, $"pedestrian-only lanes in the demo city: {walkLanes}");
@@ -107,6 +109,152 @@ public sealed class TrafficRoadSceneTests
                 checkedPoints++;
             }
         Assert.True(checkedPoints > 0, "the net reaches more than 300 m past our terrain (the demo city's net is 4.75 km)");
+    }
+
+    // ── ⭐ R-4030 (AQ93 E2b) — a FLAT net is laid on OUR ground ─────────────────────────────────────────────────────────────
+
+    private static readonly Lazy<(Sim.Ingest.NetworkModel Model, SumoNetPlacement Placement)> DemoNet = new(() =>
+    {
+        string dir = Path.Combine(TerrainRoot(), "demo-city");
+        var model = Sim.Ingest.NetworkParser.ParseXml(File.ReadAllText(Path.Combine(dir, "demo-city.net.xml")));
+        return (model, SumoNetPlacement.For(model, new TerrainSumoNet("demo-city.net.xml", 2200, 2200), null));
+    });
+
+    /// <summary>Hills of ~8 m on a 350 m plateau — the terrain the user's OSM import and random generator produce.</summary>
+    private static float Hilly(float x, float y) => 350f + 8f * MathF.Sin(x / 60f) + 5f * MathF.Cos(y / 80f);
+
+    /// <summary>
+    /// ⭐ R-4030 / E2b — 🔒 user, live: <i>"the Sumo road network is rendered at zero level while the rest of the terrain was generated to some
+    /// much higher level, like 300-400 meters"</i>. A FLAT net on hills around 350 m: EVERY vertex of EVERY mesh (roads, sidewalks, junctions, paint,
+    /// crosswalks, the ambient ground) lies on the ground — within a few centimetres of <c>GroundHeightAt</c> — and every triangle
+    /// also follows the hill BETWEEN its corners (its centre and its edges' middles are on the ground too). ✅ Red-proof: the scene's drape ⇒ null ⇒ z 0 ⇒ red.
+    /// </summary>
+    [Fact]
+    public void E2b_AFlatNet_IsLaidOnTheGround_EveryVertex_AndBetweenTheCorners()
+    {
+        var (model, placement) = DemoNet.Value;
+        Assert.True(TrafficDrape.IsFlat(model));
+
+        var scene = TrafficRoadScene.Build(model, placement, new Vector2(0, 0), new Vector2(800, 800), Hilly);
+
+        double worst = 0;
+        foreach (var mesh in scene.Meshes)
+        {
+            foreach (var v in mesh.Vertices) worst = Math.Max(worst, Math.Abs(v.Z - Hilly(v.X, v.Y)));
+            for (int t = 0; t + 2 < mesh.Indices.Length; t += 3)
+            {
+                var a = mesh.Vertices[mesh.Indices[t]]; var b = mesh.Vertices[mesh.Indices[t + 1]]; var c = mesh.Vertices[mesh.Indices[t + 2]];
+                // BETWEEN the corners: the flat facet's own height at its centre and at each edge's middle against the real ground there — a
+                // road triangle that spanned a hill (the 2 km demo-city ribbons) would be metres off
+                foreach (var m in new[] { (a + b + c) / 3f, (a + b) / 2f, (b + c) / 2f, (c + a) / 2f })
+                    worst = Math.Max(worst, Math.Abs(m.Z - Hilly(m.X, m.Y)) - (mesh.Kind == SceneKind.AmbientGround ? 4f : 0.0));
+            }
+        }
+        Assert.True(worst < 0.2, $"the worst vertex / facet is {worst} m off the ground (the ambient ground's 20 m facets are allowed 4 m of hill)");
+        Assert.All(scene.Signals, s => { Assert.InRange(s.Pole.Z, Hilly(s.Pole.X, s.Pole.Y) - 0.2f, Hilly(s.Pole.X, s.Pole.Y) + 0.5f); Assert.True(s.Head.Z > s.Pole.Z); });
+    }
+
+    /// <summary>⭐ R-4025 stays: a net WITH z is placed exactly as the net says — the ground function is ignored, the vertices are those of the undraped build.
+    /// ✅ Red-proof: <c>IsFlat</c> ⇒ true ⇒ the ground is added to a net that has its own heights ⇒ red.</summary>
+    [Fact]
+    public void E2b_ANetWithZ_IsUntouched()
+    {
+        var (flat, placement) = DemoNet.Value;
+        string xml = System.Text.RegularExpressions.Regex.Replace(File.ReadAllText(Path.Combine(TerrainRoot(), "demo-city", "demo-city.net.xml")),
+            "(<lane [^>]*shape=\")([^\"]*)(\")",
+            m => m.Groups[1].Value + string.Join(' ', m.Groups[2].Value.Split(' ').Select(p => p + ",12.5")) + m.Groups[3].Value);
+        var withZ = Sim.Ingest.NetworkParser.ParseXml(xml);
+        Assert.False(TrafficDrape.IsFlat(withZ));
+
+        var drapedCall = TrafficRoadScene.Build(withZ, placement, new Vector2(0, 0), new Vector2(800, 800), Hilly);
+        var plain = TrafficRoadScene.Build(withZ, placement, new Vector2(0, 0), new Vector2(800, 800));
+        Assert.Equal(plain.TriangleCount, drapedCall.TriangleCount);
+        for (int i = 0; i < plain.Meshes.Count; i++) Assert.Equal(plain.Meshes[i].Vertices, drapedCall.Meshes[i].Vertices);
+        Assert.Contains(plain.Meshes.Single(m => m.Kind == SceneKind.Asphalt && !m.Sidewalk).Vertices, v => Math.Abs(v.Z - 12.5f) < 0.01f);
+    }
+
+    /// <summary>⭐ R-4030 end to end — the terrain LOAD, on a terrain whose ground is 350 m: the cache carries the drape (the ground function the roads were laid with),
+    /// the roads and the ambient ground beyond sit at 350, and the ground beyond our footprint meets our terrain's level instead of dropping to 0 (AQ93 §8.8 H2).</summary>
+    [Fact]
+    public void E2b_TheLoad_LaysTheRoadsAndTheGroundBeyond_OnTheTerrainsLevel()
+    {
+        using var city = ElevatedDemoCity.Load(350f);
+        var cache = city.Cache;
+        Assert.NotNull(cache.Drape);
+        Assert.Equal(350f, cache.Drape!(100f, 100f), 3);
+        foreach (var mesh in cache.Roads.Meshes)
+            Assert.All(mesh.Vertices, v => Assert.InRange(v.Z, 349.9f, 350.2f));
+        // a plateau costs no extra triangles: nothing is cut where the ground is a plane
+        var undraped = TrafficRoadScene.Build(cache.Model, cache.Placement, new Vector2(0, 0), new Vector2(800, 800));
+        Assert.InRange(cache.Roads.TriangleCount, undraped.TriangleCount, undraped.TriangleCount + undraped.TriangleCount / 100);
+        var terrain = city.World.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()!;
+        Assert.Equal(350f, terrain.GroundHeightAt(-1500f, 400f), 2);   // 1.5 km beyond the edge, inside the net: the origin's altitude, not 0
+        Assert.Equal(350f, terrain.GroundHeightAt(-5f, 400f), 2);
+    }
+
+    /// <summary>
+    /// ⭐ AQ93 E2b "adjust after netconvert" — a net given OUR heights by <see cref="Hrot.Terrain.InputSet.NetElevation"/> is no longer flat: SumoSharp parses
+    /// <c>ShapeZ</c> on EVERY lane (it needs all points of a shape to carry a z), <see cref="TrafficDrape.IsFlat"/> is false, and the road scene — built WITHOUT any ground
+    /// function, so no drape applies — stands on the ground: the lanes' own z for asphalt, paint and crosswalks, the field baked from them for the junction fills and walking
+    /// areas. ✅ Red-proof: <c>NetElevation</c> writes no z ⇒ the net stays flat ⇒ red.
+    /// </summary>
+    [Fact]
+    public void E2b_ANetGivenOurHeights_IsNotFlat_AndItsSceneStandsOnTheGround()
+    {
+        float Gentle(float x, float y) => 350f + 0.05f * x + 3f * MathF.Sin(x / 200f) * MathF.Cos(y / 170f);
+        string tmp = Path.Combine(Path.GetTempPath(), "e2b-" + Guid.NewGuid().ToString("N")[..10] + ".net.xml");
+        try
+        {
+            File.Copy(Path.Combine(TerrainRoot(), "demo-city", "demo-city.net.xml"), tmp);
+            var result = Hrot.Terrain.InputSet.NetElevation.Apply(tmp, (x, y) => (double)Gentle((float)(x - 2200), (float)(y - 2200)));   // net metres = local + the anchor
+            Assert.True(result.PointsAfter > result.PointsBefore);
+            var model = Sim.Ingest.NetworkParser.ParseXml(File.ReadAllText(tmp));
+            Assert.False(TrafficDrape.IsFlat(model));
+            Assert.All(model.LanesByHandle, l => Assert.NotNull(l.ShapeZ));
+            Assert.All(model.LanesByHandle, l => Assert.Equal(l.Shape.Count, l.ShapeZ!.Count));
+
+            var placement = SumoNetPlacement.For(model, new TerrainSumoNet("demo-city.net.xml", 2200, 2200), null);
+            var scene = TrafficRoadScene.Build(model, placement, new Vector2(0, 0), new Vector2(800, 800));   // no ground function: the net carries its heights
+            foreach (var mesh in scene.Meshes.Where(m => m.Kind != SceneKind.AmbientGround))
+            {
+                float tol = mesh.Kind == SceneKind.Junction || mesh.Sidewalk ? 0.6f : 0.15f;   // a junction fill takes its z from the baked field, not from a lane
+                var bad = mesh.Vertices.Where(v => Math.Abs(v.Z - Gentle(v.X, v.Y)) > tol).ToList();
+                Assert.True(bad.Count == 0, $"{mesh.Kind}{(mesh.Sidewalk ? " (walk)" : "")}: {bad.Count} of {mesh.Vertices.Length} vertices off the ground by more than {tol} m, e.g. {(bad.Count > 0 ? bad[0].Z - Gentle(bad[0].X, bad[0].Y) : 0)}");
+            }
+        }
+        finally { try { File.Delete(tmp); } catch (IOException) { } }
+    }
+
+    /// <summary>A copy of the demo city (its flat net) whose ground is <c>groundZ</c> metres, loaded through the real residency; the folder is removed on dispose.</summary>
+    internal sealed class ElevatedDemoCity : IDisposable
+    {
+        private readonly string _root;
+        public EntityRepository World { get; }
+        public TrafficNetCache Cache { get; }
+
+        private ElevatedDemoCity(string root, EntityRepository world, TrafficNetCache cache) { _root = root; World = world; Cache = cache; }
+
+        public static ElevatedDemoCity Load(float groundZ)
+        {
+            string src = Path.Combine(TerrainRoot(), "demo-city");
+            string root = Path.Combine(Path.GetTempPath(), "e2b-" + Guid.NewGuid().ToString("N")[..10]);
+            string dst = Path.Combine(root, "demo-city");
+            Directory.CreateDirectory(dst);
+            foreach (var f in new[] { "terrain.json", "demo-city.net.xml" }) File.Copy(Path.Combine(src, f), Path.Combine(dst, f));
+            File.WriteAllText(Path.Combine(dst, "demo-city.world.geojson"),
+                "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[0,0,800,800],\"groundZ\":" + groundZ.ToString(System.Globalization.CultureInfo.InvariantCulture) + "},\"features\":[]}");
+            var world = new EntityRepository();
+            var residency = new TerrainResidency(new TerrainCatalog(new[] { root }), new CarKinem.Road.RoadNetworkHolder());
+            residency.AttachContent(new SumoNetTerrainLoader());
+            residency.Commit(world, residency.Prepare("demo-city"));
+            return new ElevatedDemoCity(root, world, TrafficNetCache.Of(world)!);
+        }
+
+        public void Dispose()
+        {
+            World.Dispose();
+            try { Directory.Delete(_root, true); } catch (IOException) { }
+        }
     }
 
     internal static TrafficNetCache Load()

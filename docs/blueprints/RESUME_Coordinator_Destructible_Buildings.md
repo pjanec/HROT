@@ -4,6 +4,7 @@ updated: 2026-11-10
 current-answer: ⭐ §3 the slices (S-0…S-5 ✅ built; what remains: the scale-1 numbers on backend's Windows machine (UTM §8.7) and ui's drawing CE-4392; R-4196: decided and baked on the Muscle only; S-0 ✅ · S-1 ✅ breaches, as built in UTM §8.3 — the build design is UTM §8.2; ⛔ §2's 'NEW' row is superseded there: no NavRebuildRequester, the P-7a obstacle bake does it) · §0 the task · §1 settled decisions · §2 what exists (measured) · §3 the build in slices · §4 traps · §5 how to work
 stale-below: nothing
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: its O-1 (obstacle removal) reuses this breach / collapse path
   - ../DESIGN_Terrain_Import_UTM.md — ⭐ OWNS the design: §8 (R-4188, D-1…D-8, Q-D1…Q-D4) and §8.1 (the runtime sequence, the module graph, P3-a…e — READY-TO-BUILD)
   - ../DESIGN_Building_Interiors.md — the walls, openings and doors this changes; its E3 ("wall breaching = changing geometry at runtime → later") is what this delivers; §3j 5b′ (R-219) the live door-state pattern to copy
   - designs/navig-2/Navigation_Design_v2_0.md — §14 runtime geometry change (P1 snapshot ✅, P2 tiles + NavTileCache ✅, P3 replan ⛔ not built) — P3 is part of this work

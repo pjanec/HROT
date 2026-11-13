@@ -194,7 +194,7 @@ internal sealed class LocalWindowController
             if (owner.GatePolicy == Fdp.Toolkit.Orchestration.HostGatePolicy.Player)
             {
                 var ownerWorld = owner;
-                DeployScreen = Hrot.UI.Common.Panels.DeployScreen.Register(wm.StatusBar, () => Hrot.Gameplay.DeployFlowSystem.Of(ownerWorld.World), () => LoadingScreen?.Visible ?? false);
+                DeployScreen = Hrot.UI.Common.Panels.DeployScreen.Register(wm.StatusBar, () => Hrot.Gameplay.DeployFlows.Of(ownerWorld.World), () => LoadingScreen?.Visible ?? false);
             }
         }
         ComposeExitGuard(owner);             // ⭐ CE-4101 follow-up — the ONE scenario exit guard, over the same owner's door
@@ -515,6 +515,8 @@ internal sealed class LocalWindowController
             GlobalMenuRegistry.SettingsMenuPath + "/Sound in the 3-D view (from the camera)",
             () => Hrot.UI.Common.Audio.AudioPreferences.CameraSound,
             v => Hrot.UI.Common.Audio.AudioPreferences.CameraSound = v);
+
+        PerformanceMenu.Register(wm);   // ⭐⭐ U-2 (CE-4531, R-4224) — View ▸ Settings ▸ Performance: the threaded editor, the parallel simulation, the threads
 
         Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(wm.GlobalMenu, wm.ShellCommands, "settings.layout.save-default", GlobalMenuRegistry.SettingsMenuPath + "/Layout/Save current as default", () =>
         {

@@ -13,17 +13,17 @@ namespace Fdp.ModuleHost
     /// </summary>
     public static class ThreadedKernelGate
     {
-        public static readonly bool Enabled = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") is "1" or "2" or "3";
+        public static bool Enabled { get; private set; } = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") is "1" or "2" or "3";
 
         /// <summary>⭐ POC 3 (CE-4442) — <c>HROT_THREADED_KERNEL=3</c>: the NODE is COMPOSED over World S (its own repository, built by the bootstrapper)
         /// and the PRESENTATION over World A from the start; A takes S after each node frame. <c>HROT_THREADED_SINGLE=1</c>: the node frame stays on the
         /// main thread (the composition proven before the threading).</summary>
-        public static readonly bool ComposedWorlds = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") == "3";
+        public static bool ComposedWorlds { get; private set; } = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") == "3";
         public static readonly bool ComposedSingleThread = Environment.GetEnvironmentVariable("HROT_THREADED_SINGLE") == "1";
 
         /// <summary>⭐ POC 2 (CE-4439) — <c>HROT_THREADED_KERNEL=2</c>: TWO worlds — the simulation ticks World S on the worker, the presentation keeps
         /// World A, synced S→A after each tick (📄 DESIGN_Threaded_Simulation_Presentation.md §14). The worker runs only while <see cref="Engaged"/>.</summary>
-        public static readonly bool TwoWorlds = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") == "2";
+        public static bool TwoWorlds { get; private set; } = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") == "2";
 
         /// <summary>⭐ POC 2 — the worker HOLDS the lock for its whole tick as well as the sync (<c>HROT_TWO_WORLDS_LOCK_TICK=1</c>): the safe
         /// variant while systems still capture A. OFF: the lock is taken for the S→A sync only, and the tick runs beside the drawing thread.</summary>
@@ -31,6 +31,20 @@ namespace Fdp.ModuleHost
 
         /// <summary>Whether a worker is running (mode 1: always; mode 2: set by the host while S is engaged).</summary>
         public static volatile bool Engaged = Environment.GetEnvironmentVariable("HROT_THREADED_KERNEL") == "1";
+
+        /// <summary>
+        /// ⭐ U-2 (CE-4531, R-4224) — the mode the PRODUCT resolved at start (<c>PerformanceSettings.Resolve</c>: an explicit
+        /// <c>HROT_THREADED_KERNEL</c> &gt; <c>-m all</c> serial &gt; the user file &gt; ON for a UI host): 0 off, 1 / 2 the earlier experiments,
+        /// 3 the threaded node. ⚠ Called once, before any kernel or host is built; the environment variable stays the initial value (tests,
+        /// harnesses and every library caller see what they saw before).
+        /// </summary>
+        public static void Configure(int mode)
+        {
+            Enabled = mode is 1 or 2 or 3;
+            ComposedWorlds = mode == 3;
+            TwoWorlds = mode == 2;
+            Engaged = mode == 1;
+        }
         private static bool _locked;
         public static readonly object WorldLock = new();
         private static volatile bool _mainWants;

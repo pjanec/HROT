@@ -92,22 +92,34 @@ namespace Hrot.SimHost.Tests
                 Tick();
             }
 
+            /// <summary>
+            /// ⭐⭐ E-2 (CE-4508) — ONE FRAME IN THE KERNEL'S ORDER (<c>ModuleHostKernel.Update</c>), so the drills run as they do in a node, serial
+            /// and with <c>HROT_PARALLEL_SIM=1</c>: ① the world advances (<c>Tick</c>: a new version) and its clock; ② the Input phase (the
+            /// arcs, ROE, recent senses, the order ingress) and its command buffers played back; ③ the event swap (Input's events readable this
+            /// frame); ④ the stand-in solves land (the EQS module's harvest); ⑤ the tick-start view is taken, serially, before the Simulation
+            /// phase; ⑥ the Simulation phase (the squad merge's sense edges, then the brains); ⑦ its command buffers played back.
+            /// ⛔ SUPERSEDED: the swap first and the Input systems after it, and a world that never advanced — its tick-start view taken at the
+            /// first frame was kept (M-5's 78 reds with parallel brains; ac888f4cc's capture alone could not fix that).
+            /// </summary>
             public void Tick()
             {
                 _time += 0.016;
-                Repo.SetSingleton(new GlobalTime { TotalTime = _time, DeltaTime = 0.016f, TimeScale = 1f, FrameNumber = ++_frame });
+                Repo.Tick();                                                                                       // ①
                 Repo.SetSimulationTime((float)_time);
-                Repo.Bus.SwapBuffers();
-                foreach (var o in Repo.Bus.ReadManaged<AssignTacticalIntentEvent>()) (o.Kind == TacticalIntentKind.Clear ? Clears : Orders).Add(o);
-                Sensing.Squad(Repo, Commander, _time);           // ⭐ CE-2283 — what SquadCoordinationSystem raises after its merge (no merge here:
-                Sensing.Rounds(Repo, false, _time);              //   the rails write the pool themselves)
-                _sectors.Execute(Repo, 0.016f);
+                Repo.SetSingleton(new GlobalTime { TotalTime = _time, DeltaTime = 0.016f, TimeScale = 1f, FrameNumber = ++_frame });
+                _sectors.Execute(Repo, 0.016f);                                                                    // ② Input
                 _roe.Execute(Repo, 0.016f);
                 _senses.Execute(Repo, 0.016f);
                 _ingress.Execute(Repo, 0.016f);
-                AnswerFrameSurvey();
-                _brain.Execute(Repo, 0.016f);
                 Repo.FlushCommandBuffers();
+                Repo.Bus.SwapBuffers();                                                                            // ③
+                foreach (var o in Repo.Bus.ReadManaged<AssignTacticalIntentEvent>()) (o.Kind == TacticalIntentKind.Clear ? Clears : Orders).Add(o);
+                AnswerFrameSurvey();                                                                               // ④
+                if (Fdp.Core.ParallelReadCheck.HasDeclarations) Repo.CaptureLastTick();                            // ⑤
+                Sensing.Squad(Repo, Commander, _time);           // ⑥ ⭐ CE-2283 — what SquadCoordinationSystem raises after its merge (no merge here:
+                Sensing.Rounds(Repo, false, _time);              //   the rails write the pool themselves)
+                _brain.Execute(Repo, 0.016f);
+                Repo.FlushCommandBuffers();                                                                        // ⑦
             }
 
             /// <summary>⭐ <c>CE-2275</c> D-2l — the answer the squad's frame survey gets at once (standing in for SimHost's solve): empty by
@@ -248,7 +260,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 4);
             s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15}");
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
 
             var first = s.LastObjectives();
             Assert.Equal(4, first.Count);
@@ -284,7 +296,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 4);
             s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15,\"BoundTimeoutSeconds\":5}");
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
 
             var t = SquadDrillTrace.Of(s.Repo, s.Commander);
             Assert.True(t.Active);
@@ -327,7 +339,7 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < s.Members.Length; i++)
                 s.Repo.AddComponent(s.Members[i], new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1000 + i });
             s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15,\"BoundTimeoutSeconds\":5}");
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             foreach (var m in s.Members.Take(2)) s.Teleport(m, s.LastObjectives()[m]);   // Alpha arrives: the next phase
             s.Tick(); s.Tick();
 
@@ -365,7 +377,7 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < s.Members.Length; i++)
                 s.Repo.AddComponent(s.Members[i], new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1000 + i });
             s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15,\"BoundTimeoutSeconds\":5}");
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             foreach (var m in s.Members.Take(2)) s.Teleport(m, s.LastObjectives()[m]);   // Alpha arrives: the next phase
             for (int i = 0; i < 6; i++) s.Tick();
 
@@ -439,7 +451,7 @@ namespace Hrot.SimHost.Tests
             s.Repo.AddComponent(down, new Fdp.Toolkit.Combat.Components.Health { Current = 25f, Max = 100f });
             s.Repo.AddComponent(down, new Fdp.Toolkit.Combat.Components.InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
             s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15,\"BoundTimeoutSeconds\":60}");
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
 
             var orders = s.LastObjectives();
             Assert.False(orders.ContainsKey(down));
@@ -484,7 +496,7 @@ namespace Hrot.SimHost.Tests
         {
             var (s, casualty, medic, enemy) = CareSquad();
             s.Order("{}", BehaviorNames.CasualtyCare);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
 
             Assert.Equal(CasualtyCareManeuver.ManeuverKind, s.Kind);
             Assert.Equal(CasualtyCareManeuver.PhaseSuppress, s.Phase);
@@ -541,7 +553,7 @@ namespace Hrot.SimHost.Tests
             s.Repo.SetSingletonManaged(map);
             var lz = new Vector3(50, 0, 0);
             s.Order("{\"casualty\":777,\"to\":[50,0,0]}", BehaviorNames.SquadRecover);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Assert.Equal(CasualtyCareManeuver.ManeuverKind, s.Kind);
             Assert.True(CoverQuery(s).IsNull, "a named point: no cover query");
             for (int i = 0; i < 370; i++) s.Tick();                               // nobody to suppress: the medic goes after CoveringSeconds (5 s)
@@ -569,7 +581,7 @@ namespace Hrot.SimHost.Tests
         {
             var (s, _, medic, _) = CareSquad();
             s.Order("{}", BehaviorNames.CasualtyCare);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             s.Answer(CoverQuery(s), new Vector3(6, -4, 0));
             for (int i = 0; i < 250; i++) s.Tick();                               // 4 s: the covering may still come (CE-2227 — 5 s)
             Assert.Equal(CasualtyCareManeuver.PhaseSuppress, s.Phase);
@@ -587,7 +599,7 @@ namespace Hrot.SimHost.Tests
             var (s, _, medic, _) = CareSquad();
             var waited = s.At(medic);
             s.Order("{}", BehaviorNames.CasualtyCare);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             s.Answer(CoverQuery(s), new Vector3(6, -4, 0));
             Fire(s, s.Members[0]); Fire(s, s.Members[3]); s.Tick(); s.Tick();
             Assert.Equal(CasualtyCareManeuver.PhaseGo, s.Phase);
@@ -611,7 +623,7 @@ namespace Hrot.SimHost.Tests
         {
             var (s, _, medic, _) = CareSquad();
             s.Order("{}", BehaviorNames.CasualtyCare);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             s.Answer(CoverQuery(s), new Vector3(6, -4, 0));
             Fire(s, s.Members[0]); Fire(s, s.Members[3]); s.Tick(); s.Tick();
             Assert.Equal(CasualtyCareManeuver.PhaseGo, s.Phase);
@@ -805,7 +817,7 @@ namespace Hrot.SimHost.Tests
             var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
             s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b1100);          // members 2 and 3 see him (not the first half)
             s.Order("{}", BehaviorNames.SuppressAndManeuver);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
 
             Assert.Equal(SuppressAndManeuverManeuver.PhaseSuppressing, s.Phase);
             var first = s.LastOrders();
@@ -856,7 +868,7 @@ namespace Hrot.SimHost.Tests
             var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
             s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b1100);
             s.Order("{}", BehaviorNames.SuppressAndManeuver);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             s.Orders.Clear();
             s.Answer(s.FlankQuery(), new Vector3(40f, 60f, 0f));
             s.Tick(); s.Tick();
@@ -873,7 +885,7 @@ namespace Hrot.SimHost.Tests
             var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
             s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0001);
             s.Order("{}", BehaviorNames.SuppressAndManeuver);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             s.Orders.Clear();
             s.Answer(s.FlankQuery(), null);
             s.Tick(); s.Tick();
@@ -890,7 +902,7 @@ namespace Hrot.SimHost.Tests
             var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
             s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
             s.Order("{}", BehaviorNames.SuppressAndManeuver);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(enemy).Current = 0f;
             bool done = false; Fbt.NodeStatus result = default;
             for (int i = 0; i < 4 && !done; i++) { s.Tick(); done = s.Finished(out result); }
@@ -905,7 +917,7 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(early.Orders);
             var later = Enemy(early, new Vector3(0f, 60f, 0f));
             early.Pool(later, new Vector3(0f, 60f, 0f), reporters: 0b0011);
-            early.Tick(); early.Tick();
+            early.Tick(); early.Tick(); early.Tick();   // E-3 (CE-4509) ① — production frame order: the pool edge (Sensing, Simulation) reaches RecentSenses (Input) a frame later
             Assert.Equal(4, early.LastOrders().Count);                               // contact: the drill starts
         }
 
@@ -916,7 +928,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 4);
             s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Assert.Equal(4, s.LastOrders().Count);
             s.Orders.Clear();
             s.Tick();
@@ -936,7 +948,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 4);
             s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Assert.Equal(BoundingOverwatchManeuver.ManeuverKind, s.Kind);
             var alpha = s.Members.Take(2).ToArray();
 
@@ -965,7 +977,7 @@ namespace Hrot.SimHost.Tests
             var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
             s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
             s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
 
             Assert.Equal(SquadHoldManeuver.ManeuverKind, s.Kind);
             var hold = s.LastOrders();
@@ -1052,7 +1064,7 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 6; i++) s.Tick();
             s.PoolMany(6, new Vector3(0f, 60f, 0f));
             s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
-            for (int i = 0; i < 4; i++) s.Tick();
+            for (int i = 0; i < SopReactionFrames; i++) s.Tick();   // E-3 (CE-4509) — production frame order: the edge recorded, the SOP woken on it (R-195), the reaction to the men
             Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
             Assert.Equal(task, BehaviorIngressSystem.PausedTaskOf(s.Repo, s.Commander)!.BehaviorName);
             for (int i = 0; i < 250; i++) s.Tick();   // 4 s: past the return-fire hold, the choice made
@@ -1068,7 +1080,7 @@ namespace Hrot.SimHost.Tests
             var s = new Squad(members: 2);
             var to = new Vector3(20f, -60f, 0f);
             s.Order("{\"To\":[20,-60,0]}", BehaviorNames.BreakContact);
-            s.Tick(); s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input one frame later, so the play's query exists one frame later
             Assert.True(s.RetreatQuery().IsNull, "no terrain asked");
             var first = s.LastOrders();
             Assert.Equal((BehaviorNames.AdvanceTo, to), first[s.Members[0]]);
@@ -1133,13 +1145,13 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 4);
             s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Assert.Equal(BoundingOverwatchManeuver.ManeuverKind, s.Kind);
 
             var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
             s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
             s.React(BehaviorNames.ReactToContact, "{\"DecideAfterSeconds\":0.1}");
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Assert.Equal(SquadHoldManeuver.ManeuverKind, s.Kind);                   // the bound is paused, the squad holds
             for (int i = 0; i < 10; i++) s.Tick();
             Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);         // decided: assault
@@ -1170,7 +1182,7 @@ namespace Hrot.SimHost.Tests
             var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
             s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
             s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
-            for (int i = 0; i < 4; i++) s.Tick();
+            for (int i = 0; i < SopReactionFrames; i++) s.Tick();   // E-3 (CE-4509) — production frame order: the edge recorded, the SOP woken on it (R-195), the reaction to the men
 
             Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
             var task = s.Repo.GetComponent<BehaviorState>(s.Commander);
@@ -1203,14 +1215,14 @@ namespace Hrot.SimHost.Tests
             var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
             s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
             s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
-            for (int i = 0; i < 6; i++) s.Tick();
+            for (int i = 0; i < SopReactionFrames; i++) s.Tick();   // E-3 (CE-4509) — production frame order: the edge recorded, the SOP woken on it (R-195), the reaction to the men
 
             Assert.Equal(BehaviorNames.BoundingOverwatch, s.TaskName);               // the platoon reacts, not the squad's own row
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
 
             s.Repo.DestroyEntity(platoon);                                            // the platoon gone ⇒ the squad is its own master again
             s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
-            for (int i = 0; i < 6; i++) s.Tick();
+            for (int i = 0; i < SopReactionFrames; i++) s.Tick();   // E-3 (CE-4509) — production frame order: the edge recorded, the SOP woken on it (R-195), the reaction to the men
             Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
         }
 
@@ -1231,7 +1243,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 4);
             s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Assert.Equal(4, s.LastOrders().Count);
 
             Silence(s, 0.2);
@@ -1272,7 +1284,7 @@ namespace Hrot.SimHost.Tests
             s.StartSop("BasicSquadSop");
             for (int i = 0; i < 20; i++) s.Tick();
             s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadLeaderDown);
-            for (int i = 0; i < 4; i++) s.Tick();
+            for (int i = 0; i < SopReactionFrames; i++) s.Tick();   // E-3 (CE-4509) — production frame order: the edge recorded, the SOP woken on it (R-195), the reaction to the men
 
             Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
             Assert.Equal(ReactionUrgency.UnderFire, s.Repo.GetComponent<BehaviorState>(s.Commander).Urgency);
@@ -1294,7 +1306,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(ReactionUrgency.Contact, s.Repo.GetComponent<BehaviorState>(s.Commander).Urgency);
 
             s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
-            for (int i = 0; i < 4; i++) s.Tick();
+            for (int i = 0; i < SopReactionFrames; i++) s.Tick();   // E-3 (CE-4509) — production frame order: the edge recorded, the SOP woken on it (R-195), the reaction to the men
             Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
         }
@@ -1338,7 +1350,7 @@ namespace Hrot.SimHost.Tests
             var s = new Squad(members: 4);
             foreach (var (m, i) in s.Members.Select((m, i) => (m, i))) s.Teleport(m, new Vector3(i * 2f, -i * 2f, 0f));
             s.Order("{\"Objective\":[0,100,0],\"Shape\":1,\"MaxLagMetres\":50}", BehaviorNames.SquadMarch);   // no halting in this rail
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
 
             Assert.Equal(SquadMarchManeuver.ManeuverKind, s.Kind);
             var first = s.LastOrders();
@@ -1373,7 +1385,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 3);
             s.Order("{\"Objective\":[0,100,0],\"Shape\":0}", BehaviorNames.SquadMarch);   // member 0 is nearest: it leads
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             var first = s.LastOrders();
             Assert.Equal((BehaviorNames.CombatPosture, s.At(s.Members[1])), first[s.Members[1]]);      // the trail is not 5 m long yet: hold
 
@@ -1398,7 +1410,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 3);
             s.Order("{\"Objective\":[0,100,0],\"Shape\":0,\"Speed\":1.5}", BehaviorNames.SquadMarch);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Walk(s, s.Members[0], new Vector3(0f, 20f, 0f));                                            // slots 5 and 10 m behind the lead
             s.Teleport(s.Members[1], new Vector3(0f, 19f, 0f));                                         // where his slot will be (5 m behind)
             s.Orders.Clear();
@@ -1423,7 +1435,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 3);
             s.Order("{\"Objective\":[0,200,0],\"Shape\":2,\"MaxLagMetres\":10}", BehaviorNames.SquadMarch);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Walk(s, s.Members[0], new Vector3(0f, 16f, 0f));                                           // the followers never move
             for (int i = 0; i < 220; i++) s.Tick();                                                   // > 3 s with no progress
 
@@ -1450,7 +1462,7 @@ namespace Hrot.SimHost.Tests
             var s = new Squad(members: 3);
             foreach (var m in s.Members) s.Repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
             s.Order("{\"Objective\":[0,30,0],\"Shape\":1}", BehaviorNames.SquadMarch);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             s.Orders.Clear();
             s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(s.Members[0]).Current = 0f;
             s.Tick(); s.Tick();
@@ -1483,7 +1495,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 4);
             s.Order(MoveJson(s, new Vector3(0f, 80f, 0f)), BehaviorNames.InfantrySquadMove);
-            Ticks(s, 2);
+            Ticks(s, 3);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             Assert.True(SquadMarchManeuver.ManeuverKind == s.Kind, $"task={s.TaskName} kind={s.Kind} orders={s.Orders.Count} json={MoveJson(s, new Vector3(0f, 80f, 0f))}");
             var o = s.LastOrders();
             Assert.Equal(BehaviorNames.AdvanceTo, o[s.Members[0]].Intent);                              // the lead: nearest the point
@@ -1492,7 +1504,7 @@ namespace Hrot.SimHost.Tests
 
             var road = new Squad(members: 4);
             road.Order(MoveJson(road, new Vector3(0f, 80f, 0f), roadUse: nameof(Fdp.Toolkit.Navigation.RoadUse.Prefer)), BehaviorNames.InfantrySquadMove);
-            Ticks(road, 2);
+            Ticks(road, 3);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             var r = road.LastOrders();
             Assert.Equal(BehaviorNames.AdvanceTo, r[road.Members[0]].Intent);
             Assert.All(road.Members.Skip(1), m => Assert.Equal(BehaviorNames.CombatPosture, r[m].Intent)); // file: wait for the trail
@@ -1519,7 +1531,7 @@ namespace Hrot.SimHost.Tests
             var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
             s.Repo.AddComponent(enemy, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 2141 });
             s.Order("{\"Target\":2141}", BehaviorNames.InfantrySquadAttack);
-            Ticks(s, 2);
+            Ticks(s, 3);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);
             Assert.Equal(4, s.LastOrders().Count);
             var query = s.FlankQuery();
@@ -1549,10 +1561,10 @@ namespace Hrot.SimHost.Tests
 
             var r = new Squad(members: 3);
             r.Order("{}", BehaviorNames.InfantrySquadHold);
-            Ticks(r, 3);
+            Ticks(r, 4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             Assert.Empty(r.Clears);
             r.Order(MoveJson(r, new Vector3(0f, 80f, 0f)), BehaviorNames.InfantrySquadMove);   // a new order from outside
-            Ticks(r, 3);
+            Ticks(r, 4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             Assert.Equal(3, r.Clears.Count);
             Assert.All(r.Clears, c => Assert.Equal(BehaviorNames.CombatPosture, c.IntentId));
         }
@@ -1564,7 +1576,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 3);
             s.Order("{}", BehaviorNames.InfantrySquadHold);
-            Ticks(s, 3);
+            Ticks(s, 4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             s.React(BehaviorNames.SquadHold, "{\"DurationSeconds\":0.5}");
             Ticks(s, 3);
             Assert.Equal(BehaviorNames.SquadHold, s.TaskName);
@@ -1652,7 +1664,7 @@ namespace Hrot.SimHost.Tests
             Assert.False(CombatEffective.IsInTheFight(p.Repo, p.Members[2]));
 
             p.Order("{\"Objective\":[0,100,0],\"Shape\":1,\"MaxLagMetres\":50}", BehaviorNames.SquadMarch);
-            Ticks(p, 3);
+            Ticks(p, 4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             Assert.Equal(SquadMarchManeuver.ManeuverKind, p.Kind);
             for (int i = 0; i < 2; i++)
             {
@@ -1678,9 +1690,9 @@ namespace Hrot.SimHost.Tests
             s.Repo.AddComponent(s.Commander, picture);
 
             s.Order("{\"DurationSeconds\":0}", BehaviorNames.SquadHold);
-            Ticks(s, 2);
+            Ticks(s, 3);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             s.Order("{\"Objective\":[0,100,0],\"Shape\":1,\"MaxLagMetres\":50}", BehaviorNames.SquadMarch);   // a task switch
-            Ticks(s, 2);
+            Ticks(s, 3);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             Assert.Equal(BehaviorNames.SquadMarch, s.TaskName);
             s.React(BehaviorNames.SquadHold);                                                                       // a reaction pauses it
             Ticks(s, 2);
@@ -1704,7 +1716,7 @@ namespace Hrot.SimHost.Tests
             var s = new Squad(members: 2);
             foreach (var m in s.Members) s.Repo.AddComponent(m, new UnitEntity());
             s.Order("{\"DurationSeconds\":0}", BehaviorNames.SquadHold);   // the commander's run that the orders belong to
-            Ticks(s, 2);
+            Ticks(s, 3);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             int row = Fdp.Toolkit.Squad.Command.CommandPictureOps.EnsureRow(s.Repo, s.Commander,
                 Fdp.Toolkit.Squad.Command.CommandPictureOps.NetIdOf(s.Repo, s.Members[1]));
             s.Repo.GetComponentRW<Fdp.Toolkit.Squad.Command.CommandPicture>(s.Commander).Subordinates.Items[row].Progress
@@ -2180,7 +2192,7 @@ namespace Hrot.SimHost.Tests
                 ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
             });
             s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             for (int i = 0; i < 4; i++) s.Teleport(s.Members[i], new Vector3(4f + i, 20f, 0f));
             s.Tick(); s.Tick(); s.Tick();
             posts = new[] { new Vector3(2, 25, 0), new Vector3(2, 25, 3), new Vector3(10, 25, 0), new Vector3(14, 24, 0) };
@@ -2190,7 +2202,7 @@ namespace Hrot.SimHost.Tests
             s.Tick(); s.Tick();
             AnswerAll(s, DefendQuery(s, SquadDefendPlay.CoverSite), posts[3]);
             s.Orders.Clear();
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the members' ingress (Input) takes the posted order one frame after it leaves the brain
             return s;
         }
 
@@ -2209,7 +2221,7 @@ namespace Hrot.SimHost.Tests
                 ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
             });
             s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Assert.Equal(SquadDefendManeuver.ManeuverKind, s.Kind);
             Assert.Equal(SquadDefendManeuver.PhaseMoving, s.Phase);
             foreach (var m in s.Members) Assert.Equal(new Vector3(6, 20, 0), s.LastOrders()[m].Objective);   // first, to the position
@@ -2324,7 +2336,7 @@ namespace Hrot.SimHost.Tests
             s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
             s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
             s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
-            for (int i = 0; i < 6; i++) s.Tick();
+            for (int i = 0; i < SopReactionFrames; i++) s.Tick();   // E-3 (CE-4509) — production frame order: the edge recorded, the SOP woken on it (R-195), the reaction to the men
 
             Assert.Equal(BehaviorNames.SquadDefend, s.TaskName);                     // the defence answers it, not ReactToContact
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
@@ -2364,7 +2376,7 @@ namespace Hrot.SimHost.Tests
             // three men, four windows: the point left over is each man's alternate
             var t = new Squad(members: 3);
             t.Order("{\"Position\":[4,0,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
-            t.Tick(); t.Tick(); t.Tick();
+            t.Tick(); t.Tick(); t.Tick(); t.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input one frame later, so the play's query exists one frame later
             AnswerAll(t, DefendQuery(t, SquadDefendPlay.WindowSite),
                 new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(0, 9, 0));
             t.Orders.Clear();
@@ -2395,7 +2407,7 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 3; i++)
                 s.Repo.AddComponent(s.Members[i], new CombatProficiency { Authored = i == 0 ? first : most, Set = CombatProficiency.AuthoredSet });
             s.Order("{\"Position\":[4,0,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
-            s.Tick(); s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input one frame later, so the play's query exists one frame later
             var ask = DefendQuery(s, SquadDefendPlay.WindowSite);
             Assert.False(ask.IsNull);
             s.FrameSurvey = null;   // the survey stays where the play made it
@@ -2434,7 +2446,7 @@ namespace Hrot.SimHost.Tests
                 ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
             });
             s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             for (int i = 0; i < 4; i++) s.Teleport(s.Members[i], new Vector3(4f + i, 20f, 0f));
             s.Tick(); s.Tick(); s.Tick();
             Assert.True(DefendQuery(s, SquadDefendPlay.RoofSite).IsNull, "the windows are asked first");
@@ -2486,7 +2498,7 @@ namespace Hrot.SimHost.Tests
                 ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
             });
             s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             for (int i = 0; i < 4; i++) s.Teleport(s.Members[i], new Vector3(4f + i, 20f, 0f));
             s.Tick(); s.Tick(); s.Tick();
             var posts = new[] { new Vector3(2, 25, 0), new Vector3(5, 25, 0), new Vector3(8, 25, 0), new Vector3(11, 25, 0) };
@@ -2542,7 +2554,7 @@ namespace Hrot.SimHost.Tests
                 ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
             });
             s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             for (int i = 0; i < 4; i++) s.Teleport(s.Members[i], new Vector3(4f + i, 20f, 0f));
             s.Tick(); s.Tick(); s.Tick();
             var ask = DefendQuery(s, SquadDefendPlay.WindowSite);
@@ -2578,9 +2590,9 @@ namespace Hrot.SimHost.Tests
                 ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
             });
             s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25,\"Posts\":" + postsJson + "}", BehaviorNames.SquadDefend);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             for (int i = 0; i < 4; i++) s.Teleport(s.Members[i], new Vector3(4f + i, 20f, 0f));
-            s.Tick(); s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the posted order reaches the members' ingress (Input) one frame after it leaves the brain
             return s;
         }
 
@@ -2687,7 +2699,7 @@ namespace Hrot.SimHost.Tests
                 ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
             });
             s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             for (int i = 0; i < 3; i++) s.Teleport(s.Members[i], new Vector3(4f + i, 20f, 0f));
             return s;
         }
@@ -2821,7 +2833,7 @@ namespace Hrot.SimHost.Tests
             var north = new Vector3(0, 2, 3); var east = new Vector3(6, 0, 3); var west = new Vector3(-6, 0, 3);
             s.CoverageSurvey = Fan(b => b > 1.2f && b < 1.9f, b => MathF.Abs(b) < MathF.PI / 2f + 0.1f, b => MathF.Abs(b) > MathF.PI / 2f - 0.1f);
             s.Order("{\"Position\":[0,0,0],\"SearchRadius\":10}", BehaviorNames.SquadDefend);
-            s.Tick(); s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input one frame later, so the play's query exists one frame later
             AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), north, east, west);
             s.Orders.Clear();
             for (int i = 0; i < 4; i++) s.Tick();
@@ -2889,7 +2901,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 3);
             s.Order("{\"Position\":[4,0,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
-            s.Tick(); s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input one frame later, so the play's query exists one frame later
             AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite),
                 new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(0, 9, 0));
             s.Orders.Clear();
@@ -2899,7 +2911,7 @@ namespace Hrot.SimHost.Tests
             foreach (var m in s.Members) s.Teleport(m, given[m].Objective);
             s.Tick();
 
-            void RoundAt(Entity m) { s.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = m, What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss }); s.Tick(); s.Tick(); s.Tick(); }   // ⭐ CE-2283 — the count is the sensor's: one frame more
+            void RoundAt(Entity m) { s.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = m, What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss }); s.Tick(); s.Tick(); s.Tick(); s.Tick(); }   // ⭐ CE-2283 — the count is the sensor's: one frame more. E-3 (CE-4509) ① — production frame order: +1, RecentSenses (Input) holds the edge one frame later
             s.Orders.Clear();
             RoundAt(first); RoundAt(first);
             Assert.DoesNotContain(s.Orders, o => o.Entity.Equals(first));
@@ -2914,7 +2926,7 @@ namespace Hrot.SimHost.Tests
         private static Entity PostedAndRunning(Squad s)
         {
             s.Order("{\"Position\":[4,0,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
-            s.Tick(); s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input one frame later, so the play's query exists one frame later
             AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite),
                 new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(0, 9, 0), new Vector3(4, 8, 0), new Vector3(8, 8, 0));
             s.Tick(); s.Tick(); s.Tick();   // ⭐ CE-2373 — the coverage fan's round trip
@@ -2931,7 +2943,7 @@ namespace Hrot.SimHost.Tests
         private static void RoundAt(Squad s, Entity m)
         {
             s.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = m, What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss });
-            s.Tick(); s.Tick(); s.Tick();   // ⭐ CE-2283 — the round → PositionUntenable (the sensor) → the play: one frame more than the play's own count
+            s.Tick(); s.Tick(); s.Tick(); s.Tick();   // ⭐ CE-2283 — the round → PositionUntenable (the sensor) → the play: one frame more than the play's own count. E-3 (CE-4509) ① — production frame order: +1, RecentSenses (Input) holds the edge one frame later
         }
 
         /// <summary>
@@ -2970,7 +2982,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 3);
             s.Order("{\"Position\":[4,0,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
-            s.Tick(); s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input one frame later, so the play's query exists one frame later
             AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite),
                 new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(0, 9, 0));
             s.Tick(); s.Tick(); s.Tick();   // ⭐ CE-2373 — the coverage fan's round trip
@@ -3021,7 +3033,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 3);
             s.Order("{\"Position\":[4,0,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
-            s.Tick(); s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input one frame later, so the play's query exists one frame later
             AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite),
                 new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(0, 9, 0));
             s.Tick(); s.Tick(); s.Tick();   // ⭐ CE-2373 — the coverage fan's round trip
@@ -3032,15 +3044,15 @@ namespace Hrot.SimHost.Tests
 
             s.Orders.Clear();
             s.Pool(s.Repo.CreateEntity(), new Vector3(4, -80, 0), reporters: 1);   // 85 m behind: too far to flank
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the pool edge (Sensing, Simulation) reaches RecentSenses (Input) a frame later
             s.Pool(s.Repo.CreateEntity(), new Vector3(4, 30, 0), reporters: 1);    // 25 m in front: inside every arc
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the pool edge (Sensing, Simulation) reaches RecentSenses (Input) a frame later
             Assert.Empty(s.Orders);
 
             var flanker = new Vector3(20, -10, 0);   // 25 m behind and beside the posts, outside every arc
             var enemy = s.Repo.CreateEntity();
             s.Pool(enemy, flanker, reporters: 1);
-            s.Tick(); s.Tick(); s.Tick();   // ⭐ CE-2283 — the pool → ContactOutsideSector → the play
+            s.Tick(); s.Tick(); s.Tick(); s.Tick(); s.Tick();   // ⭐ CE-2283 — the pool → ContactOutsideSector → the play . E-3 (CE-4509) ① — production frame order: +2: RecentSenses (Input) holds the edge a frame later, and the member's ingress takes the posted order a frame after it leaves the brain
             Assert.Equal(new Vector3(0, 9, 0), s.LastOrders()[first].Objective);
             ref readonly var arc = ref s.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.EngagementArea>(first);
             Assert.True(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(new Vector3(0, 9, 0), arc.LeftBearing, arc.RightBearing, 0f, 0f, flanker),
@@ -3064,7 +3076,7 @@ namespace Hrot.SimHost.Tests
             });
             s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.Roe { Fire = Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, SetBy = holdBy });
             s.Order("{\"Position\":[4,0,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             return s;
         }
 
@@ -3093,7 +3105,7 @@ namespace Hrot.SimHost.Tests
             });
             s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.Roe { Fire = Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, SetBy = BehaviorOrigin.Operator });
             s.Order("{\"Position\":[4,0,0],\"SearchRadius\":25,\"InitiatedBy\":7701}", BehaviorNames.SquadDefend);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             s.Pool(s.Repo.CreateEntity(), new Vector3(4, 120, 0), reporters: 1);   // the convoy, in the kill zone
             s.Tick(); s.Tick(); s.Tick();
             Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, SquadFire(s));
@@ -3112,10 +3124,10 @@ namespace Hrot.SimHost.Tests
         {
             var s = HoldingFire(BehaviorOrigin.Operator);
             s.Pool(s.Repo.CreateEntity(), new Vector3(4, -120, 0), reporters: 1);   // behind the squad
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the pool edge (Sensing, Simulation) reaches RecentSenses (Input) a frame later
             Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, SquadFire(s));
             s.Pool(s.Repo.CreateEntity(), new Vector3(4, 120, 0), reporters: 1);    // inside the sector
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the pool edge (Sensing, Simulation) reaches RecentSenses (Input) a frame later
             Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, SquadFire(s));
             Assert.Equal(BehaviorOrigin.Operator, s.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.Roe>(s.Commander).SetBy);
         }
@@ -3130,13 +3142,13 @@ namespace Hrot.SimHost.Tests
         {
             var alone = HoldingFire(BehaviorOrigin.Operator);
             alone.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = alone.Members[1], What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss });
-            alone.Tick(); alone.Tick(); alone.Tick();
+            alone.Tick(); alone.Tick(); alone.Tick(); alone.Tick();   // E-3 (CE-4509) ① — production frame order: +1, RecentSenses (Input) holds the edge one frame later
             Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, SquadFire(alone));
 
             var underPlatoon = HoldingFire(BehaviorOrigin.Superior);
             underPlatoon.Pool(underPlatoon.Repo.CreateEntity(), new Vector3(4, 120, 0), reporters: 1);
             underPlatoon.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = underPlatoon.Members[1], What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss });
-            underPlatoon.Tick(); underPlatoon.Tick(); underPlatoon.Tick();
+            underPlatoon.Tick(); underPlatoon.Tick(); underPlatoon.Tick(); underPlatoon.Tick();   // E-3 (CE-4509) ① — production frame order: +1, RecentSenses (Input) holds the edge one frame later
             Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, SquadFire(underPlatoon));
         }
 
@@ -3208,7 +3220,7 @@ namespace Hrot.SimHost.Tests
         {
             var p = new Platoon();
             p.Bound(sitrep: 15f);
-            p.Ticks(3);
+            p.Ticks(4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             Assert.Equal(BehaviorNames.PlatoonBound, p.S.TaskName);
             Assert.Equal(1, p.OrdersTo(p.Bravo, "Order.Move"));
             Assert.Equal(0, p.OrdersTo(p.Alpha, "Order.Move"));
@@ -3249,13 +3261,13 @@ namespace Hrot.SimHost.Tests
             var p = new Platoon();
             p.S.StartSop("BasicPlatoonSop");
             p.Bound();
-            p.Ticks(3);
+            p.Ticks(4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             p.S.Repo.AddComponent(p.Bravo, new BehaviorState
             {
                 ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.ReactToContact), Origin = BehaviorOrigin.Reaction,
             });
             p.ReportSpot(p.Alpha, new Vector3(0f, 250f, 0f), 3);
-            p.Ticks(5);
+            p.Ticks(SopReactionFrames + 1);   // E-3 (CE-4509) — the report edge to the platoon SOP, then its hold orders to the squads (one frame more) catches it (see SopReactionFrames), +3 for the hold orders to leave and reach the squads
             Assert.Equal(BehaviorNames.PlatoonHold, p.S.TaskName);
             Assert.Equal((1, 0), (p.OrdersTo(p.Alpha, "Order.Hold"), p.OrdersTo(p.Bravo, "Order.Hold")));
 
@@ -3270,7 +3282,7 @@ namespace Hrot.SimHost.Tests
             var p = new Platoon();
             p.S.StartSop("BasicPlatoonSop");
             p.Bound();
-            p.Ticks(3);
+            p.Ticks(4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             p.ReportSet(p.Bravo);
             p.Ticks(3);
             Assert.Equal(1, p.OrdersTo(p.Alpha, "Order.Move"));
@@ -3306,7 +3318,7 @@ namespace Hrot.SimHost.Tests
             var p = new Platoon();
             p.S.StartSop("BasicPlatoonSop");
             p.Bound();
-            p.Ticks(3);
+            p.Ticks(4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             var slots = Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.Read(p.S.Repo, p.S.Commander, p.S.Registry);
             Assert.NotEmpty(slots);
             var task = Assert.Single(slots, x => x.Owner == Fdp.Toolkit.Behavior.SlotOwnerKind.Task && x.Role == Fdp.Toolkit.Behavior.SlotRole.Params);
@@ -3471,12 +3483,12 @@ namespace Hrot.SimHost.Tests
             Defend(p);
             p.Ticks(6);
             p.ReportSet(p.Alpha); p.ReportSet(p.Bravo);
-            p.Ticks(3);
+            p.Ticks(4);   // E-3 (CE-4509) ① — production frame order: the platoon play reads RecentSenses (Input), which holds the report/spot edge one frame later
             p.ReportSpot(p.Alpha, new Vector3(0f, -100f, 0f), 2);   // south: behind the position
-            p.Ticks(3);
+            p.Ticks(4);   // E-3 (CE-4509) ① — production frame order: the platoon play reads RecentSenses (Input), which holds the report/spot edge one frame later
             Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, FireOf(p, p.Alpha));
             p.ReportSpot(p.Bravo, new Vector3(20f, 100f, 0f), 2);   // ~11°, 102 m: inside
-            p.Ticks(3);
+            p.Ticks(4);   // E-3 (CE-4509) ① — production frame order: the platoon play reads RecentSenses (Input), which holds the report/spot edge one frame later
             Assert.Equal((Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill,
                           Fdp.Toolkit.Behavior.Components.RoeFire.ReturnFire), (FireOf(p, p.Alpha), FireOf(p, p.Bravo), FireOf(p, p.Charlie)));
             p.S.Pause(PlatoonDefendBehavior.QuietSeconds + 1f);
@@ -3495,10 +3507,10 @@ namespace Hrot.SimHost.Tests
             p.Ticks(6);
             p.ReportSet(p.Alpha);
             p.ReportSpot(p.Charlie, new Vector3(0f, 120f, 0f), 3);
-            p.Ticks(3);
+            p.Ticks(4);   // E-3 (CE-4509) ① — production frame order: the platoon play reads RecentSenses (Input), which holds the report/spot edge one frame later
             Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, FireOf(p, p.Alpha));
             p.ReportSet(p.Bravo);
-            p.Ticks(4);
+            p.Ticks(5);   // E-3 (CE-4509) ① — production frame order: the platoon play reads RecentSenses (Input), which holds the report/spot edge one frame later
             Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, p.Alpha));
         }
 
@@ -3842,7 +3854,7 @@ namespace Hrot.SimHost.Tests
             Unit(p.S.Members[3]);
             Aircraft(p.S.Members[4], HqPlaneType, Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing);
             p.S.Order("{}", BehaviorNames.SupportCommand);
-            p.Ticks(3);
+            p.Ticks(4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             return p;
         }
 
@@ -3854,7 +3866,7 @@ namespace Hrot.SimHost.Tests
         {
             var p = Headquarters();
             p.S.StartSop("BasicPlatoonSop");
-            p.Ticks(3);
+            p.Ticks(4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             p.ReportSpot(p.S.Members[0], new Vector3(0f, 300f, 0f), 6);
             p.Ticks(6);
             Assert.Equal(BehaviorNames.SupportCommand, p.S.TaskName);
@@ -4363,7 +4375,7 @@ namespace Hrot.SimHost.Tests
         {
             var p = new Platoon(squads: 2);
             p.S.Order("{\"Position\":[0,0,0],\"Left\":330,\"Right\":30,\"MaxRange\":150,\"FallBackTo\":[50,-80,0]}", BehaviorNames.PlatoonDefend);
-            p.Ticks(6);
+            p.Ticks(7);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             p.ReportSet(p.Alpha); p.ReportSet(p.Bravo);
             p.ReportSpot(p.Alpha, new Vector3(0f, 100f, 0f), 3);
             p.Ticks(8);
@@ -4424,7 +4436,7 @@ namespace Hrot.SimHost.Tests
         {
             var p = new Platoon(squads: 3);
             DefendArea(p);
-            p.Ticks(3);
+            p.Ticks(4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             Assert.Equal(0, p.OrdersTo(p.Alpha, BehaviorNames.SquadDefend));   // waiting for the survey
             var answer = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
             AddBuilding(answer, 1, -30f, 10f, southWindows: 3);    // its windows look away from the area (north)
@@ -4456,7 +4468,7 @@ namespace Hrot.SimHost.Tests
         {
             var p = new Platoon(squads: 4);
             DefendArea(p);
-            p.Ticks(3);
+            p.Ticks(4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             var answer = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
             AddBuilding(answer, 1, -30f, 10f, northWindows: 1);
             AddBuilding(answer, 3, 0f, 30f, solid: true);
@@ -4480,7 +4492,7 @@ namespace Hrot.SimHost.Tests
         {
             var p = new Platoon(squads: 2);
             DefendArea(p);
-            p.Ticks(3);
+            p.Ticks(4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             p.S.Pause(PlatoonDefendBehavior.PositionsTimeoutSeconds + 0.5);
             p.Ticks(4);
             Near(Vector3.Zero, DefendOrderTo(p, p.Alpha).Position, "Alpha at the centre");
@@ -4488,7 +4500,7 @@ namespace Hrot.SimHost.Tests
 
             var q = new Platoon(squads: 2);
             DefendArea(q, radius: 30f);
-            q.Ticks(4);
+            q.Ticks(5);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             Assert.True(Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(q.S.Repo, q.S.Commander, PlatoonDefendBehavior.PositionsSite).IsNull,
                 "30 m is one position: no survey");
             Assert.Equal((Vector3.Zero, Vector3.Zero), ((Vector3)DefendOrderTo(q, q.Alpha).Position, (Vector3)DefendOrderTo(q, q.Bravo).Position));
@@ -4774,10 +4786,15 @@ namespace Hrot.SimHost.Tests
             return s.Repo.HasComponent<RecentSenses>(unit) && s.Repo.GetComponentRO<RecentSenses>(unit).TryGetLast(kind, out at);
         }
 
+        /// <summary>E-3 (CE-4509) — frames for a sense edge to become a reaction in the production order: the edge is recorded (Input, the
+        /// frame after it becomes readable) and wakes the SOP (R-195); the reaction crosses the swap to the ingress and the men's brains.
+        /// ⛔ SUPERSEDED: 17 (the 0.2 s SOP cadence + 3) — the SOP used to wake one frame before the record and so waited for its cadence.</summary>
+        private const int SopReactionFrames = 6;
+
         private static void Shot(Squad s, Entity m)
         {
             s.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = m, What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss });
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the Sensing edge (Simulation) lands one frame later in RecentSenses (Input runs before the swap)
         }
 
         /// <summary>
@@ -4851,7 +4868,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 2);
             s.Pool(s.Repo.CreateEntity(), new Vector3(0f, 50f, 0f), reporters: 1);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the pool edge (Sensing, Simulation) reaches RecentSenses (Input) a frame later
             Assert.False(Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.ContactInEngagementArea, out _), "no Allow, no change");
 
             s.Repo.Bus.Publish(new SetEngagementAreaEvent { Entity = s.Commander, Origin = BehaviorOrigin.Operator, ArcSet = 1, ArcOrigin = Vector3.Zero,
@@ -4859,16 +4876,16 @@ namespace Hrot.SimHost.Tests
             s.ClearPool();
             s.Tick(); s.Tick();
             s.Pool(s.Repo.CreateEntity(), new Vector3(100f, 0f, 0f), reporters: 1);   // east: outside
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the pool edge (Sensing, Simulation) reaches RecentSenses (Input) a frame later
             Assert.False(Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.ContactInEngagementArea, out _), "outside the arc");
             s.Pool(s.Repo.CreateEntity(), new Vector3(0f, 100f, 0f), reporters: 1);   // north: inside
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the pool edge (Sensing, Simulation) reaches RecentSenses (Input) a frame later
             Assert.True(Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.ContactInEngagementArea, out double first));
             TickFor(s, 0.5);
             Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.ContactInEngagementArea, out double still);
             Assert.Equal(first, still);   // he stays inside: no second change
             s.Pool(s.Repo.CreateEntity(), new Vector3(10f, 120f, 0f), reporters: 1);   // another man inside
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the pool edge (Sensing, Simulation) reaches RecentSenses (Input) a frame later
             Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.ContactInEngagementArea, out double second);
             Assert.True(second > first, "a new contact inside raises it again");
         }
@@ -4891,7 +4908,7 @@ namespace Hrot.SimHost.Tests
                 var e = s.Repo.CreateEntity();
                 s.Repo.AddComponent(e, new EntityInfo { ForceId = force });
                 s.Pool(e, at, reporters: 1);
-                s.Tick(); s.Tick();
+                s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the pool edge (Sensing, Simulation) reaches RecentSenses (Input) a frame later
                 return e;
             }
             Contact(new Vector3(0f, 30f, 0f), ForceId.Hostile);      // in front, in his arc
@@ -5659,7 +5676,7 @@ namespace Hrot.SimHost.Tests
             var s = new Squad(members: 4);
             var apc = Carrier(s, new Vector3(0f, 0f, 0f), 0, 1, 2);
             s.Order("{}", BehaviorNames.SquadDismount);
-            Ticks(s, 3);
+            Ticks(s, 4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
 
             Assert.Equal(SquadDismountManeuver.ManeuverKind, s.Kind);
             var last = s.Orders.GroupBy(o => o.Entity).ToDictionary(g => g.Key, g => g.Last());
@@ -5701,18 +5718,18 @@ namespace Hrot.SimHost.Tests
 
             s.Repo.AddComponent(apc, new SimVelocity { Linear = new Vector3(8f, 0f, 0f) });          // ⭐ CE-2307 (CH-3) — it drives on
             s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
-            Ticks(s, 4);
+            Ticks(s, SopReactionFrames);   // E-3 (CE-4509) — production frame order: the edge recorded, the SOP woken on it (R-195), the reaction to the men
             Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                       // nobody gets out of a moving carrier: it rides
             s.Repo.GetComponentRW<SimVelocity>(apc).Linear = Vector3.Zero;                           // it nearly stops…
             if (!s.Repo.HasComponent<BehaviorState>(apc)) s.Repo.AddComponent(apc, new BehaviorState());
             s.Repo.GetComponentRW<BehaviorState>(apc).ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.PushThrough);
             s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
-            Ticks(s, 4);
+            Ticks(s, SopReactionFrames);   // E-3 (CE-4509) — production frame order: the edge recorded, the SOP woken on it (R-195), the reaction to the men
             Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                       // ⭐ CE-2313 — …but it is pushing through: ride on
             s.Repo.GetComponentRW<BehaviorState>(apc).ActiveBehaviorHash = 0;                         // it stops for good
 
             s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
-            Ticks(s, 4);
+            Ticks(s, SopReactionFrames);   // E-3 (CE-4509) — production frame order: the edge recorded, the SOP woken on it (R-195), the reaction to the men
             Assert.Equal(BehaviorNames.SquadDismount, s.TaskName);                                   // row 1: mounted ⇒ get out
             Assert.Equal(BehaviorOrigin.Reaction, s.Repo.GetComponent<BehaviorState>(s.Commander).Origin);
 
@@ -5721,7 +5738,7 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual(BehaviorNames.SquadDismount, s.TaskName);                                // done once nobody is aboard
 
             s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
-            Ticks(s, 4);
+            Ticks(s, SopReactionFrames);   // E-3 (CE-4509) — production frame order: the edge recorded, the SOP woken on it (R-195), the reaction to the men
             Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);                                  // out: the battle drill
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
         }
@@ -5776,7 +5793,7 @@ namespace Hrot.SimHost.Tests
             s.Repo.AddComponent(apc, new SimVelocity { Linear = Vector3.Zero });
             Down(s, s.Members[0], 0f);                                                                               // dead in his seat
             s.Order("{}", BehaviorNames.SquadDismount);
-            Ticks(s, 3);
+            Ticks(s, 4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             Embarkation.Disembark(s.Repo, s.Members[1]);
             Assert.Null(RunUntilFinished(s, 5));                                                                     // one who can act is aboard
             Embarkation.Disembark(s.Repo, s.Members[2]);
@@ -5888,7 +5905,7 @@ namespace Hrot.SimHost.Tests
             var heli = Helicopter(s, new Vector3(0f, 20f, 0f), 2173);
             var other = Carrier(s, new Vector3(50f, 0f, 0f), 2);                                    // member 2 sits in ANOTHER vehicle
             s.Order("{\"vehicle\":2173}", BehaviorNames.SquadEmbark);
-            Ticks(s, 3);
+            Ticks(s, 4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
 
             Assert.Equal(SquadEmbarkManeuver.ManeuverKind, s.Kind);
             var last = s.Orders.GroupBy(o => o.Entity).ToDictionary(g => g.Key, g => g.Last());
@@ -5921,7 +5938,7 @@ namespace Hrot.SimHost.Tests
             s.Repo.GetComponentRW<PassengerBuffer>(s.Members[0]).Passengers[0] = down;
             s.Repo.GetComponentRW<PassengerBuffer>(s.Members[0]).Count = 1;
             s.Order("{\"vehicle\":2174,\"timeoutSeconds\":1}", BehaviorNames.SquadEmbark);
-            Ticks(s, 3);
+            Ticks(s, 4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             var last = s.Orders.GroupBy(o => o.Entity).ToDictionary(g => g.Key, g => g.Last());
             Assert.Equal(BehaviorNames.LoadCasualty, last[s.Members[0]].IntentId);
             Assert.Equal(BehaviorNames.Embark, last[s.Members[1]].IntentId);
@@ -5930,7 +5947,7 @@ namespace Hrot.SimHost.Tests
             var t = new Squad(members: 2);
             var gone = Helicopter(t, Vector3.Zero, 2175);
             t.Order("{\"vehicle\":2175}", BehaviorNames.SquadEmbark);
-            Ticks(t, 2);
+            Ticks(t, 3);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             t.Repo.DestroyEntity(gone);
             Assert.Equal(Fbt.NodeStatus.Failure, RunUntilFinished(t, 5));
         }
@@ -6275,7 +6292,7 @@ namespace Hrot.SimHost.Tests
             Descents(s);
             s.Repo.AddComponent(s.Members[2], new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.StaticLine, Phase = Fdp.Toolkit.Motion.DescentPhase.Canopy });
             s.Order("{\"point\":[100,0,0]}", BehaviorNames.AssembleAfterDrop);
-            Ticks(s, 3);
+            Ticks(s, 4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             Assert.DoesNotContain(s.Orders, o => o.Entity == s.Members[2]);
             foreach (var o in s.Orders.Where(o => o.IntentId == BehaviorNames.CombatPosture).ToList()) s.Teleport(o.Entity, ObjectiveOf(o));
             Assert.Null(RunUntilFinished(s, 5));                                                     // one still under his canopy
@@ -6320,12 +6337,12 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 4);
             s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15,\"BoundTimeoutSeconds\":60}");
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Assert.Equal(BehaviorNames.CombatPosture, LastIntent(s, s.Members[2]));     // watching
             var enemy = s.Repo.CreateEntity();
             s.Repo.AddComponent(enemy, new SimTransform { Position = new Vector3(0, 90, 0), Rotation = Quaternion.Identity });
             s.Pool(enemy, new Vector3(0, 90, 0), reporters: 1);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the pool edge (Sensing, Simulation) reaches RecentSenses (Input) a frame later
             Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[2]));
             Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[3]));
             Assert.Equal(BehaviorNames.AdvanceTo, LastIntent(s, s.Members[0]));         // the bound goes on
@@ -6339,7 +6356,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(members: 4);
             s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15,\"BoundTimeoutSeconds\":60}");
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             var query = BoQuery(s);
             Assert.False(query.IsNull);
             var sensor = s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(query);
@@ -6403,7 +6420,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = FmSquad();
             s.Order(FmOrder, BehaviorNames.FireAndMovement);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             AnswerAll(s, FmQuery(s), new Vector3(0, -5, 0), new Vector3(0, 40, 0), AheadA, AheadB);
             s.Tick();
             Fire(s, s.Members[2]); Fire(s, s.Members[3]); s.Tick(); s.Tick();
@@ -6420,7 +6437,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = FmSquad();
             s.Order(FmOrder, BehaviorNames.FireAndMovement);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
 
             Assert.Equal(FireAndMovementManeuver.ManeuverKind, s.Kind);
             Assert.Equal(FireAndMovementManeuver.PhaseCover0, s.Phase);
@@ -6476,7 +6493,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = FmSquad();
             s.Order("{\"Objective\":[6,80,0],\"RushMetres\":15,\"Pairs\":true}", BehaviorNames.FireAndMovement);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             AnswerAll(s, FmQuery(s), new Vector3(0, -5, 0), new Vector3(0, 40, 0), AheadA, AheadB);
             s.Tick();
             Fire(s, s.Members[2]); Fire(s, s.Members[3]); s.Tick(); s.Tick();
@@ -6503,7 +6520,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = FmSquad();
             s.Order(FmOrder, BehaviorNames.FireAndMovement);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             AnswerAll(s, FmQuery(s), new Vector3(0, -5, 0));                          // only cover behind
             Seconds(s, 4);                                                            // > CoveringSeconds (3 s)
             Assert.Equal(FireAndMovementManeuver.PhaseRush0, s.Phase);
@@ -6567,7 +6584,7 @@ namespace Hrot.SimHost.Tests
             AreaAhead(s);
             s.Orders.Clear();
             s.Order("{}", BehaviorNames.SquadDangerCrossing);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             return s;
         }
 
@@ -6579,7 +6596,7 @@ namespace Hrot.SimHost.Tests
             var s = new Squad(6);
             AreaAhead(s, kind: Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.OpenGround);
             s.Order("{}", BehaviorNames.SquadDangerCrossing);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Assert.Equal(BoundingOverwatchManeuver.ManeuverKind, s.Kind);
             Assert.Equal((uint)7, s.Repo.GetComponentRO<SquadCognitiveState>(s.Commander).ActiveFeatureId);   // the area it decided on
             var movers = s.LastOrders().Where(o => o.Value.Intent == BehaviorNames.AdvanceTo).ToList();
@@ -6602,7 +6619,7 @@ namespace Hrot.SimHost.Tests
                 else s.Repo.AddComponent(m, low);
             }
             s.Order("{}", BehaviorNames.SquadDangerCrossing);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Assert.Equal(SquadHoldManeuver.ManeuverKind, s.Kind);
 
             s.Repo.GetComponentRW<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(sensor).GetSpanRW()[0].ThreatRating = 0f;
@@ -6741,7 +6758,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(4);
             s.Order("{}", BehaviorNames.SquadDangerCrossing);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Assert.True(s.Finished(out var result));
             Assert.Equal(Fbt.NodeStatus.Failure, result);
         }
@@ -6772,7 +6789,7 @@ namespace Hrot.SimHost.Tests
         {
             var s = new Squad(4);
             s.Order("{\"Objective\":[0,100,0]}", BehaviorNames.SquadMarch);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Assert.True(Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, SquadMarchPlay.DangerSensorSite).IsNull);
 
             var w = new Squad(4);
@@ -6819,7 +6836,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorNames.SquadMarch, s.TaskName);
 
             AreaAhead(s, distanceAlongRoute: 12f);
-            for (int i = 0; i < 6; i++) s.Tick();
+            for (int i = 0; i < SopReactionFrames + 1; i++) s.Tick();   // E-3 (CE-4509) — the squad merge raises the area edge from the buffer one frame after it is written (📐 7 frames measured)
             Assert.Equal(BehaviorNames.SquadDangerCrossing, s.TaskName);
             var task = s.Repo.GetComponent<BehaviorState>(s.Commander);
             Assert.Equal(BehaviorOrigin.Reaction, task.Origin);
@@ -6831,7 +6848,7 @@ namespace Hrot.SimHost.Tests
             var enemy = Enemy(s, new Vector3(10f, 60f, 0f));
             s.Pool(enemy, new Vector3(10f, 60f, 0f), reporters: 0b0011);
             s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
-            for (int i = 0; i < 4; i++) s.Tick();
+            for (int i = 0; i < SopReactionFrames; i++) s.Tick();   // E-3 (CE-4509) — production frame order: the edge recorded, the SOP woken on it (R-195), the reaction to the men
             Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
         }
         // ── CE-2176 IF-2 — the battery fire mission (docs/designs/indirect-fire/DESIGN_Indirect_Fire.md §3.4, FM-1…FM-8) ─────────────
@@ -7360,7 +7377,7 @@ namespace Hrot.SimHost.Tests
             p.S.Teleport(p.Bravo, new Vector3(0f, -30f, 0f));
             p.S.Teleport(p.Charlie, new Vector3(0f, -60f, 0f));
             p.S.Order("{\"Legs\":" + legs + ",\"Spacing\":30}", BehaviorNames.UrbanMovement);
-            p.Ticks(5);
+            p.Ticks(6);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             return p;
         }
 
@@ -7427,7 +7444,7 @@ namespace Hrot.SimHost.Tests
 
             int alpha = p.OrdersTo(p.Alpha, BehaviorNames.SquadMarch), charlie = p.OrdersTo(p.Charlie, BehaviorNames.SquadMarch);
             p.ReportSpot(p.Charlie, new Vector3(30f, 120f, 0f), 3);
-            p.Ticks(5);
+            p.Ticks(SopReactionFrames);   // E-3 (CE-4509) ① — production frame order: the report edge wakes the platoon SOP for one frame, before RecentSenses holds it; its 0.2 s cadence catches it (see SopReactionFrames)
             Assert.Equal(BehaviorNames.PlatoonHold, p.S.TaskName);
             p.S.Pause(31);   // the spot goes stale: the hold ends
             p.Ticks(15);
@@ -7532,7 +7549,7 @@ namespace Hrot.SimHost.Tests
             var house = new Vector3(20f, 60f, 0f);
             p.S.Surveys[PlatoonAttackBehavior.AreaSite] = HouseAt(house);
             FiredOnFromABuilding(p, p.Bravo, house);
-            p.Ticks(10);
+            p.Ticks(SopReactionFrames + 4);   // E-3 (CE-4509) — the fired-on edge raised from the round (+1), the platoon task, its support order (+2), then the flank order (+1) — 📐 10 frames measured
             Assert.Equal(BehaviorNames.ReactToFireFromBuilding, p.S.TaskName);
             var support = System.Text.Json.JsonSerializer.Deserialize<SquadDefendParamsJsonDto>(
                 p.S.Orders.Last(o => o.Entity.Equals(p.Bravo)).JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
@@ -7575,9 +7592,9 @@ namespace Hrot.SimHost.Tests
                     p.S.Repo.AddComponent(p.S.Commander, new Fdp.Toolkit.Behavior.Components.CombatProficiency
                         { Authored = Fdp.Toolkit.Behavior.Components.ProficiencyOf.Militia, Set = Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet });
                 p.S.StartSop("BasicPlatoonSop");
-                p.Ticks(3);
+                p.Ticks(4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
                 FiredOnFromABuilding(p, p.Bravo, new Vector3(120f, 30f, 0f));
-                p.Ticks(10);
+                p.Ticks(SopReactionFrames);   // E-3 (CE-4509) ① — production frame order: the sense edge wakes the platoon SOP for one frame, before RecentSenses holds it; its 0.2 s cadence catches it (see SopReactionFrames)
                 Assert.Equal(reacts ? BehaviorNames.ReactToFireFromBuilding : BehaviorNames.UrbanMovement, p.S.TaskName);
             }
         }
@@ -7633,7 +7650,7 @@ namespace Hrot.SimHost.Tests
             ConvoyRoute(p.S, 9811, new Vector3(0f, 30f, 0f), new Vector3(0f, 380f, 0f));
             p.S.StartSop("BasicPlatoonSop");
             Convoy(p);
-            p.Ticks(5);
+            p.Ticks(6);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             Assert.Equal(BehaviorNames.PlatoonConvoy, p.S.TaskName);
             Assert.Equal((1, 1), (p.OrdersTo(apc, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));
             Assert.Contains("9811", p.S.Orders.Last(o => o.Entity.Equals(apc)).JsonParams);
@@ -7642,7 +7659,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, p.S.Orders.Count(o => o.Entity.Equals(p.Alpha) || o.Entity.Equals(p.Bravo)));                     // riders: none
 
             p.ReportSpot(p.Bravo, new Vector3(30f, 150f, 0f), 3);
-            p.Ticks(5);
+            p.Ticks(SopReactionFrames);   // E-3 (CE-4509) ① — production frame order: the report edge wakes the platoon SOP for one frame, before RecentSenses holds it; its 0.2 s cadence catches it (see SopReactionFrames)
             Assert.Equal(BehaviorNames.PlatoonHold, p.S.TaskName);                                                          // the SOP's hold pauses it
             Assert.Equal((0, 0), (p.OrdersTo(apc, "Order.Hold"), p.OrdersTo(ifv, "Order.Hold")));                           // the vehicles drive on
 
@@ -7695,7 +7712,7 @@ namespace Hrot.SimHost.Tests
             var ifv = ConvoyVehicle(p.S, new Vector3(0f, 15f, 0f), 9002, 0, p.Bravo);
             ConvoyRoute(p.S, 9811, new Vector3(0f, 30f, 0f), new Vector3(0f, 380f, 0f));
             Convoy(p);
-            p.Ticks(3);
+            p.Ticks(4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             Embarkation.Disembark(p.S.Repo, p.Alpha);
             Embarkation.Disembark(p.S.Repo, p.Bravo);
             p.Ticks(3);                                                                                                   // out, quiet: secure
@@ -7725,7 +7742,7 @@ namespace Hrot.SimHost.Tests
             var truck = ConvoyVehicle(p.S, new Vector3(0f, -10f, 0f), 9003, truckSeats, p.Charlie);
             ConvoyRoute(p.S, 9811, new Vector3(0f, 30f, 0f), new Vector3(0f, 380f, 0f));
             Convoy(p);
-            p.Ticks(3);
+            p.Ticks(4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
 
             p.S.Repo.AddComponent(apc, new ActorCapabilityState { Capabilities = ActorCapabilities.None });                // a mobility kill
             p.Ticks(8);
@@ -7774,7 +7791,7 @@ namespace Hrot.SimHost.Tests
             ConvoyVehicle(p.S, new Vector3(0f, 15f, 0f), 9002, 0, p.Bravo);
             ConvoyRoute(p.S, 9811, new Vector3(0f, 30f, 0f), new Vector3(0f, 380f, 0f));
             Convoy(p);
-            p.Ticks(3);
+            p.Ticks(4);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
 
             Embarkation.Disembark(p.S.Repo, down);
             Embarkation.Disembark(p.S.Repo, rifleman);

@@ -137,32 +137,37 @@ namespace Fdp.Toolkit.Combat
             float len2 = ab.LengthSquared();
             if (len2 < 1e-6f) return false;
 
+            // ⭐ CE-4516 (X-1) — the lock covers only the frame's build; the walk writes nothing to the grid (AnySegmentCandidate), so the weapon
+            //   phase's shooters ask in parallel. ⛔ SUPERSEDED: the lock held across Refresh + Near + the walk — every shooter of the phase queued on it.
             var bodies = Bodies.Of(world);
-            lock (bodies)
+            lock (bodies) bodies.Refresh(world);
+            var friend = new FriendOnLine { World = world, Shooter = shooter, Target = target, Force = force, A = a, AB = ab, Len2 = len2 };
+            return bodies.Grid.AnySegmentCandidate(a, a + ab, bodies.Pad(0f), ref friend, Bodies.EveryBodyForRails);
+        }
+
+        /// <summary>The friendly-fire rule, applied LIVE to each body the frame grid gives (the same rule the walk applied under the lock).</summary>
+        private struct FriendOnLine : Fdp.Toolkit.Spatial.FrameEntityGrid.ICandidateTest
+        {
+            public EntityRepository World; public Entity Shooter, Target; public ForceId Force; public Vector2 A, AB; public float Len2;
+            public bool Test(Entity e)
             {
-                bodies.Refresh(world);
-                foreach (int k in bodies.Near(a, a + ab, 0f))
-                {
-                    var e = bodies.Grid.EntityAt(k);
-                    if (!world.IsAlive(e) || !world.HasComponent<PhysicsCollider>(e)) continue;
-                    if (e == shooter || e == target || RidesWith(world, shooter, e)) continue;
-                    if (world.GetComponentRO<EntityInfo>(e).ForceId != force) continue;
-                    // ⭐ CE-2338 — a friendly PERSON down (dead or incapacitated) lies on the floor: the round flies over him (CE-2318 — he is
-                    //   Prone for the round). A hull, alive or wrecked, still holds it. 📌 bc-room-clear: two men down in room A's doorway
-                    //   held every man behind them while the defenders shot them (entry men 5 rounds, defenders 20).
-                    if (PhysicsColliderReaders.IsPerson(world, e) && !Injury.IsInTheFight(world, e)) continue;
-                    float r = world.GetComponentRO<PhysicsCollider>(e).Radius;
-                    if (r <= 0f) continue;
-                    r = StrikeRadius(world, e);
-                    var p3 = world.GetComponentRO<SimTransform>(e).Position;
-                    var ap = new Vector2(p3.X, p3.Y) - a;
-                    float t = Vector2.Dot(ap, ab) / len2;
-                    if (t <= 0f || t >= 1f) continue;                 // behind the shooter or beyond the target
-                    var closest = ab * t;
-                    if (Vector2.DistanceSquared(closest, ap) < r * r) return true;
-                }
+                var world = World;
+                if (!world.IsAlive(e) || !world.HasComponent<PhysicsCollider>(e)) return false;
+                if (e == Shooter || e == Target || RidesWith(world, Shooter, e)) return false;
+                if (world.GetComponentRO<EntityInfo>(e).ForceId != Force) return false;
+                // ⭐ CE-2338 — a friendly PERSON down (dead or incapacitated) lies on the floor: the round flies over him (CE-2318 — he is
+                //   Prone for the round). A hull, alive or wrecked, still holds it. 📌 bc-room-clear: two men down in room A's doorway
+                //   held every man behind them while the defenders shot them (entry men 5 rounds, defenders 20).
+                if (PhysicsColliderReaders.IsPerson(world, e) && !Injury.IsInTheFight(world, e)) return false;
+                float r = world.GetComponentRO<PhysicsCollider>(e).Radius;
+                if (r <= 0f) return false;
+                r = StrikeRadius(world, e);
+                var p3 = world.GetComponentRO<SimTransform>(e).Position;
+                var ap = new Vector2(p3.X, p3.Y) - A;
+                float t = Vector2.Dot(ap, AB) / Len2;
+                if (t <= 0f || t >= 1f) return false;                 // behind the shooter or beyond the target
+                return Vector2.DistanceSquared(AB * t, ap) < r * r;
             }
-            return false;
         }
 
         private static bool NeutralOnLine(EntityRepository world, Entity shooter, Entity target, Vector3 b3, float sigma)
@@ -179,25 +184,29 @@ namespace Fdp.Toolkit.Combat
             bool health = world.IsComponentTypeRegistered<Health>();
 
             var bodies = Bodies.Of(world);
-            lock (bodies)
+            lock (bodies) bodies.Refresh(world);   // ⭐ CE-4516 — the lock covers only the build (as BlockedByFriendly)
+            var neutral = new NeutralOnLineTest { World = world, Shooter = shooter, Target = target, Health = health, A = a, AB = ab, Len2 = len2, Len = len, Sigma = MathF.Max(0f, sigma) };
+            return bodies.Grid.AnySegmentCandidate(a, a + ab, bodies.Pad(MathF.Max(0f, sigma) * len), ref neutral, Bodies.EveryBodyForRails);
+        }
+
+        /// <summary>The neutral-on-the-line rule (AW-20), applied LIVE to each body the frame grid gives.</summary>
+        private struct NeutralOnLineTest : Fdp.Toolkit.Spatial.FrameEntityGrid.ICandidateTest
+        {
+            public EntityRepository World; public Entity Shooter, Target; public bool Health; public Vector2 A, AB; public float Len2, Len, Sigma;
+            public bool Test(Entity e)
             {
-                bodies.Refresh(world);
-                foreach (int k in bodies.Near(a, a + ab, MathF.Max(0f, sigma) * len))
-                {
-                    var e = bodies.Grid.EntityAt(k);
-                    if (!world.IsAlive(e) || !world.HasComponent<PhysicsCollider>(e)) continue;
-                    if (e == shooter || e == target) continue;
-                    if (!Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, e) || !PhysicsColliderReaders.IsPerson(world, e)) continue;
-                    if (health && world.HasComponent<Health>(e) && world.GetComponentRO<Health>(e).Current <= 0f) continue;
-                    var p3 = world.GetComponentRO<SimTransform>(e).Position;
-                    var ap = new Vector2(p3.X, p3.Y) - a;
-                    float t = Vector2.Dot(ap, ab) / len2;
-                    if (t <= 0f || t >= 1f) continue;                 // behind the shooter or beyond the target
-                    float r = StrikeRadius(world, e) + MathF.Max(0f, sigma) * t * len;
-                    if (Vector2.DistanceSquared(ab * t, ap) < r * r) return true;
-                }
+                var world = World;
+                if (!world.IsAlive(e) || !world.HasComponent<PhysicsCollider>(e)) return false;
+                if (e == Shooter || e == Target) return false;
+                if (!Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, e) || !PhysicsColliderReaders.IsPerson(world, e)) return false;
+                if (Health && world.HasComponent<Health>(e) && world.GetComponentRO<Health>(e).Current <= 0f) return false;
+                var p3 = world.GetComponentRO<SimTransform>(e).Position;
+                var ap = new Vector2(p3.X, p3.Y) - A;
+                float t = Vector2.Dot(ap, AB) / Len2;
+                if (t <= 0f || t >= 1f) return false;                 // behind the shooter or beyond the target
+                float r = StrikeRadius(world, e) + Sigma * t * Len;
+                return Vector2.DistanceSquared(AB * t, ap) < r * r;
             }
-            return false;
         }
 
         /// <summary>⭐ CE-2411 — how far a body may have moved within the frame and still be found where the frame's grid placed it.</summary>
@@ -239,13 +248,8 @@ namespace Fdp.Toolkit.Combat
                 }
             }
 
-            /// <summary>The bodies whose frame place lies within the largest strike radius (+ <paramref name="extra"/> + the slack) of a→b.</summary>
-            public ReadOnlySpan<int> Near(Vector2 a, Vector2 b, float extra)
-            {
-                if (EveryBodyForRails) { Grid.All(); return Grid.Found; }
-                Grid.Segment(a, b, _maxStrike + extra + MovedSlackMetres);
-                return Grid.Found;
-            }
+            /// <summary>The walk's pad around a→b: the largest strike radius the build saw + <paramref name="extra"/> + the slack.</summary>
+            public float Pad(float extra) => _maxStrike + extra + MovedSlackMetres;
         }
 
         /// <summary>

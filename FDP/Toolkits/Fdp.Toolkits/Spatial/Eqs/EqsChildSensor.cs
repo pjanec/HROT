@@ -75,7 +75,15 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// </summary>
         public static Entity Ensure<TResult>(ISimulationView view, Entity parent, int siteId, in EqsSensor sensor, long key = 0)
             where TResult : unmanaged
+            => Ensure<TResult>(view, parent, siteId, in sensor, out _, key);
+
+        /// <summary>⭐ E-3 (CE-4509) — as <see cref="Ensure{TResult}(ISimulationView, Entity, int, in EqsSensor, long)"/>; when the creation is
+        /// DEFERRED (Null returned, inside a per-entity phase) <paramref name="pending"/> is the child in the batch's command buffer (⚠ a buffer entity has a NEGATIVE index — test it with <c>!= default</c>, never <see cref="Entity.IsNull"/>), so a typed
+        /// sensor DRESSES it in the same buffer and the child lands complete at the merge (else <see cref="Entity.Null"/>).</summary>
+        public static Entity Ensure<TResult>(ISimulationView view, Entity parent, int siteId, in EqsSensor sensor, out Entity pending, long key = 0)
+            where TResult : unmanaged
         {
+            pending = Entity.Null;
             var existing = Find(view, parent, siteId, key);
             if (!existing.IsNull) return existing;
 
@@ -105,7 +113,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             }
 
             var cmd     = view.GetCommandBuffer();
-            var pending = cmd.CreateEntity();
+            pending = cmd.CreateEntity();
             cmd.AddComponent(pending, meta);
             cmd.AddComponent(pending, config);
             cmd.AddComponent(pending, default(TResult));

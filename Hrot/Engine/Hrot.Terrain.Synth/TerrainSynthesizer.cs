@@ -81,7 +81,13 @@ public static class TerrainSynthesizer
         if (File.Exists(netPath)) File.Delete(netPath);
         SumoWriter.WritePlain(g.Roads, roadsDir);
         // a missing or failing netconvert is a warning: the plain files stay
-        SumoWriter.TryNetconvert(roadsDir, log);
+        // ⭐ AQ93 E2b — netconvert writes a FLAT net: give it OUR heights (the grid just written), the one shared step the OSM import takes too
+        if (SumoWriter.TryNetconvert(roadsDir, log))
+        {
+            sw.Restart();
+            var e = NetElevation.Apply(netPath, outDir);
+            log.WriteLine($"net heights: {Secs(sw)}, {e.Shapes} shapes, {e.PointsBefore} -> {e.PointsAfter} points, {e.BytesBefore} -> {e.BytesAfter} bytes");
+        }
 
         // the optional files of an earlier run must not outlive a run without them
         foreach (var stale in new[] { "water/water.geojson", "vegetation/scrub.geojson", "vegetation/woods.geojson" })

@@ -136,7 +136,7 @@ internal sealed class RaylibPresentationShell : IPresentationShell
 
     public void SetupImGui(string iniPath)
     {
-        rlImGui_cs.rlImGui.Setup(true);
+        Fdp.Presentation.Raylib.ImGuiRenderer.Setup(true);
         var io = ImGuiNET.ImGui.GetIO();
         io.ConfigFlags |= ImGuiNET.ImGuiConfigFlags.DockingEnable;
 

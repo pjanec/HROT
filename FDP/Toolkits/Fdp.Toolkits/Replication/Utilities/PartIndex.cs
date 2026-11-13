@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
@@ -62,7 +63,15 @@ namespace Fdp.Toolkit.Replication.Utilities
                 if (!repo.IsComponentTypeRegistered<PartMetadata>()) return 0;
                 var index = Of(repo);
                 long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-4395 B-1 — measurement only
-                try { lock (index) { index.EnsureFresh(repo); return index.Copy(repo, parent, dest); } }
+                try
+                {
+                    // ⭐ CE-4517 (X-2) — FRESH with no late adds ⇒ the read writes nothing: no lock. 📐 Measured (1 000 men, 4 threads): the squad
+                    //   phase spent ~45 % of its job time in PartsOf, every squad queued on this one lock (the X-1 shape). Inside a phase nothing is
+                    //   added (structural changes are deferred) and the phase's caller refreshed the index serially first (PrepareFrame), so every
+                    //   read there takes this path. The stamps are published only after a build completes (EnsureFresh) ⇒ never a half-built index.
+                    if (index.IsFreshWithoutLate(repo)) return index.Copy(repo, parent, dest);
+                    lock (index) { index.EnsureFresh(repo); return index.Copy(repo, parent, dest); }
+                }
                 finally { Fdp.Toolkit.Diagnostics.QueryTimings.End(S_PartsOf, t0); }
             }
             return Scan(view, parent, dest);
@@ -77,6 +86,12 @@ namespace Fdp.Toolkit.Replication.Utilities
             lock (index) index.EnsureFresh(repo);
         }
 
+        /// <summary>⭐ CE-4517 — built for this version and these adds, with no late part to merge (the lock-free read's condition).</summary>
+        private bool IsFreshWithoutLate(EntityRepository repo)
+            => Volatile.Read(ref _built) && _lateCount == 0
+               && Volatile.Read(ref _builtAdds) == repo.ComponentsAddedOf(ComponentType<PartMetadata>.ID)
+               && _builtAt == repo.GlobalVersion;
+
         private void EnsureFresh(EntityRepository repo)
         {
             uint now = repo.GlobalVersion;
@@ -84,7 +99,8 @@ namespace Fdp.Toolkit.Replication.Utilities
             if (_built && now == _builtAt && adds == _builtAdds) return;
             bool sameFrame = _built && now == _builtAt;
             if (sameFrame && TakeLateAdds(repo, adds)) return;   // ⭐ CE-4395 — the frame's new parts, without walking every part again
-            _built = true; _builtAt = now; _builtAdds = adds;
+            // ⭐ CE-4517 — the stamps go up only AFTER the build (below), so a lock-free reader never takes a half-built index for fresh
+            Volatile.Write(ref _built, false);
             Builds++;
             // ⭐ CE-4395 B-1 — measurement only: every rebuild, and those a part ADDED within the frame forced
             long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
@@ -93,6 +109,9 @@ namespace Fdp.Toolkit.Replication.Utilities
             finally { Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Rebuild, t0); }
             _lateCount = 0;
             _logAt = repo.AddsThisVersion(ComponentType<PartMetadata>.ID).Length;   // the adds so far this version are in the build
+            _builtAt = now;
+            Volatile.Write(ref _builtAdds, adds);
+            Volatile.Write(ref _built, true);
         }
 
         /// <summary>
@@ -117,7 +136,7 @@ namespace Fdp.Toolkit.Replication.Utilities
                 LateAdds++;
             }
             _logAt = log.Length;
-            _builtAdds = adds;
+            Volatile.Write(ref _builtAdds, adds);   // after _lateCount: a lock-free reader that sees the new stamp sees the late parts (and locks)
             return true;
         }
 

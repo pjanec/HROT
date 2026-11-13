@@ -50,9 +50,9 @@ public sealed class DeployAreaMapLayer : IMapLayer
     /// <summary>The production layer: reads the world's own <see cref="DeployFlowSystem"/> (none ⇒ never acts) and its <see cref="DeployAreaChoice"/>.</summary>
     public static DeployAreaMapLayer ForWorld(Func<EntityRepository?> world, Func<bool> is2D)
         => new(world,
-            () => DeployFlowSystem.Of(world())?.State == DeployFlowState.Choosing,
-            () => DeployFlowSystem.Of(world())?.Offers ?? Array.Empty<DeployOffer>(),
-            () => DeployFlowSystem.Of(world()) is { } f ? DeployAreaChoice.Of(f) : null,
+            () => DeployFlows.Of(world())?.State == DeployFlowState.Choosing,
+            () => DeployFlows.Of(world())?.Offers ?? Array.Empty<DeployOffer>(),
+            () => DeployFlows.Of(world()) is { } f ? DeployAreaChoice.Of(f) : null,
             is2D);
 
     public string Name => "DeployAreas";

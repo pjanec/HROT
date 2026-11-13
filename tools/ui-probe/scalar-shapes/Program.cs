@@ -15,7 +15,7 @@ class P {
     using var s1 = DefaultValueAuthoring.OpenSession(svc, entry);
     using var s2 = DefaultValueAuthoring.OpenSession(svc, entry);
     Raylib.SetTraceLogLevel(TraceLogLevel.Warning);
-    Raylib.InitWindow(1000, 420, "scalar shapes"); rlImGui.Setup(true);
+    Raylib.InitWindow(1000, 420, "scalar shapes"); Fdp.Presentation.Raylib.ImGuiRenderer.Setup(true);
     for (int f = 0; f < 6; f++) {
       Raylib.BeginDrawing(); Raylib.ClearBackground(Color.DarkGray); rlImGui.Begin();
       ImGui.SetNextWindowPos(new Vector2(40, 60)); ImGui.SetNextWindowSize(new Vector2(430, 160));
@@ -33,7 +33,7 @@ class P {
                                                        l2.Metadata, l2.IsReadOnly)));
       ImGui.End();
       if (f == 5) System.Console.WriteLine($"root='{s1.Document.Root.Name}' childCount={s1.Document.Root.Children.Count} leaf='{leaf.Name}' leafType={leaf.ClrType.Name}");
-      rlImGui.End(); Raylib.EndDrawing();
+      Fdp.Presentation.Raylib.ImGuiRenderer.End(); Raylib.EndDrawing();
     }
     Raylib.TakeScreenshot("scalar.png");
     System.Console.WriteLine("committed A = " + ScalarEditBox.Unwrap(s1.Commit(), typeof(int)));

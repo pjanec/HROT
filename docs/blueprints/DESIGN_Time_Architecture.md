@@ -1625,6 +1625,20 @@ world tick counting steps (`ScenarioLoadStep:214` and the replication timeouts n
 modules always (live play loses its threading) · harvest on paused frames (a finished job would land BEFORE step N+1's early phases or AT
 its harvest depending on the pause length).
 
+### 17.x ⭐⭐ AS BUILT — a step's result never depends on the WALL CLOCK: two more rules *(F-3, CE-4503, `2026-11-13`; [status](batches/STATUS_Windows_Findings.md))*
+
+📐 Measured: the stepped 1 000-man run (240 steps, every switch off) gave one world at 1 thread and another at 4 / 8 — repeatable at a fixed
+thread count, so not a race in the sense of a lost write: the thread count changed the PACING, and two things listened to the pacing.
+
+| rule | the defect it removes | where |
+|---|---|---|
+| ⭐⭐ a module run dispatched on a STEPPED frame is awaited whole — no wall-clock timeout, nothing discarded, no timeout counted by its circuit breaker (an overrun is reported once); continuous play keeps the hang guard | the step's harvest waited, but the run's own timeout (100 ms for the navigation solver) abandoned it underneath — "Task abandoned" on a loaded machine | `ModuleHostKernel.ExecuteModuleSafe(deterministic:)` · rail `PausedAndSteppedExecutionTests.F3_…` |
+| ⭐⭐ an `EveryFrame` system (it runs on paused frames too) must compute on a paused frame EXACTLY what the next step reads — one pass exact, before any reader of the frame | `UnitCentroidSystem` placed units in query order (a platoon averaged last pass's squad centres) and ran mid-frame, after systems that read unit positions: how many paused frames fell between two steps — the wall clock's — changed what a step read | `UnitCentroidSystem` (sub-units first, Input phase) · rail `SquadCoordinationSystemTests.F3_…` |
+| ⭐ the gate compares runs only at the same sim time (a different step count exits 2, loudly) | a run that took one more step (Windows V-4) would read as a state difference | `scripts/stepped-hash.py` |
+
+⭐ The gate: `stepped-hash.py --chunk 40` — 6 runs at 1 / 4 / 8 threads, STATE EQUAL with every switch off AND with every phase on
+(`HROT_PARALLEL_SIM=1`). ⚠ A paused preview entry that slips one step (Windows V-4) does not reproduce on Linux (32 runs, all 240 steps).
+
 ## 18. ⭐⭐⭐ `CE-4087` — **A LATE SIMHOST AND A SWALLOWED PLAY: who is in the step set, and a time command is never silent** *(AS-BUILT `2026-10-28`, backend)*
 
 📐 **The measured report (the `CE-4080` run, `2026-10-28`).** Orchestrator + CGF + SimHost started back to back and a live load posted at once: the

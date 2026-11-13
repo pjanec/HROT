@@ -131,6 +131,37 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>The whole happy path: Request → Requesting → the server accepts → the Player's EXISTING Possess is called with the unit (once) → TakingControl → Playing when the unit is <c>PossessedBy</c> this station
         /// in the Player's OWN world. ✅ Red-proof: the Possess call dropped ⇒ it never reaches TakingControl's call rail; the PossessedBy check dropped ⇒ Playing without the hold ⇒ red.</summary>
+        /// <summary>
+        /// ⭐ CE-3446 (DESIGN_Threaded_Simulation_Presentation §15) — on a threaded node the UI reads the flow through its VIEW on the presentation world:
+        /// the readout carries the flow's state (a new one only when it changed), and a request is a JOB on the flow — nothing reaches the flow until
+        /// the sim drains it. 🔴 Red-proof: <c>DeployFlowView.Request</c> calling the flow directly ⇒ Requesting before the drain.
+        /// </summary>
+        [Fact]
+        public void CE3446_TheStagedView_ReadsTheReadout_AndARequestIsAJobOnTheFlow()
+        {
+            ToChoosing();
+            using var presentation = new EntityRepository();
+            var jobs = new Fdp.Core.Threading.SimJobQueue();
+            presentation.SetSingletonManaged(new Fdp.Core.Threading.SimLink(jobs, _client));
+            var view = new DeployFlowView(presentation);
+
+            var readout = DeployFlowReadout.ReadIfChanged(null, _flow)!;
+            view.Apply(readout);
+            Assert.Equal(DeployFlowState.Choosing, view.State);
+            Assert.Same(_flow.Offers, view.Offers);
+            Assert.Null(DeployFlowReadout.ReadIfChanged(readout, _flow));    // nothing changed: no new readout
+
+            Assert.True(view.Request(ForceId.Friend, Rifleman));
+            Assert.Equal(DeployFlowState.Choosing, _flow.State);              // only posted
+            Assert.Equal(1, jobs.Drain(_client));
+            Assert.Equal(DeployFlowState.Requesting, _flow.State);
+            var next = DeployFlowReadout.ReadIfChanged(readout, _flow);
+            Assert.NotNull(next);
+            view.Apply(next!);
+            Assert.Equal(DeployFlowState.Requesting, view.State);
+            Assert.False(view.Request(ForceId.Friend, Rifleman));             // the flow's own precondition, from the state the UI shows
+        }
+
         [Fact]
         public void ARequest_IsAccepted_ThenPossessIsCalled_ThenPlayingWhenHeld()
         {

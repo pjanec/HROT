@@ -6,5 +6,6 @@
   <ItemGroup>
     <PackageReference Include="Raylib-cs" Version="7.0.2" />
     <PackageReference Include="rlImgui-cs" Version="3.2.0" />
+    <ProjectReference Include="../../../FDP/ExtDeps/GizmoMap/GizmoMap.Presentation/GizmoMap.Presentation.csproj" />
   </ItemGroup>
 </Project>

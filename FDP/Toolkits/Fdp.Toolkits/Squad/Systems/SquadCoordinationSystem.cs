@@ -129,6 +129,9 @@ namespace Fdp.Toolkit.Squad.Systems
             }
             if (n == 0) return true;
             if (!Disjoint(repo, n, deepest)) return false;
+            // ⭐ CE-4517 (X-2) — the parts index refreshed serially, as the brains' phase does (N-11): every PartsOf inside the squads' phases then
+            //   reads lock-free (📐 it was ~45 % of the squad jobs' time, queued on the index's lock)
+            Fdp.Toolkit.Replication.Utilities.PartIndex.PrepareFrame(repo);
             _phaseRepo = repo; _phaseTick = tick; _phaseNow = now;
             try
             {
@@ -184,9 +187,12 @@ namespace Fdp.Toolkit.Squad.Systems
             return true;
         }
 
-        private struct SquadJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.IStableReads
+        private struct SquadJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.IStableReads, Fdp.Core.Jobs.ICoarseJob
         {
             public SquadCoordinationSystem System;
+            /// <summary>⭐ CE-4517 — a job is a whole squad (merge, sensing, fire distribution): 2 squads a batch, so a level of ~100 is ~50
+            /// batches, not 4.</summary>
+            public int BatchSize => 2;
             public void Execute(Entity commander, int index, Fdp.Core.Jobs.BatchContext ctx)
             {
                 var repo = System._phaseRepo!;

@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 560" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">
+  <title>City battle showcase — the roadblock breach drill</title>
+  <defs>
+    <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1f5fbf"/></marker>
+    <marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c0392b"/></marker>
+  </defs>
+  <rect width="1100" height="560" fill="#fbfaf6"/>
+  <text x="20" y="30" font-size="20" font-weight="bold" fill="#222">The roadblock breach drill — one company commander's sequence (removal is mandatory)</text>
+  <text x="20" y="50" fill="#555" font-size="12">① suppress the covering gun · ② smoke the street · ③ the bulldozer (or the engineers' charge) removes the blocker · ④ vehicles push through · bypass: through houses</text>
+
+  <!-- street + blocks -->
+  <rect x="20" y="240" width="1060" height="90" fill="#d6d3cc"/>
+  <rect x="20" y="90" width="300" height="140" fill="#e4ddd0" stroke="#9c9383"/><text x="30" y="110" fill="#5b5344">house</text>
+  <rect x="360" y="90" width="260" height="140" fill="#e4ddd0" stroke="#9c9383"/><text x="370" y="110" fill="#5b5344">house (bypass: wall breach)</text>
+  <rect x="660" y="90" width="420" height="140" fill="#e4ddd0" stroke="#9c9383"/><text x="670" y="110" fill="#5b5344">defender house</text>
+  <rect x="20" y="340" width="420" height="140" fill="#e4ddd0" stroke="#9c9383"/><text x="30" y="360" fill="#5b5344">corner house</text>
+  <rect x="480" y="340" width="600" height="140" fill="#e4ddd0" stroke="#9c9383"/>
+
+  <!-- roadblock -->
+  <g fill="#8d8d8d" stroke="#555"><rect x="700" y="246" width="22" height="22"/><rect x="700" y="274" width="22" height="22"/><rect x="700" y="302" width="22" height="22"/></g>
+  <rect x="730" y="262" width="46" height="26" rx="4" fill="#9a6b55" stroke="#5a3a2a"/>
+  <text x="690" y="350" fill="#c0392b" font-weight="bold" font-size="12">ROADBLOCK (blocks + car)</text>
+
+  <!-- defender MG covering -->
+  <rect x="820" y="200" width="60" height="26" fill="#fde2df" stroke="#c0392b"/><text x="826" y="218" fill="#c0392b" font-size="12">MG nest</text>
+  <path d="M850,226 L700,300 M850,226 L640,280" stroke="#c0392b" stroke-width="2" stroke-dasharray="4 4"/>
+  <text x="900" y="200" fill="#c0392b" font-size="11">RPG team on the roof</text>
+
+  <!-- attacker -->
+  <rect x="300" y="350" width="120" height="30" fill="#dde8fa" stroke="#1f5fbf"/><text x="306" y="370" fill="#1f5fbf" font-size="12">① base of fire plt</text>
+  <path d="M420,360 L810,220" stroke="#1f5fbf" stroke-width="2" marker-end="url(#b)"/>
+  <g fill="#dcdcdc" opacity="0.85"><circle cx="560" cy="270" r="26"/><circle cx="600" cy="300" r="30"/><circle cx="640" cy="268" r="26"/><circle cx="600" cy="250" r="20"/></g>
+  <text x="535" y="236" fill="#555" font-size="12">② smoke (mortar)</text>
+  <rect x="380" y="270" width="80" height="34" rx="6" fill="#f2c94c" stroke="#7a5d00"/><rect x="460" y="266" width="8" height="42" fill="#7a5d00"/>
+  <text x="378" y="262" fill="#7a5d00" font-size="12" font-weight="bold">③ bulldozer</text>
+  <path d="M470,287 L690,287" stroke="#7a5d00" stroke-width="4" marker-end="url(#b)"/>
+  <rect x="120" y="268" width="70" height="36" rx="5" fill="#dde8fa" stroke="#1f5fbf"/><text x="128" y="290" fill="#1f5fbf" font-size="12">IFV · tank</text>
+  <path d="M195,286 L360,286" stroke="#1f5fbf" stroke-width="4" stroke-dasharray="10 6" marker-end="url(#b)"/>
+  <text x="195" y="325" fill="#1f5fbf" font-size="12">④ push through once the street is open</text>
+  <path d="M200,170 C320,160 420,160 520,175" stroke="#1f5fbf" stroke-width="3" stroke-dasharray="3 6" fill="none" marker-end="url(#b)"/>
+  <text x="140" y="150" fill="#1f5fbf" font-size="12">bypass: infantry through breached walls</text>
+
+  <!-- defender reaction -->
+  <path d="M960,230 C900,250 620,250 480,268" stroke="#c0392b" stroke-width="2" fill="none" stroke-dasharray="6 4" marker-end="url(#r)"/>
+  <text x="760" y="160" fill="#c0392b" font-size="11">the defenders' AT team and drones go for the bulldozer —</text>
+  <text x="760" y="174" fill="#c0392b" font-size="11">it shrugs off small arms, survives a few RPG hits</text>
+
+  <!-- result -->
+  <rect x="20" y="500" width="1060" height="44" fill="#ffffff" stroke="#bbb"/>
+  <text x="32" y="520" fill="#333">Removal = the obstacle's prism leaves the terrain world (the wall-breach path): sight, fire and vehicle paths open on every node, saved and replicated.</text>
+  <text x="32" y="536" fill="#777" font-size="11">not to scale · not app UI · the commander's sequence is a phase machine (§6) — each step waits for the previous one's condition, never a timer</text>
+</svg>
