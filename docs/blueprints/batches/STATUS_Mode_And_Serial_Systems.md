@@ -19,12 +19,14 @@ Branch `exp/threaded-build`. Rulings R-4218 / R-4219 (R-4207, R-4215).
 |---|---|---|
 | M-1 `CE-4480` | ⭐ the batch size does NOT change the result: the stepped 1 000-man run with the adaptive batch `max(32, n/(threads×4))` gives the same world at 1 / 2 / 4 / 8 threads AND the same world as the fixed 32 batch (every type equal but `EntityGuid`, minted at random per run). By construction: contiguous batches merged in batch order = entity order | (measurement) |
 | M-2 `CE-4481` | ⭐ the mode is set by what is running: every kernel VOTES at its tick boundary (its clock stepped ⇒ Deterministic — stepping, Run-to, filming and the regression all step it), a harness may PIN Deterministic (`SimulationModeSelector.RequireDeterministic`, held by `HeadlessTestExecutor`); the process value = Deterministic when any vote or pin, else Throughput — ONE value for the process, `--mode all` included. `HROT_SIM_MODE` removed (code + `parallel-sim-measure.py`); `ParallelEntities.Mode`'s comment true | (this commit) |
+| M-4 `CE-4483` | ⭐ measured + the serial work outside the systems cut: the ranked tables (§6), the profile (M-4b), the registry lock read lock-free (M-D6), the module snapshots recycled and synced incrementally (M-D7), the callouts' no-echo check from a grid (M-D8) | `f92849a9a` … (this commit) |
 | M-3 `CE-4482` | `UtilityPrescore` retired: the class, its two `UtilityScorer` hooks and helper, the `BrainTickSystem` call, `HROT_BRAIN_PRESCORE`, its two rails (Q4 / T3 — "pre-score == serial score", now covered by the brain phase's own determinism rails); Parallel Simulation §14 / §15 marked SUPERSEDED | (this commit) |
 
 ## 2. GATES
 
 | gate | command | result |
 |---|---|---|
+| M-4 rails | `Fdp.ModuleHost.Tests` (whole) · `Fdp.Core.Tests` (whole) · SimHost `Callout|Eqs|ParallelBrains|Sensor` · Toolkits `Replay|Keyframe|Snapshot` | 266 / 0 · 1 360 / 3 ⚠ pre-existing (source-policy scanners naming files this batch never touched: `BridgeRoads.cs`, `DeployProcessorSystem.cs`, `TerrainContentHash.cs` …) · 69 / 0 · 401 / 0. ⭐ `SnapshotRecycleTests` 6 — red-proved: the force dropped, the epoch check dropped, the invalidation dropped, the lock-free path dropped ⇒ each its rail red. `CalloutsTests.M4_TheNoEcho…` green |
 | M-1 stepped gate, adaptive vs fixed batch | `SAVE=… HROT_SIM_MODE=throughput python3 scratchpad/stepped-hash.py 1,2,4,8` (the old switch, on the binary before M-2) vs `stepped-hash.py 1` (fixed 32) | STATE EQUAL across all five runs, type by type |
 | M-2 rails | `dotnet test FDP/Engine/Fdp.ModuleHost.Tests --no-build --filter "…SimulationModeFromWhatRuns|…PausedAndStepped|…ModuleHostKernelTime"` | 24 / 0; red-proved (the kernel's `Vote` dropped ⇒ both R4218 rails red) |
 | M-3 suites | Toolkits `Utility|Behavior|Squad` · SimHost `ParallelBrains|Utility|Brain|Sop` | 974 / 0 · 114 / 0 |
@@ -38,7 +40,7 @@ Branch `exp/threaded-build`. Rulings R-4218 / R-4219 (R-4207, R-4215).
 | M-D4 | "one value for the process" when kernels disagree for a tick (`--mode all`, slaves switching on the master's event) | ⭐ any Deterministic vote wins — the safe direction; a harness pin likewise | `SimulationModeSelector.Vote` |
 | M-D5 | "the tests ⇒ Deterministic" | ⭐ an explicit counted pin (`RequireDeterministic`), held by the headless test harness; rails that run `ParallelEntities` without a kernel set the mode directly (unchanged) — ⚠ a test kernel in continuous play votes Throughput, which M-1 shows is the same result | `HeadlessTestExecutor` |
 | M-D6 | `NeedsClone` under the registry lock — make the lookup lock-free how? | ⭐ a `bool[MAX_COMPONENT_TYPES]` written ONLY under the lock (registration, `SetNeedsClone`, `Clear`), read with `Volatile.Read`; the dictionary stays the authority for an out-of-range id — the CE-2389 pattern the per-T id already uses | `ComponentType.cs` |
-| M-D7 | stop the snapshots' clear / recommit churn — skip unchanged chunks? | ⭐ NO version skipping: a snapshot takes the live version at sync, so a background module's write into its view carries the same version as an unchanged live chunk and would SURVIVE a version-gated sync (proved by the rail's red). ⭐ Recycle instead: keep the memory, clear the events, and the next sync copies EVERY chunk (`force`) and empties every table it does not copy — the world a Clear + sync gave, minus the decommit / commit. A new `RecycleForSync`, ⛔ not `SoftClear` (that one EMPTIES a world: the scenario file service, playback); used only by the two pools whose next use is always a sync. ⚠ The price, measured: the pool now KEEPS its memory — 221 MB across 15 pooled worlds (3 of them used) at 1 000 men, where a cleared one held ≈ 0 | `EntityRepository.Sync.cs`, `SnapshotPool`, `OnDemandProvider` |
+| M-D7 | stop the snapshots' clear-and-copy-everything — how? | ⭐ the replica pattern (`DoubleBufferProvider`, the staging buffers): a recycled snapshot keeps its content and the next sync copies only the chunks the source changed. ⚠ Two traps, each a rail red-proved: ① a background module's write into its view carries the version the view synced at — the same an unchanged live chunk may carry ⇒ the recycle marks every chunk stamped since that sync never-equal; ② a source REPLACED rather than advanced (a load's clear, a playback frame, a rewind into it) repeats version numbers with other content ⇒ a new `ContentEpoch` (bumped by `Clear`, `SetGlobalVersion`, `ResetGlobalVersion`, a sync INTO the world) and a full copy when it, the source or a non-decreasing version differ. 📌 Measured on the way: the first two forms (force every chunk; force native, clear managed) saved little — the cost was copying every chunk, not the decommit. A new `RecycleForSync`, ⛔ not `SoftClear` (that one EMPTIES a world: the scenario file service, playback); used only by the two pools whose next use is always a sync. ⚠ The price, measured: the pool now KEEPS its memory — 221 MB across 15 pooled worlds (3 of them used) at 1 000 men, where a cleared one held ≈ 0 | `EntityRepository.Sync.cs`, `SnapshotPool`, `OnDemandProvider` |
 | M-D8 | the callouts' serial say-pass — parallelise it? | ⭐ no: it is order-dependent BY DESIGN (AQ105 E — who spoke first in the 10 m / 2 s window; N-11's serial follow-up). Its cost was the algorithm: the no-echo check walked every speaker per call ⇒ the CE-2411 per-frame grid (`FrameEntityGrid`, as `UnderFire.FriendNear`), radius + `MovedSlackMetres`, each candidate re-read live with the exact 3-D rule | `Callouts.cs` |
 | M-D2 | does any host keep SERIAL brains and want parallel scoring (M-3's precondition)? | ⭐ no — measured in code: the pre-score needs `HROT_PARALLEL_SIM=1`, which itself makes the brains a parallel phase (`BrainTickSystem.Parallel`), so it ran only under the measuring switch `HROT_SERIAL_BRAINS=1`; by design R-4214 ① puts the per-entity brain rule in both modes | `BrainTickSystem.cs`, R-4214 |
 
@@ -56,7 +58,7 @@ Branch `exp/threaded-build`. Rulings R-4218 / R-4219 (R-4207, R-4215).
 
 | what | before | after | how |
 |---|---|---|---|
-| ⭐ M-4 the tick, 1 000-man demo-city, mode 3 + `HROT_PARALLEL_SIM=1`, PLAYING (Throughput by M-2), 4-core VM | **Debug** 1 thread / 4 threads: tick 2 247 / 1 452 ms · **Release**: 192 / **222** ms ⚠ (worse at 4) | — | `threaded-scale-measure.py --threads 1,4` (`HROT_PARALLEL_SIM=1`) |
+| ⭐ M-4 the tick, 1 000-man demo-city, mode 3 + `HROT_PARALLEL_SIM=1`, PLAYING (Throughput by M-2), 4-core VM | **Debug** 1 thread / 4 threads: tick 2 247 / 1 452 ms · **Release**: 192 / **222** ms ⚠ (worse at 4) | Release 1 / 2 / 4: **182 / 205 / 214** ms; BrainTick 44 / 38 / 26; the sim group 116 / 111 / 106; ⚠ the module-snapshot pool keeps 222 MB | `threaded-scale-measure.py --threads 1,2,4` (`HROT_PARALLEL_SIM=1`) |
 
 ### M-4 — what is serial in the tick (ms per call, recent average; 4 threads)
 
@@ -79,8 +81,8 @@ Branch `exp/threaded-build`. Rulings R-4218 / R-4219 (R-4207, R-4215).
 | where | ms | per tick | what it is | ⭐ done |
 |---|---|---|---|---|
 | `ComponentTypeRegistry.NeedsClone` (under every managed table's `SyncDirtyChunks`) | **2 258** (+ 813 on the UI thread) | ≈ 25 | the global registry LOCK, taken per table per sync — the sim's module-snapshot syncs and staging publish against the UI's pull; ⚠ grows with the threads that contend | ✅ read lock-free (M-D6) |
-| `OnDemandProvider.AcquireView` / `HarvestEntry → Clear` (module snapshots) | 2 977 / 778 | ≈ 33 / 9 | every release CLEARED the snapshot (decommitting every chunk) and every acquire committed it again (`EnsureChunkAllocated` ≈ 900) | ✅ recycled (M-D7) |
-| `StagingWorlds.Publish` | 1 708 | ≈ 19 | the UI's copy; 1 030 of it was the `NeedsClone` lock | ✅ by M-D6 |
+| `OnDemandProvider.AcquireView` / `HarvestEntry → Clear` (module snapshots) | 2 977 / 778 → **1 786 / 58** | ≈ 33 / 9 → 20 / 1 | every release CLEARED the snapshot and every acquire copied every chunk of every table again (decommit, recommit, every managed reference chunk) | ✅ recycled + incremental (M-D7) |
+| `StagingWorlds.Publish` | 1 708 → **1 499** | ≈ 19 → 17 | the UI's copy (the sampler put part of its copy under the lock frame) | ✅ by M-D6 |
 | `HrotNodeContext.StepTimeline` (the live timeline's lanes) | 767 | ≈ 8 | serial on the sim thread | ranked (next) |
 | brains · callouts · weapon dispatcher · stress · squads | 2 852 · 1 344 · 1 297 · 1 182 · 1 041 | | callouts: 986 of 1 344 is the SERIAL say-pass after the phase, of which `SaidNearby` walked every speaker per call (548) | ✅ `SaidNearby` from a grid (M-D8) |
 | `EqsSolverSystem` | 9 221 — on .NET pool threads, NOT the sim thread | | background module ≈ ½ core continuous + its window on the pool | — |
@@ -88,6 +90,12 @@ Branch `exp/threaded-build`. Rulings R-4218 / R-4219 (R-4207, R-4215).
 ⭐⭐ **Why 4 threads were slower than 1 on the 4-core VM:** ① the registry lock above — more threads syncing, more contention; ② the machine is
 oversubscribed: sim thread + 3 pool workers + the UI thread + EQS on the .NET pool = 6 busy threads on 4 cores (the pool's default budget is
 cores − 2 for this reason; `HROT_SIM_THREADS=4` overrides it).
+
+⭐⭐ **M-4 verdict.** The serial work OUTSIDE the systems is what the profile named, and the fixes cut it ≈ 2.3 s in 20 s (≈ 25 ms a tick):
+the snapshots now sync incrementally, the registry lock is gone. ⚠ **The tick still gets slower with threads on this VM while every system gets
+faster** — the sim thread is CPU-bound (it waits on the pool only ≈ 1.3 s in 20 s), and on 4 cores the threads that help the systems (the pool
+workers, EQS's window on them, the UI thread) take cores from the serial sim thread. ⇒ the next serial wins are the systems themselves (M-5) and
+the live timeline's scan (≈ 9 ms a tick); the thread-count question on a real machine is Windows F-4 (`HANDOFF_…_Windows_Findings`, CE-4504).
 
 ⭐⭐ **The Release reading changes the plan:** every kernel system together is ~120 ms of a **222 ms** Release tick at 4 threads, and the tick got
 WORSE with threads (192 → 222) while the systems shrank (group 141 → 101). ⇒ the largest serial cost in Release is OUTSIDE the systems — being
