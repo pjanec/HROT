@@ -918,6 +918,13 @@ deferred to the merge (it cannot be made in parallel), and the job's own later r
 ⭐ The drills: **228 / 228 serial and with parallel brains.** Rails: `PerEntityRuleTests.E3_*` (1 / 2 / 4 / 8 threads), `DangerAreaSensorSystemTests.E3_…`,
 the drills themselves (12 red without the R-195 wake).
 
+### 18.10 ⭐ ON BY DEFAULT *(U-2 / U-3, R-4224, `2026-11-13`)*
+
+The per-entity phases (`ParallelEntities.Enabled`) and the worker budget are ON in the product by default on EVERY node — the editor, the player, the
+server and a separate CGF / SimHost / orchestrator / traffic process — resolved once at start by `PerformanceStartup` (an explicit `HROT_*` >
+`-m all` serial > `performance.json` > ON) and switchable in `View ▸ Settings ▸ Performance`. ⭐ Library defaults are unchanged (a test harness keeps
+choosing explicitly). 📄 Threaded Presentation §0a.1.
+
 ## 19. Windows scheduling: power throttling, hybrid cores, console pauses *(user, `2026-11-12`: "what about windows frontend / backend throttling and intel performance cores vs e-cores … i do not want headless mode running in console to be any slower")*
 
 Measured: graph + grep for `PowerThrottling|SetProcessInformation|timeBeginPeriod|ThreadPriority|PriorityClass|EcoQoS|CpuSet|EfficiencyClass|ProcessorAffinity`

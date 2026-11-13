@@ -64,12 +64,35 @@ diagram) is §14.8.*
 | the serial work OUTSIDE the systems, by profile: module snapshots recycled + synced incrementally (`ContentEpoch`), the registry's clone flag lock-free; the world hash counts field bytes only; a late declaration retakes the tick-start view; a deferred publish makes its stream | M-4 / M-7 | Parallel Simulation §18.7 | ✔ `2026-11-13` — the stepped 1 000-man gate equal at 1 / 2 / 4 / 8 threads, every phase on |
 | real-core numbers (1…12 threads, Release) | — | `STATUS_Windows_Threaded_Scaling.md` | ⏳ CE-4489…4494 |
 
-| switch (all OFF by default; 0 B per steady frame when off) | turns on |
-|---|---|
-| `HROT_THREADED_KERNEL=3` | the threaded node (the editor): the sim on its worker, the UI on the staging |
-| `HROT_PARALLEL_SIM=1` | the per-entity phases on any node (the lever for separate node processes) |
-| `HROT_SIM_THREADS=<n>` | the pool's budget (default cores − 2) |
-| `HROT_READ_CHECK=1` / `=2` | an undeclared cross-entity read throws / is listed (the survey) |
+| ⭐⭐ the threaded node on EVERY UI-drawn host by construction: the bootstrap composes the staged presentation from `HrotNodeConfig.HasPresentation`; the editor and the player bind hooks | R-4215, user `2026-11-13` | §15 | ✔ `2026-11-13` CE-3446 — multiplayer cycle 10/10 and editor session 11/11, guard 0 |
+| ⭐⭐ every optimisation ON by default in the product, switchable and saved in the user folder; `-m all` serial | R-4224 (U-2, U-3) | §0a.1 below; `PerformanceStartup`, `PerformanceMenu` | ✔ `2026-11-13` |
+
+### 0a.1 ⭐ The switches — ON by default since U-2 *(R-4224)*
+
+| what | default | where to change it | per process |
+|---|---|---|---|
+| **Threaded editor** — the sim on its worker, the UI on the staging (editor, player) | ON | `View ▸ Settings ▸ Performance` (applies on restart) · `HROT_THREADED_KERNEL=0/3` | a headless node never runs it |
+| **Parallel simulation** — the per-entity phases | ON | the same menu · `HROT_PARALLEL_SIM=0/1` | every node, the server and separate CGF / SimHost / orchestrator / traffic nodes included |
+| **Worker threads** | Auto (cores − 2) | the same menu · `HROT_SIM_THREADS=<n>` | |
+| `-m all` (the AI-debug network mode) | SERIAL (both off) | an explicit `HROT_*` still turns them on | |
+| `HROT_READ_CHECK=1` / `=2` | off | — | an undeclared cross-entity read throws / is listed (the survey) |
+
+⭐ Precedence: an explicit `HROT_*` variable > `-m all` serial > the user file (`performance.json` beside the layouts) > ON. Every process logs ONE line at
+start: `[Performance] threaded node ON · parallel simulation ON · worker threads auto (settings)` — the source in brackets says which rule decided.
+The menu's status line says *"restart to apply the saved choice"* while the saved choice differs from what runs.
+
+### 0a.2 ⭐ Manual test sheet *(U-5, CE-4534 — each step was run once by the backend lane; the evidence is named)*
+
+| # | try | expect | if it looks wrong, report |
+|---|---|---|---|
+| 1 | start the editor; read the console's first lines | `[Performance] threaded node ON · parallel simulation ON …` and `[STAGED] the node over S, the presentation over A …` | the two lines |
+| 2 | load a large scenario (`scale-rig-demo-city-1000-2s`), select a unit, Play, Pause, Step ×5, the 3-D view following it | the UI stays smooth while the sim runs; a step advances one frame | `GET /world/hash` before and after; the `[FrameStats]` lines (`HROT_FRAME_STATS=1`) — *lane: the scripted session, 11/11, guard 0* |
+| 3 | while playing: move a unit, delete one, give an order, Undo | each lands within a frame; Undo restores it | the console's `[STAGED]` / `[STAGING]` lines — *lane: `R4_`/`R5_` rails + the session* |
+| 4 | open a recording, review it, film a shot | as before the switch | — *lane: the review rails in mode 3 with the guard* |
+| 5 | `-m server` on one machine, `-m player` on another (or two players); join, deploy, drive a unit, die, respawn, leave by Esc, rejoin | the deploy screen, the map, the unit's movement as before; the player's console says `threaded node ON` | the player's and the server's console — *lane: `scripts/multiplayer-cycle.py`, 10/10, guard 0 in every player* |
+| 6 | `View ▸ Settings ▸ Performance`: untick **Parallel simulation**, restart | the status says *restart to apply* before the restart; after it the start line says `parallel simulation off (settings)` | the file `%LOCALAPPDATA%\HROT\performance.json` — *lane: `PerformanceStartupTests.TheMenu_WritesTheFile_ThatTheNextStartReads`* |
+| 7 | `-m all` | starts serial: `[Performance] threaded node off · parallel simulation off (-m all (serial))`; every window draws | the start line — *lane: the `-m all` gate (U-4)* |
+| ⚠ | anything that looks different with the switches ON than OFF | — | `GET /world/hash` at the same sim time with each setting (stepped runs compare at equal time only) |
 
 **Measured on real cores** (Windows, Ryzen 7 6800H 8C/16T, Release, 1 000 men — [status](https://github.com/pjanec/HROT/blob/exp/windows-threaded-measure/docs/blueprints/batches/STATUS_Windows_Threaded_Scaling.md)):
 after the conversions (rerun, [status](https://github.com/pjanec/HROT/blob/exp/windows-threaded-measure/docs/blueprints/batches/STATUS_Windows_Threaded_Rerun.md)): the sim tick **144 → ≈ 75 ms** (1.9×), the CGF node **108.5 → 57.5 ms** (1.79×), stepped runs of equal step count equal at 1 / 4 / 12 threads; first run: the UI frame while playing **146 ms → ≈ 9 ms** (it no longer waits for the tick, at any thread count) · the sim tick **144 → ≈ 110 ms**, flat from
@@ -772,6 +795,11 @@ keeps the brains serial; a read of another entity's in-phase-written data sees L
 how the last-tick view is made (a small per-type copy, the replica R, or a phase reorder — N-5) and which systems are GLOBAL (N-4).
 
 ### 14.8 ⭐ AS BUILT — the threaded node, no lock between the threads *(overnight build N-1…N-8, N-13, CE-4463…CE-4470 / CE-4475, branch `exp/threaded-build`; [status](blueprints/batches/STATUS_Overnight_Threaded_Build.md) D-1…D-34)*
+
+> ⭐ **CE-3446 (`2026-11-13`) — the composition and the step below are no longer the editor's.** `EditorSubsystem.ComposeInitialPresentationCopy`,
+> `SimStep`, `PullStaging`, `NodeSideInteractionSystems` and `RunInteractionBlock` became the SHARED `StagedPresentation` (composed by
+> `BootstrapNode`) and `MapPresentationStep`; the editor binds hooks, the player runs the same code. ⇒ read **§15** for the classes and the frame;
+> the picture below still shows the threads and the crossings correctly (`EditorSubsystem.SimStep` = `StagedPresentation.Step` with the editor's hooks).
 
 ```mermaid
 graph TD

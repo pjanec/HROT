@@ -203,6 +203,7 @@ frame overlay that calls it from the UI thread today is removed (red, dashed). T
 | the editor's surfaces read the source | `ReviewUi` (UI side) owns the ONE Federation panel, the transport, the file list, the *local to* note and the *Offsets…* event | in mode 3 the source is the sim thread's; UI objects and UI events cannot live there |
 | — | the model also carries the primary's per-frame wall ticks + sim seconds and a snapshot of the merge's local origins (`MergeTarget.LocalVersion` / `CopyLocalOrigins`) | the transport's clock and Details' *local to* tag without reading the playback or the merger across threads |
 | the Offsets window is re-registered per group | registered once, on the first *Offsets…* | the panel reads the model, so one panel serves every group |
+| the model rides the staging after the step (`EditorSubsystem.PublishReviewModel`) | ⭐ CE-3446 — on the shared readout channel (`StagedPresentation.AddReadout`, built after the step, applied with the pull), the same one the session, Run to … and the deploy flow use | one mechanism for every sim → UI readout; the editor's three hand-written copies are gone |
 | — | the merge into S relies on the kernel ticking S every node frame (`ModuleHostKernel.cs:596`) | measured: without that tick a merge after the first never reaches A (the staging copies changed chunk versions) |
 
 ## ⛔ HISTORY
