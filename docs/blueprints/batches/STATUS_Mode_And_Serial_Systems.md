@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — in progress
+state: DONE — M-1 … M-9 (CE-4480 … CE-4488) built, gated, measured, folded; the residual (Entity padding) → CE-4507
 updated: 2026-11-13
 current-answer: the whole file (NEXT is the resume point)
 related-designs:
@@ -121,4 +121,5 @@ WORSE with threads (192 → 222) while the systems shrank (group 141 → 101). �
 profiled (`dotnet-trace`, M-4b). The Debug ranking (weapon dispatcher 276 ms) is Debug overhead: 11 ms in Release.
 
 ## NEXT (the resume point)
-M-1 … M-9 in order; started at the merge of `coordinator` (`ffc802ab2`) into `exp/threaded-build`.
+⭐ DONE. Follow-ups: the Windows findings (`STATUS_Windows_Findings.md`, CE-4501…CE-4506), then Entity padding + squad drills (CE-4507…CE-4510).
+Open here: §5 (the squad rails under parallel brains → CE-4508 / CE-4509; the N10 watch item).
