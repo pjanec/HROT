@@ -5,6 +5,7 @@ updated: 2026-11-11
 current-answer: ⭐⭐⭐ §18 THE COMPILED MODEL (R-4204 — supersedes §5 and §16 V-2…V-6) · §17 the critical review (15 gaps → tracker CE-4415…CE-4426) · §16 wizard → editor, cluster sync (leans) · §15 the mockups (S-0) · §14 editing a baked terrain again, non-terrain entities in a source (leans E-1…E-6) · §13 the workflow (✅ R-4200) · §12 the random terrain = an empty surface + placed blocks (✅ R-4200) · §11 the user's view (blocks as RECIPE assets through Add Entity — ✅ APPROVED R-4199) · §2 the model (one feature vocabulary, three uses) · §3 decisions · §4–§6 diagrams · §7 street clutter · §8 rivers and bridges · §9 slices · §10 not yet measured
 stale-below: §5's sequences and §16's V-2…V-6 (expand on every node at load) are SUPERSEDED by §18 (R-4204, compile at save) — kept for the reasoning, ⛔ not to be built
 related-designs:
+  - designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — OWNS the picture §18l builds (the city-battle town: its bands, river, bridges, square) and the world rules the town serves (CE-6001…6012)
   - DESIGN_Peek_And_Fire.md — §9 P-7a OWNS the mechanism this extends: a scenario entity that IS terrain, baked on every node, lifecycle-gated (R-242, R-243, R-244)
   - DESIGN_Terrain_Import_UTM.md — §8 destruction (breaches and collapses ride the same bake), §10 the input set, §11 the importer and its terrain folder writer, CE-4403 flattening under buildings
   - DESIGN_Terrain_Synth.md — hrot-terrain-synth, the generator the random terrain grows from
@@ -1493,3 +1494,79 @@ graph TD
 
 **Rails:** (a) `BridgeClosureTests.AFallenBridge_…` (route over the bridge ≈ 130 m, after the fall the detour > 150 m, the vehicle on the bridge re-planned, the west-road one not) · (b) `BridgeClosureSumoTests` (a SUMO car re-routed to the detour) · (b′) `WhereSumoRuns_…` (the runtime's closed set) · (c) `FeatureKindsTests.ABridge_CarriesAUnitAcross_…` now asserts two mounds, none in the river, and NO bank-to-bank navmesh path (the T-2 finding closed) · (d) `ASteadyFrame_AllocatesNothing`.
 **Not done:** a vehicle ON the bridge when it falls is left to the casualty path (SUMO's too); a vehicle mid-junction at the closure is re-routed only if `CloseEdge` is called again; un-collapse (an undo) does not re-open the bridge until the terrain reloads; `TerrainBake.SaveAs` still carries no bridge roads (T-7a).
+
+### 18l. The authored TOWN PLAN — a hand-laid terrain from the same generator library — CE-6001 *(showcase world, `2026-11-13`; build-state: BUILT — as built below)*
+
+Why: the city-battle showcase ([DESIGN_City_Battle_Showcase.md](designs/group-maneuvers/DESIGN_City_Battle_Showcase.md) §2, D-1: *"a hand-made synthetic town … ⛔ no OSM"*) needs the river, roads, hill and every block exactly where its picture puts
+them; the random pipeline (§18f) decides all of those by seed. 📐 **INVENTORY** (`search_graph` `.*(Synth|BlockLayout|RandomTerrain|TerrainBake|TownPlan).*` Class; grep `HROT_GEN_`): the pieces already exist — the synth's ground writer, the importer,
+`OverlayExpansion` / recipes, Bridge features (§18g), `TerrainBake.SaveAs` (§18d); the ONLY gap was a way to say *"this river, these roads, this block here"* instead of *"a seed"*. ⇒ **one new INPUT, no new generator.**
+
+```mermaid
+classDiagram
+  class TownPlan {
+    <<new, pure data — assets/terrain-plans/*.plan.json>>
+    name sizeMetres heightSpacing seed plainHeight
+    Hills[] Rivers[] Roads[] Blocks[] Bridges[]
+    Load(path) BridgeEntities()
+  }
+  class TownPlanGround {
+    <<new, pure>>
+    Build(plan) SynthGround
+    ScenarioDom(plan, groundName)
+  }
+  class TownPlanGenerator {
+    <<new>>
+    GenerateAsync(plan, terrainsRoot) TownPlanResult
+  }
+  class SynthGround {
+    <<existing — the random pipeline's own type>>
+  }
+  class HeightField {
+    <<existing>>
+    +FromFunction(profile, f)  new
+  }
+  class RoadNetwork {
+    <<existing>>
+    +FromPolylines(profile, lines)  new
+  }
+  class TerrainSynthesizer {
+    <<existing>>
+    Write(ground, options)
+  }
+  class TerrainImporter {
+    <<existing>>
+  }
+  class BlockLayout {
+    <<existing>>
+    ToScenarioDom GuidOf
+  }
+  class TerrainBake {
+    <<existing — Save terrain as, 18d>>
+    SaveAs
+  }
+  TownPlanGenerator --> TownPlanGround
+  TownPlanGround --> TownPlan
+  TownPlanGround ..> HeightField : the plan's relief
+  TownPlanGround ..> RoadNetwork : the plan's roads
+  TownPlanGround --> SynthGround
+  TownPlanGenerator --> TerrainSynthesizer : the ground as an input set
+  TownPlanGenerator --> TerrainImporter : city-battle-ground
+  TownPlanGround ..> BlockLayout : blocks as scenario entities
+  TownPlanGenerator --> TerrainBake : bridges + blocks baked in
+```
+*Caption — what the picture shows that prose hid:* every box but the three `TownPlan*` types and the two one-line factories is a type the random pipeline already runs; the plan enters at exactly two places (the ground it describes, the scenario it
+lists). ⛔ Nothing here is a second generator: `RandomTerrainPipeline` is untouched and a random terrain still comes from its seed.
+
+| as built | note |
+|---|---|
+| **the plan** — terrain-local metres (SW corner 0,0): `hills` (an elliptical Gaussian), `rivers` (a centre line running off the terrain + a width → ONE water polygon, Catmull-Rom smoothed and buffered), `roads` (class + polyline, each segment an edge; ≥ 2 points), `blocks` (recipe + centre + heading + seed; the guid derives from plan seed and index, so a block keeps its identity when another is moved), `bridges` (bank to bank + width → a Bridge feature entity, §18g) | `TownPlan.Parse` refuses a bad name, size, class or an off-terrain block |
+| **the run** — `TownPlanGenerator.GenerateAsync`: ① `TownPlanGround.Build` → `TerrainSynthesizer.Write` (the SAME writer, `GroundOnly`) → `TerrainImporter` as `<name>-ground`; ② the blocks + bridges as a source scenario; ③ `TerrainBake.SaveAs` → `assets/terrain/<name>` | deterministic (a plan is a terrain); the temporary ground and scenario are removed, the saved terrain keeps its own `source/` (git-ignored) |
+| **re-run** — `HROT_GEN_CITY_BATTLE=1 dotnet test Hrot/Engine/Hrot.Terrain.Random.Tests/… --filter TownPlanTests` (the `HROT_GEN_VEHICLE_BODY` idiom) | ⚠ `TownPlanRails` read the COMMITTED terrain: change the plan, regenerate, commit both |
+| **what is committed** — the plan, the recipe `town-hall`, and the terrain (`.gitignore` exception: ground heights ≈ 1 MB compressed, world, buildings; NOT `source/`) | the importer resamples heights to 1 m (9.4 MB raw) — measured 1.0 MB gzipped; ⚠ no SUMO net: `netconvert` is not installed on this VM, so the road net is NOT in the terrain (the plan's roads are in the ground's plain files — regenerate where `netconvert` exists to get `roads.net.xml`) |
+| **the picture, in metres** — 1.25 m per px, `x = 40 + (px − 20)·1.25`, `y = 325 + (750 − py)·1.25` on a 1 500 m square: the ring road's west arc round (915, 750), the old town x 782…1057 × y 625…887, the square x 870…970 × y 712…800 with the hall block, the river at x ≈ 1 110 (28 m wide), bridges N (y 966) and S (y 554), the hill (x 1 402, 38 m) beyond, the fields west | `assets/terrain-plans/city-battle.plan.json` — 58 blocks, 448 houses (≈ 1 050 men and 50 vehicles fit) |
+| ⚠ a recipe finding, fixed in the content: a `lane` before a `row` in one recipe kept the `row`'s house off (the hall had NO building until the lane went) | `town-hall.recipe.json` is one office on a row + parked cars |
+
+**Rails** (`Hrot.Terrain.Random.Tests`, `TownPlanRails`, each red-proofed by changing the plan and regenerating): the terrain LOADS through the node's own `TerrainResidency` inside R-4192's 30 s (warm 3.2 s; cold 25.7 s, the navmesh baked for both layers) · the
+river is crossable ONLY at the two bridges, men and ground vehicles, on every open row north and south of the old town (the path is the detour, never a leg across the river elsewhere) — CE-6002's approach on this terrain · the square holds only the hall, the old town is
+built up, the west fields are not. Feature scenario `scenarios/showcases/city-battle/features/town-loads` (loads and runs, three men stand, one on the square). ⚠ The rows THROUGH the old town are not asserted: the old town's east edge touches the river, so a bank point
+there is boxed in by houses for the vehicle layer — a finding for the town's detail (CE-6010), not for the river.
