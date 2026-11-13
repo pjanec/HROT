@@ -112,3 +112,25 @@ and its result equals the fine job's, byte for byte, at 1 / 4 / 8 threads. 🔴 
 | `Fdp.Core.Tests` — ParallelEntities, PerEntityRule | 15 / 0 | 15 / 0 |
 | `Hrot.SimHost.Tests` — the touched classes | 335 / 1 (`CE454`, pre-existing) | — |
 | `Hrot.SimHost.Tests` — SquadManeuver + CgfLogicPack + ScenarioRules | — | 239 / 145 (base: 238 / 146 — pre-existing; replaces the void row above) |
+
+## Numbers — the 1 000-man demo-city rig (VM: 4 cores, Release, `HROT_PARALLEL_SIM=1`, `scripts/scale-rig.py`) *(`2026-11-13`)*
+
+| CGF, ms / frame | before, 4 threads | after, 4 threads | after, 1 thread |
+|---|---|---|---|
+| **work (the frame)** | **140.9** (14.2 fps) | **125.5** (16.3 fps) | 151.2 (13.4 fps) |
+| BrainTickSystem | 39.2 | 32.1 | 53.6 |
+| WeaponDispatcherSystem (X-1) | 20.1 | **12.2** | 15.9 |
+| CycloneEgressSystem, both passes (X-4) | 30.3 | 28.4 | 25.9 |
+| StaffComposerSystem (X-3) | 3.6 | **2.5** | 3.8 |
+| SquadCoordinationSystem (X-2) | 5.2 | 5.1 | 6.1 |
+| StressSystem | 8.3 | 8.9 | 11.9 |
+
+| item | verdict from these numbers |
+|---|---|
+| X-1 | ✅ the lock was the cause: at 4 threads 20.1 → 12.2 ms; now 4 threads beat 1 (12.2 vs 15.9 — before, the queue made 4 threads WORSE). The remaining 1.3× is the serial pre-pass (mounts / barrels / loadouts over every weapon) — next |
+| X-3 | ✅ a phase now: 3.8 → 2.5 ms (1 → 4 threads) |
+| X-2 | ⛔ the batch size was NOT the limiter: 6.1 → 5.1 ms (1.2×). Profile next: the serial tail (`SquadSensing.UnderFire`, `Changes.Rounds`) and the per-level phases |
+| X-4 | ⏳ this rig run does not set `HROT_EQS_CONFIG_GATE=1`, so the EQS translator's own gate (the 11.6 ms) is not exercised; the gated translators' share shows in the egress total. Measured next with the gate on and `HROT_EGRESS_GATE_STATS=1` |
+
+**Tracker rows:** CE-4516 … CE-4522 live on `coordinator`, not on this branch (cut from `exp/threaded-build` before they were written). ⭐ Decision:
+their state is kept in this file's item table for the merging lane to tick, rather than merging `coordinator` here for seven rows.
