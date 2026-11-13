@@ -40,6 +40,9 @@ pause → step ×5 → 3-D view → pause → view off — **all OK, 0 job fault
 0 faults, and the STRICT world guard at 0 DISTINCT HITS** (no read of S off the sim thread, no write of A by the sim, no UI write lost to a
 pull). The one `[FAIL]` is a correct refusal: the unsaved check is meaningful only in Edit, and the script asks while a Preview runs.
 
+⭐⭐ **Session 8 (same, with N-13: the editor's step on the host's ONE sim worker — its own-thread start message absent from the log): every
+stage OK, 0 faults, strict guard 0 distinct hits** (`scratchpad/sess8`).
+
 ⭐⭐ **Session 7 (same rig, mode 3 — now WITH THE BRAINS A PARALLEL PHASE, N-10 / N-11): every stage OK** (load, select, focus, play, pause,
 step ×5, 3-D view, spawn, component edit, delete, steps, two orders, Edit-state move, preview stop, save), **0 faults, strict guard 0 distinct
 hits** (`scratchpad/sess7`).

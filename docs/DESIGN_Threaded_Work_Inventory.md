@@ -288,6 +288,15 @@ frame start; events / logs / edit outcomes travel queued with each staging world
 
 ### 8.5 ⭐ AS BUILT — how the overnight build answered this list *(N-1…N-17, branch `exp/threaded-build`; the decisions D-1…D-35 with their reasons are in the [status file](blueprints/batches/STATUS_Overnight_Threaded_Build.md) §3)*
 
+#### INVENTORY — the seams §18.5 builds on *(N-17, `2026-11-13`)*
+
+| query | total | what it found |
+|---|---|---|
+| `scripts/cbm.sh search_graph '{"name_pattern":".*(Job\|Phase\|Staging\|SimJob\|ReadCheck).*","label":"Class"}'` | 64 (has_more) | the pre-existing job / phase classes (`ParallelEntities`, `BatchContext`, `FdpWorkerPool`, the per-system jobs) — the rule was built INTO them, no parallel set |
+| `scripts/cbm.sh search_graph '{"name_pattern":".*(BatchJob\|StableReads\|PhaseFollowUp\|SimStepped\|ValueCopy).*","label":"Interface"}'` | 0 | ⚠ the graph predates tonight's types (a re-index produced no output) — grep below instead; coverage could not be checked |
+| `grep` implementers of `IEntityBatchJob` | 6 files | `UtilityPrescore`, `BrainTickSystem`, `ThreatEvaluationSystem`, `Callouts` (CalloutSystem), `StressSystem` (+ the declaration) — every per-entity phase |
+| `grep` implementers of `IStableReads` · `IPhaseFollowUp` · `ISimSteppedSubsystem` · `IValueCopy` | 2 · 2 · 1 · 1 | threat + stress jobs · callouts + the incoming order · the editor · the traffic frame |
+
 | item | state | the as-built answer |
 |---|---|---|
 | U-1 undo | ✅ | the recorder on S, the one history on the UI (Threaded Presentation §14.8) |
