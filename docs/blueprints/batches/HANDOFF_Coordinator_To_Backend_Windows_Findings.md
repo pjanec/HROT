@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (VM): AUTONOMOUS — what the Windows run found (stepped repeatability, the gate, small fixes)
 
-**For:** the backend VM lane, **after** its mode + serial-systems batch (CE-4480…CE-4488). **From:** coordinator. **Dispatched at `<stamp>`**.
+**For:** the backend VM lane, **after** its mode + serial-systems batch (CE-4480…CE-4488). **From:** coordinator. **Dispatched at `58e710b98`**.
 🔒 User, `2026-11-13`: *"Yes"* (to the coordinator's proposal after the Windows run).
 
 ## ⛔⛔⛔ Never stop — the same contract
