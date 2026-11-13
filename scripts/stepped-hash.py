@@ -71,7 +71,7 @@ def main():
     ap.add_argument("--bytes", action="store_true", help="with --rows: print the differing byte offsets of each differing row")
     ap.add_argument("--kernel", default="3", choices=["0", "3"], help="3 = the threaded node (mode 3); 0 = the product as shipped")
     ap.add_argument("--port", type=int, default=8131)
-    ap.add_argument("--out", default=os.path.join(REPO, ".stepped-hash"))
+    ap.add_argument("--out", default=os.path.join(__import__("tempfile").gettempdir(), "hrot-stepped-hash"), help="the runs' logs (outside the repository)")
     ap.add_argument("--save", help="write every run's result to this JSON file")
     ap.add_argument("--dll", default=os.path.join(REPO, "Hrot/Runner/Hrot.ClusterRunner/bin/Release/net8.0/Hrot.ClusterRunner.dll"))
     a = ap.parse_args()

@@ -42,7 +42,8 @@ def projects():
 def live(dll):
     env = dict(os.environ, LANG="cs_CZ.UTF-8", LC_ALL="cs_CZ.UTF-8", HROT_FRAME_STATS="1", HROT_DEBUG_API_PORT="8140",
                DOTNET_SYSTEM_GLOBALIZATION_INVARIANT="")   # the runtimeconfig must decide, not the environment
-    log = os.path.join(REPO, ".invariant-culture-live.log")
+    import tempfile
+    log = os.path.join(tempfile.gettempdir(), "hrot-invariant-culture-live.log")   # a run's log: never in the repository
     with open(log, "w") as fh:
         proc = subprocess.Popen(["xvfb-run", "-a", "dotnet", dll, "--mode", "editor"], env=env, stdout=fh, stderr=subprocess.STDOUT, cwd=REPO)
         try:
