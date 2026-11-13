@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "Kind": "macro",
-    "description": "What: CE-6009 (city battle M-1, §4) - a MECHANISED COMPANY (attacker): three rifle-platoon macros (nested instances, 60 m apart, named 1st / 2nd / 3rd Platoon) and the company SUPPORT ELEMENT - a tank section (unit 301, 2 M1) and 4 Bradley IFVs, 25-40 m behind. ⚠ NO company commander: the slot stays empty until the brains lane's CE-7002 (CompanyCommander) - the platoons are top-level until then. Params: side.",
+    "description": "What: CE-6009 (city battle M-1, §4) - a MECHANISED COMPANY (attacker): three rifle-platoon macros (nested instances, 60 m apart, named 1st / 2nd / 3rd Platoon) and the company SUPPORT ELEMENT - a tank section (unit 301, 2 M1) and 4 Bradley IFVs, 25-40 m behind. ⚠ NO company commander: the slot stays empty until the brains lane's CE-7002 (CompanyCommander) - the platoons are top-level until then. Params: side, p1 / p2 / p3 (the platoons' RefKeys, default Platoon1-3 - CE-6010).",
     "Anchor": {
       "Position": [
         0,
@@ -21,6 +21,21 @@
         "Name": "side",
         "TypeId": "ForceId",
         "Default": "Friend"
+      },
+      {
+        "Name": "p1",
+        "TypeId": "string",
+        "Default": "Platoon1"
+      },
+      {
+        "Name": "p2",
+        "TypeId": "string",
+        "Default": "Platoon2"
+      },
+      {
+        "Name": "p3",
+        "TypeId": "string",
+        "Default": "Platoon3"
       }
     ]
   },
@@ -53,7 +68,8 @@
       },
       "ParamBindings": {
         "Bindings": {
-          "MacroInstance.Args.side": "side"
+          "MacroInstance.Args.side": "side",
+          "MacroInstance.Args.key": "p1"
         }
       }
     },
@@ -85,7 +101,8 @@
       },
       "ParamBindings": {
         "Bindings": {
-          "MacroInstance.Args.side": "side"
+          "MacroInstance.Args.side": "side",
+          "MacroInstance.Args.key": "p2"
         }
       }
     },
@@ -117,7 +134,8 @@
       },
       "ParamBindings": {
         "Bindings": {
-          "MacroInstance.Args.side": "side"
+          "MacroInstance.Args.side": "side",
+          "MacroInstance.Args.key": "p3"
         }
       }
     },

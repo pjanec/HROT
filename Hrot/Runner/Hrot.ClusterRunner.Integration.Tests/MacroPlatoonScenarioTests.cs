@@ -16,7 +16,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// <summary>
 /// ⭐⭐ <c>CE-6009</c> (city battle M-1; 📄 docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md §4, §11 M-1; docs/DESIGN_Scenario_Macros.md §16) —
 /// <c>scenarios/showcases/city-battle/features/macro-platoon</c> in-process on the four hosts: a trigger inserts <c>macros/city-battle/rifle-platoon</c> at
-/// runtime (3 s) at @Drop. On EVERY node: ① one platoon 'Blue 1st Platoon', 3 squads, 18 men, all Active (the ELM acked them), all Friend, all marked
+/// runtime (3 s) at @Drop. On EVERY node: ① one platoon 'Blue 1st Platoon', 6 squads, 36 men (CE-6010), all Active (the ELM acked them), all Friend, all marked
 /// as the instance's (<c>MacroOrigin</c>); ③ they stand round the drop point. On the brain node (CGF): ② the hierarchy is wired — every man under a squad
 /// of this platoon, six each, every squad under the platoon (⚠ CE-6015: no platoon's hierarchy reaches SimHost / the Player); ④ the expansion is Done.
 /// ⭐ Parallel contract: CE-6012 reruns this unchanged with <c>HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1</c>.
@@ -43,7 +43,7 @@ public sealed class MacroPlatoonScenarioTests : IDisposable
     private static long TypeOf(EntityRepository w, Entity e) => w.HasComponent<TkbIdentity>(e) ? (long)w.GetComponentRO<TkbIdentity>(e).TkbType : 0;
 
     /// <summary>
-    /// The platoon on one node: its 22 parts by type (1 platoon 305, 3 squads 302, 18 men), Active, Friend, marked with <c>MacroOrigin</c>, round the drop
+    /// The platoon on one node: its 43 parts by type (1 platoon 305, 6 squads 302, 36 men), Active, Friend, marked with <c>MacroOrigin</c>, round the drop
     /// point — and, where <paramref name="hierarchy"/>, wired: every man under a squad of this platoon (six each), every squad under the platoon.
     /// </summary>
     private static string Tree(EntityRepository w, bool hierarchy, out bool whole)
@@ -63,9 +63,9 @@ public sealed class MacroPlatoonScenarioTests : IDisposable
         int friend = parts.Count(e => w.GetComponentRO<EntityInfo>(e).ForceId == ForceId.Friend);
         float far = men.Count == 0 ? -1f : men.Max(m => System.Numerics.Vector2.Distance(
             new(w.GetComponentRO<SimTransform>(m).Position.X, w.GetComponentRO<SimTransform>(m).Position.Y), new(50f, 50f)));
-        whole = squads.Count == 3 && men.Count == 18 && active == 22 && friend == 22 && far is > 0f and < 30f
-                && (!hierarchy || (wiredSquads == 3 && wiredMen == 18 && sixEach));
-        return $"{squads.Count} squads ({wiredSquads} under the platoon), {men.Count} men ({wiredMen} under a squad), {active}/22 active, {friend}/22 Friend, farthest man {far:0.0} m from (50,50)";
+        whole = squads.Count == 6 && men.Count == 36 && active == 43 && friend == 43 && far is > 0f and < 30f
+                && (!hierarchy || (wiredSquads == 6 && wiredMen == 36 && sixEach));
+        return $"{squads.Count} squads ({wiredSquads} under the platoon), {men.Count} men ({wiredMen} under a squad), {active}/43 active, {friend}/43 Friend, farthest man {far:0.0} m from (50,50)";
     }
 
     [Fact(Timeout = 600_000)]

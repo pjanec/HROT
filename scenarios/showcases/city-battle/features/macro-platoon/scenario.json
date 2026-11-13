@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "roadblock-street",
-    "description": "What: CE-6009 (city battle M-1, docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md §4, §11 M-1; docs/DESIGN_Scenario_Macros.md §16) - on the roadblock-street feature terrain a TRIGGER inserts the city-battle/rifle-platoon macro at RUNTIME (scenario time 3 s) at the entity keyed @Drop (50, 50), turned 90 deg, with its own args (side Friend, name 'Blue 1st Platoon') - the 2nd-wave mechanism of the battle (§3). Judge: one transient instance appears, its status Done; 1 platoon 'Blue 1st Platoon' + 3 squads + 18 men (Friend) stand round (50, 50), each man under his squad, each squad under the platoon, on every node; the trigger ends Done. Rail: Hrot.ClusterRunner.Integration.Tests MacroPlatoonScenarioTests."
+    "description": "What: CE-6009 (city battle M-1, docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md §4, §11 M-1; docs/DESIGN_Scenario_Macros.md §16) - on the roadblock-street feature terrain a TRIGGER inserts the city-battle/rifle-platoon macro at RUNTIME (scenario time 3 s) at the entity keyed @Drop (50, 50), turned 90 deg, with its own args (side Friend, name 'Blue 1st Platoon') - the 2nd-wave mechanism of the battle (§3). Judge: one transient instance appears, its status Done; 1 platoon 'Blue 1st Platoon' + 6 squads + 36 men (Friend) stand round (50, 50), each man under his squad, each squad under the platoon, on every node; the trigger ends Done. Rail: Hrot.ClusterRunner.Integration.Tests MacroPlatoonScenarioTests."
   },
   "entities": {
     "c6009e00-0000-4000-8000-000000000001": {

@@ -50,24 +50,26 @@ namespace Hrot.SimHost.Tests
         private static EntityInfo? Info(EntityCreationRequest r) => r.InitialComponents?.OfType<EntityInfo>().Cast<EntityInfo?>().FirstOrDefault();
 
         /// <summary>
-        /// ⭐⭐ <c>CE6009_M1</c> — the rifle platoon: ONE body-less platoon (305) named by the <c>name</c> arg, three squads (302), eighteen men (2002 / one
+        /// ⭐⭐ <c>CE6009_M1</c> — the rifle platoon: ONE body-less platoon (305) named by the <c>name</c> arg, SIX squads (302; CE-6010: sized to the battle, the platoon's command picture holds 6), 36 men (2002 / one
         /// 2004 grenadier per squad), every part on the <c>side</c> arg. 🔴 Red-proof: drop the platoon's <c>EntityInfo.Name ← name</c> binding ⇒ red.
         /// </summary>
         [Fact]
-        public void CE6009_M1_TheRiflePlatoon_IsOnePlatoon_ThreeSquads_EighteenMen_OnItsSide()
+        public void CE6009_M1_TheRiflePlatoon_IsOnePlatoon_SixSquads_ThirtySixMen_OnItsSide()
         {
-            var r = Expand("city-battle/rifle-platoon", """{"side": "Hostile", "name": "Blue 2nd Platoon"}""");
+            var r = Expand("city-battle/rifle-platoon", """{"side": "Hostile", "name": "Blue 2nd Platoon", "key": "B2"}""");
             Assert.True(r.Ok, r.Failure);
             Assert.Single(r.Children, c => TypeOf(c) == 305);
-            Assert.Equal(3, r.Children.Count(c => TypeOf(c) == 302));
-            Assert.Equal(18, r.Children.Count(c => TypeOf(c) is 2002 or 2004));
-            Assert.Equal(3, r.Children.Count(c => TypeOf(c) == 2004));
+            Assert.Equal(6, r.Children.Count(c => TypeOf(c) == 302));
+            Assert.Equal(36, r.Children.Count(c => TypeOf(c) is 2002 or 2004));
+            Assert.Equal(6, r.Children.Count(c => TypeOf(c) == 2004));
             Assert.All(r.Children, c => Assert.Equal(ForceId.Hostile, Info(c)!.Value.ForceId));
             Assert.Equal("Blue 2nd Platoon", Info(r.Children.Single(c => TypeOf(c) == 305))!.Value.Name.ToString());
+            // ⭐ CE-6010 — the platoon carries the instance's key, so a scenario trigger can Order THIS platoon ("@B2")
+            Assert.Equal("B2", r.Children.Single(c => TypeOf(c) == 305).InitialComponents!.OfType<RefKey>().Single().Value.ToString());
         }
 
         /// <summary>
-        /// ⭐⭐ <c>CE6009_M2</c> — the mechanised company: its three platoon macros flattened (3 nested instances + 3 × 22 parts), the support element (a tank
+        /// ⭐⭐ <c>CE6009_M2</c> — the mechanised company: its three platoon macros flattened (3 nested instances + 3 × 43 parts), the support element (a tank
         /// section 301 with 2 M1, 4 Bradleys) — and the company's <c>side</c> reaches EVERY man through the nested instances' args
         /// (<c>MacroInstance.Args.side ← side</c>). ⚠ No company commander (CE-7002). 🔴 Red-proof: drop that binding from one nested instance ⇒ its men
         /// keep the platoon's default (Friend) ⇒ red.
@@ -75,14 +77,14 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE6009_M2_TheMechCompany_ThreePlatoons_AndItsSupportElement_AllOnTheCompanysSide()
         {
-            var r = Expand("city-battle/mech-company", """{"side": "Hostile"}""");
+            var r = Expand("city-battle/mech-company", """{"side": "Hostile"}""");   // p1..p3 left at their defaults
             Assert.True(r.Ok, r.Failure);
             var byType = r.Children.GroupBy(TypeOf).ToDictionary(g => g.Key, g => g.Count());
             _out.WriteLine(string.Join(", ", byType.OrderBy(k => k.Key).Select(k => $"{k.Key}×{k.Value}")));
             Assert.Equal(3, byType.GetValueOrDefault(8813));
             Assert.Equal(3, byType.GetValueOrDefault(305));
-            Assert.Equal(9, byType.GetValueOrDefault(302));
-            Assert.Equal(54, byType.GetValueOrDefault(2002) + byType.GetValueOrDefault(2004));
+            Assert.Equal(18, byType.GetValueOrDefault(302));
+            Assert.Equal(108, byType.GetValueOrDefault(2002) + byType.GetValueOrDefault(2004));
             Assert.Equal(1, byType.GetValueOrDefault(301));
             Assert.Equal(2, byType.GetValueOrDefault(100));
             Assert.Equal(4, byType.GetValueOrDefault(101));
@@ -90,6 +92,9 @@ namespace Hrot.SimHost.Tests
             Assert.True(wrongSide.Count == 0, "not on the company's side: " + string.Join(", ", wrongSide.Take(6)));
             var names = r.Children.Where(c => TypeOf(c) == 305).Select(c => Info(c)!.Value.Name.ToString()).OrderBy(n => n).ToArray();
             Assert.Equal(new[] { "1st Platoon", "2nd Platoon", "3rd Platoon" }, names);
+            // ⭐ CE-6010 — the company's p1 / p2 / p3 reach its three platoons' keys (MacroInstance.Args.key ← pN)
+            var keys = r.Children.Where(c => TypeOf(c) == 305).Select(c => c.InitialComponents!.OfType<RefKey>().Single().Value.ToString()).OrderBy(k => k).ToArray();
+            Assert.Equal(new[] { "Platoon1", "Platoon2", "Platoon3" }, keys);
         }
 
         /// <summary>⭐ <c>CE6009_M3</c> — the defender company: three militia platoons (2003 fighters) + 2 technicals, Hostile by default.</summary>
@@ -98,7 +103,7 @@ namespace Hrot.SimHost.Tests
         {
             var r = Expand("city-battle/defender-company", "{}");
             Assert.True(r.Ok, r.Failure);
-            Assert.Equal(54, r.Children.Count(c => TypeOf(c) == 2003));
+            Assert.Equal(108, r.Children.Count(c => TypeOf(c) == 2003));
             Assert.Equal(2, r.Children.Count(c => TypeOf(c) == 104));
             Assert.All(r.Children.Where(c => TypeOf(c) != 8813), c => Assert.Equal(ForceId.Hostile, Info(c)!.Value.ForceId));
         }

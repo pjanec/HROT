@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD — every decision APPROVED by the user in chat (2026-11-13, §10 D-1…D-17, D-R); F-0 (fix the flaky behaviours) first
-updated: 2026-11-13 (rev 7: §4b lethality settings, CE-6008 built) · (rev 6: §4a the force macros, CE-6009 built) · (rev 5: §11 O-2 CE-6005 built — Peek and Fire §9.10) · (rev 4: §11 O-1 CE-6003 built — as built in Peek and Fire §9.9) · (rev 3: §9 points at the as-built parallel rule, §11 every item a tracker row in Area S, W/B lanes)
-current-answer: the whole file — §2 the picture · §3 phases (overlapping) · §3a momentum · §3b the air gate · §3c civilians · §4 forces · §4a the force macros (as built) · §4b lethality settings (as built) · §5 the breach drill · §6 classes · §7 sequences · §8 who runs what · §9 the parallel rules · §11 the work · §12 testing
+updated: 2026-11-13 (rev 8: §4c the skeleton and its variants, CE-6010 / CE-6011 built; §4a platoons of six squads + keys) · (rev 7: §4b lethality settings, CE-6008 built) · (rev 6: §4a the force macros, CE-6009 built) · (rev 5: §11 O-2 CE-6005 built — Peek and Fire §9.10) · (rev 4: §11 O-1 CE-6003 built — as built in Peek and Fire §9.9) · (rev 3: §9 points at the as-built parallel rule, §11 every item a tracker row in Area S, W/B lanes)
+current-answer: the whole file — §2 the picture · §3 phases (overlapping) · §3a momentum · §3b the air gate · §3c civilians · §4 forces · §4a the force macros (as built) · §4b lethality settings (as built) · §4c the skeleton + variants (as built) · §5 the breach drill · §6 classes · §7 sequences · §8 who runs what · §9 the parallel rules · §11 the work · §12 testing
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -213,7 +213,7 @@ graph TD
   MC --> P3["rifle-platoon '3rd Platoon'"]
   MC --> SUP["support element: Tank Section 301 → 2 × M1 · 4 × Bradley"]
   MC -.->|"⏳ EMPTY until CE-7002"| CC["company commander"]
-  P1 --> PL["platoon 305 @Platoon (name)"] --> SQ["3 × squad 302"] --> MEN["6 men each: leader, MG, grenadier 2004, 3 riflemen 2002"]
+  P1 --> PL["platoon 305 @Platoon (name)"] --> SQ["6 × squad 302 (CE-6010; was 3)"] --> MEN["6 men each: leader, MG, grenadier 2004, 3 riflemen 2002"]
   DC["macros/city-battle/defender-company (side = Hostile)"] --> MP["3 × militia-platoon (2003 fighters)"]
   DC --> TEC["2 × technical 104"]
   TRG["a Trigger: InsertMacro (2nd wave, reserve)"] -->|"EntityCreationRequest → expander → ELM"| P1
@@ -227,7 +227,7 @@ the company commander's place is deliberately empty. No code.
 | **kit = which macro** (`rifle-platoon` 2002 soldiers · `militia-platoon` 2003 fighters); **side** and **name** are params; the **entry point** is the instance's anchor (`at` of `InsertMacro`, or where the scenario places it) | ⭐ params bind FLAT fields only (§4.0 of Scenario Macros); a TKB type per role as a param is not a proven binding — a second file is |
 | **no company commander entity** — the platoons are top-level until CE-7002 | ⛔ a placeholder would be a platoon (305) commanding platoons: its plays (`PlatoonAttack`…) expect squads — wrong orders, not an empty slot. CE-7002 adds its type and sets the platoons' `UnitSubordinate` in these files |
 | **the support element holds the attachments** (a tank section 301 for the tanks; the IFVs top-level) | `CommandPicture.MaxSubordinates = 6` (§4): the company commander will see 3 platoons + the tank section + room |
-| squads of six, abreast 15 m, platoons 60 m apart round the anchor | ≈ 22 entities a platoon, ≈ 76 a mechanised company (measured, `CityBattleMacrosTests.CE6009_M2`) |
+| ⛔ SUPERSEDED by CE-6010 (§4c): ~~three squads abreast, ≈ 22 entities a platoon~~ — now SIX squads of six in two rows of three, 15 m apart, platoons 60 m apart; each platoon takes a `key` (its RefKey) and a company passes `p1..p3` down | ≈ 43 entities a platoon, ≈ 139 a mechanised company (`CityBattleMacrosTests`) |
 
 ⚠ **Found, filed `CE-6015`:** the command hierarchy (`UnitSubordinate`) does NOT reach SimHost or the Player for ANY platoon — a scenario-loaded
 one included (📐 `pc-attack-dry` in the in-process twin at 8 s: 15 of 15 wired on CGF, 0 on SimHost and the Player). The brains run on CGF, so
@@ -258,6 +258,40 @@ content; the other two have NO path from a scenario file today — the dashed ed
 | **battery, armour** | ⛔ NOT exposed — filed `CE-6016` | both live only in the TKB (`FlightParams` is `NoScenario`; `CombatTkb.PlatformOf`); a scenario-level scale needs a NEW recorded-unmanaged World Environment component (lean: `LethalitySettings { DroneEnduranceScale, ArmourScale }`) — a new id in `GlobalComponentIds.cs`, which the parallel programme is editing ⇒ held for CE-6012's merge |
 
 Rail: `Hrot.ClusterRunner.Integration.Tests.LethalityAccuracyScenarioTests`.
+
+## 4c. The skeleton and its variants — as built *(`CE-6010`, `CE-6011`, showcase-world, `2026-11-13`)*
+
+```mermaid
+graph TD
+  GEN["scripts/city_battle_scenario.py (+ city_battle_macros.py)"] --> SCN["scenarios/showcases/city-battle/city-battle/scenario.json"]
+  SCN --> ATK["attacker: A Coy, B Coy = mech-company (p1..p3 = A1..A3 / B1..B3) · air-assault rifle-platoon + 4 UH-60 · A-10, AH-64 parked · mortars, drones, Javelins, engineers + bulldozer, HQ + jammer HMMWVs"]
+  SCN --> DEF["defender: 1/2/3 Coy + reserve = defender-company (D11.. / DR1..) — Positions: 3 places each · hill: mortars, ZU-23, 2 Stinger, 2 Igla — Positions"]
+  SCN --> RB["3 × roadblock macro on the ring-road crossings — Presence 0.6 each"]
+  SCN --> CIV["200 civilians on the west belt + old town streets — Presence 0.7 each (Civilian 1 always)"]
+  SCN --> TOP["intent only: PL A–D, 2 sectors, 3 objectives, 11 triggers"]
+  TOP -->|"t = 0: Order '@D11' PlatoonDefend at '@D11' (where the variant put it)"| DEF
+  TOP -->|"5 / 8 min: Order '@A1..3' / '@B1..3' PlatoonAttack PL B"| ATK
+  TOP -->|"reached PL B OR 15 / 18 min: PlatoonAttack PL C"| ATK
+  TOP -->|"20 min: InsertMacro mech-company (W1..W3) + Order"| ATK
+  TOP -->|"town hall held OR 28 min: reserve PlatoonAttack the square · held OR 45 min: EndExercise"| DEF
+```
+*What the picture shows that prose hid:* every order reaches a platoon by a KEY the company macro passes down (`p1` → `MacroInstance.Args.key` → the
+platoon's `RefKey`) — a GUID of a macro child cannot be named in the file (the load refuses it, measured) — and the defenders defend WHERE THEY STAND
+(`Position: "@D11"`), so a variant that moves a company needs no second trigger.
+
+| decision | why |
+|---|---|
+| ⭐ **EVERY place in ONE table, named by role** (`ANCHORS` in `scripts/city_battle_scenario.py`: `attack-A`, `defence-1`, `roadblock-N`, `square`, `hill`, `wave-entry` …; `ALTERNATIVES`, `PHASE_LINES`, `SECTORS`, `CIVILIAN_AREAS` beside it) | ⏳ the town is being REDRAWN (radial roads, no ring road — coordinator, `2026-11-13`): re-anchoring the battle edits that block only, then regenerates. ⚠ The current anchors are the OLD town's (ring-road crossings) |
+| **its own leaf folder** `showcases/city-battle/city-battle/` (not `showcases/city-battle/scenario.json`) | ⛔ measured: a folder holding a `scenario.json` HIDES the `features/` beside it — `ScenarioFolderIndex` never enters a scenario folder, so `macro-platoon` stopped resolving |
+| **a platoon is SIX squads of six** (36 men; was three) | the order of battle at ≈ 1 050 needs it — the squad stays at six (a squad leader's `CommandPicture` holds 6, `CommandComponents.cs:116`); six squads is the platoon's own limit |
+| **the scripted top: "the earlier of two"** = `Compound Or [ObjectiveStatus Achieved, ScenarioTime]` | the existing predicates express it (no new mechanism); ⚠ "one side < 30 %" and "a quiet sector for 3 min" (pressure) have no predicate — CE-6018 |
+| **the roadblock is a macro** (`city-battle/roadblock`: 2 blocks, 2 cars, 2 MG nests behind sandbags, an AT team) | one `Presence` roll keeps or drops a crossing's WHOLE roadblock |
+| **recording** = the cluster default (`ClusterMaster.RecordLiveRuns = true`) | ⛔ a scenario cannot declare it — it is a run setting (Scale Rig Q-3); the rail asserts it is ON and the files grow |
+
+📐 **Measured** (in-process, four hosts in one thread, Debug, 4-core VM, nothing else running): 6 661 entities on CGF (1 840 of them doors), 274 + 462
+soldiers + 200 civilians, 32 vehicles, 14 aircraft (8 FPVs); OperatingLive 9.5 s after boot; every node complete at sim ≈ 32 s; **≈ 370 ms per frame**
+(all four hosts) in the steady minute; recording 6.5 MB (SimHost) + 10.2 MB (CGF) per minute. ⚠ 844 soldiers with the 2nd wave, not 1 050.
+Rails: `CityBattleSkeletonTests` (CE-6010, CE-6011 twin) · `Hrot.SimHost.Tests.CityBattleVariantsTests` (V1, V2).
 
 ## 5. The roadblock breach drill — removal is mandatory
 
@@ -426,9 +460,9 @@ B's CE-7012 (the bulldozer's ClearObstacle) stands on them.
 | V-1b | **CE-6007** | the bulldozer's **3-D model** (tracked chassis, engine block, cab, articulated blade — NOT armoured-looking), gallery thumbnail — the ONE UI-side item the user allowed | `ShapeKit`, `VisualFamily`, `scripts/thumbnails.py` | | W · ✅ **AS BUILT `2026-11-13`**: a new family `Bulldozer` + `ShapeKits.Bulldozer` (tracks with a high rear sprocket, hood in FRONT, open ROPS cab, blade on push arms with rams, rear ripper; the blade is drawn lowered, not articulated) — [Map 3-D §6ak](../../DESIGN_Map_3D_Mode.md); thumbnail in the atlas |
 | L-1 | **CE-6008** ✅ BUILT `2026-11-13` — as built §4b | lethality as scenario settings (drone count + battery, accuracy, armour): accuracy = the side skill amplifier by trigger, drone count = content; battery + armour have no scenario path ⇒ CE-6016 | the existing parameters | W |
 | M-1 | **CE-6009** ✅ BUILT `2026-11-13` — as built §4a | company / platoon macros (side, kit, entry point); the waves inserted by trigger | Scenario Macros, `InsertMacro` | W |
-| B-0 | **CE-6010** | the scenario skeleton `showcases/city-battle`: the forces of §4 by macro, prepared positions (sandbags, roadblocks), the 5 km fog, recording ON, civilians placed; the scripted top of §3 | everything above | W |
+| B-0 | **CE-6010** ✅ BUILT `2026-11-13` — as built §4c | the scenario skeleton `showcases/city-battle`: the forces of §4 by macro, prepared positions (sandbags, roadblocks), the 5 km fog, recording ON, civilians placed; the scripted top of §3 | everything above | W |
 | — | **CE-6012** | the world lane's code meets the parallel checks: CE-6003 / CE-6005's rails and the feature scenarios rerun with the three checks once the lane is merged with `exp/threaded-build`; then CE-6004 | the checks | W |
-| V-A | **CE-6011** | variants: defender layout, roadblock set, AA / MANPADS positions, civilian density (D-16) | `$variant`, variant forms (Scenario Macros §17) | W |
+| V-A | **CE-6011** ✅ BUILT `2026-11-13` — as built §4c | variants: defender layout, roadblock set, AA / MANPADS positions, civilian density (D-16) | `$variant`, variant forms (Scenario Macros §17) | W |
 | F-0 | **CE-7001** | ⭐ FIRST in B — fix what the grind stands on: CE-2341 · CE-2304 · PL-1 / CE-2264 · CE-3361 · CE-2232 | the existing behaviours | B |
 | C-1 | **CE-7002** | `CompanyCommander`: attack (base of fire / assault / reserve, phase lines, reserve commit) + defend (a block per platoon, fall back); ⚠ `CommandPicture.MaxSubordinates = 6` ⇒ the support element | PlatoonAttack / Defend, EQS, declared reads | B |
 | C-2 | **CE-7003** | support calls — fires, smoke, bulldozer / engineers at a roadblock, drone tasking | SupportCommand, the observer chain | B |
