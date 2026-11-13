@@ -37,8 +37,7 @@ def one_run(a, threads, k):
     out = os.path.join(a.out, f"run{k}-t{threads}")
     os.makedirs(out, exist_ok=True)
     os.environ["HROT_SIM_THREADS"] = str(threads)
-    if a.kernel == "0": os.environ.pop("HROT_THREADED_KERNEL", None)   # the product as shipped: no threaded node
-    else: os.environ["HROT_THREADED_KERNEL"] = a.kernel
+    os.environ["HROT_THREADED_KERNEL"] = a.kernel   # explicit either way: since U-2 (CE-4531) the product's DEFAULT is the threaded node
     s = ats.Session(out, a.port)
     if not s.start(a.dll):
         raise RuntimeError("the editor did not answer")
@@ -81,7 +80,7 @@ def main():
     ap.add_argument("--chunk", type=int, default=20, help="the step chunk (the orders land after 1 and 3 chunks; 6 chunks in all)")
     ap.add_argument("--rows", default="SimTransform", help="a component type: name the entities whose row differs")
     ap.add_argument("--bytes", action="store_true", help="with --rows: print the differing byte offsets of each differing row")
-    ap.add_argument("--kernel", default="3", choices=["0", "3"], help="3 = the threaded node (mode 3); 0 = the product as shipped")
+    ap.add_argument("--kernel", default="3", choices=["0", "3"], help="3 = the threaded node (mode 3, the product default since U-2); 0 = no threaded node")
     ap.add_argument("--port", type=int, default=8131)
     ap.add_argument("--out", default=os.path.join(__import__("tempfile").gettempdir(), "hrot-stepped-hash"), help="the runs' logs (outside the repository)")
     ap.add_argument("--save", help="write every run's result to this JSON file")
