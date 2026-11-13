@@ -4732,6 +4732,7 @@ namespace Hrot.Editor
             // ⭐ G-7 S4 (M-7) — the toolbar ▶ is ENABLED over the MERGED Review too: ReviewSource.Update plays every participant and merges each frame. ⛔ SUPERSEDED: Next_2 A-9's HostPlayDisabledReason (▶ greyed in Merged)
 
             // ⭐ B-14 / undo U2 — Edit ▸ Undo / Redo (Ctrl+Z / Ctrl+Y) over the ONE history, Edit mode only
+            _debugApiService?.AttachShellCommands(() => windowManager.ShellCommands);   // ⭐ N-15 — the shell's commands (Edit ▸ Undo / Redo …) over HTTP, ?scope=shell
             Hrot.Editor.AiShared.Documents.EditUndoCommands.Register(windowManager.ShellCommands.Register, EditHistory,
                 inEdit: () => InEditMode,
                 showHistory: () => _historyWindow?.Show());   // ⭐ U5 — Edit ▸ History…

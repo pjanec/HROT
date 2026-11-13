@@ -93,6 +93,16 @@ namespace Hrot.Editor.DebugApi
         private IEntityStateExtractionService? _clusterExtraction;
         private EntityRepository? _clusterExtractionFor;
 
+        /// <summary>⭐ N-15 ② (CE-4477) — <c>GET /world/hash</c>: <see cref="EntityRepository.ContentHash()"/> of this service's world (the
+        /// simulation's, S, in a threaded node — the route runs on the sim thread), with the clock and the entity count it was taken at.</summary>
+        public JsonObject GetWorldHash() => new()
+        {
+            ["hash"] = _world.ContentHash().ToString("X16"),
+            ["simTime"] = (double)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).Time,
+            ["tick"] = (long)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).Tick,
+            ["entities"] = _world.EntityCount,
+        };
+
         private EntityRepository _world
             => _editorWorld ?? _dispatcher?.World
                ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.WorldRead);
@@ -3307,15 +3317,19 @@ namespace Hrot.Editor.DebugApi
                 return (null, $"Commit failed: {ex.Message}");
             }
 
-            // Write the committed value back to ECS via reflection.
+            // Write the committed value back to ECS via reflection — ⭐ N-15 (CE-4477) as ONE step of the editor's history, the inspector's own rule
+            //   (RepositoryAdapter.SetComponentAsUserStep, CE-3386): Edit mode records it (Edit ▸ Undo reaches it), Live / Preview record nothing.
+            Fdp.Toolkit.Replication.Edits.EditSteps.Begin(_world, "Edit " + clrType.Name);
             try
             {
                 SetBoxedComponent(_world, entity, clrType, committed);
             }
             catch (Exception ex)
             {
+                Fdp.Toolkit.Replication.Edits.EditSteps.Cancel(_world);
                 return (null, $"Could not write component '{componentType}' back to ECS: {ex.Message}");
             }
+            Fdp.Toolkit.Replication.Edits.EditSteps.End(_world);
 
             // Return the updated entity dump.
             var node = DumpEntity(networkId);

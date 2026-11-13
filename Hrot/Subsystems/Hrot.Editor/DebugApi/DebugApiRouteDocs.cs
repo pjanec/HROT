@@ -47,6 +47,17 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{}",
             ExampleGist: "graceful runner shutdown"),
 
+        [("GET", "/world/hash")] = new RouteDoc(
+            Tool:    "get_world_hash",
+            Group:   "A — Lifecycle & status",
+            Summary: "The world's content hash: every live entity and every unmanaged component's bytes (managed components by presence).",
+            Returns: "{ hash, simTime, tick, entities }",
+            Hint:    "No params. Example: get_world_hash({}). Two runs that took the same steps with the same edits agree on `hash` exactly when their state is identical — e.g. the same stepped run at 1 / 2 / 4 / 8 sim threads (N-15).",
+            Notes: new[]
+            {
+                "In a threaded node it hashes the SIMULATION's world (S), between ticks on the sim thread.",
+            }),
+
         [("GET", "/status")] = new RouteDoc(
             Tool:    "get_status",
             Group:   "A — Lifecycle & status",
@@ -1095,6 +1106,7 @@ namespace Hrot.Editor.DebugApi
             Params: new RouteParam[]
             {
                 new("category", "string", false, "Filter to one category, e.g. \"Edit\""),
+                new("scope", "string", false, "\"shell\" = the shell's own commands (Edit ▸ Undo / Redo, File ▸ …); default = the active document's"),
             },
             Notes: new[]
             {
@@ -1135,6 +1147,7 @@ namespace Hrot.Editor.DebugApi
                 new("commandId", "string", true, "Command id from list_editor_commands"),
                 new("args", "object", false, "Parameters, delivered as EditorCommandContext.Args"),
                 new("canvasPos", "object", false, "Canvas position {x,y} for context-menu-style commands"),
+                new("scope", "string", false, "\"shell\" = a shell command (edit.undo, edit.redo …); default = the active document's"),
             },
             Notes: new[]
             {

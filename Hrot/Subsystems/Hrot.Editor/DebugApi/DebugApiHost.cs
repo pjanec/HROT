@@ -444,6 +444,9 @@ namespace Hrot.Editor.DebugApi
         {
             // Group A — status
             _routes.Add(new("GET", "/status", _ => RunMain(s => s.GetStatus())));
+            // ⭐ N-15 ② / P-6 (CE-4477) — the world's content hash (every live entity and every unmanaged component's bytes): two runs that took
+            //   the same steps with the same edits agree on it exactly when their state is identical (the threads-independence gate)
+            _routes.Add(new("GET", "/world/hash", _ => RunMain(s => s.GetWorldHash())));
             // ⭐ CE-1145 — the map view's frame rate and camera (a process-wide snapshot, no main-thread hop)
             _routes.Add(new("GET", "/diagnostics/render", _ => Task.FromResult(Ok(Hrot.UI.Common.Map3D.RenderTelemetry.ToJson()))));
             // ⭐ CE-3289 (docs/DESIGN_Map_3D_Mode.md §6ab) — filming: hold the map's camera on a shot, capture the scene alone as a PNG.
@@ -2168,7 +2171,7 @@ namespace Hrot.Editor.DebugApi
             //    types since Group F and `send_entity_command` depends on it. See the service's remarks.
             _routes.Add(new("GET", "/editor/commands", ctx => RunMainResult(s =>
             {
-                var (result, error, hintCategory) = s.ListEditorCommands(ctx.Query("category"));
+                var (result, error, hintCategory) = s.ListEditorCommands(ctx.Query("category"), ctx.Query("scope"));   // N-15 — ?scope=shell
                 return error != null ? Fail(503, error, hintCategory) : Ok(result);
             })));
 
@@ -2183,7 +2186,7 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("POST", "/editor/commands/{commandId}/invoke", ctx => RunMainResult(s =>
             {
                 var (result, error, hintCategory) =
-                    s.InvokeEditorCommand(ctx.RouteValue("commandId"), ctx.Body);
+                    s.InvokeEditorCommand(ctx.RouteValue("commandId"), ctx.Body, ctx.Query("scope"));   // N-15 — ?scope=shell
                 if (error == null) return Ok(result);
                 if (error.StartsWith("No editor-command dispatcher", StringComparison.Ordinal))
                     return Fail(503, error, hintCategory);

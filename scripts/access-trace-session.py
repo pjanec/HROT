@@ -167,7 +167,7 @@ def open_asset(s, kind):
     return s.post(f"/assets/{ids[0]}/open", {}, timeout=120)
 
 
-STAGES = ["load", "idle", "select1", "panels", "select10", "perspectives", "play", "stepping", "view3d", "edits", "orders", "hotreload", "edit2", "save"]
+STAGES = ["load", "idle", "select1", "panels", "select10", "perspectives", "play", "stepping", "view3d", "edits", "orders", "hotreload", "edit2", "save", "n15"]
 
 
 def persp_of(pid):
@@ -255,19 +255,22 @@ def run_stages(s, a, stages):
         s.step("edit: edit a component (SimTransform patch — a move)", lambda: s.post(f"/entities/{ids[1]}/component", {"componentType": "EntityInfo", "patch": {}}, timeout=60), wait=3)
         s.step("edit: delete a soldier", lambda: s.call("DELETE", f"/entities/{ids[2]}"), wait=1)
         s.step("edit: step x3 so the spawn and the teardown land", lambda: s.post("/sim/step", {"count": 3}, timeout=300), wait=4)
-        cmds = s.get("/editor/commands")
+        cmds = s.get("/editor/commands?scope=shell")   # N-15 — Undo / Redo are SHELL commands (the document set is the active AI asset's)
         names = [c.get("id") for c in (cmds.get("data") or {}).get("commands", [])] if isinstance(cmds.get("data"), dict) else []
         undo = [c for c in names if c and "undo" in c.lower()]
         s.steps.append({"step": "edit: undo commands offered", "ok": bool(undo), "note": ", ".join(undo[:5]) or f"{len(names)} commands, none named undo", "seconds": 0})
-        for c in undo[:1]:
-            s.step(f"edit: undo via {c}", lambda c=c: s.post(f"/editor/commands/{c}/invoke", {}), wait=4)
     if "orders" in stages and ids:
         s.step("order: move one soldier", lambda: s.post(f"/entities/{ids[3]}/order", {"kind": "move", "x": 100, "y": 100}), wait=4)
         s.step("order: hold another", lambda: s.post(f"/entities/{ids[4]}/order", {"kind": "hold"}), wait=4)
     if "hotreload" in stages:
         s.step("hot reload: reload_ai_behaviours (builds Hrot.AI.Behaviors)", lambda: s.post("/ai/reload", {}, timeout=600), wait=10)
+    def ensure_edit(label):
+        # undo / redo / the unsaved check are Edit-only: a preview runs a COPY of the edit world, so stop it first
+        if (s.get("/status").get("data") or {}).get("inPreview"):
+            s.step(label + ": stop the preview (Edit-only steps follow)", lambda: s.post("/sim/stop", {}, timeout=180), wait=6)
     if "edit2" in stages and ids:
         # in the EDIT state (no preview): a real component change (a move) through the API's edit path, then the editor's own Undo
+        ensure_edit("edit (Edit state)")
         def move():
             r = s.get(f"/entities/{ids[0]}")
             tr = ((r.get("data") or {}).get("Components") or {}).get("SimTransform")
@@ -281,16 +284,50 @@ def run_stages(s, a, stages):
                 pos = [float(pos[0]) + 10.0] + list(pos[1:])
             return s.post(f"/entities/{ids[0]}/component", {"componentType": "SimTransform", "patch": {"Position": pos}}, timeout=60)
         s.step("edit (Edit state): move a soldier 10 m (edit_component SimTransform)", move, wait=3)
-        cmds = s.get("/editor/commands")
-        names = [c.get("id") for c in (cmds.get("data") or {}).get("commands", [])] if isinstance(cmds.get("data"), dict) else []
-        undo = [c for c in names if c and "undo" in c.lower()]
-        for c in undo[:1]:
-            s.step(f"edit (Edit state): undo via {c}", lambda c=c: s.post(f"/editor/commands/{c}/invoke", {}), wait=4)
+        s.step("edit (Edit state): undo (Edit ▸ Undo)", lambda: s.post("/editor/commands/edit.undo/invoke?scope=shell", {}), wait=4)
+        s.step("edit (Edit state): redo (Edit ▸ Redo)", lambda: s.post("/editor/commands/edit.redo/invoke?scope=shell", {}), wait=4)
         s.step("edit (Edit state): check unsaved", lambda: s.post("/scenario/check-unsaved", {}, timeout=120), wait=2)
+    if "n15" in stages and len(ids) >= 8:
+        # ⭐ N-15 ① (CE-4477) — WHILE PLAYING: "drags" (a position patch through the attribute route — the drag gizmo's own write rule,
+        #   AX-007 / EntityWriteRouter), one REFUSED (a component no node can own on a node-local type — the router must say no), a field edit,
+        #   play / pause / step; then a scenario LOAD mid-run, and undo / redo in Edit (they are Edit-only by design)
+        def drag(nid, dx):
+            r = s.get(f"/entities/{nid}")
+            tr = ((r.get("data") or {}).get("Components") or {}).get("SimTransform")
+            if not isinstance(tr, dict) or not isinstance(tr.get("Position"), (dict, list)):
+                return {"ok": False, "error": "SimTransform not readable"}
+            pos = tr["Position"]
+            if isinstance(pos, dict):
+                k = next(k for k in pos if k.lower() == "x"); pos = dict(pos); pos[k] = float(pos[k]) + dx
+            else:
+                pos = [float(pos[0]) + dx] + list(pos[1:])
+            return s.post(f"/entities/{nid}/component", {"componentType": "SimTransform", "patch": {"Position": pos}}, timeout=60)
+        s.step("n15: play", lambda: s.post("/sim/play", {}, timeout=180), wait=8)
+        for i in range(3):
+            s.step(f"n15: drag unit {i + 1} (playing)", lambda i=i: drag(ids[5 + i], 5.0 + i), wait=2)
+        def refused():
+            r = s.post(f"/entities/{ids[0]}/attribute", {"patchJson": "{\"NoSuchComponent\": {\"X\": 1}}"}, timeout=60)
+            # ok when the write was NOT applied: an error, or the route says nothing matched
+            data = r.get("data") or {}
+            route = ((data.get("write") or {}).get("route")) if isinstance(data, dict) else None
+            return {"ok": (not r.get("ok")) or route == "noMatch", "data": {"answer": r.get("error") or route}}
+        s.step("n15: a refused drag (nothing to apply)", refused, wait=2)
+        s.step("n15: a field edit (playing)", lambda: s.post(f"/entities/{ids[1]}/component", {"componentType": "EntityInfo", "patch": {}}, timeout=60), wait=3)
+        s.step("n15: pause", lambda: s.post("/sim/pause", {}, timeout=60), wait=3)
+        s.step("n15: step x5", lambda: s.post("/sim/step", {"count": 5}, timeout=300), wait=3)
+        s.step("n15: play again", lambda: s.post("/sim/play", {}, timeout=180), wait=10)
+        s.step("n15: load a scenario MID-RUN: " + a.scenario, lambda: load_scenario(s, a), wait=2)
+        s.step("n15: wait for OperatingEdit after the mid-run load", lambda: wait_state(s, "OperatingEdit", 1500))
+        ids2, _, _ = pick_units(s, 12)
+        if ids2:
+            ensure_edit("n15 (Edit)")
+            s.step("n15 (Edit): drag a unit", lambda: drag(ids2[0], 7.0), wait=3)
+            s.step("n15 (Edit): undo (Edit ▸ Undo)", lambda: s.post("/editor/commands/edit.undo/invoke?scope=shell", {}), wait=3)
+            s.step("n15 (Edit): redo (Edit ▸ Redo)", lambda: s.post("/editor/commands/edit.redo/invoke?scope=shell", {}), wait=3)
+            s.step("n15 (Edit): play after the load", lambda: s.post("/sim/play", {}, timeout=180), wait=15)
+            s.step("n15: pause", lambda: s.post("/sim/pause", {}, timeout=60), wait=3)
     if "save" in stages:
-        st = (s.get("/status").get("data") or {})
-        if st.get("inPreview"):
-            s.step("preview: stop (a preview runs a COPY of the edit world — save needs Edit)", lambda: s.post("/sim/stop", {}, timeout=180), wait=6)
+        ensure_edit("save")
         s.step("save: scenario scale-rig-a1-save", lambda: s.post("/scenario/save", {"name": "scale-rig-a1-save"}, timeout=300), wait=5)
 
 
