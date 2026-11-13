@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-13 (§9.9 O-6: an obstacle can be destroyed — CE-6003, showcase-world) · 2026-10-25 (§12.6 R-2078: a hot spot still peeked, no drop indoors, the duel's tasks) · 2026-10-25 (§12 the posted man's one cycle; a look is not a burst — R-2077, CE-2366) · 2026-10-20 (§11 look then shoot, aim at the chest — R-2064, CE-2325…CE-2329) · 2026-10-16 (§10.10 the muzzle line — CE-2218)
+updated: 2026-11-13 (§9.10 O-7: a heavy vehicle's wreck blocks the street — CE-6005 · §9.9 O-6: an obstacle can be destroyed — CE-6003, showcase-world) · 2026-10-25 (§12.6 R-2078: a hot spot still peeked, no drop indoors, the duel's tasks) · 2026-10-25 (§12 the posted man's one cycle; a look is not a burst — R-2077, CE-2366) · 2026-10-20 (§11 look then shoot, aim at the chest — R-2064, CE-2325…CE-2329) · 2026-10-16 (§10.10 the muzzle line — CE-2218)
 build-state: P-1–P-7 and P-7a (O1–O5) BUILT 2026-10-09 (§7, §9.7); P-8 (the duel scenario) next; READY-TO-BUILD for the rest of D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 APPROVED 2026-10-09 (R-238); B1's storage rides on Q87 (unit memory, A–G APPROVED 2026-10-09, R-237)
-current-answer: ⭐ §12 THE POSTED MAN'S ONE CYCLE + A LOOK IS NOT A BURST (R-2077) · ⭐ §11 LOOK THEN SHOOT + THE CHEST (R-2064 — supersedes D1's "middle" for a person) · §10 GENERALISATION (R-256 L2: the library's fight-from-cover node, squad-aware) — G1–G8 APPROVED (R-257), READY-TO-BUILD (CE-3158) · §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles (§9.9 O-6: destroyed by a blast or a push, removed by its Health owner — CE-6003)
+current-answer: ⭐ §12 THE POSTED MAN'S ONE CYCLE + A LOOK IS NOT A BURST (R-2077) · ⭐ §11 LOOK THEN SHOOT + THE CHEST (R-2064 — supersedes D1's "middle" for a person) · §10 GENERALISATION (R-256 L2: the library's fight-from-cover node, squad-aware) — G1–G8 APPROVED (R-257), READY-TO-BUILD (CE-3158) · §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles (§9.9 O-6: destroyed by a blast or a push, removed by its Health owner — CE-6003 · §9.10 O-7: a heavy vehicle's wreck — CE-6005)
 stale-below: nothing
 known-rot: §8 B4 "a burned one with nowhere to go waits to cool" — he now peeks from it at a third of the rhythm (§12.6, R-2078) · §4.2 and D13 (§6) — a blind burst now answers only FRESH evidence (≤ 5 s), else the exposure is a look (§12.4 B, R-2077) · D1 (§6) and §10.10's "the middle" for a PERSON — now the CHEST (§11.5 ②③, R-2064); §10.10's "before release" order — the muscle now aims first, then judges the masked line (§11.5 ④)
 known-conflict: DESIGN_Building_Interiors.md §3d P2 / R-217 — "the shot flies from the eye to the middle of the target's silhouette"; D1 here refines the AIM POINT for a partly hidden target (§6 D1, revised R-239)
@@ -673,6 +673,83 @@ on `cqb-village` the compound's 4 m gate opened for infantry but never for a veh
 ~7 m off the gate, THROUGH the concrete — vehicle avoidance leaves the navmesh (`CE-6014`, `CarKinematicsSystem`, on the parallel programme's list).
 The twin therefore asserts the ROUTE (closed before, open after, reached) and logs the crossing. ⚠ An obstacle is ONE thing: a long barrier goes
 whole when any face is within reach (the law reads the nearest face) — author a long roadblock as several blocks when a charge should open only part.
+
+
+### 9.10 O-7 — a heavy vehicle's wreck blocks the street *(`CE-6005`, showcase-world, built `2026-11-13`)*
+
+> 🔒 User, `2026-11-13` (city battle D-6): *"obstacles + wrecks get removal"* — and `2026-09-13` (the CE-267 revert): *"dead entity should not vanish"*.
+> [`DESIGN_City_Battle_Showcase.md`](designs/group-maneuvers/DESIGN_City_Battle_Showcase.md) §11 O-2.
+
+```mermaid
+classDiagram
+  class WreckObstacleDto { <<NEW TKB descriptor>> ObstacleType }
+  class StaticObstacleDto { <<existing>> Wreck 8819: car-body, 600 hp }
+  class WreckObstacleSystem { <<NEW, Fdp.Toolkits>> alive→dead crossing, Health owner → ONE creation request }
+  class EntityCreationRequest { <<existing — the one creation path>> }
+  class EntityLifecycleModule { <<existing>> Constructing until the bake acks (R-243) }
+  class StaticObstacleBakeSystem { <<existing, unchanged>> }
+  class ObstacleRemovalSystem { <<CE-6003>> removes it at 0 }
+  class Hulk { <<existing vehicle entity>> Health 0, stays }
+  WreckObstacleSystem ..> Hulk : reads death, footprint, heading
+  WreckObstacleSystem ..> WreckObstacleDto : the hulk's type
+  WreckObstacleSystem ..> EntityCreationRequest : TkbType 8819 + SimTransform + ObstacleShape
+  EntityCreationRequest ..> EntityLifecycleModule
+  EntityLifecycleModule ..> StaticObstacleBakeSystem : wait for 0x7E41
+  StaticObstacleDto <.. EntityCreationRequest
+  ObstacleRemovalSystem ..> StaticObstacleBakeSystem : the wreck leaves the set
+```
+*What the picture shows that prose hid: ONE new system, and it only ASKS — the wreck is born through the same creation request, lifecycle gate and
+bake as a scenario's obstacle, and cleared by CE-6003's removal. The hulk is never touched.*
+
+```mermaid
+sequenceDiagram
+  participant H as Health owner (HealthApplication capability)
+  participant W as WreckObstacleSystem (same node)
+  participant C as CreateEntityRequestSystem + ELM
+  participant K as StaticObstacleBakeSystem (every node)
+  H->>H: a hit takes the tank to Health 0 (the hulk stays)
+  W->>W: same frame: saw it alive, now dead → a CROSSING (once)
+  W->>C: EntityCreationRequest(8819, the hulk's position + yaw, ObstacleShape = VehicleParams L × W × hull height)
+  C->>K: the wreck exists Constructing on every node (held for the terrain participant)
+  K->>K: quiet 0.5 s wall clock → rebake → commit → ack → Active: the street is closed to vehicles
+  Note over H,K: later: a charge / the blade drains the wreck's 600 hp → ObstacleRemovalSystem → teardown → rebake → open (CE-6003)
+```
+*What the picture shows that prose hid: the wreck joins the simulation exactly as any obstacle (no second path), so a scenario LOADED with it and a
+runtime one are the same thing; and "once" is the crossing, not a flag.*
+
+```mermaid
+graph TD
+  PLAN["LiveSimulationPlan (every live node)"] --> HA["HealthApplication: HealthApplicationSystem → BleedOut → ObstacleRemoval → WreckObstacleSystem (NEW)"]
+  TKB["NedTkbCatalog.RegisterObstacles: Wreck 8819 + WreckObstacleDto on M1, T-72, Bradley"] --> W["WreckObstacleSystem reads the type"]
+  HA -->|"EntityCreationRequest"| PACK["EntityCreationPack: CreateEntityRequestSystem → ELM"]
+  PACK --> BAKE["StaticObstacleBakeSystem (every node)"]
+  RB["Replay"] -.->|"the system is OFF: the recording holds the wreck entity"| HA
+```
+*What the picture shows that prose hid: the wreck rule rides the owner side of damage (where the death is applied), never a role pack — and a replay
+needs nothing (the wreck is an ordinary recorded entity).*
+
+| decision (as built) | why — measured |
+|---|---|
+| ⭐ **the wreck is a SEPARATE obstacle entity sitting on the hulk; the hulk stays** | 🔒 dead bodies never vanish. ⛔ "the vehicle becomes the obstacle" was rejected: `StaticObstacle` is TKB-derived on every node, never on the wire (`StaticObstacles.cs:13-17`), so adding it at runtime reaches no other node; the hulk's own Health is 0, so CE-6003's removal would delete the hulk at once; and the wreck needs its OWN pool to be cleared |
+| **counting the hull twice is harmless where it happens** | the hulk keeps its collider: bullets stop at the first solid (the collider, I2) — never two hits; sight is opaque by both (I3, car-body sight 0); fragments product of two ~0 transmissions; the AI's sight sees the vehicle box and the prism (both opaque, O5 ①); ⚠ cover gets points round both (VehicleCover's "standing vehicle" ring + the prism's) — extra candidates at the same place, accepted. ⭐ The NAVMESH sees only the prism (O5 ④ ignores vehicles) — the one consumer that needed it |
+| **a new type `Obstacle_Wreck` = 8819** (car-body, 600 hp, default box 6.5 × 3.4 × 2.4) sized per instance from the hulk (`VehicleParams` length × width, hull height) | 8819 measured free on every origin branch (`git grep`); car-body is the parked car's material (sight 0, 120 mm/m — a tank-length box stops every round); 600 hp = the concrete block's: the 8 kg charge (≥ 600 within 1.4 m of the face) or a blade clears it |
+| **opt-in per TYPE: `WreckObstacleDto` on the M1, the T-72, the Bradley** | 🔒 tanks / IFVs only; a light car stays as it is. Data, not a class check — a new heavy type opts in by adding the descriptor |
+| ⭐ **ONCE = an alive→dead CROSSING seen by this system on the Health owner** (the `WreckSpawnSystem` rule, VE-P); a hulk first seen dead makes none | ⭐ no flag on the hulk (a new component id would touch `GlobalComponentIds.cs`, on the parallel programme's list); and the crossing is the right meaning: a saved scenario with a wreck saved its obstacle (or its clearing), a late joiner or a moved Health claim saw no crossing, a cleared wreck is never rebuilt. ⚠ Edge: a Health claim that moves to another node DURING the frame of death — not handled (no such move measured) |
+| **through `EntityCreationRequest`** (owner picks 0) | the one creation path (Entity Creation §3.4d); the obstacle type's ELM rule holds it `Constructing` until the bake commits (R-243) |
+| **replay: off** | the recording holds the wreck entity like any other; the Replay Browser bakes recorded obstacles per seek (O-8) |
+
+| rejected | the one fact that killed it |
+|---|---|
+| the vehicle entity becomes the obstacle | `StaticObstacle` never reaches the wire; the hulk's Health 0 would make CE-6003 delete it |
+| a "wreck made" flag component on the hulk | a new component id in `GlobalComponentIds.cs` (parallel programme's file); and a flag survives a clearing only if it is saved and replicated |
+| a spatial check ("is there a wreck here already?") | it rebuilds a wreck the engineers cleared |
+| `WreckSpawnSystem` (Presentation) makes it | it is display-only, on every node; a world rule belongs to the Health owner |
+
+Rails *(the parallel-check set CE-6012 reruns unchanged)*: `Fdp.Toolkits.Tests.WreckObstacleTests` (`CE6005_W1` one request on the hulk, its box
+and heading; `W2` none for a saved hulk, a light car, a non-owner; `W3` none in a replay; `H1` 0 B steady) · `Hrot.Core.Tests.NedTkbBuilderCombatTests.CE6005_…`
+(the type and the heavy list) · `Hrot.ClusterRunner.Integration.Tests.WreckBlocksStreetScenarioTests` on `scenarios/showcases/city-battle/features/wreck-blocks-street`
+(roadblock-street: an idle T-72 in the gate, a real kill by an M1, ONE wreck on every node on the hulk, the gate closed to vehicles, the 8 kg charge
+clears it, the gate reopens, the hulk stays).
 
 
 ## 10. Generalisation — the library's "fight from cover" node *(R-256 L2 · ✅ G1–G8 APPROVED `2026-10-10`, R-257 · READY-TO-BUILD, `CE-3158`)*

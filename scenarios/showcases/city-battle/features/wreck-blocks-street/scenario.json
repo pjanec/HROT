@@ -1,0 +1,215 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "roadblock-street",
+    "description": "What: CE-6005 (city battle O-2, docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md §11 O-2, docs/DESIGN_Peek_And_Fire.md §9.10) - on the roadblock-street feature terrain (a 3 m wall at x = 100 with one 6 m gate, y 47..53) an idle hostile T-72 ('Enemy Tank') stands IN the gate. While it lives the gate is open to vehicles (the navmesh ignores a live vehicle, P-7a O5). A friendly M1 ('Tank', BasicVehicleSop) 60 m west kills it: its Health owner asks for ONE wreck obstacle (type 8819, car-body, 600 hp) on the hulk's 6.95 x 3.59 m footprint; the bake makes it terrain and the gate is CLOSED to vehicles (1.2 m is left on either side - a man still squeezes past). At 60 s 'Charge Man' walks to (95.4, 50), 1.15 m off the wreck's west face, and sets off his 8 kg demolition charge: the wreck obstacle is removed (CE-6003), the gate opens again. The hulk itself stays (dead bodies never vanish). Judge: see checks.json. Rail: Hrot.ClusterRunner.Integration.Tests WreckBlocksStreetScenarioTests."
+  },
+  "entities": {
+    "c6005000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          100,
+          50,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 103
+      },
+      "EntityInfo": {
+        "Name": "Enemy Tank",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 2500,
+        "Max": 2500
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c6005000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          40,
+          50,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c6005000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          80,
+          58,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Charge Man",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "c6005000-0000-4000-8000-000000000100",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "TimerElapsed",
+                  "params": "60"
+                }
+              ]
+            },
+            {
+              "taskId": "c6005000-0000-4000-8000-000000000101",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": {
+                "speed": 1.5,
+                "arrivalRadius": 0.3,
+                "target": [
+                  95.4,
+                  50,
+                  0
+                ]
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "c6005000-0000-4000-8000-000000000102",
+              "executingEngine": "",
+              "behaviorName": "DetonateCharge",
+              "behaviorParams": {
+                "Seconds": 1
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "c6005000-0000-4000-8000-000000000103",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "c6005000-0000-4000-8000-000000000004"
+        ],
+        "Seats": [
+          3
+        ]
+      }
+    },
+    "c6005000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          80,
+          58,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 618
+      },
+      "EntityInfo": {
+        "Name": "Demolition Charge",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "c6005000-0000-4000-8000-000000000003",
+        "Seat": 3
+      }
+    }
+  }
+}

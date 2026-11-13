@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD — every decision APPROVED by the user in chat (2026-11-13, §10 D-1…D-17, D-R); F-0 (fix the flaky behaviours) first
-updated: 2026-11-13 (rev 4: §11 O-1 CE-6003 built — as built in Peek and Fire §9.9) · (rev 3: §9 points at the as-built parallel rule, §11 every item a tracker row in Area S, W/B lanes)
+updated: 2026-11-13 (rev 5: §11 O-2 CE-6005 built — Peek and Fire §9.10) · (rev 4: §11 O-1 CE-6003 built — as built in Peek and Fire §9.9) · (rev 3: §9 points at the as-built parallel rule, §11 every item a tracker row in Area S, W/B lanes)
 current-answer: the whole file — §2 the picture · §3 phases (overlapping) · §3a momentum · §3b the air gate · §3c civilians · §4 forces · §5 the breach drill · §6 classes · §7 sequences · §8 who runs what · §9 the parallel rules · §11 the work · §12 testing
 stale-below: nothing
 known-rot: none
@@ -301,7 +301,7 @@ graph TD
   BT -->|"orders = events / command buffer"| TIR["TacticalIntentResolutionSystem (existing)"]
   SIM["SimHost (muscle)"] --> OHS["AreaEffectSystem + HealthApplicationSystem (existing): blasts + blade push drain an obstacle's Health"]
   OHS -->|"Health ≤ 0 → destroy (CE-6003)"| REM["StaticObstacleBakeSystem (existing): the set changed → rebake world + cover + navmesh tiles"]
-  SIM --> WRK["WreckObstacleSystem (NEW): a destroyed heavy vehicle → obstacle entity (ELM, multi-frame)"]
+  SIM --> WRK["WreckObstacleSystem (BUILT CE-6005, HealthApplication capability): a destroyed heavy vehicle → obstacle entity (ELM, multi-frame)"]
   SIM --> DRN["DroneImpactSystem (existing) + bomber drop (NEW)"]
   SIM --> JAM["JammerSystem (NEW): drones inside a bubble lose link"]
   SCN["Scenario rules (existing triggers)"] -->|"InsertMacro → creation requests → ELM (multi-frame, acked)"| WAVE["2nd wave / reserve"]
@@ -366,7 +366,7 @@ B's CE-7012 (the bulldozer's ClearObstacle) stands on them.
 | T-2 | **CE-6002** | D-R ✅: water impassable to ground units — ⭐ MEASURE first (Terrain Authoring §10 left it open), fix only if water is walkable | navmesh bake, `TerrainWorld.SurfaceTypeAt`, `RubbleMound` (CE-3438) | W |
 | O-1 | **CE-6003** ✅ BUILT `2026-11-13` | **obstacle removal**: an obstacle type carries `Health` (TKB `MaxHealth`); a blast drains it by charge × closeness (⚠ DEVIATION, measured: NOT the person / hull law — it gave a block the same 80 hp for every warhead); at ≤ 0 its Health owner removes it through the ELM teardown ⇒ the existing obstacle bake rebakes sight, fire and navmesh on every node; the blade's seam is `ObstacleDamage.Damage` per tick of contact (CE-7012). As built: [Peek and Fire §9.9](../../DESIGN_Peek_And_Fire.md) | `AreaEffectSystem` (+ `AssessObstacle`), `HealthApplicationSystem`, NEW `ObstacleRemovalSystem` + `ObstacleDamage`, `StaticObstacleBakeSystem`, the obstacle types 8806–8809 | W |
 | O-1b | **CE-6004** | the obstacle bake's 0.5 s WALL-CLOCK debounce (R-244) under the deterministic stepped run — measure; a removal must land at the same tick at every thread count | `StaticObstacleBake.cs:52,167`, `stepped-hash.py` — ⏳ with CE-6012 | W |
-| O-2 | **CE-6005** | wreck → obstacle for heavy vehicles (tanks, IFVs), created through the ELM (multi-frame, acked) | `Health.Current ≤ 0` (as `WreckSpawnSystem` reads it), the obstacle types, the bake | W |
+| O-2 | **CE-6005** ✅ BUILT `2026-11-13` | wreck → obstacle for heavy vehicles (M1, T-72, Bradley — `WreckObstacleDto`), created through the ELM (multi-frame, acked) by the dead vehicle's Health owner, ONCE (an alive→dead crossing); a SEPARATE obstacle (type 8819, 600 hp) on the hulk, which stays. As built: [Peek and Fire §9.10](../../DESIGN_Peek_And_Fire.md) | `Health.Current ≤ 0` (as `WreckSpawnSystem` reads it), the creation request, the obstacle bake, CE-6003's removal | W |
 | V-1a | **CE-6006** | the **bulldozer** type: catalogue entry (engineering type, tracked mobility, no weapon), an armour profile (small arms bounce, a few RPG hits kill) | `TkbEntityTypes`, `NedTkbCatalog`, `ArmorModel` | | W · ✅ **AS BUILT `2026-11-13`**: type `Engineer_Bulldozer = 112` (class `Bulldozer` 1.1.*.9.1, tracked, no weapon, crew abstract); armour 50 / 40 / 40 / 35 mm, health 1000 ⇒ small arms and the 12.7 AP are 0 %, the RPG-7 100 % at 400 ⇒ the third kills ([Armour Hit Model](../vehicle-tactics/DESIGN_Armour_Hit_Model.md), "bulldozer's profile") |
 | V-1b | **CE-6007** | the bulldozer's **3-D model** (tracked chassis, engine block, cab, articulated blade — NOT armoured-looking), gallery thumbnail — the ONE UI-side item the user allowed | `ShapeKit`, `VisualFamily`, `scripts/thumbnails.py` | | W · ✅ **AS BUILT `2026-11-13`**: a new family `Bulldozer` + `ShapeKits.Bulldozer` (tracks with a high rear sprocket, hood in FRONT, open ROPS cab, blade on push arms with rams, rear ripper; the blade is drawn lowered, not articulated) — [Map 3-D §6ak](../../DESIGN_Map_3D_Mode.md); thumbnail in the atlas |
 | L-1 | **CE-6008** | lethality as scenario settings (drone count + battery, accuracy, armour) | the existing parameters | W |

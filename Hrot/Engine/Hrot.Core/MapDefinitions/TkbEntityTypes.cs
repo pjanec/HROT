@@ -111,6 +111,10 @@ namespace Hrot.Map.Common
         public const long Obstacle_SandbagWall   = 8807;
         public const long Obstacle_ConcreteBlock = 8808;
         public const long Obstacle_Crate         = 8809;
+        // ⭐ CE-6005 (city battle O-2, Peek and Fire §9.10) — a heavy vehicle's WRECK as a static obstacle: created on the hulk when a tank / IFV
+        //   dies (its footprint per instance), cleared by a charge or a blade (CE-6003). ⛔ PERMANENT WIRE VALUE; 8819 measured free on every lane
+        //   (git grep of every origin branch, 2026-11-13). Not in Obstacles (the palette's starter set): the simulation makes it.
+        public const long Obstacle_Wreck         = 8819;
 
         /// <summary>The four starter obstacle types (O4).</summary>
         public static readonly long[] Obstacles = { Obstacle_Car, Obstacle_SandbagWall, Obstacle_ConcreteBlock, Obstacle_Crate };

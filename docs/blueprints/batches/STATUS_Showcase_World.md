@@ -98,3 +98,52 @@ follow-up for whoever runs one). ⚠ The replay half is the Replay Browser rail 
 
 The tree is clean after every run but for this item's own files (`git status` lists only them; no golden moved). Every mutation file restored and touched.
 Committed by path, pushed to `origin showcase-world`. `.gitignore` gains `!assets/terrain/roadblock-street/` — a committed demo terrain, added on purpose as its own comment asks.
+
+## CE-6005 — a heavy vehicle's wreck blocks the street
+
+Started at `271ab5f73` (the coordinator's merge of CE-6003 + the bulldozer). **As built:** [`DESIGN_Peek_And_Fire.md` §9.10](../../DESIGN_Peek_And_Fire.md)
+(class, sequence, module diagrams; decisions; rejected) · [`DESIGN_City_Battle_Showcase.md`](../../designs/group-maneuvers/DESIGN_City_Battle_Showcase.md) §11 O-2 row + §8 node.
+
+**Decisions:** the wreck is a SEPARATE obstacle entity (new type `Obstacle_Wreck` = **8819**, car-body, 600 hp, sized per instance from the hulk's
+`VehicleParams` × hull height) sitting on the hulk, which stays. ⛔ "The vehicle becomes the obstacle" rejected: `StaticObstacle` is TKB-derived and never on
+the wire, and the hulk's Health 0 would make CE-6003 delete it. Opt-in per type by the new TKB descriptor `WreckObstacleDto` (M1, T-72, Bradley; the HMMWV
+not). ONCE = the alive→dead crossing seen on the Health owner (`WreckSpawnSystem`'s rule) — no flag component, because a new component id would edit
+`GlobalComponentIds.cs`, which is on the parallel programme's list. Created through `EntityCreationRequest` (the ELM; `Constructing` until its bake, R-243).
+Double counting with the hulk's collider: only cover gets extra points (both rings); bullets stop at the first, sight and fragments are opaque either
+way; the navmesh sees only the prism — the one consumer that needed it.
+
+**Ids:** TKB type 8819 (`git grep -E '\b8819\b'` over every `origin/*` branch: no hit). No tracker or ruling ids. **Overlap re-check** (`git diff
+--name-only HEAD...origin/exp/threaded-build`): none of the edited files; `GlobalComponentIds.cs` IS on it ⇒ avoided (above).
+
+**Graph/grep:** `search_graph .*(Demoli|Destructi|Wreck|Removal…).* Class` (earlier, CE-6003) → `WreckSpawnSystem` the only wreck class (Presentation, display
+only); grep: no other producer of a wreck obstacle; 88xx ids grepped on every branch.
+
+### Gates
+
+| # | command | result | `--no-build` |
+|---|---|---|---|
+| 1 | `dotnet build FDP/Toolkits/Fdp.Toolkits.Tests/... --no-restore` · `dotnet test … --no-build --filter "…WreckObstacleTests\|…ObstacleDamageTests\|…StaticObstacleTests\|…AreaEffectSystemTests\|…HealthApplicationSystemTests\|…TkbDtosTests\|…TkbDescriptor"` | **108 / 0 / 0** | ✅ |
+| 2 | `dotnet build Hrot/Engine/Hrot.Core.Tests/... --no-restore` · `dotnet test … --no-build --filter "FullyQualifiedName~NedTkbBuilderCombatTests"` | **55 / 0 / 0** | ✅ |
+| 3 | `dotnet build Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/... --no-restore` · `dotnet test … --no-build --filter "…WreckBlocksStreetScenarioTests\|…RoadblockBlastScenarioTests"` | **2 / 0 / 0** (2 m 36 s) — T-72 killed at sim 31.9 s, ONE wreck active on CGF / SimHost / Player at 32.5 s on the hulk (100, 50), gate closed to vehicles; cleared and reopened by 74.4 s; never a second wreck on any node | ✅ |
+| 4 | `dotnet build Hrot/Subsystems/Hrot.Editor.Tests/... --no-restore` · `dotnet test … --no-build --filter "FullyQualifiedName~EditorCapabilitiesTests"` (the capability head is derived) | **12 / 0 / 0** | ✅ |
+| — | `mermaid-check` (31 + 6 blocks) · `tracker-counts.py --check` OK | — | — |
+
+### Red-proofs (compiling mutation, applied, tested, reverted, touched)
+
+| mutation | rail | result |
+|---|---|---|
+| ask whenever dead (no crossing) | `CE6005_W1` | 🔴 |
+| no Health-owner gate | `CE6005_W2` | 🔴 |
+| no replay gate | `CE6005_W3` | 🔴 |
+| a boxed read per vehicle | `CE6005_H1` | 🔴 *"100 steady frames allocated 120000 B"* |
+| the Bradley off the heavy list | `NedTkbBuilderCombatTests.CE6005_…` | 🔴 |
+| the twin: the request never sent | `WreckBlocksStreetScenarioTests` | 🔴 *"③④ … CGF: 0 (0 active); SimHost: 0; Player: 0"* |
+
+### Notes
+
+- The feature scenario uses a REAL kill (an M1 with `BasicVehicleSop` vs an idle T-72, 60 m). The demolition man waits 60 s so the kill (~32 s measured twice)
+  comes first; the rail asserts the kill before 58 s.
+- With the wreck in the 6 m gate, 1.2 m is left on either side: the gate closes to VEHICLES (agent radius 1.8 m), a man still squeezes past — asserted
+  for the vehicle layer only.
+- ⚠ Edge not handled: a Health claim that moves to another node in the very frame of the death (no crossing on either node ⇒ no wreck). Not measured anywhere.
+- The bulldozer (112) does not leave a wreck (not on the heavy list); one line in `RegisterObstacles` adds it.

@@ -1237,6 +1237,13 @@ namespace Hrot.Map.Definitions.Tkb
             RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.SandbagWall,   TkbEntityTypes.Obstacle_SandbagWall,   feature, maxHealth: 300f);
             RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.ConcreteBlock, TkbEntityTypes.Obstacle_ConcreteBlock, feature, maxHealth: 600f);
             RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Crate,         TkbEntityTypes.Obstacle_Crate,         feature, maxHealth: 60f);
+            // ⭐ CE-6005 (city battle O-2, Peek and Fire §9.10) — the WRECK of a heavy vehicle: a box of car-body (sight 0) sized per instance from
+            //   the hulk, as tough as a concrete block (the 8 kg charge or a blade clears it); and the heavy types that leave one (tanks, the IFV —
+            //   a light car stays as it is). A host whose smaller catalogue lacks a type skips it.
+            RegisterObstacle(tkbDb, "Wreck", TkbEntityTypes.Obstacle_Wreck, 6.5f, 3.4f, 2.4f, "car-body", feature, maxHealth: 600f);
+            foreach (long heavy in new[] { TkbEntityTypes.Tank_M1Abrams, TkbEntityTypes.Tank_T72, TkbEntityTypes.IFV_Bradley })
+                if (tkbDb.TryGetByType(heavy, out var vehicle) && vehicle.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WreckObstacleDto>() == null)
+                    vehicle.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WreckObstacleDto { ObstacleType = TkbEntityTypes.Obstacle_Wreck });
         }
 
         private static void RegisterObstacle(TkbDatabase tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Type type, long tkbType, DISEntityType dis, float maxHealth)
