@@ -33,8 +33,8 @@ add('<defs>' + "".join(
     f'<marker id="a{c[1:]}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">'
     f'<path d="M0,0 L10,5 L0,10 z" fill="{c}"/></marker>' for c in (C["sim"], C["main"], C["pub"], C["cmd"], C["lock"])) + '</defs>')
 add(f'<rect width="{W}" height="{H}" fill="#ffffff"/>')
-text(30, 38, "No races by construction — who writes what, and how each kind of data crosses between the threads", 21, weight="bold")
-text(30, 60, "Rule: each world has ONE writer. The UI reads only its own world A; the simulation reads only S. Every crossing below uses one of the mechanisms shown — and only the yellow ones take a lock.", 13, C["sub"])
+text(30, 38, "No races by construction — who writes what, and how each kind of data crosses between the threads (AS BUILT)", 21, weight="bold")
+text(30, 60, "Rule: each world has ONE writer. The UI reads only its own world A; the simulation reads only S. Every crossing uses one of the mechanisms below — NONE takes a lock (R-4216 / R-4217).", 13, C["sub"])
 
 # column frame
 LX, LW = 30, 330          # S column
@@ -43,29 +43,29 @@ RX, RW = 1140, 330        # A column
 top = 80
 box(LX, top, LW, 44, C["simf"], C["sim"], "WORLD S — written ONLY by the SIM thread and its pool\n(own entity directly, other entities by command)", 12, "bold")
 box(MX, top, MW, 44, C["grey"], C["line"], "HOW IT CROSSES", 13, "bold")
-box(RX, top, RW, 44, C["mainf"], C["main"], "WORLD A — written ONLY by the MAIN thread\n(except the sync, which holds A's lock)", 12, "bold")
+box(RX, top, RW, 44, C["mainf"], C["main"], "WORLD A — written ONLY by the MAIN thread\n(the pull copies the newest staging buffer in)", 12, "bold")
 
 rows_sim_to_ui = [
-    ("components the map, 3-D, overlays draw", "TABLE COPY at the sync — a mask of types, all rows  (≈1.3 ms)", "lock", "the same tables in A"),
-    ("the selected / inspected units' components", "ROW COPY at the sync — types × selected entities  (µs)", "lock", "their rows in A (panels, inspector)"),
-    ("small per-tick singletons: GlobalTime, traces", "COPIED BY VALUE at the sync", "lock", "their copies in A"),
-    ("derived maps: NetworkEntityMap", "REBUILT in A from the copied ids  (0.76 ms)", "lock", "A's own map"),
+    ("components the map, 3-D, overlays draw", "STAGED — a mask of types (the ACTIVE gizmo layers), all rows", "lock", "the same tables in A"),
+    ("the selected / inspected units' components", "STAGED — rows of the selected entities, types outside the mask", "lock", "their rows in A (panels, inspector)"),
+    ("small per-tick singletons: GlobalTime, traces", "STAGED BY VALUE (a refilled managed one value-copied — N-9)", "lock", "their copies in A"),
+    ("values only the sim can compute: save gate, args", "READOUTS — built after the tick, only when changed, staged", "lock", "the UI's readouts (no sim object)"),
     ("changing service state: cluster cache, clock", "IMMUTABLE VIEW published — one atomic reference swap  (0.01 ms)", "pub", "the latest view (no lock)"),
     ("shared objects: terrain, geo, TKB, behaviours, navmesh", "SHARED BY REFERENCE — immutable, or replaced in ONE atomic swap", "pub", "the same object, old or new, never half"),
-    ("native memory: the road graph", "LEASED — the old version lives until the last reader lets go", "pub", "a lease per sync"),
-    ("logs: shots, detonations, edit outcomes, squad reports", "FORWARDED — the new entries copied at the sync", "lock", "A's own logs"),
-    ("events on S's bus (hits, deaths, outcomes)", "FORWARDED into A's bus at the sync — each reader gets each once", "lock", "A's bus"),
+    ("native memory: the road graph", "LEASED — the old version lives until the last reader lets go", "pub", "a lease per publish"),
+    ("logs, edit outcomes, undo steps, squad reports", "PACKET FIFO — tick-tagged, drained in order, none lost on a skip", "lock", "A's logs, the ONE undo history"),
+    ("events on S's buses (incl. the orchestration bus)", "BUS PAIR — down per tick exactly once; the UI's publishes ride up", "lock", "A's bus + the UI's own read models"),
     ("remote nodes' gizmo streams (CGF, SimHost …)", "RECEIVED over the network, published to the map — triple buffer", "pub", "the map draws them with A's own gizmos"),
 ]
 rows_ui_to_sim = [
-    ("edits: move, delete, spawn, orders, rules", "COMMAND — a thread-safe queue, drained at the tick's start (Input), validated; refused ⇒ the edit outcome"),
-    ("drag / rotate / place", "a GHOST in A every frame — the drop is ONE command"),
-    ("run controls: play, pause, step, Run-to", "COMMANDS — the clock lives with the simulation"),
-    ("settings the sim reads (viewport, debug toggles)", "RIDE WITH THE COMMANDS — copied to S once per tick"),
+    ("edits: move, delete, spawn, orders, rules", "JOB — the ONE SimJobQueue, drained between ticks; the existing write code runs on S; refused ⇒ the outcome"),
+    ("drag / rotate / place", "a GHOST in A every frame — the drop ONE job via the shared write router; refused ⇒ snap back"),
+    ("run controls · sim-side HTTP · review (R-4220 ⏳)", "JOBS — the clock lives with the simulation; UI-side routes read the shown world"),
+    ("undo / redo", "JOBS — the recorder on S takes the before-snapshot; the history stays on the UI"),
 ]
 
 y = top + 60
-text(LX, y + 14, "SIM → UI   (the sync runs on the sim thread at the tick's end)", 14, C["sim"], "bold")
+text(LX, y + 14, "SIM → UI   (the sim publishes at the tick's end into a free buffer; the UI pulls at its frame start)", 14, C["sim"], "bold")
 y += 24
 rh = 32
 legend_col = {"lock": (C["lock"], C["lockf"]), "pub": (C["pub"], C["pubf"])}
@@ -99,10 +99,10 @@ y += 56
 
 # reads are reads
 box(30, y, W - 60, 30, C["lockf"], C["lock"],
-    "⚠ READS MUST BE READS: a managed-component read and a singleton read stop returning a writable ref / stamping the chunk (A1-2)  ·  the 3 unsafe statics get a lock / Concurrent / Lazy  ·  a Debug guard throws on a write to S off the sim thread", 11.5)
+    "✔ READS ARE READS: a managed read never stamps (R-4210)  ·  managed components immutable, replaced whole  ·  the STRICT world guard: 0 hits over the full 1 000-man session (no S read off the sim thread, no A write by the sim)", 11.5)
 y += 40
 box(30, y, W - 60, 30, C["cmdf"], C["cmd"],
-    "INSIDE THE TICK (the same rule one level down): a per-entity system writes its OWN entity  ·  other entities by command, merged in a fixed order  ·  their data read as LAST tick  ·  ParallelGuard", 11.5)
+    "INSIDE THE TICK: OWN entity direct  ·  others by command in the batch's buffer, played in batch order  ·  their data from the tick-start view  ·  follow-ups in batch order  ·  HROT_READ_CHECK", 11.5)
 y += 46
 
 # ---------------------------------------------------------------- the gizmo block (R-4211)
@@ -117,10 +117,10 @@ g = [
     ("WHAT IT READS — world A", C["lock"], C["lockf"],
      ["the overlays read A's copies; the S→A mask follows", "the ACTIVE gizmo layers: nothing when none is shown,", "≈ 57 types / 1.3 ms with all on, usually just labels",
       "", "content still changes only when S ticks — drawn", "at the frame rate from the latest copy", "", "cost moved off the SIM tick: ≈ 4.4–5.5 ms", "(it now runs on the main thread's ~16 ms frame)", ""]),
-    ("WHAT IT WRITES — commands only", C["cmd"], C["cmdf"],
-     ["input → the tool's FSM every frame → a GHOST in A", "→ the commit is ONE COMMAND to S", "",
-      "⛔ today the drag writes SimTransform every frame", "(EntityDragGizmo.cs:278) — that becomes the ghost", "",
-      "headless nodes (CGF, SimHost) have no main-thread", "presentation: their gizmo stream is produced in", "their own tick and sent over the network, as today", ""]),
+    ("WHAT IT WRITES — jobs only", C["cmd"], C["cmdf"],
+     ["input → the tool's FSM every frame → a GHOST in A", "→ the commit is ONE JOB to S", "",
+      "✔ built: the preview is a ghost re-applied after", "each pull; a refused commit snaps back", "",
+      "headless nodes (CGF, SimHost) have no main-thread", "presentation: their gizmo stream is produced in", "their own tick and sent over the network, as today", "threaded --mode all: an unstaged subsystem draws nothing"]),
 ]
 for i, (title, col, fill, lines) in enumerate(g):
     gx = 30 + i * (gw + 20)
@@ -134,11 +134,11 @@ box(30, y, W - 60, 30, C["grey"], C["line"],
     "the gizmo MODULE also runs non-gizmo world WRITERS (action dispatch: Delete / LoadZone, effect + wreck spawn, lifespan) — those are simulation and stay in the tick", 11.5)
 y += 44
 add(f'<rect x="30" y="{y}" width="14" height="14" fill="{C["lockf"]}" stroke="{C["lock"]}"/>')
-text(50, y + 12, "copied at the sync, under A's lock (the only lock)", 12)
+text(50, y + 12, "staged by the sim into a free buffer, pulled by the UI — no lock", 12)
 add(f'<rect x="420" y="{y}" width="14" height="14" fill="{C["pubf"]}" stroke="{C["pub"]}"/>')
 text(440, y + 12, "published / shared — an atomic reference swap or a lease, no lock", 12)
 add(f'<rect x="880" y="{y}" width="14" height="14" fill="{C["cmdf"]}" stroke="{C["cmd"]}"/>')
-text(900, y + 12, "a command — the UI's only way into S", 12)
+text(900, y + 12, "a job on the SimJobQueue — the UI's only way into S", 12)
 add("</svg>")
 p = Path(__file__).resolve().parent.parent / "docs/img/threading-anti-race.svg"
 p.write_text("\n".join(out), encoding="utf-8")
