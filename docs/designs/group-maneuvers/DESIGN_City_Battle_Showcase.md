@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — every lean below APPROVED by the user in chat (2026-11-13, §10); one open decision (D-R, the river) blocks only the terrain's river, not the build
-updated: 2026-11-13
-current-answer: the whole file — §2 the picture · §3 phases and the scripted top · §4 forces · §5 the breach drill · §6 classes · §7 sequences · §8 who runs what · §9 the parallel rules · §11 the work · §12 testing
+build-state: READY-TO-BUILD — every decision APPROVED by the user in chat (2026-11-13, §10 D-1…D-17, D-R); F-0 (fix the flaky behaviours) first
+updated: 2026-11-13 (rev 2: the review — dynamic, the air gate, civilians, recording ON, variants)
+current-answer: the whole file — §2 the picture · §3 phases (overlapping) · §3a momentum · §3b the air gate · §3c civilians · §4 forces · §5 the breach drill · §6 classes · §7 sequences · §8 who runs what · §9 the parallel rules · §11 the work · §12 testing
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -70,18 +70,113 @@ the obstacle bake / placement / avoidance classes (`StaticObstacleBakeSystem`, `
 zone), the ring road (the defenders' main line, roadblocked), the old town behind the river (the inner ring, the town hall). Each phase line is a
 scripted trigger; everything between two lines is a company commander's problem. The air assault skips the bands and lands on the objective.
 
-## 3. The phases — the scripted top, and nothing below it
+## 3. The phases — the scripted top, OVERLAPPING, and nothing below it
 
-| phase | starts when (trigger) | the battalion script orders | what the AI then does by itself |
+🔒 User, `2026-11-13`: *"it is a showcase scenario, for visual effect, showing lots of entities doing something interesting, not just sitting in
+cover/firing from it and never advancing. It needs to be dynamic."* ⇒ ⭐ the phases OVERLAP: at any minute at least two areas of the town are busy.
+
+```mermaid
+gantt
+  title The battle's timeline (minutes, ≈ 40 min) — at least two things at once
+  dateFormat m
+  axisFormat %M
+  section Town
+  civilians panic, flee, shelter               :civ, 0, 12m
+  section Shaping
+  drones up, mortars register, recon finds AA  :sh, 0, 8m
+  section Ground vs air defence
+  kill the hill's AA (mortars, ATGM, FPV)      :aa, 4, 12m
+  section A Coy (north)
+  cross the fields, breach PL B                :a1, 5, 10m
+  grind to PL C                                :a2, 15, 15m
+  section B Coy (south)
+  cross the fields, breach PL B                :b1, 8, 10m
+  grind to PL C                                :b2, 18, 14m
+  section Air
+  air gate opens → strikes, then insertion     :air, 16, 8m
+  section Defender
+  outposts withdraw, shoot and move            :d1, 5, 12m
+  local counterattacks                         :d2, 12, 18m
+  reserve counterattack over the bridges       :d3, 28, 8m
+  section Waves
+  2nd wave (macro)                             :w, 20, 10m
+```
+*What the picture shows that prose hid:* no phase waits for another to FINISH — the companies, the air-defence fight, the civilians and the defenders'
+counterattacks run side by side; the timings are the TRIGGERS' fallbacks (§3a), the real start is whichever condition comes first.
+
+| phase | starts when (trigger — the earlier of the two) | the battalion script orders (intent only) | what the AI then does by itself |
 |---|---|---|---|
-| **1 shaping** | t = 0 | both sides' drone teams on; attacker mortars register on PL A; defender AA up on the hill | recon quadcopters spot for mortars, FPV hunts in the fields — the dead zone forms |
-| **2 breach** | t = 5 min, or the shaping fires done | A Coy, B Coy: attack to PL B (ring road) in their sectors | companies cross under smoke, meet the outposts, clear roadblocks (§5), the defenders fall back to the main line |
-| **3 air assault** | A or B Coy reaches PL B | the air assault platoon: insert at the town hall | UH-60s fly the drawn route; the defenders' AA engages; the landed platoon holds the town hall's building |
-| **4 urban grind** | PL B held | both companies: attack to PL C (old town) · 2nd wave macro enters at the west edge | block-by-block clearing; the defenders' companies fall back to the inner ring |
-| **5 counterattack** | the attacker holds the square | defender reserve Coy: counterattack the square | the reserve crosses the bridges; the attackers defend what they took |
-| **6 end** | every objective held ≥ 3 min · or one side < 30 % strength · or 60 min | end the exercise, score | — |
+| **0 alarm** | t = 0 | — | civilians panic at the first shots: run from the shooting, hide in any building whose door opens, vanish inside; the fear spreads street by street (§3c) |
+| **1 shaping** | t = 0 | drone teams on; mortars register on PL A; **find and kill the hill's air defence** | recon quadcopters find targets for the mortars, FPVs hunt in the fields — the dead zone forms; the AA fight starts (§3b) |
+| **2 breach** | t = 5 min (A Coy) / 8 min (B Coy) | A Coy, B Coy: attack to PL B (ring road), **deadline 12 min** | mounted dash to the edge, dismount, carriers overwatch; outposts withdraw; roadblocks removed (§5) |
+| **3 air** | **the air gate opens** (§3b) — never on a timer | strikes on what still holds; then the air assault platoon inserts at the town hall | UH-60s fly a route away from any AA still reported; the landed platoon holds the town hall |
+| **4 urban grind** | a company reaches PL B | that company: attack to PL C, deadline 15 min · the 2nd wave macro enters | block-by-block; the defenders shoot and move, counterattack locally |
+| **5 counterattack** | the attacker holds the square, or t = 28 min | defender reserve: counterattack the square | the reserve crosses the bridges; the attackers defend what they took |
+| **6 end** | every objective held ≥ 3 min · or one side < 30 % · or t = 45 min | end, score | — |
+| ✚ **pressure** | any sector with no contact for 3 min | its company: advance to the next line | keeps a quiet sector from going quiet |
 
-⭐ The script writes **intent only** (sector, objective, phase line, fire plan, wave, end) through the built objectives and triggers (S1 / S2 + `InsertMacro`); ⛔ it never moves a platoon.
+⭐ The script writes **intent only** (sector, objective, phase line, deadline, fire plan, wave, end) through the built objectives and triggers (S1 / S2 +
+`InsertMacro`); ⛔ it never moves a platoon.
+
+## 3a. Momentum — what makes them MOVE *(the review, `2026-11-13`; 🔒 user: "definitely add those")*
+
+⛔ The flaw this section fixes: every built incentive points to COVER — defenders hold posts, a soldier under fire picks Take cover / Hold, the drone
+dead zone punishes the open. Without a reason to move, base of fire versus a house trades fire forever.
+
+| mechanism | who | what it does |
+|---|---|---|
+| **tempo deadline → escalate** | company commander (attack) | every order carries a deadline; at 50 % of it with no progress: smoke + fires + commit the reserve; at 100 %: switch axis or bypass; ⛔ never "wait" |
+| **shoot and move** | defending squad / team | after N bursts or when a position is spotted (fire received): relocate through back yards, houses, roofs to the next post — the posts are a SET per squad, not one |
+| **outposts withdraw under fire** | defender outpost | at contact with a superior force: fire, then fall back along a planned route to the main line (CE-3361's fall-back, must be seen live first) |
+| **technicals shoot and scoot** | defender vehicle | dash to a firing point, a burst, back into cover, next point (`ua-technical-scoot`, paused CE-2232 — fix first) |
+| **local counterattack** | company commander (defence) | a lost block with a weak attacker in it: the company reserve retakes it (CC-3, promoted to must-have) |
+| **suppression wears off; leaders rally** | squad leader | a pinned squad gets up again: suppression decays, the leader orders the bound; ⚠ a stress model that can pin a squad FOREVER is unmeasured — a rail first |
+| **morale and rout** (AQ101 E-3 / E-4) | platoon / squad | a broken platoon runs back through the streets — the most dynamic picture a battle makes, and how a position ends without everyone dying. ⭐ promoted to MUST-HAVE (the decision still awaits the user in AQ101) |
+| **casualty evacuation** | squad | a casualty is dragged / carried back (the carry exists, Map 3-D held figures) — losses become movement |
+| **waves** | battalion script | the 2nd wave (macro) keeps the attack fed |
+| **pressure trigger** | battalion script | a sector quiet for 3 min gets "advance to the next line" (§3) |
+
+⭐ **"Dynamic" is MEASURED, not judged** — the full run's pass condition (§12): the share of men who moved > 50 m in every 5 minutes, contacts per
+minute, each phase line reached by its deadline.
+
+## 3b. The air gate — no aircraft into a live air defence *(🔒 user, `2026-11-13`)*
+
+🔒 *"air attack with lots of anti aircraft missiles on the ground is a suicide mission as well … the defense needs killing first before extremely
+expensive aircraft is let flying there, no?"* — ⭐ yes: the air defence is killed FROM THE GROUND first; aircraft fly only when the gate opens.
+
+```mermaid
+sequenceDiagram
+  participant R as Recon quadcopter / observers
+  participant HQ as SupportCommand (attacker HQ)
+  participant M as Mortars · Javelin teams · FPV teams
+  participant A as Aircraft (A-10, AH-64, UH-60)
+  R->>HQ: spot reports: ZU-23 at the hill, a Stinger team at the church tower
+  HQ->>HQ: AIR THREAT PICTURE: known AA within reach of the target or the route?
+  HQ->>M: suppress / destroy the AA (fire missions, drone strikes)
+  M-->>HQ: BDA — ZU-23 destroyed · the Stinger team not seen for 5 min
+  A->>HQ: a company's air request (strike, insertion)
+  alt a known AA still live within reach
+    HQ-->>A: refused — air threat · the request becomes an AA-kill task
+  else the gate is open
+    HQ->>A: approved — route planned away from any AA still reported
+  end
+```
+*What the picture shows that prose hid:* the gate lives in ONE place — the HQ that already routes every support request (`SupportCommandBehavior`) —
+so no aircraft and no company has to remember it; and a refused air request is not lost, it turns into the ground task that opens the gate.
+⚠ A HIDDEN MANPADS team (never reported) is the residual risk — the possible shoot-down is the drama (Demo City Showcase G-1, the pilot ejecting).
+
+## 3c. Civilians — the town is alive when the attack starts, and then it PANICS *(🔒 user, `2026-11-13`)*
+
+🔒 *"civilians panicking and evacuating when attack starts is a good idea, add it please"* — then: *"evacuation can hardly be organized under attack"* ·
+*"its sheer panic i guess"* · *"people close to the warfight should simply start running away or trying to hide"*. ⇒ ⭐ **no organised evacuation**: sheer panic — run from the shooting, hide, vanish (R-4035: a panicking civilian hides in a
+building whose door can be opened and disappears after a while inside; never flees indefinitely).
+
+| who | what | state |
+|---|---|---|
+| ≈ 200 civilians in the west belt and the old town (+ a few cars) | **close to the fighting** (shots, explosions near them): **panic** — run AWAY from the danger, or hide in the nearest building whose door opens, disappear inside after a while · **further away**: alarmed (stop, look, keep away), until the fighting comes close | ✅ built (`CivilianHsm` CIV-1 Alarmed, CIV-2 panic / shelter, Civilians §5d–§5e) |
+| a crowd in a street or the square | **fear spreads**: one panics, the people around him panic — the panic travels through the town as a wave, ahead of the fighting | ⚠ CIV-3 READY-TO-BUILD (Civilians §5f) — ⭐ the one civilian piece to build |
+| a driver near the fighting | panics: stops, leaves the car, runs (the abandoned car stays where it stopped — street clutter, not an obstacle) | ⚠ to check: the traffic → civilian handoff (Civilians related: AQ93 §8 — SUMO pedestrians that panic are handed to the civilian HSM) |
+| a civilian in a soldier's line of fire | the shot is held (AW-20) | ✅ built |
 
 ## 4. The forces *(≈ 1 050 men, ≈ 50 vehicles, ≈ 10 aircraft — the Scale Rig budget, R-4192; more later if the speed allows)*
 
@@ -89,11 +184,22 @@ scripted trigger; everything between two lines is a company commander's problem.
 |---|---|---|
 | manoeuvre | 2 mechanised companies (each: HQ + 3 platoons + 4 IFVs + 2 tanks) · 1 air assault platoon · a 2nd-wave company (macro, phase 4) | 3 companies in the buildings (each: HQ + 3 platoons, technicals) · 1 reserve company (counterattack) |
 | support | mortar section · Javelin teams · 2 drone teams · 1 jammer vehicle · 1 engineer squad + 1 **bulldozer** · on call: A-10, AH-64 | mortar section · RPG / NLAW teams · 2 drone teams · ZU-23 + Stinger / Igla on the hill |
-| air | 4 UH-60 (insertion), A-10, AH-64 | — (ground counterattack instead) |
+| air | 4 UH-60 (insertion), A-10, AH-64 — **held until the air gate opens** (§3b) | — (ground counterattack instead) |
 | positions | — | **prepared from the start** by the scenario: sandbag posts, roadblocks (blocks + cars), MG nests, occupied buildings; no "prepare" behaviour |
 | fire teams | **groups inside a squad** (squad leader addresses team A / team B); no team brain | same |
+| company structure | HQ + 3 platoons + a **company support element** that holds the attachments (tanks, engineers, bulldozer, drone team) — ⚠ a commander's picture holds **6 subordinates** (`CommandPicture.MaxSubordinates`, `CommandComponents.cs:116`, sized for a platoon); a company with every attachment as a direct subordinate would overflow it | same (the reserve platoon, technicals and the AT teams in the support element) |
+| civilians | — | ≈ 200 in the west belt and the old town + a few cars (§3c) |
 
-Visibility: **5 km fog**, daylight only.
+Visibility: **5 km fog**, daylight only. ⭐ **Lethality is a set of scenario settings** — drone count and battery, weapon accuracy, armour —
+tuned once so the field crossing costs, but does not erase, a company (§3a).
+
+⭐⭐ **Recording is ON — always** (🔒 user: *"recording is a mandatory feature as this shows the performance of the system WHILE recording is ON"*): the
+showcase demonstrates the engine's speed WITH the recorder running; the budget (R-4192) is met with it on. ⚠ The recorder cost 18.7 ms at this size
+(Scale Rig §5, Evaluation Cost §11) — a requirement on the parallel / performance programme, not an optional extra.
+
+⭐ **Repeatable, and not always the same** — the parallel programme's **deterministic mode** (R-4207) makes a seed repeat exactly (the best
+seeds are the ones filmed); **scenario variants** (the existing `$variant` / variant forms, Scenario Macros §17) vary what each run starts from:
+the defender layout, the roadblock set, where the air defence and the MANPADS teams stand, the civilians' density.
 
 ## 5. The roadblock breach drill — removal is mandatory
 
@@ -121,7 +227,8 @@ classDiagram
   class PlatoonPlays { <<existing>> PlatoonAttack · PlatoonDefend · BasicPlatoonSop }
   class SquadPlays { <<existing>> SquadDefend · ClearBuilding · BoundingOverwatch … }
   class Soldier { <<existing>> CombatPosture utility · peek and fire · stress }
-  class SupportCommand { <<existing HQ>> routes FireSupport · Reinforce }
+  class SupportCommand { <<existing HQ>> routes FireSupport · Reinforce · + AIR GATE (NEW): the air threat picture refuses air until the AA is killed }
+  class Civilian { <<existing CivilianHsm>> panic · flee · shelter · vanish inside · + fear spreads (CIV-3, ready to build) }
   class DroneTeam { <<NEW>> operator soldier · drone stock · battery cycle · picks targets from the company picture }
   class Quadcopter { <<NEW kinds>> FPV (existing) · Bomber (drop) · Recon (spots) }
   class Jammer { <<NEW>> a vehicle / post: a bubble that breaks drone links }
@@ -141,6 +248,7 @@ classDiagram
   Bulldozer ..> Obstacle : removes
   WreckObstacle --|> Obstacle
   BattalionScript ..> UnitMacros : InsertMacro (waves)
+  SupportCommand ..> CompanyCommander : air refused → AA-kill task
 ```
 *What the picture shows that prose hid:* only ONE new echelon (the company) sits in the existing chain; everything else new is a leaf the company
 commander calls (bulldozer, drone team) or a world rule (obstacle health, wrecks). The platoon, squad and soldier levels are reused unchanged.
@@ -228,21 +336,31 @@ ELM creation — the shapes §9 requires. ⚠ The node that runs `BuildingDamage
 | D-11 | the parallel contract (§9) binds every new system | *"note the building would need to follow restricition to not go against the parallization"* |
 | D-12 | never test correctness on 1 000 men (§12) | *"i can;t imagine testing on full 1k men scenarios that would take ages"* |
 
-### ⏸ Open — one decision
-
-| # | question | ⭐ lean | what changes it |
-|---|---|---|---|
-| **D-R** | the river: water has **no movement cost** today, so a river would not force the bridges | ⭐ **make water impassable to ground units** (the navmesh excludes `Water` surfaces; vehicles path around) — a small terrain rule that also serves every future river | if that rule is unwanted: drop the river, use a railway embankment with two underpasses (walls + ramps that exist) |
+| D-R | ✅ **water is impassable to ground units** (the navmesh excludes `Water` surfaces; vehicles path around) — the river forces the bridges | *"river lean approved"* |
+| D-13 | ✅ **dynamic, not static**: overlapping phases, tempo deadlines and escalation, active defence, morale / rout, casualty evacuation, pressure triggers, the dynamism gate (§3, §3a, §12) | *"It needs to be dynamic."* · *"good feedback! definitely add those"* |
+| D-14 | ✅ **civilians panic** when the attack starts — sheer panic, flight and shelter, **no organised evacuation** (§3c) | *"civilians panicking and evacuating when attack starts is a good idea, add it please"* · *"evacuation can hardly be organized under attack"* · *"its sheer panic i guess"* · *"people close to the warfight should simply start running away or trying to hide"* |
+| D-15 | ✅ **the air gate**: the air defence is killed from the ground first; aircraft fly only when the gate opens (§3b) | *"the defense needs killing first before extremely expensive aircraft is let flying there, no?"* |
+| D-16 | ✅ **deterministic mode + scenario variants**: a good seed repeats exactly; variants keep runs different | *"repeatibility - determinism mode ok. scenario variants (existing feature!)can help to avoid having everything same every time"* |
+| D-17 | ✅ **recording ON, always** — the showcase shows the speed WITH recording | *"recording is a mandatory feature as this shows the performance of the system WHILE recording is ON."* |
 
 ## 11. The work *(each item small enough to build and test alone; lanes are leans)*
 
 | id | what | reuses | lane |
 |---|---|---|---|
 | **T-1** | **town plan** input for `hrot-terrain-synth`: an authored JSON (ring road, old town + square, landmark, river + 2 bridges, districts with density / building mix, fields, hill) the generator fills with its building templates; then hand-adjusted; deterministic, in git as plan + code | Terrain Synth, `terrain-scale.py`, the 7 building templates | backend (terrain) |
-| T-2 | D-R: water impassable to ground units | navmesh build | backend |
+| T-2 | D-R ✅: water impassable to ground units (the navmesh excludes `Water`) | navmesh build | backend |
 | **C-1** | `CompanyCommander` CC-1: attack (base of fire / assault / reserve, phase lines, reserve commit) + defend (a block per platoon, fall back to the next line) | PlatoonAttack / Defend pattern, EQS, the static copy | behaviors |
 | C-2 | CC-2: support calls — fires, smoke, bulldozer / engineers at a roadblock, drone tasking | SupportCommand, the observer chain | behaviors |
-| C-3 | CC-3: local counterattack, asking the battalion for more | — | behaviors |
+| C-3 | CC-3: local counterattack, asking the battalion for more — ⭐ MUST-HAVE (§3a) | — | behaviors |
+| C-4 | **tempo**: every company order carries a deadline; escalate at 50 % / 100 % (smoke + fires + reserve → switch axis / bypass) — never "wait" | the HSM's phase timers | behaviors |
+| C-5 | **the mounted / dismounted handoff**: carriers dash to the edge, the squads dismount, the carriers overwatch | `SquadDismount`, `VehicleFightFromCover` | behaviors |
+| **F-0** | ⭐ **FIRST — fix what the grind stands on**: room entry loses its team ≈ 1 run in 4 (CE-2341) · the squad defending a house flagged (CE-2304) · platoon clears a building on hold (PL-1, CE-2264) · the fall-back never seen live (CE-3361) · technical shoot and scoot paused (CE-2232) | the existing behaviours | behaviors |
+| A-1 | **active defence**: shoot and move between a squad's SET of posts; outposts withdraw along a planned route | `SquadDefend` posts, the fall-back | behaviors |
+| A-2 | **suppression wears off, leaders rally** — first a rail proving whether a squad can be pinned forever | stress, `SquadRecover` | behaviors |
+| A-3 | **casualty evacuation**: drag / carry a casualty back | `CasualtyCare`, the held-figure carry | behaviors |
+| G-A | **the air gate** in `SupportCommand`: the air threat picture from spot reports; an air request with a known AA in reach is refused and becomes an AA-kill task; routes planned away from reported AA | `SupportCommandBehavior`, the observer chain, air defence | behaviors |
+| CV-1 | **civilians panic**: place them; build CIV-3 (fear spreads through a crowd); check the panicking driver (traffic → civilian handoff) | `CivilianHsm` (CIV-2), Civilians §5f | behaviors |
+| L-1 | **lethality as scenario settings** (drone count + battery, accuracy, armour) | the existing parameters | behaviors |
 | **O-1** | `ObstacleHealth`: an obstacle drained by area effects and the blade; at 0 **removed** (its prism leaves the terrain world) | the breach / collapse path | backend (destructible) |
 | O-2 | wreck → obstacle for heavy vehicles (tanks, IFVs), through the ELM | WreckSpawn's detection, StaticObstacle | backend |
 | **V-1** | the **bulldozer**: catalogue entry (engineering DIS type, tracked mobility, no weapon), a shape kit (tracked chassis, engine block, cab, articulated blade — NOT armoured-looking), an armour profile per side (small arms bounce, a few RPG hits to kill), gallery entry + thumbnail | ShapeKit, ArmorModel, the tracked model, `thumbnails.py` | behaviors (vehicle) |
@@ -250,10 +368,13 @@ ELM creation — the shapes §9 requires. ⚠ The node that runs `BuildingDamage
 | **R-1** | drone team: operator + stock + battery; Bomber and Recon quadcopters; recon joins the observer chain | FPV drone, DroneImpactSystem, PersonObserveFire | behaviors |
 | R-2 | anti-drone reaction (into cover / freeze / shoot) + the jammer (vehicle / post bubble) | `ua-drone-shelter` reaction | behaviors |
 | **M-1** | company / platoon macros (side, kit, entry point) — the order of battle laid out once, the waves inserted by trigger | Scenario Macros, `InsertMacro` | coordinator / behaviors |
-| S-1 | smoke rounds (CE-2278, designed) | indirect fire | behaviors |
-| S-2 | unit morale / rout (AQ101 E-3 / E-4 — awaits the user) | stress | behaviors |
+| S-1 | smoke rounds (CE-2278, designed) — ⭐ MUST-HAVE: on the breach drill's critical path | indirect fire | behaviors |
+| S-2 | unit morale / rout (AQ101 E-3 / E-4 — the decision awaits the user there) — ⭐ MUST-HAVE (§3a) | stress | behaviors |
 | S-3 | AI-chosen landing zone for the air assault (EQS: open, near the objective, out of AA reach) | `ua-air-assault` | behaviors |
 | **B-1** | the scenario: `showcases/city-battle` — the forces (§4) by macro, the script (§3), the 5 km fog | everything above | coordinator |
+| P-1 | **recording ON within the budget** (D-17): the recorder's 18.7 ms at this size is part of the parallel / performance programme's target | Scale Rig, Parallel Simulation | backend |
+| V-A | **variants**: defender layout, roadblock set, AA / MANPADS positions, civilian density as scenario variants (D-16) | `$variant`, variant forms (Scenario Macros §17) | coordinator |
+| FI-1 | **the interest score** for filming at this size: contacts, explosions, aircraft, a squad on the move, a collapse → the drafter picks hot spots; the best seeds are filmed | Film Director drafter | the film lane |
 
 ## 12. Testing — never correctness on 1 000 men
 
@@ -263,7 +384,8 @@ ELM creation — the shapes §9 requires. ⚠ The node that runs `BuildingDamage
 | ② puppet subordinates | platoons as light entities a test script moves (position, strength, contact), no soldiers — the commander over time: phase changes, reserve commit, fall back | seconds of sim |
 | ③ per-feature dry twins | one small in-process scenario per new piece (`uc-reinforce-dry` pattern): bulldozer clears a roadblock, drone team vs a jammer, company vs a platoon | minutes, on demand + nightly |
 | ④ company vs company | ≈ 250 men on a slice of the town | minutes, nightly |
-| ⑤ the full battle | performance (the Scale Rig) and filming only — ⛔ never a correctness gate; a wrong moment is read from its RECORDING, not re-run | the slow lane (T3) |
+| ⑤ the full battle | performance (the Scale Rig, **recording ON**) and filming; ⭐ **the dynamism gate**: ≥ X % of men moved > 50 m in every 5 min · contacts per minute ≥ Y · each phase line by its deadline (X, Y set from the first runs) — "not dynamic" is a red row. ⛔ Not a behaviour-correctness gate: a wrong moment is read from its RECORDING, not re-run | the slow lane (T3) |
+| ④a stalemate probe | company vs company **with deadlines** on a town slice — where a stalemate shows first | minutes, nightly |
 | ✚ every new system | the serial-vs-parallel rail (§9) | seconds |
 
 ## 13. Rejected — one line each
@@ -274,6 +396,8 @@ ELM creation — the shapes §9 requires. ⚠ The node that runs `BuildingDamage
 - **a tank with a dozer blade** — the user: not needed; the bulldozer is one clear role and a target the defenders go after.
 - **destructible sandbags as a goal** — no one in the battle needs them gone; removal is for what blocks vehicles (§5).
 - **a fire-team brain** — ≈ 260 more commander brains for little visible difference.
+- **aircraft first, against a live air defence** — the user: a suicide mission; the ground kills the AA, then the gate opens (§3b).
+- **sequential phases** — long quiet stretches; overlapped instead (§3).
 - **3 000 men now** — 410–500 ms brain tick measured (Scale Rig §7.7); after the parallel programme.
 
 ## 14. Design docs checked
