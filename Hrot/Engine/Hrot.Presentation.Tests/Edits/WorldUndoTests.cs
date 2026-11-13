@@ -136,6 +136,29 @@ public sealed class WorldUndoTests
         Assert.NotEqual(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused, rename.Route);
     }
 
+    /// <summary>⭐ N-15 (CE-4477) — an entity a host keeps OUT of the scenario (<c>ScenarioIgnoreTag</c>: derived parts, effects, traffic replicas, rounds —
+    /// no <c>EntityGuid</c>, by design) stays out after an undo / redo: the tag rides the undo step like the replication identity (CE-4411), so the next save does
+    /// not meet a guid-less entity. 📌 Measured: an editor session's save after edit → undo → redo threw "entity 5 has no EntityGuid" (both kernel modes); a save
+    /// with no undo saved. 🔴 Red-proof (compiles): drop the tag from <c>IsReplicationIdentity</c> ⇒ the restored entity loses it ⇒ red.</summary>
+    [Fact]
+    public void N15_AnEntityKeptOutOfTheScenario_StaysOutAfterUndoAndRedo_AndTheSceneStillSaves()
+    {
+        using var rig = new Rig();
+        rig.World.AddComponent(rig.Unit, new Fdp.Toolkit.Scenario.EntityGuid(System.Guid.NewGuid()));
+        var derived = rig.World.CreateEntity();
+        rig.World.AddComponent(derived, new SimTransform { Position = new Vector3(1f, 2f, 0f) });
+        rig.World.AddComponent(derived, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
+        rig.World.Tick();
+
+        rig.Drag(new Vector3(10f, 20f, 0f), new Vector3(40f, 50f, 0f));
+        Assert.True(rig.History.Undo());
+        Assert.True(rig.History.Redo());
+
+        Assert.True(rig.World.HasComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>(derived));
+        var serializer = new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("Hrot.Scenario").Build();
+        serializer.Serialize(rig.World, new Fdp.Toolkit.Scenario.ScenarioHeader("Hrot.Scenario"));   // throws on a guid-less saveable entity (CE-4153)
+    }
+
     /// <summary>🔴 Red-proof (compiles): the world step pushed without <c>available</c> ⇒ an evicted step stays enabled ⇒ red.</summary>
     [Fact]
     public void B14_AStepWhoseSnapshotWasEvicted_IsGreyed_SaveIsTheCleanPoint()

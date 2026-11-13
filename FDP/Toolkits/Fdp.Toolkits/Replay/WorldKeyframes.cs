@@ -70,6 +70,10 @@ namespace Fdp.Toolkit.Replay
             => id == ComponentType<NetworkIdentity>.ID || id == ComponentType<NetworkAuthority>.ID
             || id == ComponentType<ReplicationRoute>.ID
             || id == ComponentType<Fdp.Toolkit.Scenario.EntityGuid>.ID
+            // ⭐ N-15 (CE-4477) — the save's own membership marker: an entity a host keeps OUT of the scenario (derived parts, effects, traffic replicas,
+            //   rounds — no EntityGuid by design) carries ScenarioIgnoreTag, which is NoScenario too, so an undo / redo stripped it and the next save met a
+            //   guid-less entity ("entity 5 has no EntityGuid", measured in both kernel modes). What decides save membership rides the step with the identity
+            || id == ComponentType<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>.ID
             // ⭐ CE-3439 (T-8 batch) — a TERRAIN OBJECT's runtime state: a door's state and key, a building's damage. All three are NoScenario (a scenario file never carries the entities), so "authored" left them out and ANY undo stripped them from the door
             //   entities (measured with a plain re-roll). The undo ring is the ONLY user of the Authored set (autosave and the world-change check read other sets), so this changes nothing any file or recording holds.
             || id == ComponentType<Fdp.Toolkit.Terrain.DoorState>.ID
