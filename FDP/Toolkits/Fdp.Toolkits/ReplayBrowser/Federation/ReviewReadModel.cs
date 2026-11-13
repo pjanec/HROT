@@ -23,7 +23,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
     /// ⭐ The review source as the builder and the commands see it — implemented by the editor's <c>ReviewSource</c> and the standalone Replay Browser.
     /// Everything here runs on the thread that owns the source.
     /// </summary>
-    public interface IReviewHost
+    public interface IReviewHost : IReviewCommands
     {
         /// <summary>The group's manager, or null when no group is open. ⛔ Read only by the builder / the host's own thread.</summary>
         FederatedReplayManager? Manager { get; }
@@ -34,15 +34,10 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         string RoleKeyOf(int node);
         /// <summary>A participant's Source-menu row (<c>"CGF-1's part"</c>).</summary>
         string PartLabel(int node);
+        // the commands (IReviewCommands) — applied on the host's thread
 
-        void SelectMerged();
-        void SelectPart(int node);
-        void SeekFrame(int frame);
-        void StepFrame(int delta);
-        void SetNodeOffsetTicks(int node, long offsetTicks);
-        void SetBaseWallTicks(long ticks);
-        void SetLocalEntitiesShown(int node, bool shown);
-        void SetLocalEntitiesProvider(int node);
+        /// <summary>⭐ CE-4498 — the merged world's LOCAL entities → the node each came from (Details' <i>"local to &lt;node&gt;"</i>), an immutable snapshot the host replaces when it changes; null when it has none.</summary>
+        IReadOnlyDictionary<Fdp.Core.Entity, int>? LocalOrigins => null;
     }
 
     /// <summary>One participant of the open group, as drawn.</summary>
@@ -81,8 +76,25 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         IReadOnlyDictionary<int, long> NodeOffsets,
         string[] ParticipantPaths,
         long[]? PrimaryFrameWallTicks = null,
-        double PrimarySimSeconds = 0)
+        double PrimarySimSeconds = 0,
+        double[]? PrimaryFrameSimSeconds = null,
+        IReadOnlyDictionary<Fdp.Core.Entity, int>? LocalOrigins = null)
     {
+        /// <summary>⭐ CE-4498 — the recorded sim seconds of the primary's <paramref name="frame"/> (the transport's tooltip), NaN when the file has none there.</summary>
+        public double SimSecondsAt(int frame)
+        {
+            var t = PrimaryFrameSimSeconds;
+            if (t is null || t.Length == 0) return double.NaN;
+            return t[Math.Clamp(frame, 0, t.Length - 1)];
+        }
+
+        /// <summary>⭐ CE-4498 — the node a LOCAL entity of the merged world came from (<see cref="IReviewHost.LocalOrigins"/>).</summary>
+        public bool TryGetLocalNode(Fdp.Core.Entity entity, out int node)
+        {
+            if (LocalOrigins is { } map && map.TryGetValue(entity, out node)) return true;
+            node = 0; return false;
+        }
+
         /// <summary>The primary participant's wall clock at <paramref name="frame"/> (the timeline's axis), or 0.</summary>
         public long WallTicksAt(int frame)
         {
@@ -150,7 +162,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         {
             var m = host.Manager;
             var facts = host.Facts;
-            long version = VersionOf(m, facts, request);
+            var locals = host.LocalOrigins;
+            long version = Mix(VersionOf(m, facts, request), RuntimeHelpers.GetHashCode(locals ?? (object)""));
             if (previous is not null && previous.Version == version && ReferenceEquals(previous.Request, request)) return previous;
             Builds++;
 
@@ -185,24 +198,32 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
             double simSeconds = 0;
             if (m is not null && m.Contexts.TryGetValue(primary, out var pctx) && pctx.SandboxRepo is { } sandbox && sandbox.HasSingletonUnmanaged<Fdp.Core.GlobalTime>())
                 simSeconds = sandbox.GetSingletonUnmanagedRO<Fdp.Core.GlobalTime>().TotalTime;
+            var ticks = FrameTicksOf(m, primary);
             return new ReviewReadModel(version, facts, parts, primary, m?.BaseWallTicks ?? 0, nonZero,
-                m is null ? 0 : ReplicaViews.StateKey(m), request, byNode, watch, offsets, paths.ToArray(), FrameTicksOf(m, primary), simSeconds);
+                m is null ? 0 : ReplicaViews.StateKey(m), request, byNode, watch, offsets, paths.ToArray(), ticks, simSeconds, _sims, locals);
         }
 
         private FederatedReplayManager? _ticksManager;
         private int _ticksPrimary = int.MinValue;
         private long[]? _ticks;
+        private double[]? _sims;
 
         /// <summary>The primary's frame → wall-clock table, read once per group / primary (the file's frame index is immutable).</summary>
         private long[]? FrameTicksOf(FederatedReplayManager? m, int primary)
         {
-            if (m is null) return null;
+            if (m is null) { _ticksManager = null; _ticks = null; _sims = null; return null; }
             if (ReferenceEquals(m, _ticksManager) && primary == _ticksPrimary) return _ticks;
-            _ticksManager = m; _ticksPrimary = primary; _ticks = null;
+            _ticksManager = m; _ticksPrimary = primary; _ticks = null; _sims = null;
             if (m.Contexts.TryGetValue(primary, out var ctx) && ctx.Playback is { TotalFrames: > 0 } pb)
             {
                 _ticks = new long[pb.TotalFrames];
-                for (int f = 0; f < _ticks.Length; f++) _ticks[f] = pb.GetFrameMetadata(f).WallClockTicks;
+                _sims = new double[pb.TotalFrames];
+                for (int f = 0; f < _ticks.Length; f++)
+                {
+                    var meta = pb.GetFrameMetadata(f);
+                    _ticks[f] = meta.WallClockTicks;
+                    _sims[f] = meta.SimTime > 0 || f == 0 ? meta.SimTime : double.NaN;   // as the transport's tooltip reads it: an unstamped frame has no sim time
+                }
             }
             return _ticks;
         }

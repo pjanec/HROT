@@ -14,10 +14,40 @@ namespace Hrot.Editor.Review;
 /// </summary>
 public sealed class ReviewUi
 {
-    public ReviewUi(IReviewChannel channel)
+    public ReviewUi(IReviewChannel channel, Func<Hrot.UI.Common.Facades.ITimeTransportFacade?>? facade = null)
     {
         Channel = channel ?? throw new ArgumentNullException(nameof(channel));
         Panel = new FederationPanel(channel) { ShowModeRadio = false, ShowLocals = false };   // the Source menu holds the choice and the checkboxes (ONE control per choice)
+        Transport = new ReviewSourceTransport(channel, facade);
+    }
+
+    /// <summary>⭐ The ONE AAR transport's implementation while a group is open (over the model; a seek / step is a command).</summary>
+    public ReviewSourceTransport Transport { get; }
+
+    private string? _filesFor;
+    private string[] _files = Array.Empty<string>();
+
+    /// <summary>The file the review windows (search, diff) read: the open part's, or the primary participant's in Merged. Cached per file (0 B per frame).</summary>
+    public string[] RecordingFiles()
+    {
+        var m = Model;
+        if (!m.IsOpen) return Array.Empty<string>();
+        string? path = m.Participant(m.Kind == ReviewKind.Part ? m.Facts.PartNode : m.PrimaryNode)?.Path;
+        if (path is null) return Array.Empty<string>();
+        if (!ReferenceEquals(path, _filesFor)) { _filesFor = path; _files = new[] { path }; }
+        return _files;
+    }
+
+    private System.Collections.Generic.Dictionary<int, string>? _localNotes;
+
+    /// <summary>⭐ G-7 S5 (I7, M-6) — <c>"local to SimHost-1"</c> for a LOCAL (no network id) entity of the merge — the node it came from (the model's local origins); null for any other entity. Cached: 0 B per frame.</summary>
+    public string? LocalOriginNote(Fdp.Core.Entity entity)
+    {
+        var m = Model;
+        if (!m.IsMerged || !m.TryGetLocalNode(entity, out int node)) return null;
+        _localNotes ??= new System.Collections.Generic.Dictionary<int, string>();
+        if (!_localNotes.TryGetValue(node, out var note)) _localNotes[node] = note = "local to " + (m.Participant(node)?.Name ?? "Node " + node);
+        return note;
     }
 
     public IReviewChannel Channel { get; }

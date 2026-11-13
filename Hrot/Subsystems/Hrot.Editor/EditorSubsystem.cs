@@ -382,7 +382,13 @@ namespace Hrot.Editor
         private Hrot.Editor.AiShared.Review.FileReview? _fileReview;
         // ⭐ R-5 / V6 — the source of the ONE world while a participant group with no part of this node is open (Merged / a part), and the editor's ONE AAR transport over it
         private Fdp.Toolkit.ReplayBrowser.Federation.ReplicaViews? _replicaViews;                          // ⭐ G-7 S5 — the merged view's lens (By node, the lane)
-        private Fdp.Toolkit.ReplayBrowser.Federation.IReviewChannel? _reviewChannel;                       // ⭐ CE-4496 R-2 — what the review UI reads / commands through (inline; threaded in mode 3)
+        private Fdp.Toolkit.ReplayBrowser.Federation.IReviewChannel? _reviewChannel;
+        private Hrot.Editor.Review.ReviewUi? _reviewUi;
+        private Fdp.Toolkit.ReplayBrowser.Federation.ReviewModelPublisher? _reviewPublisher;   // ⭐ CE-4498 — mode 3: the sim side's model publisher
+        private Fdp.Toolkit.ReplayBrowser.Federation.ThreadedReviewChannel? _reviewThreaded;
+        private Fdp.Toolkit.ReplayBrowser.Federation.ReviewReadModel? _reviewToApply;
+        private Action<EntityRepository>? _applyReview;
+        internal Hrot.Editor.Review.ReviewUi? ReviewUiForTest => _reviewUi;                       // ⭐ CE-4496 R-2 — what the review UI reads / commands through (inline; threaded in mode 3)
         private Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection? _byNodeSection;
         private Hrot.Editor.AiShared.Review.ReplicaWatchLane? _replicaLane;
         private Hrot.Editor.AiShared.Review.ReplicaWatchKit? _watchKit;   // ⭐ §6.13 — the eye + the lane's settings popup
@@ -3153,6 +3159,7 @@ namespace Hrot.Editor
             if (!ReferenceEquals(_simMissionService, _missionService)) _simMissionService?.PollAcks();   // ⭐ N-8
             _runTo?.Tick();   // ⭐ N-5 — Run to …: its turbo steps ARE node frames, so it belongs to the sim thread
             TickNodeFrame(dt);   // ⭐ R-4211 — the gizmo feed is the UI thread's (RunInteractionBlock)
+            PublishReviewModel();   // ⭐ CE-4498 R-4 — after the step (the review source's Update ran in the node frame)
             DrainStagingRemap();   // ⭐ N-4 — the orchestration bus is read on the sim thread only; its UI half rides the publish queue
             (_editorApp?.ScenarioSession as Hrot.Editor.AiShared.Scenarios.EditorScenarioSession)?.RefreshOnSim();   // ⭐ N-6 — the values the UI reads
             if (_uiScenarioSession is { } uiSession && _editorApp?.ScenarioSession is { } simSession
@@ -3167,6 +3174,18 @@ namespace Hrot.Editor
                 _staging.Post(_ => uiRunTo.Apply(runToReadout));
             }
             _staging.Publish(s, ++_stagedTick);
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4498 R-4 (docs/DESIGN_Threaded_Review_Source.md §1.2) — mode 3, the sim thread: the review model is built by the ONE builder after the step, and only a NEW one is carried to the UI
+        /// with this tick's publish (the D-9 readout pattern); the UI's channel applies it in order with the pull. 0 B when nothing changed (the cached delegate reads the field).
+        /// </summary>
+        private void PublishReviewModel()
+        {
+            if (_reviewPublisher is not { } pub || _reviewSource is not { } source || _reviewThreaded is not { } ui || _staging is not { } st) return;
+            if (pub.PublishIfChanged(source) is not { } model) return;
+            _reviewToApply = model;
+            st.Post(_applyReview ??= _ => { if (_reviewToApply is { } m) ui.Apply(m); });
         }
 
         /// <summary>⭐ N-3 — the UI frame's start: A takes the latest complete tick (when newer), then the UI-owned state that S reads rides down.</summary>
@@ -5891,10 +5910,23 @@ namespace Hrot.Editor
                 // ⭐ G-7 S5 (I5, I7) — the merged view's lens: Details ▸ a component ▸ By node, the Replica differs lane's data, the "local to <node>" tag. ONE ReplicaViews over the merge's own ownership rule (the same map).
                 _replicaViews = new Fdp.Toolkit.ReplayBrowser.Federation.ReplicaViews(new Fdp.Toolkit.ReplayBrowser.Federation.OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap), reviewSerializer);
                 // ⭐ CE-4496 R-2 (docs/DESIGN_Threaded_Review_Source.md §1.1) — the review UI's ONE channel: the panels read its model and command through it; ⛔ none of them holds the manager.
-                //   Switch OFF: inline over the source (same thread). ReviewUi holds the ONE Federation panel and the Offsets… request (UI-only).
-                var reviewChannel = new Fdp.Toolkit.ReplayBrowser.Federation.InlineReviewChannel(reviewSource, new Fdp.Toolkit.ReplayBrowser.Federation.ReviewModelBuilder(_replicaViews));
+                //   Switch OFF: inline over the source (same thread). ⭐⭐ CE-4498 R-4 — mode 3: THREADED — a command is a sim job, the model is built on the sim thread after the step
+                //   (SimStep → PublishReviewModel) and carried to the UI by the staging; the request rides up only when it changes. ReviewUi holds the ONE Federation panel, the transport and the
+                //   Offsets… request (UI-only).
+                var reviewBuilder = new Fdp.Toolkit.ReplayBrowser.Federation.ReviewModelBuilder(_replicaViews);
+                Fdp.Toolkit.ReplayBrowser.Federation.IReviewChannel reviewChannel;
+                if (Staged)
+                {
+                    _reviewPublisher = new Fdp.Toolkit.ReplayBrowser.Federation.ReviewModelPublisher(reviewBuilder);
+                    var threaded = new Fdp.Toolkit.ReplayBrowser.Federation.ThreadedReviewChannel(reviewSource, _reviewPublisher,
+                        a => { if (_simJobs is { } q) q.Post(_ => a(), "review command"); else a(); });   // the queue exists once the two worlds are composed; before that nothing runs on another thread
+                    _reviewThreaded = threaded;
+                    reviewChannel = threaded;
+                }
+                else reviewChannel = new Fdp.Toolkit.ReplayBrowser.Federation.InlineReviewChannel(reviewSource, reviewBuilder);
                 _reviewChannel = reviewChannel;
-                var reviewUi = new Hrot.Editor.Review.ReviewUi(reviewChannel);
+                var reviewUi = new Hrot.Editor.Review.ReviewUi(reviewChannel, () => _timeTransport);
+                _reviewUi = reviewUi;
                 windowManager.RegisterFrameOverlay(() =>
                 {
                     reviewChannel.EndFrame();
@@ -5902,18 +5934,18 @@ namespace Hrot.Editor
                 });
                 _byNodeSection = new Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection(reviewChannel,
                     e => _world is { } w && w.IsAlive(e) && w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) ? w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value : 0,
-                    reviewSource.NameOf);
+                    n => reviewUi.Model.Participant(n)?.Name ?? "Node " + n);   // ⭐ CE-4498 — the names the model carries (the source's own cache is the sim thread's)
                 _byNodeSection.Watch = ReplicaWatch;   // ⭐ RW-6 — the header eye and the attribute view share the session's watch
                 _fdpEntityInspector.Reflector.ComponentFooter = _byNodeSection.Draw;
-                _fdpEntityInspector.EntityNote = reviewSource.LocalOriginNote;
+                _fdpEntityInspector.EntityNote = reviewUi.LocalOriginNote;   // ⭐ CE-4498 — from the model's local origins (never the merger across threads)
                 _replicaLane = new Hrot.Editor.AiShared.Review.ReplicaWatchLane(_replicaViews, ReplicaWatch, reviewChannel, SelectedNetworkId,
                     n => _world is { } w && Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(w, n) is { IsNull: false } u && w.HasComponent<EntityInfo>(u) ? w.GetComponentRO<EntityInfo>(u).Name.ToString() : null);
                 _watchKit = new Hrot.Editor.AiShared.Review.ReplicaWatchKit(_replicaLane, () => _world, () => _byNodeSection);
                 // ⭐ R-5 / V6 — while a participant group is open the analysis reads ITS file and a seek drives ITS transport; otherwise the own part (below)
                 _fileReview = new Hrot.Editor.AiShared.Review.FileReview(new Hrot.Editor.AiShared.Review.ReviewFileServices(
-                    RecordingFiles: () => reviewSource.IsOpen ? reviewSource.RecordingFiles() : _ownPartReplay.RecordingFiles(),
-                    CurrentFrame:   () => reviewSource.IsOpen ? reviewSource.Transport.CurrentFrame : _ownPartReplay.CurrentFrame(),
-                    Seek:           frame => { if (reviewSource.IsOpen) reviewSource.Transport.Seek((int)frame); else _ownPartReplay.SeekToFrame((int)frame, "review"); },
+                    RecordingFiles: () => reviewUi.Model.IsOpen ? reviewUi.RecordingFiles() : _ownPartReplay.RecordingFiles(),
+                    CurrentFrame:   () => reviewUi.Model.IsOpen ? reviewUi.Transport.CurrentFrame : _ownPartReplay.CurrentFrame(),
+                    Seek:           frame => { if (reviewUi.Model.IsOpen) reviewUi.Transport.Seek((int)frame); else _ownPartReplay.SeekToFrame((int)frame, "review"); },
                     Selection:      SelectedNetworkId,
                     Select:         SelectNetworkEntity,
                     Serializer:     reviewSerializer,
@@ -5932,11 +5964,11 @@ namespace Hrot.Editor
                 //   over OwnPartReplay (the ONE seek), shown only while the run mode is AAR
                 //   ⭐ R-5 / V6 — the SAME segment over the source's transport while a participant group is open (ReplayTransportSelector): Merged steps / scrubs and its ▶ is greyed with the reason,
                 //   a part plays. The Recording info / JSON export windows read the group's manager; a compact Source combo sits beside the segment, only while a group is open.
-                _reviewTransport = new Hrot.Editor.Review.ReplayTransportSelector(new Hrot.Editor.Review.OwnPartReplayTransport(_ownPartReplay, () => _timeTransport), reviewSource);
+                _reviewTransport = new Hrot.Editor.Review.ReplayTransportSelector(new Hrot.Editor.Review.OwnPartReplayTransport(_ownPartReplay, () => _timeTransport), reviewUi);
                 _aarTransport = new Hrot.Editor.Review.AarTransportSegment(
                     _reviewTransport,
-                    inAar: () => _timeTransport?.RunChoice?.Shown == Hrot.UI.Common.RunMode.RunArmed.AAR || reviewSource.IsOpen,
-                    merged: () => reviewSource.IsOpen && reviewSource.Kind == Hrot.Editor.Review.ReviewSourceKind.Merged);
+                    inAar: () => _timeTransport?.RunChoice?.Shown == Hrot.UI.Common.RunMode.RunArmed.AAR || reviewUi.Model.IsOpen,
+                    merged: () => reviewUi.Model.IsMerged);
                 if (windowManager.MainToolbar is { } aarToolbar)
                 {
                     _aarTransport.RegisterInto(aarToolbar);
@@ -5945,8 +5977,7 @@ namespace Hrot.Editor
                 }
                 _reviewStatus = Hrot.Editor.Review.ReviewSourceStatusSection.Register(windowManager.StatusBar, reviewUi);   // D9 — the bar's LEFT end
                 _reviewFederation = new Hrot.Editor.Review.ReviewFederationWindowHost(reviewUi, w => windowManager.RegisterWindow(w), Hrot.Editor.AiShared.Review.ReviewLayout.Perspective, EditorWindowColor.TitleBar);   // G-7 S5 — the Source menu's Offsets… opens it
-                var reviewTimeline = _fileReview.TimelinePanel;
-                reviewSource.Changed += () => reviewTimeline.SetReview(reviewSource.IsOpen ? reviewChannel : null);
+                _fileReview.TimelinePanel.SetReview(reviewChannel);   // ⭐ CE-4498 — bound once: a closed review's model has no participants (Recording info lists none)
                 if (_editorApp is { } reviewApp) reviewApp.RecordingOpened += id => reviewSource.OnRecordingOpened(id);   // ⭐ THE one branch where a recording opens: a group with no part of this node ⇒ the source
                 // ⛔ CE-4497 R-3 — no frame overlay steps the source any more (it ran on the UI thread and merged into A): TickNodeFrame does, after the kernel tick.
                 _reviewBundle = reviewBundle;
@@ -5995,7 +6026,7 @@ namespace Hrot.Editor
                     windowManager.RequestDockPreset(Hrot.Editor.AiShared.Review.ReviewLayout.PresetFor(reviewIds));
                 };
                 _reviewSwitch = new Hrot.Editor.AiShared.Review.ReviewLayoutSwitch(
-                    inAar:         () => _timeTransport?.RunChoice?.Shown == Hrot.UI.Common.RunMode.RunArmed.AAR || _reviewSource?.IsOpen == true,   // ⭐ V6 / D10 — a participant group opening is an AAR entry too
+                    inAar:         () => _timeTransport?.RunChoice?.Shown == Hrot.UI.Common.RunMode.RunArmed.AAR || _reviewUi?.Model.IsOpen == true,   // ⭐ V6 / D10 — a participant group opening is an AAR entry too
                     allInOne:      () => _networkFactory is OfflineNetworkFactory,   // ⭐ the editor is a one-node cluster (ruling 66): no real node around it ⇒ its AAR is analysis; a networked node's is the debrief
                     current:       () => windowManager.CurrentPerspective,
                     trySwitch:     p => windowManager.TrySwitchPerspective(p, out _),

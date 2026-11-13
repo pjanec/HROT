@@ -92,7 +92,6 @@ public sealed class ReviewSource : IDisposable, IReviewHost
         _select = select ?? (_ => false);
         _nodeName = nodeName ?? Hrot.Orchestrator.NodeIdRanges.NameOf;   // ⭐ the role from the id's range (R-4175), so a recording's rows read "CGF-1" with its role icon
         _facade = facade ?? (() => null);
-        Transport = new ReviewSourceTransport(this);
     }
 
     // ── ⭐ CE-4496 R-2 (docs/DESIGN_Threaded_Review_Source.md §1.1) — the source as an IReviewHost: the review UI reads the model the ONE builder makes from these facts, and
@@ -148,33 +147,28 @@ public sealed class ReviewSource : IDisposable, IReviewHost
     /// <summary>⭐ G-7 S5 — the manager while the world shows the MERGE (null for a part / nothing open): what Details ▸ By node, the <i>Replica differs</i> lane and the search read.</summary>
     public FederatedReplayManager? MergedManager => Kind == ReviewSourceKind.Merged ? _manager : null;
 
-    private Dictionary<int, string>? _localNotes;
+    private IReadOnlyDictionary<Entity, int>? _localOrigins;
+    private int _localOriginsVersion = -1;
 
-    /// <summary>⭐ G-7 S5 (I7, M-6) — <c>"local to SimHost-1"</c> for a LOCAL (no network id) entity of the merge — the node it came from (<see cref="MergeTarget.TryGetLocalNode"/>); null for any other entity. Cached: 0 B per frame.</summary>
-    public string? LocalOriginNote(Entity entity)
+    /// <summary>
+    /// ⭐ CE-4498 — the merge's LOCAL entities → the node each came from (<see cref="MergeTarget.TryGetLocalNode"/>), as an immutable snapshot re-copied only when the merger's map changed; null outside
+    /// Merged. It rides in the read model, so the UI's <i>"local to &lt;node&gt;"</i> (ReviewUi.LocalOriginNote) never reads the merger across threads.
+    /// </summary>
+    public IReadOnlyDictionary<Entity, int>? LocalOrigins
     {
-        if (Kind != ReviewSourceKind.Merged || !_merger.Target.TryGetLocalNode(entity, out int node)) return null;
-        _localNotes ??= new Dictionary<int, string>();
-        if (!_localNotes.TryGetValue(node, out var note)) _localNotes[node] = note = "local to " + _nodeName(node);
-        return note;
+        get
+        {
+            if (Kind != ReviewSourceKind.Merged) return null;
+            var t = _merger.Target;
+            if (t.LocalVersion != _localOriginsVersion || _localOrigins is null) { _localOriginsVersion = t.LocalVersion; _localOrigins = t.CopyLocalOrigins(); }
+            return _localOrigins;
+        }
     }
-
-    /// <summary>⭐ The ONE AAR transport's implementation over this source (the editor's segment draws it while a group is open).</summary>
-    public ReviewSourceTransport Transport { get; }
 
     /// <summary>Fired when the open group, the kind or the part changes (the status bar and the combo re-read their text).</summary>
     public event Action? Changed;
 
     private void Raise() { _statusKey = -1; _factsKey++; Changed?.Invoke(); }
-
-    /// <summary>The file the review windows (search, diff) read: the primary participant's (Merged) or the part's.</summary>
-    public string[] RecordingFiles()
-    {
-        if (_open is null) return Array.Empty<string>();
-        int node = Kind == ReviewSourceKind.Part ? _partNode : (_manager?.LocalEntitiesProviderNodeId ?? _open.Parts[0].Node);
-        string? path = _open.Parts.Where(p => p.Node == node).Select(p => p.Path).FirstOrDefault();
-        return path is null ? Array.Empty<string>() : new[] { path };
-    }
 
     // ── the branch: what a recording is when it opens ───────────────────────────────────────
 
@@ -241,11 +235,12 @@ public sealed class ReviewSource : IDisposable, IReviewHost
     {
         Updates++;
         bool inReplay = _inReplay();
-        _playing = _facade() is { IsPaused: false };
+        var facade = _facade();   // read ONCE per step (the toolbar's ▶ and rate)
+        _playing = facade is { IsPaused: false };
         if (_open is not null && !inReplay && _readyOnce) { Close(); return; }
         if (_pending is not null && inReplay && _ready()) { var p = _pending; _pending = null; _readyOnce = true; Load(p); }
-        if (_open is not null && Kind == ReviewSourceKind.Part) AdvancePart(dtSeconds);
-        else if (_open is not null && Kind == ReviewSourceKind.Merged) AdvanceMerged(dtSeconds);
+        if (_open is not null && Kind == ReviewSourceKind.Part) AdvancePart(dtSeconds, facade);
+        else if (_open is not null && Kind == ReviewSourceKind.Merged) AdvanceMerged(dtSeconds, facade);
         else _mergedWasPlaying = false;
     }
 
@@ -300,7 +295,7 @@ public sealed class ReviewSource : IDisposable, IReviewHost
     {
         if (_open is null || _manager is null) return;
         if (Kind == ReviewSourceKind.Merged) return;
-        int atFrame = Transport.CurrentFrame;
+        int atFrame = CurrentFrame;
         _part?.Dispose(); _part = null;
         _worldDirty = true;   // the world held a part: a world boundary
         Kind = ReviewSourceKind.Merged;
@@ -386,9 +381,9 @@ public sealed class ReviewSource : IDisposable, IReviewHost
     }
 
     /// <summary>A playing part: the recording's own clock advances with the toolbar's ▶ and rate (as an own-part AAR follows the cluster clock), frames applied by the playback's step.</summary>
-    private void AdvancePart(double dt)
+    private void AdvancePart(double dt, Hrot.UI.Common.Facades.ITimeTransportFacade? facade)
     {
-        if (_part is null || _world() is not { } world || _facade() is not { IsPaused: false } f || _part.TotalFrames <= 0) return;
+        if (_part is null || _world() is not { } world || facade is not { IsPaused: false } f || _part.TotalFrames <= 0) return;
         _partClockTicks += dt * Math.Max(0.01f, f.TimeScale) * TimeSpan.TicksPerSecond;
         int target = FrameAtOrBefore(_part, (long)_partClockTicks);
         int gap = target - _part.CurrentFrame;
@@ -405,10 +400,10 @@ public sealed class ReviewSource : IDisposable, IReviewHost
     /// ▶| step takes, so each step merges through <c>OnManagerTime</c> → <see cref="RefillMerged"/>, incrementally); a jump of more than 30 frames is one seek (one merge), as a part does.
     /// While paused the clock follows the primary's frame, so a step or a scrub is where ▶ resumes from.
     /// </summary>
-    private void AdvanceMerged(double dt)
+    private void AdvanceMerged(double dt, Hrot.UI.Common.Facades.ITimeTransportFacade? facade)
     {
         if (_manager is null || Primary()?.Playback is not { TotalFrames: > 0 } pb) return;
-        if (_facade() is not { IsPaused: false } f) { _mergedWasPlaying = false; return; }
+        if (facade is not { IsPaused: false } f) { _mergedWasPlaying = false; return; }
         if (!_mergedWasPlaying) { _mergedClockTicks = CurrentWallTicks(); _mergedWasPlaying = true; }
         _mergedClockTicks += dt * Math.Max(0.01f, f.TimeScale) * TimeSpan.TicksPerSecond;
         int target = FrameAtOrBefore(pb, (long)_mergedClockTicks);
@@ -418,7 +413,7 @@ public sealed class ReviewSource : IDisposable, IReviewHost
         for (int i = 0; i < gap && !pb.IsAtEnd; i++) _manager.StepForwardAll();                            // a step each: one merge each
     }
 
-    // ── the transport's operations (ReviewSourceTransport calls these) ───────────────────────
+    // ── the transport's operations (the review's commands, applied on the source's thread) ───────────────────────
 
     internal bool HasRecording => (Kind == ReviewSourceKind.Part ? _part : Primary()?.Playback) is { TotalFrames: > 0 };
     internal int CurrentFrame => Kind == ReviewSourceKind.Part ? _part?.CurrentFrame ?? -1 : Primary()?.CurrentFrame ?? -1;

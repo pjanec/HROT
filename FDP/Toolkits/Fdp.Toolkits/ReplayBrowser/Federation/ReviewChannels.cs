@@ -129,6 +129,81 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
     }
 
     /// <summary>
+    /// ⭐ CE-4498 R-4 (docs/DESIGN_Threaded_Review_Source.md §1.2) — the SIM side of the threaded review: holds the request the UI last sent and the model last published; once a sim step
+    /// (after the review source's <c>Update</c>) <see cref="PublishIfChanged"/> builds through the ONE builder and returns the model only when it is a NEW one — the caller carries it to the UI
+    /// with the staging (the D-9 readout pattern). 0 B when nothing changed.
+    /// </summary>
+    public sealed class ReviewModelPublisher
+    {
+        private readonly ReviewModelBuilder _builder;
+        private ReviewReadModel? _last;
+
+        public ReviewModelPublisher(ReviewModelBuilder builder) => _builder = builder ?? throw new ArgumentNullException(nameof(builder));
+
+        /// <summary>The request the UI last sent (set by a sim job; read by the next build).</summary>
+        public ReviewViewRequest Request { get; set; } = ReviewViewRequest.Empty;
+
+        /// <summary>The model last published (sim thread).</summary>
+        public ReviewReadModel? Last => _last;
+
+        /// <summary>The model for <paramref name="host"/> now, when it differs from the one last published; else null.</summary>
+        public ReviewReadModel? PublishIfChanged(IReviewHost host)
+        {
+            var m = _builder.Build(host, Request, _last);
+            if (ReferenceEquals(m, _last)) return null;
+            return _last = m;
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4498 R-4 (docs/DESIGN_Threaded_Review_Source.md §1.1, §1.2) — <b>the review channel across threads</b> (the threaded editor, mode 3): a command becomes a job on the source's thread
+    /// (<paramref name="post"/>); <see cref="Model"/> is the newest model the source published, delivered on the UI thread by <see cref="Apply"/> (carried by the staging); the panels' request rides
+    /// to the source only when it changed (<see cref="EndFrame"/>). ⛔ Nothing here reads the source or its manager: the UI thread sees only immutable models.
+    /// </summary>
+    public sealed class ThreadedReviewChannel : IReviewChannel
+    {
+        private readonly IReviewCommands _source;
+        private readonly ReviewModelPublisher _publisher;
+        private readonly Action<Action> _post;
+        private volatile ReviewReadModel _model = ReviewReadModel.Empty;
+
+        /// <param name="source">The source's commands — invoked ONLY inside a posted job (on its thread).</param>
+        /// <param name="publisher">The sim side's publisher (its request is set by a posted job).</param>
+        /// <param name="post">Runs an action on the source's thread, in order (the sim job queue).</param>
+        public ThreadedReviewChannel(IReviewCommands source, ReviewModelPublisher publisher, Action<Action> post)
+        {
+            _source = source ?? throw new ArgumentNullException(nameof(source));
+            _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
+            _post = post ?? throw new ArgumentNullException(nameof(post));
+        }
+
+        public ReviewReadModel Model => _model;
+        public ReviewRequestCollector Requests { get; } = new();
+
+        /// <summary>UI thread: the model the source published (carried by the staging, applied in order with the pull).</summary>
+        public void Apply(ReviewReadModel model) { if (model != null) _model = model; }
+
+        /// <summary>Commands sent so far (a rail's counter).</summary>
+        public int Posted { get; private set; }
+
+        public void EndFrame()
+        {
+            if (Requests.EndFrame() is { } request) Post(() => _publisher.Request = request);
+        }
+
+        private void Post(Action a) { Posted++; _post(a); }
+
+        public void SelectMerged() => Post(() => _source.SelectMerged());
+        public void SelectPart(int node) => Post(() => _source.SelectPart(node));
+        public void SeekFrame(int frame) => Post(() => _source.SeekFrame(frame));
+        public void StepFrame(int delta) => Post(() => _source.StepFrame(delta));
+        public void SetNodeOffsetTicks(int node, long offsetTicks) => Post(() => _source.SetNodeOffsetTicks(node, offsetTicks));
+        public void SetBaseWallTicks(long ticks) => Post(() => _source.SetBaseWallTicks(ticks));
+        public void SetLocalEntitiesShown(int node, bool shown) => Post(() => _source.SetLocalEntitiesShown(node, shown));
+        public void SetLocalEntitiesProvider(int node) => Post(() => _source.SetLocalEntitiesProvider(node));
+    }
+
+    /// <summary>
     /// ⭐ <see cref="IReviewHost"/> over a bare <see cref="FederatedReplayManager"/> — the standalone Replay Browser's review (no ReviewSource there): the facts come from the
     /// manager's primary playback; Select Merged / Part are the host's view-mode switch (<paramref name="selectMerged"/> / <paramref name="selectPart"/>).
     /// </summary>
