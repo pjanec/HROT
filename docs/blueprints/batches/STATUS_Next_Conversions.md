@@ -15,13 +15,15 @@ Handoff: `HANDOFF_Coordinator_To_Backend_Next_Conversions.md` (dispatched at `90
 
 | item | tracker | state | result |
 |---|---|---|---|
-| X-1 | CE-4516 | 🔨 | the weapon phase's shooters queued on ONE lock in `LineOfFire` — fixed (lock-free walk) |
-| X-2 | CE-4517 | ⏳ | |
-| X-3 | CE-4518 | ⏳ | |
-| X-4 | CE-4519 | 🔨 | the egress gate skipped nothing: any authority write anywhere ⇒ a full scan — made per entity; repeat ownership writes dropped |
-| X-5 | CE-4520 | ⏳ | |
-| X-6 | CE-4521 | ⏳ | |
-| X-7 | CE-4522 | ⏳ | |
+| X-1 | CE-4516 | ✅ | one `lock (bodies)` around the line-of-fire walk queued every shooter — lock-free walk; 20.1 → 9.4 ms at 4 threads (4 now beats 1). Left: the serial pre-pass over mounts / barrels / loadouts (X-5 lever ②) |
+| X-2 | CE-4517 | ✅ | not the batch size first: ~45 % of the squad jobs was `PartIndex.PartsOf` under one lock — lock-free once prepared; plus `ICoarseJob` (2 a batch). Squads 5.2 → 4.1 ms; BrainTick 39 → 24 ms (it read the same index) |
+| X-3 | CE-4518 | ✅ | the staff composer a per-commander phase, launches bucketed — 3.6 → 2.3 ms; read survey not re-run (no new cross read: own outbox only, the composer's reads are of commanders' squads and members) |
+| X-4 | CE-4519 | ✅ | the gate skipped 0: H1 forced a full scan on any ownership write anywhere — per entity now; repeat ownership writes skipped; managed inputs by reference. Full scans 5 281 → 30, skipped 0 % → 75 %; egress 30.3 → 23.4 ms. The EQS samples themselves are real config changes (re-aims, suspend toggles) |
+| X-5 | CE-4520 | ✅ | a plateau explained: ≈ 48 ms serial floor (egress 23 ms the largest) — levers named |
+| X-6 | CE-4521 | ✅ | stepped gate EQUAL at 1 / 4 / 8 · threaded session ×2 ok, 0 guard hits · 0 B rails |
+| X-7 | CE-4522 | ✅ | numbers before / after (below), the Windows commands, folded into Parallel Simulation §18.8 and Egress §5c |
+
+**CGF frame, 1 000 men, 4 threads: 140.9 → 99.6 ms (14.2 → ~20 fps).**
 
 ## Baseline (VM, Release, 4 threads, `HROT_PARALLEL_SIM=1`, 1 000-man demo-city, `scripts/scale-rig.py`)
 
