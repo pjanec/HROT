@@ -53,6 +53,27 @@ Branch `exp/threaded-build`. Rulings R-4218 / R-4219 (R-4207, R-4215).
 
 | what | before | after | how |
 |---|---|---|---|
+| ⭐ M-4 the tick, 1 000-man demo-city, mode 3 + `HROT_PARALLEL_SIM=1`, PLAYING (Throughput by M-2), 4-core VM | **Debug** 1 thread / 4 threads: tick 2 247 / 1 452 ms · **Release**: 192 / **222** ms ⚠ (worse at 4) | — | `threaded-scale-measure.py --threads 1,4` (`HROT_PARALLEL_SIM=1`) |
+
+### M-4 — what is serial in the tick (ms per call, recent average; 4 threads)
+
+| system | Debug 1 → 4 | Release 1 → 4 | per-entity? | writes on OTHER entities |
+|---|---|---|---|---|
+| `EqsSolverSystem` (background module, its own window on the pool) | 700 → 522 | 342 → 167 | its window (`105705de9`) | — (sensor results on its own carriers) |
+| `TogglableSimulationGroup` (73 members) | 1 067 → 917 | 141 → 101 | — | — |
+| · `BrainTickSystem` | 461 → 186 | 56 → 26 | ✅ phase | by command |
+| · `WeaponDispatcherSystem` | 220 → **276** | 9.9 → 11.1 | ⛔ serial | an operated station's mount `WeaponState`, a turret part's `WeaponTask` (exclusive per seat) |
+| · `StressSystem` | 64 → 61 | 17.1 → 11.2 | ✅ phase (gains little) | edges / breaks deferred |
+| · `CalloutSystem` | 52 → 50 | 12.6 → 12.9 | ✅ phase (no gain) | follow-ups |
+| · `SquadCoordinationSystem` | 47 → 36 | 9.7 → 11.0 | ✅ per level | members (owned) |
+| · `CgfThreatEvaluationSystem` | 21 → 14 | 7.6 → 6.1 | ✅ phase | — |
+| · the rest (≈ 66 small) | ≈ 120 | ≈ 18 | mostly serial | — |
+| `TogglableInputGroup` (31: ray casts, fire processing, ingress) | 171 → 179 | 5.3 → 5.4 | ray casts on the pool | `FireProcessingSystem` writes the struck |
+| `TogglablePostSimulationGroup` (movement, ballistics) | 39 → 42 | 8.6 → 8.1 | movement ✅ phase | — |
+
+⭐⭐ **The Release reading changes the plan:** every kernel system together is ~120 ms of a **222 ms** Release tick at 4 threads, and the tick got
+WORSE with threads (192 → 222) while the systems shrank (group 141 → 101). ⇒ the largest serial cost in Release is OUTSIDE the systems — being
+profiled (`dotnet-trace`, M-4b). The Debug ranking (weapon dispatcher 276 ms) is Debug overhead: 11 ms in Release.
 
 ## NEXT (the resume point)
 M-1 … M-9 in order; started at the merge of `coordinator` (`ffc802ab2`) into `exp/threaded-build`.
