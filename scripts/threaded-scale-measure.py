@@ -39,13 +39,16 @@ def tick(s):
     return data(s.get("/world/hash", timeout=300)).get("tick")
 
 
-def systems(s):
-    """(system name, recent avg ms) over every subsystem of this node, the heaviest first."""
+def systems(s, full=None):
+    """(system name, recent avg ms) over every subsystem of this node, the heaviest first; <full> collects every entry with its phase / module."""
     rows = []
     for sub in data(s.get("/diagnostics/architecture", timeout=120)).get("subsystems") or []:
         for sy in sub.get("systems") or []:
             ms = sy.get("recentAvgMs") or sy.get("avgMs") or 0
             rows.append((sy.get("systemName", "?"), float(ms)))
+            if full is not None:
+                full.append({"system": sy.get("systemName"), "phase": sy.get("phase"), "module": sy.get("module"), "ms": float(ms),
+                             "subsystem": sub.get("subsystem")})
     rows.sort(key=lambda r: -r[1])
     return rows
 
@@ -88,7 +91,9 @@ def measure(a, threads):
         t1, w1 = tick(s), time.time()
         if t0 is not None and t1 is not None and t1 > t0:
             row["tickMs"] = round((w1 - w0) * 1000.0 / (t1 - t0), 2)
-        row["systems"] = systems(s)[:8]
+        full = []
+        row["systems"] = systems(s, full)[:8]
+        row["allSystems"] = sorted(full, key=lambda x: -x["ms"])   # every system, its phase and module (M-4: what is still serial)
         time.sleep(a.play_seconds / 4)
         s.post("/sim/pause", {}, timeout=60)
         row["uiPlayingMs"] = frame_means(os.path.join(out, f"editor-{s.gen}.log"))
