@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — dispatched, QUEUED (the first backend VM lane to finish its current batch takes it)
+state: LIVE — DEFERRED, not dispatched to a lane yet: start only AFTER the parallelization programme is merged (it touches the same debug-API code); re-stamped 2026-11-13 (rule 1a)
 updated: 2026-11-13
 current-answer: the whole file
 related-designs:
@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (VM): AUTONOMOUS — the AI debug API HTTP-only, self-describing (R-4223)
 
-**For:** whichever backend VM lane finishes its current batch first. **From:** coordinator. **Dispatched at `5057d7b06`** — scope frozen.
+**For:** a backend VM lane, ⛔ **not before the threading / parallelization programme (`exp/threaded-build` + `exp/next-conversions`, CE-4462…CE-4522) is merged into the lanes** — it rewrites the same `DebugApiHost` route table (route sides, new routes). **From:** coordinator. **Dispatched at `<stamp>`** — scope frozen.
 🔒 User, `2026-11-13`: *"ok, lets drop the MCP"* · *"unify and share, no duplication of information, we can keep generating but from single
 source"* · *"guide generation is still ok but i guess this is what the GET help would return"*.
 
@@ -22,8 +22,8 @@ push per item, by path; tick its tracker row. Deviations go back into the design
 
 ## Where to work
 
-A NEW branch **`exp/debug-http`** from **`origin/exp/threaded-build`** (it carries the newest route table: the threaded route sides,
-`/world/hash`, the review routes). ⛔ Never commit to `exp/threaded-build`. Push `chore: started debug-http at <sha>`. Status file
+A NEW branch **`exp/debug-http`** from **the lane that carries the MERGED parallelization programme at start time** (name it and its sha in
+the started note) — the newest route table (the threaded route sides, `/world/hash`, the review routes) lives there. ⛔ Never commit to another lane's branch. Push `chore: started debug-http at <sha>`. Status file
 `docs/blueprints/batches/STATUS_Debug_Api_Http_Only.md`.
 
 ## The work — the design's §2–§5
