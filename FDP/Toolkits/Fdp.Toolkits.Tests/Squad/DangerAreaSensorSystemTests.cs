@@ -59,6 +59,41 @@ namespace Fdp.Toolkit.Tests.Squad
 
         public void Dispose() { _repo.Dispose(); _roads.Dispose(); }
 
+        /// <summary>
+        /// ⭐⭐ E-3 (CE-4509) — a danger-area sensor ENSURED inside a per-entity phase (the brains, <c>HROT_PARALLEL_SIM=1</c>) lands DRESSED at the
+        /// merge: its creation is deferred (EqsChildSensor.Ensure), so its typed pieces ride the same command buffer. 📐 Measured before: the child
+        /// landed bare (no DangerAreaSensor, no SensorTag) and stayed so — never configured, never solved (the squad march's route sensor under
+        /// parallel brains). 🔴 Red-proof: drop the pending dress in DangerAreaChildSensor.Ensure ⇒ the child has no DangerAreaSensor.
+        /// </summary>
+        [Fact]
+        public void E3_EnsuredInsideAPerEntityPhase_TheChildLandsDressed()
+        {
+            var units = new Entity[16];
+            for (int i = 0; i < units.Length; i++)
+            {
+                units[i] = _repo.CreateEntity();
+                _repo.AddComponent(units[i], new SimTransform { Position = new Vector3(10 * i, 10, 0), Rotation = Quaternion.Identity });
+            }
+            Fdp.Core.Jobs.ParallelEntities.Run(_repo, units, units.Length, new EnsureJob { Repo = _repo });
+            _repo.FlushCommandBuffers();
+            foreach (var unit in units)
+            {
+                var child = EqsChildSensor.Find(_repo, unit, 1);
+                Assert.False(child.IsNull);
+                Assert.True(_repo.HasComponent<DangerAreaSensor>(child), $"{unit}: the child landed without its DangerAreaSensor");
+                Assert.True(_repo.HasComponent<SensorTag>(child));
+                Assert.Equal(new Fdp.Core.WorldPoint(100f, 300f, 0f), _repo.GetComponentRO<DangerAreaSensor>(child).Settings.RoutePoint);
+            }
+        }
+
+        private struct EnsureJob : Fdp.Core.Jobs.IEntityBatchJob
+        {
+            public EntityRepository Repo;
+            public void Execute(Entity e, int index, Fdp.Core.Jobs.BatchContext ctx)
+                => DangerAreaChildSensor.Ensure(Repo, e, 1, DangerAreaSettings.ToPoint(new Vector3(100, 300, 0)));
+            public void ApplyDeferred(EntityRepository repo, in Fdp.Core.Jobs.Deferred d) { }
+        }
+
         /// <summary>test-town's ground with one building north-east of the Cross Street crossing (the roads are <see cref="_roads"/>).</summary>
         private static TerrainWorld TestTown() => new()
         {

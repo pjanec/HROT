@@ -53,7 +53,57 @@ namespace Fdp.Core.Jobs
         }
 
         internal ref readonly Deferred DeferredAt(int i) => ref _deferred[i];
-        internal void Reset() { DeferredCount = 0; _laterCount = 0; Commands.Clear(); }
+        internal void Reset()
+        {
+            DeferredCount = 0; _laterCount = 0; Commands.Clear();
+            Array.Clear(_ownManaged, 0, _ownManagedCount); _ownManagedCount = 0;
+            Array.Clear(_ownUnmanaged, 0, _ownUnmanagedCount); _ownUnmanagedCount = 0;
+        }
+
+        // ⭐⭐ E-3 (CE-4509) — "own entity: direct access" holds for a managed component the job ADDS to its own entity: the add is structural,
+        //   so it is deferred to the merge, and the job reads its own pending value until then (EntityRepository's managed read path).
+        //   📐 Measured before: SubordinateOrders.Record's read-modify-write on a commander that held none yet saw "none" at every order of
+        //   the tick, so only the last member's entry survived the merge and the plays re-sent the others' orders (the squad drills under
+        //   parallel brains: an order counted twice). Reused: 0 B once warm.
+        private (int Index, int TypeId, object? Value)[] _ownManaged = new (int, int, object?)[4];
+        private int _ownManagedCount;
+
+        internal void RememberOwnManaged(int index, int typeId, object? value)
+        {
+            for (int i = 0; i < _ownManagedCount; i++)
+                if (_ownManaged[i].Index == index && _ownManaged[i].TypeId == typeId) { _ownManaged[i].Value = value; return; }
+            if (_ownManagedCount == _ownManaged.Length) Array.Resize(ref _ownManaged, _ownManaged.Length * 2);
+            _ownManaged[_ownManagedCount++] = (index, typeId, value);
+        }
+
+        // ⭐ E-3 (CE-4509) — the same for an UNMANAGED add to the job's own entity (boxed: an add happens once, never every frame); read back with
+        //   EntityRepository.TryGetOwnPendingAdd — never by ref (the value is not in the world's storage until the merge).
+        private (int Index, int TypeId, object Value)[] _ownUnmanaged = new (int, int, object)[4];
+        private int _ownUnmanagedCount;
+
+        internal void RememberOwnUnmanaged(int index, int typeId, object value)
+        {
+            for (int i = 0; i < _ownUnmanagedCount; i++)
+                if (_ownUnmanaged[i].Index == index && _ownUnmanaged[i].TypeId == typeId) { _ownUnmanaged[i].Value = value; return; }
+            if (_ownUnmanagedCount == _ownUnmanaged.Length) Array.Resize(ref _ownUnmanaged, _ownUnmanaged.Length * 2);
+            _ownUnmanaged[_ownUnmanagedCount++] = (index, typeId, value);
+        }
+
+        internal bool TryOwnUnmanaged(int index, int typeId, out object? value)
+        {
+            for (int i = 0; i < _ownUnmanagedCount; i++)
+                if (_ownUnmanaged[i].Index == index && _ownUnmanaged[i].TypeId == typeId) { value = _ownUnmanaged[i].Value; return true; }
+            value = null;
+            return false;
+        }
+
+        internal bool TryOwnManaged(int index, int typeId, out object? value)
+        {
+            for (int i = 0; i < _ownManagedCount; i++)
+                if (_ownManaged[i].Index == index && _ownManaged[i].TypeId == typeId) { value = _ownManaged[i].Value; return true; }
+            value = null;
+            return false;
+        }
 
         // ⭐ N-11 / N-12 (CE-4473 / CE-4474; R-4212 ②) — FOLLOW-UPS a helper inside the job needs done serially (a callout to the squad, an order
         //   to a member): played after the phase in batch order, after the command buffers and before the job's own deferred step. The handler

@@ -18,8 +18,10 @@ namespace Fdp.Toolkit.Squad.Command
             if (!world.IsComponentTypeRegistered<ReportOutbox>() || !world.IsAlive(commander)) return false;
             if (!world.HasComponent<ReportOutbox>(commander))
             {
-                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
-                var fresh = new ReportOutbox();
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred.
+                // ⭐ E-3 (CE-4509) — and a SECOND report of the same tick builds on the first one's pending add (⛔ was: a fresh box again, so
+                //   the last report of the tick replaced the others — a squad's hall RoomClear lost to its Foothold under parallel brains)
+                var fresh = world.TryGetOwnPendingAdd<ReportOutbox>(commander, out var pending) ? pending : new ReportOutbox();
                 Push(ref fresh, report, dueAt, subject);
                 world.AddComponent(commander, fresh);
                 return true;

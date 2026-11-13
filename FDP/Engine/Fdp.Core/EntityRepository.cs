@@ -1544,8 +1544,33 @@ namespace Fdp.Core
             if (_entityIndex.GetComponentMask(entity.Index).IsSet(ManagedComponentType<T>.ID))
                 return true;
 
+            // ⭐ E-3 (CE-4509) — in a phase: the job's own pending add (BatchContext.RememberOwnManaged)
+            if (ParallelReadCheck.AnyPhase && ParallelReadCheck.CurrentBatch is { } batch && batch.TryOwnManaged(entity.Index, ManagedComponentType<T>.ID, out var pending))
+                return pending != null;
             return false;
         }
+
+        /// <summary>
+        /// ⭐⭐ E-3 (CE-4509) — inside a per-entity phase: the value THIS job added to its own <paramref name="entity"/> this tick (the add is
+        /// structural, so it is deferred to the merge and <see cref="HasComponent{T}(Entity)"/> still reads false). An "add if absent, else
+        /// mutate" helper builds on it, so two calls in one Execute keep both. False outside a phase or when nothing is pending.
+        /// 📐 Measured before: ReportQueue.Enqueue's second report of a tick replaced the first (a squad's RoomClear lost to its Foothold).
+        /// </summary>
+        public bool TryGetOwnPendingAdd<T>(Entity entity, out T value) where T : unmanaged
+        {
+            if (ParallelReadCheck.AnyPhase && ParallelReadCheck.CurrentBatch is { } batch
+                && batch.TryOwnUnmanaged(entity.Index, ComponentType<T>.ID, out var pending) && pending is T t)
+            { value = t; return true; }
+            value = default;
+            return false;
+        }
+
+        // ⭐ E-3 (CE-4509) — the job's own pending managed add, when the world does not hold the component yet (null: none pending).
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private T? OwnPendingManaged<T>(Entity entity) where T : class
+            => ParallelReadCheck.AnyPhase && ParallelReadCheck.CurrentBatch is { } batch
+               && !_entityIndex.GetComponentMask(entity.Index).IsSet(ManagedComponentType<T>.ID)
+               && batch.TryOwnManaged(entity.Index, ManagedComponentType<T>.ID, out var pending) ? pending as T : null;
         
         /// <summary>
         /// Gets managed component reference (nullable).
@@ -1556,6 +1581,7 @@ namespace Fdp.Core
         {
             if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Read, TraceId, entity.Index);
             if (ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ParallelReadCheck.OtherManagedRO<T>(this, entity);   // ⭐ N-10 — another entity, in a phase: the last tick
+            if (ParallelReadCheck.AnyPhase && OwnPendingManaged<T>(entity) is { } ownPending) return ownPending;   // ⭐ E-3 — own pending add
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
@@ -1608,6 +1634,7 @@ namespace Fdp.Core
         {
             if (AccessTrace.On) AccessTrace.RecordE<T>(TraceKind.Read, TraceId, entity.Index);
             if (ParallelReadCheck.AnyPhase && ParallelReadCheck.Active && ParallelReadCheck.IsOther(entity.Index)) return ParallelReadCheck.OtherManagedRO<T>(this, entity);   // ⭐ N-10 — another entity, in a phase: the last tick
+            if (ParallelReadCheck.AnyPhase && OwnPendingManaged<T>(entity) is { } ownPending) return ownPending;   // ⭐ E-3 — own pending add
             var table = GetManagedTable<T>(false);
             var v = table.GetRO(entity.Index)!;
             if (ManagedMutationCheck.On) ManagedMutationCheck.OnRead(table, entity.Index, v);   // ⭐ CE-4445 M-2
@@ -1924,6 +1951,7 @@ namespace Fdp.Core
             if (!other && has) return false;
             if (other && has && ParallelReadCheck.Compiled) ParallelReadCheck.CheckOtherWrite(this, typeof(T), entity);
             ParallelReadCheck.CurrentBatch!.Commands.AddComponent(entity, in component);
+            if (!other) ParallelReadCheck.CurrentBatch!.RememberOwnUnmanaged(entity.Index, ComponentType<T>.ID, component);   // ⭐ E-3 — TryGetOwnPendingAdd
             return true;
         }
 
@@ -1934,6 +1962,7 @@ namespace Fdp.Core
             if (!other && has) return false;
             if (other && has && ParallelReadCheck.Compiled) ParallelReadCheck.CheckOtherWrite(this, typeof(T), entity);
             ParallelReadCheck.CurrentBatch!.Commands.SetManagedComponent(entity, value);
+            if (!other) ParallelReadCheck.CurrentBatch!.RememberOwnManaged(entity.Index, ManagedComponentType<T>.ID, value);   // ⭐ E-3 — read back by this job
             return true;
         }
 
