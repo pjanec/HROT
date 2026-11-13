@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — in progress
+state: LIVE — DONE (one residue open: CE-3445)
 updated: 2026-11-13
 current-answer: the whole file (NEXT is the resume point)
 related-designs:
@@ -45,5 +45,5 @@ Branch `exp/threaded-build`. Started while the Windows batch's F-3 probe runs (t
 |---|---|---|
 
 ## NEXT (the resume point)
-E-3's last gate: the stepped gate (M-7) still equal at 1 / 2 / 4 / 8 threads on these fixes (with the Windows batch's F-3 gate) · then E-4 fold:
-Parallel Simulation §18.6 (what the drills taught — the three own-entity ADD rules), the `Entity` layout's owning design, Threaded Presentation §0a.
+⭐ DONE: E-1 … E-4 (tracker ticked). The stepped gate on these fixes: switch off 12 / 12 equal at 1 / 2 / 4 / 8; mode 3 35 of 36 — the one
+residue is OPEN as CE-3445 (STATUS_Windows_Findings F-D4).
