@@ -125,6 +125,44 @@ namespace Fdp.Toolkit.Replication.Tests
             Assert.Contains((w.SimulationTick, u[11].Index, 4f), t.Published);
         }
 
+        /// <summary>
+        /// ⭐ CE-4519 — a MANAGED input is compared by REFERENCE (an immutable record, replaced whole): a neighbour's new payload in the same
+        /// chunk does not visit this entity; the same object set again does not; a new object does; removing it does (the structural clock).
+        /// 📐 The chunk alone (16 384 entities) made 2.08 M of the CGF's 4.15 M non-full visits. 🔴 Red-proof: the compare dropped
+        /// (managed ⇒ always visit, the old rule) ⇒ the neighbour and same-object assertions fail.
+        /// </summary>
+        [Fact]
+        public void AManagedInput_IsComparedByReference_ANeighboursNewPayloadDoesNotVisit_ANewOneDoes()
+        {
+            EgressVisitGate.SweepPeriod = 100_000;
+            var (w, u) = World(50);
+            w.RegisterManagedComponent<Fdp.Toolkit.Perception.Components.SensorConfigPayload>();
+            var payloads = new Fdp.Toolkit.Perception.Components.SensorConfigPayload[u.Count];
+            for (int i = 0; i < u.Count; i++)
+            {
+                payloads[i] = new Fdp.Toolkit.Perception.Components.SensorConfigPayload { Kind = "k", Json = i.ToString() };
+                w.SetManagedComponent(u[i], payloads[i]);
+            }
+            var gate = new EgressVisitGate(typeof(Fdp.Toolkit.Perception.Components.SensorConfigPayload));
+            var visited = new HashSet<int>();
+            void Scan() { visited.Clear(); gate.Begin(w); foreach (var e in w.Query().With<NetworkIdentity>().Build()) if (gate.Visit(e)) visited.Add(e.Index); }
+            w.Tick(); Scan(); w.Tick(); Scan();
+            Assert.Empty(visited);
+
+            w.SetManagedComponent(u[3], payloads[3] with { Json = "changed" });   // a new object for ONE entity (same chunk as all of them)
+            w.Tick(); Scan();
+            Assert.Equal(new HashSet<int> { u[3].Index }, visited);
+
+            w.SetManagedComponent(u[4], payloads[4]);                             // the same object set again: the chunk moves, nothing changed
+            w.Tick(); Scan();
+            Assert.Empty(visited);
+
+            w.RemoveComponent<Fdp.Toolkit.Perception.Components.SensorConfigPayload>(u[5]);
+            w.Tick(); Scan();
+            Assert.Contains(u[5].Index, visited);                                 // removal: structural
+            Assert.DoesNotContain(u[6].Index, visited);
+        }
+
         [Fact]
         public void H8_MarkDirty_IsVisitedNextFrame()
         {

@@ -20,7 +20,9 @@ namespace Fdp.Toolkit.Replication.Utilities
     ///         (<c>SetAuthority</c>) stamp the structural clock. ⛔ SUPERSEDED: any write to one of the three tables anywhere ⇒ a full scan —
     ///         📐 on the 1 000-man CGF that was 5 205 of 5 281 full scans and 0 skipped;</item>
     ///   <item>its structural clock moved (<c>LastChangeTick</c>: created, a component added or REMOVED, lifecycle);</item>
-    ///   <item>the chunk of any declared input changed (H4, H6 — the entity's own chunk; <see cref="NetworkIdentity"/> always an input);</item>
+    ///   <item>the chunk of any declared input changed (H4, H6 — the entity's own chunk; <see cref="NetworkIdentity"/> always an input) AND the
+    ///         entity's own value did: its bytes for an unmanaged input (§5a), its object REFERENCE for a managed one (CE-4519 — immutable records,
+    ///         replaced whole);</item>
     ///   <item><see cref="SmartEgressUtil.MarkDirty"/> named it (H8);</item>
     ///   <item>it is in this frame's sweep slice — every entity at least once per <see cref="SweepPeriod"/> frames, the bound for a change no
     ///         signal names (H5: a managed component mutated in place; an input the translator forgot to declare).</item>
@@ -43,6 +45,10 @@ namespace Fdp.Toolkit.Replication.Utilities
         private readonly int[] _size;          // 0 ⇒ managed (chunk-level only)
         private readonly int[] _typeId;
         private byte[][] _seen;
+        // ⭐ CE-4519 — per MANAGED input: the object it held at the entity's last visit. Managed components are immutable records replaced whole
+        //   (CLAUDE.md, CE-4046) ⇒ a new reference is a change and the same reference is none. 📐 The chunk alone (16 384 entities) visited every
+        //   sensor whenever ONE payload was set: 2.08 M of 4.15 M non-full visits on the 1 000-man CGF. In-place mutation stays the sweep's (H5).
+        private object?[][] _seenRef;
         private IComponentTable? _authority, _ownership, _parts;
         // ⭐ CE-4519 — per entity index, its authority facts at its last visit: the root, the root's record, the root's NetworkAuthority bytes
         private struct AuthMark { public Entity Root; public object? Record; public bool HasNa; }
@@ -79,6 +85,8 @@ namespace Fdp.Toolkit.Replication.Utilities
             _typeId = new int[_inputs.Length];
             _seen = new byte[_inputs.Length][];
             for (int k = 0; k < _seen.Length; k++) _seen[k] = Array.Empty<byte>();
+            _seenRef = new object?[_inputs.Length][];
+            for (int k = 0; k < _seenRef.Length; k++) _seenRef[k] = Array.Empty<object?>();
         }
 
         private static bool IsManaged(IComponentTable t)
@@ -98,6 +106,7 @@ namespace Fdp.Toolkit.Replication.Utilities
                 _repo = repo; _index = repo.GetEntityIndex(); _signals = EgressSignals.Of(repo);
                 Array.Clear(_tables); _authority = _ownership = _parts = null; _scanned = false;
                 for (int k = 0; k < _seen.Length; k++) _seen[k] = Array.Empty<byte>();
+                for (int k = 0; k < _seenRef.Length; k++) _seenRef[k] = Array.Empty<object?>();
             }
             for (int i = 0; i < _tables.Length; i++)
                 if (_tables[i] == null && repo.TryGetTable(_inputs[i], out var t))   // a table registered later
@@ -107,6 +116,9 @@ namespace Fdp.Toolkit.Replication.Utilities
                     _typeId[i] = t.ComponentTypeId;
                 }
             int need = _index!.MaxIssuedIndex + 1;
+            for (int k = 0; k < _seenRef.Length; k++)
+                if (_size[k] == 0 && _tables[k] != null && _seenRef[k].Length < need)
+                    Array.Resize(ref _seenRef[k], Math.Max(need, _seenRef[k].Length * 2));
             for (int k = 0; k < _seen.Length; k++)
                 if (_size[k] > 0 && _seen[k].Length < need * _size[k])
                     Array.Resize(ref _seen[k], Math.Max(need, _seen[k].Length / Math.Max(1, _size[k]) * 2) * _size[k]);
@@ -171,8 +183,8 @@ namespace Fdp.Toolkit.Replication.Utilities
                 for (int k = 0; k < tables.Length; k++)
                 {
                     var t = tables[k];
-                    if (t == null || t.GetVersionForEntity(i) < since) continue;
-                    if (_size[k] == 0 || !Same(k, i))
+                    if (t == null || t.GetVersionForEntity(i) < since) continue;   // ⭐ the chunk is the cheap first filter; then the entity's own value
+                    if (_size[k] == 0 ? !ReferenceEquals(t.GetRawObject(i), _seenRef[k][i]) : !Same(k, i))
                     {
                         visit = true;   // managed: the chunk is all there is · unmanaged: the bytes moved
                         if (s_stats) { if (_size[k] == 0) s_whyManaged++; else s_whyBytes++; }
@@ -238,7 +250,8 @@ namespace Fdp.Toolkit.Replication.Utilities
             for (int k = 0; k < _tables.Length; k++)
             {
                 int size = _size[k];
-                if (size == 0 || _tables[k] == null || !_index!.GetComponentMask(i).IsSet(_typeId[k])) continue;
+                if (size == 0) { if (_tables[k] != null) _seenRef[k][i] = _tables[k]!.GetRawObject(i); continue; }   // CE-4519 — the reference
+                if (_tables[k] == null || !_index!.GetComponentMask(i).IsSet(_typeId[k])) continue;
                 if ((i + 1) * size > _seen[k].Length) Array.Resize(ref _seen[k], Math.Max((i + 1) * size, _seen[k].Length * 2));
                 new ReadOnlySpan<byte>(_tables[k]!.GetRawPointer(i), size).CopyTo(new Span<byte>(_seen[k], i * size, size));
             }

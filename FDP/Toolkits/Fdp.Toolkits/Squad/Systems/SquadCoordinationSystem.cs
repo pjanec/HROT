@@ -129,6 +129,9 @@ namespace Fdp.Toolkit.Squad.Systems
             }
             if (n == 0) return true;
             if (!Disjoint(repo, n, deepest)) return false;
+            // ⭐ CE-4517 (X-2) — the parts index refreshed serially, as the brains' phase does (N-11): every PartsOf inside the squads' phases then
+            //   reads lock-free (📐 it was ~45 % of the squad jobs' time, queued on the index's lock)
+            Fdp.Toolkit.Replication.Utilities.PartIndex.PrepareFrame(repo);
             _phaseRepo = repo; _phaseTick = tick; _phaseNow = now;
             try
             {
