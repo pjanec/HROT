@@ -95,7 +95,7 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>⭐ N-15 ② (CE-4477) — <c>GET /world/hash</c>: <see cref="EntityRepository.ContentHash()"/> of this service's world (the
         /// simulation's, S, in a threaded node — the route runs on the sim thread), with the clock and the entity count it was taken at.</summary>
-        public JsonObject GetWorldHash(bool byType = false)
+        public JsonObject GetWorldHash(bool byType = false, string? rowsOf = null)
         {
             var o = new JsonObject
             {
@@ -104,6 +104,20 @@ namespace Hrot.Editor.DebugApi
                 ["tick"] = (long)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).Tick,
                 ["entities"] = _world.EntityCount,
             };
+            if (rowsOf != null)
+            {
+                // ⭐ N-15 ② — WHICH entities differ in one type: entity index → row hash (+ its network id, to look it up)
+                var rows = new JsonObject();
+                var world = _world;
+                _world.ContentHash((entity, typeId, h) =>
+                {
+                    if (typeId < 0 || ComponentTypeRegistry.GetType(typeId)?.Name != rowsOf) return;
+                    var e = new Entity(entity, world.GetMetadata(entity).Generation);
+                    int net = world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) ? (int)world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value : 0;
+                    rows[entity.ToString(System.Globalization.CultureInfo.InvariantCulture)] = h.ToString("X16") + "@" + net.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                });
+                o["rows"] = rows;
+            }
             if (!byType) return o;
             // ⭐ N-15 ② — which TYPE differs between two runs: every row's hash folded per component type (order-free), plus the entity rows
             var perType = new System.Collections.Generic.SortedDictionary<string, ulong>(StringComparer.Ordinal);

@@ -326,9 +326,15 @@ export const TOOLS_CATALOG = [
         "required": false,
         "description": "Also return `types`: one hash per component type (order-free) — compare two runs type by type",
         "default": false
+      },
+      {
+        "name": "rows",
+        "type": "string",
+        "required": false,
+        "description": "A component type name: also return `rows`, entity index → that type's row hash @ network id — which entities differ"
       }
     ],
-    "returns": "{ hash, simTime, tick, entities, types? }",
+    "returns": "{ hash, simTime, tick, entities, types?, rows? }",
     "notes": [
       "In a threaded node it hashes the SIMULATION's world (S), between ticks on the sim thread."
     ],

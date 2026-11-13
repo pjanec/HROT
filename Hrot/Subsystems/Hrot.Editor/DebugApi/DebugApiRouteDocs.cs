@@ -51,7 +51,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_world_hash",
             Group:   "A — Lifecycle & status",
             Summary: "The world's content hash: every live entity and every unmanaged component's bytes (managed components by presence).",
-            Returns: "{ hash, simTime, tick, entities, types? }",
+            Returns: "{ hash, simTime, tick, entities, types?, rows? }",
             Hint:    "Opt: byType (true ⇒ `types`: one hash per component type, to name WHAT differs). Example: get_world_hash({byType:true}). Two runs that took the same steps with the same edits agree on `hash` exactly when their state is identical — e.g. the same stepped run at 1 / 2 / 4 / 8 sim threads (N-15).",
             Notes: new[]
             {
@@ -60,6 +60,7 @@ namespace Hrot.Editor.DebugApi
             Params: new RouteParam[]
             {
                 new("byType", "boolean", false, "Also return `types`: one hash per component type (order-free) — compare two runs type by type", "false"),
+                new("rows", "string", false, "A component type name: also return `rows`, entity index → that type's row hash @ network id — which entities differ"),
             }),
 
         [("GET", "/status")] = new RouteDoc(
