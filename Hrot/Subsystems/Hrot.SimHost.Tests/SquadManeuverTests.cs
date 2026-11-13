@@ -106,6 +106,10 @@ namespace Hrot.SimHost.Tests
                 _senses.Execute(Repo, 0.016f);
                 _ingress.Execute(Repo, 0.016f);
                 AnswerFrameSurvey();
+                // ⭐ M-5 (CE-4484) — as the kernel does before every Simulation dispatch: the per-entity phases' tick-start view. 📌 Measured: this
+                //   harness never ticks the world (the frame clock stands, the rails rely on it), so with the brains a parallel phase
+                //   (HROT_PARALLEL_SIM=1) the view taken at the first frame was kept — the teleported stack was never seen, #1 was held.
+                if (Fdp.Core.ParallelReadCheck.HasDeclarations) Repo.CaptureLastTick();
                 _brain.Execute(Repo, 0.016f);
                 Repo.FlushCommandBuffers();
             }
