@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → WINDOWS session: OVERNIGHT, AUTONOMOUS — build Map 3D §6ak (the 3-D view's frame) and the UI thread's plain costs
 
-**For:** the Windows session (real GPU, real cores; hidden window for every automated run). **From:** coordinator. **Dispatched at `<stamp>`** —
+**For:** the Windows session (real GPU, real cores; hidden window for every automated run). **From:** coordinator. **Dispatched at `c1a645d63`** —
 scope frozen. 🔒 User, `2026-11-13`: *"approved, write the performance handoff for autonomous overnight run on windows machine with no question,
 auto-deciding"* (R-4226 — §6ak approved as written).
 
