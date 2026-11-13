@@ -111,6 +111,8 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | `behaviors` | **`R-2000` – `R-2999`** | `R-2087` |
 | `backend` | **`R-3000` – `R-3999`** | `R-3086` |
 | `coordinator` *(added `2026-10-15`, user: "give coordinator a range")* | **`R-4000` – `R-4999`** | `R-4144` |
+| `showcase-world` *(added `2026-11-13`)* | **`R-6000` – `R-6999`** | `R-6000` |
+| `showcase-brains` *(added `2026-11-13`)* | **`R-7000` – `R-7999`** | `R-7000` |
 | *a new lane* | the next free thousand: the SAME thousand as its `CE-` block in the tracker's "ID blocks" table; **add its row here first** | |
 
 - ⭐ **The same thousands as the tracker's `CE-` blocks**, so a lane's ids are recognisable on sight (`CE-2130`, `R-2001`).
