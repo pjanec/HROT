@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (VM): AUTONOMOUS — the 3-D view's frame: draw the bodies the standard way, cull by distance, stop per-frame CPU work that scales with the view
 
-**For:** a backend VM lane. **From:** coordinator. **Dispatched at `<stamp>`** — scope frozen.
+**For:** a backend VM lane. **From:** coordinator. **Dispatched at `3786db00b`** — scope frozen.
 🔒 User, `2026-11-13`: *"that scenario has very poor rendering framerate when all terrain in frustum. some graphical performance optimization is a
 must"* · *"the terrain is still ridiculously small and characters are made of few boxes. there must be huge performance improvement opportunities"* ·
 *"yes, write both"*.

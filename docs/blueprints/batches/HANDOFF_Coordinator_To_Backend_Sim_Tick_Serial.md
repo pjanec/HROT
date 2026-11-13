@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (VM): AUTONOMOUS — the serial sim tick: understand each piece first, fix what is plain, and the threaded-editor bugs
 
-**For:** a backend VM lane. **From:** coordinator. **Dispatched at `<stamp>`** — scope frozen.
+**For:** a backend VM lane. **From:** coordinator. **Dispatched at `3786db00b`** — scope frozen.
 🔒 User, `2026-11-13`: *"yes pls measure whatever needed to help utilize the cores, this is enormous waste"* · and, on the coordinator's first
 proposal: *"how could we have one copy that fits all component sets and timing? (background vs hot???) are you serious? how can we move the
 recorder off the tick? it is already mostly off the tick. have you investigated the design before coming with suggestions?"* · *"yes, write both"*.
