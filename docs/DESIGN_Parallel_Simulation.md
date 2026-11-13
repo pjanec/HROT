@@ -899,6 +899,7 @@ locked path.*
 | ⭐ the staff composer is a per-commander phase; launches sorted by commander once, read by binary search | it was fully serial and O(units × launches); 3.6 → 2.3 ms; rail: parallel reports = serial, in order, and every heard launch SPOTted | X-3, CE-4518 |
 | ⭐ the egress gate's H1 per entity; managed inputs by reference; repeat ownership updates write nothing | the gate skipped 0 (5 205 of 5 281 full scans forced by an ownership write somewhere); now full 30, skipped 75 % — [Egress §5c](DESIGN_Egress_Change_Detection.md) | X-4, CE-4519 |
 | the frame | **140.9 → 99.6 ms** at 4 threads (14.2 → ~20 fps); 135.4 ms at 1 thread | |
+| ⭐ the plateau, explained (X-5, CE-4520) | half the 4-thread frame is serial: egress 23.4 ms, callouts + ingress + cleanup 9.7 ms, ~40 small systems ~15 ms ⇒ a floor of ≈ 48 ms at any thread count; the scaling phases reach 1.5–1.9× on the VM's 4 shared cores. Levers: egress off the frame ([Egress §7](DESIGN_Egress_Change_Detection.md), CE-3427), the phases' own serial pre-passes, §8 interleaving for the small systems | X-5 |
 
 ## 19. Windows scheduling: power throttling, hybrid cores, console pauses *(user, `2026-11-12`: "what about windows frontend / backend throttling and intel performance cores vs e-cores … i do not want headless mode running in console to be any slower")*
 

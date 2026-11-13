@@ -169,5 +169,38 @@ serial either way and shares the VM's 4 cores with the worker pool, the SimHost 
 | gate | result |
 |---|---|
 | ⭐ the stepped gate `HROT_PARALLEL_SIM=1 python3 scripts/stepped-hash.py --threads 1,4,8` (mode 3, `scale-rig-demo-city-1000-2s`, 10 079 entities, sim time 2 s) | ✅ **STATE EQUAL** — 1 vs 4 and 1 vs 8 threads: 0 types differ, 0 `SimTransform` rows differ |
-| the threaded 1 000-man session ×2 (mode 3, 4 threads, `HROT_PARALLEL_SIM=1`, `HROT_WORLD_GUARD=1`) | ⏳ running |
-| switches off: 0 B per steady frame | ⏳ |
+| the threaded 1 000-man session ×2 (mode 3, 4 threads, `HROT_PARALLEL_SIM=1`, `HROT_WORLD_GUARD=1`; `scripts/access-trace-session.py --no-trace`: load · select · panels · perspectives · play · stepping · 3-D · edits · orders · hot reload · Edit-state edit + undo / redo · the N-15 drags while playing · a mid-run load · save) | ✅ A and B: every step **ok**, exit 0, WorldGuard **0** distinct hits — both |
+| 0 B per steady frame | ✅ the rails: `CE4518_ASteadyFrame_AllocatesNothing` (staff composer, serial and phase), `CE4516_…` (the lock-free segment walk), `CE4517_APreparedIndex_…` (the lock-free parts read), `AQuietWorld_…` (the gate), `P0_ASteadyRun_AllocatesNothing` (the loop) |
+
+## X-5 · CE-4520 — why the tick plateaus: the breakdown (1 000 men, 4 cores, Release, gate on)
+
+| the 4-thread frame (99.6 ms) | 1 thread | 4 threads | |
+|---|---|---|---|
+| ⭐ the systems that scale (> 1.3×: BrainTick 1.9×, StaffComposer 1.7×, Stress 1.6×, WeaponDispatcher 1.6×, ThreatEvaluation 1.5×, SquadCoordination 1.3×) | 88.1 | ~51 | 1.7× on 4 cores |
+| ⛔ **CycloneEgressSystem — serial** | 22.6 | **23.4** | the largest serial piece |
+| ⛔ CalloutSystem · CycloneNetworkIngress · CycloneNetworkCleanup — serial | 10.1 | 9.7 | |
+| ⛔ ~40 small serial systems (each ≤ 1.2 ms) | ~15 | ~15 | |
+| **the frame's floor with infinite threads** | | **≈ 48 ms** | Amdahl: half the 4-thread frame does not scale |
+
+⭐ **Verdict — a plateau explained, with the levers named:** ① **egress off the frame** (23 ms serial): the replica path already designed and
+approved as an experiment — [Egress §7, CE-3427](../../DESIGN_Egress_Change_Detection.md); ② the scaling phases reach only 1.5–1.9× on 4 cores
+— the VM's 4 cores also run the SimHost and orchestrator processes, and the phases keep serial pre-passes (the weapon dispatcher's mounts /
+barrels / loadouts over every weapon) and per-level waits (squads); ③ the ~40 small systems are each too small to convert one by one — the
+lever there is interleaving / quantizing (§8 of the Parallel Simulation design), not more threads. ⛔ No defect found in the scheduler: the
+"unaccounted" time (frame − sum of systems) is 0.0 ms at 1 and 4 threads.
+
+## X-7 · CE-4522 — the Windows command (1 … 12 threads)
+
+```bat
+rem the threaded editor sweep (the W-1 measurement, now with these conversions), 1 000-man demo-city:
+set HROT_PARALLEL_SIM=1
+set HROT_EQS_CONFIG_GATE=1
+dotnet build Hrot\Runner\Hrot.ClusterRunner\Hrot.ClusterRunner.csproj -c Release
+python scripts\threaded-scale-measure.py --out %TEMP%\nc-scale --threads 1,2,4,6,8,10,12 --dll Hrot\Runner\Hrot.ClusterRunner\bin\Release\net8.0\Hrot.ClusterRunner.dll
+```
+```powershell
+# the CGF node per thread count (the numbers in this file come from this rig on the VM)
+$env:HROT_PARALLEL_SIM=1; $env:HROT_EQS_CONFIG_GATE=1
+$env:HROT_RUNNER_DLL="$PWD\Hrot\Runner\Hrot.ClusterRunner\bin\Release\net8.0\Hrot.ClusterRunner.dll"
+foreach ($t in 1,2,4,6,8,10,12) { $env:HROT_SIM_THREADS=$t; python scripts\scale-rig.py --terrain demo-city --men 1000 --json "$env:TEMP\nc-rig-$t.json" }
+```
