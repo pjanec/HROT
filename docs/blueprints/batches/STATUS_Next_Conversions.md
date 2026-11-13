@@ -80,10 +80,13 @@ begins 27 361, full 5 281, **5 205 forced by a `DescriptorOwnership` write anywh
 | run | base `be0f264f7` sources | `HEAD` | verdict |
 |---|---|---|---|
 | SimHost, the touched classes (`ParallelBrainsDeterminism · CgfLogicPack · Callouts · AirDefenceNodes · SquadManeuver · StressSystem · Staff · Report`), `HROT_PARALLEL_SIM=0` | 335 / **1** | before the isolation fix 307–309 / 27–29 · after **335 / 1** | the 1 = `CE454_TheSquadLayerRunsThroughTheRealCgfPack` (0 contacts merged, 2 expected) — pre-existing |
-| SimHost, `SquadManeuver · CgfLogicPack · ScenarioRules`, `HROT_PARALLEL_SIM=1` (process-wide) | 238 / **146** | 236–237 / 147–148 (minus X-3 / minus X-2: same) | ⛔ pre-existing: the suite does not run under the process-wide switch at base; parallel behaviour is gated by each feature's own serial-vs-parallel rails |
+| SimHost, `SquadManeuver · CgfLogicPack · ScenarioRules`, `HROT_PARALLEL_SIM=1` (process-wide) | 238 / **146** | ⏳ re-run pending — ⛔ the first "minus X-3 / minus X-2" numbers (147–148) are VOID: commit `99febbce8` had swept the bisect's staged base files into HEAD, so those steps ran base sources | at base the suite does not run under the process-wide switch; parallel behaviour is gated by each feature's own serial-vs-parallel rails |
 
 ⭐ **The 27–29 were test ISOLATION, not a defect in X-2 / X-3** (CE-4518): xUnit runs collections concurrently; `CalloutsTests` /
 `StressSystemTests` flip the process-wide `ParallelEntities.Enabled` and resize the one worker pool, and once the staff composer read that
 switch live, `SquadManeuverTests` running beside them took the parallel path on the shared pool. Proof chain: base 1 · HEAD 27–29 · HEAD minus
 X-3 → 1 · HEAD minus X-2 → 1 · HEAD with only the pack + manoeuvre classes → 1. Fix: `ParallelSwitchMutatorCollection`
 (`DisableParallelization`), the `ComponentTypeRegistryMutatorCollection` precedent.
+
+⚠ **Process note:** `git checkout <sha> -- <file>` STAGES the old file, so a commit made during a bisect swap carries it. `99febbce8` reverted all
+seven X-1…X-4 source files that way; `<next commit>` restores them from `94205eefd`. Later swaps use `git show <sha>:<file> > <file>` (index untouched).
