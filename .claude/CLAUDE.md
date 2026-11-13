@@ -333,6 +333,36 @@ pays the ~59 s every time.**
 | ⭐ **code that formats or parses a number says so explicitly anyway** — `CultureInfo.InvariantCulture`, `ToString("0.0", CultureInfo.InvariantCulture)`, `double.Parse(s, CultureInfo.InvariantCulture)`; ⛔ never `CurrentCulture` / `CurrentUICulture` / `new CultureInfo("cs-CZ")` in production | ⭐ a library can run inside a host that is not ours (a test runner, a tool) |
 | ⭐ **a rail for anything that prints numbers is run under `cs-CZ`** | 📌 the existing precedent: `TreeTests` / `EndToEndTests` (TerrainSynth), `TheEventDetailsViewTests` |
 
+## ⛔⛔⛔ BEHAVIOUR CODE RUNS IN PARALLEL — **the per-entity rule, checked by machine** *(user, `2026-11-13`, R-4212 / R-4214 / R-4225)*
+
+> 🔒 **User, verbatim:** *"for sure i would like to start developing the showcase in parallel, but how to prevent breaking the parallelism rules?
+> there will be lots of new behavior work involved"*
+
+⭐ Every brain, squad, staff, stress, callout, threat, weapon and movement step runs as a **per-entity parallel phase** (`DESIGN_Parallel_Simulation.md`
+§18.5–§18.8). Any new behaviour code runs there too. ⭐ Each row below was a REAL defect found by the build — the shape repeats.
+
+| ⛔ never | ⭐ instead | 📌 found as |
+|---|---|---|
+| write ANOTHER entity's component directly | a command (the batch's buffer) — it lands next tick (R-4212) | the core rule |
+| read another entity's component that the SAME phase writes, undeclared | declare it — served from the tick-start view; a type nobody writes in the phase ⇒ a declared stable read | the weapon phase (M-D10) |
+| add a component, then write it (`Add` default, then `GetComponentRW`) | add it WITH its final value | `Callouts.Say`, `UnderFire.Stamp` crashed (D-31) |
+| a callout / order / message / egress mark to someone else, inline | a follow-up (`BatchContext.Later`), played in batch order | callouts, the order journal, rule messages (D-33, D-39) |
+| `static` mutable scratch, caches, counters, a shared `Random` | per-thread (`[ThreadStatic]`) or per-entity state; a random seeded per entity | `MemberEvaluation`, `ObjectiveCensus`, the message id (D-27) |
+| register a type or build an index lazily mid-tick | in the phase's serial pre-pass (`BrainPhase`) | D-26 |
+| change a managed component in place | build a new instance and set it (CLAUDE.md "NEW COMPONENTS") | the traffic frame race (N-9) |
+| a lock around per-entity work | a lock-free read of data prepared before the phase | the weapon dispatcher's line-of-fire lock, `PartIndex` (X-1, X-2) |
+| anything paced by the WALL clock in a step | sim time only | the module timeout (F-3) |
+
+| ⭐⭐⭐ the machine checks — every new behaviour's OWN rails run with them | |
+|---|---|
+| `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` | the rails run the behaviour as the parallel phase; an undeclared cross-entity read THROWS (`=2` lists them all — the survey) |
+| the strict world guard (`HROT_WORLD_GUARD=1`) | a write off its owning thread throws |
+| `python3 scripts/stepped-hash.py --threads 1,4,8` on the scenario the behaviour serves | the same world at every thread count, or a shared-state bug no review would see |
+
+⛔ **Behaviour code written where these checks do not exist meets the rule only at merge — the worst moment.** ⭐ Until the parallel programme is
+merged into the lanes, new behaviour CODE is written on a branch made from the unified parallel branch (`exp/threaded-build`); designs and
+scenario content can be done anywhere.
+
 ## ⭐⭐⭐ NEW COMPONENTS — **UNMANAGED when recorded; a managed one is IMMUTABLE and REPLACED whole** *(user, `2026-11-02`)*
 
 > 🔒 **User, verbatim:** *"when creating new components, we should prefer unmanaged ones, for those that are going to be saved into the
