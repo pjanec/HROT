@@ -668,7 +668,7 @@ events, and the decision WHEN to dispense stays with the aircraft's brain while 
 | AD3 | flares and chaff | dispensers on the aircraft type; the BRAIN raises the dispense; the SimHost spawns decoys and a homing round with the decoy in its cone re-targets by its seeker's rejection chance, drawn once per salvo (`SimRng`) | the decision is behaviour, the physics is the engine's; deterministic for replay |
 | AD4 | the warning | a sensor change on the target's brain (bearing, seeker kind, time to impact), beside V8a's `AirThreat` | the reaction needs it on the BRAIN node; one sensor path |
 | AD5 | the AA gun | a ZU-23-2 weapon system (Ground, Pintle), high elevation, fast traverse, no proximity fuze — AT2's lead does the work | the commonest light AA; it rides the technicals the demos already use |
-| AD6 | the radar SAM | ⏸ later — a design question for the user once AD1–AD5 land; chaff is built to the decoy against a test radar round | keeps the batch to what the user asked for |
+| AD6 | the radar SAM | ⏸ later — tracked as **CE-7020** (parked, `2026-11-13`; the city battle's air threat) — a design question for the user once AD1–AD5 land; chaff is built to the decoy against a test radar round | keeps the batch to what the user asked for |
 
 Dispatched: `HANDOFF_Behaviors_To_Backend_Air_Defence.md`
 (CE-2187 MANPADS + IR · CE-2188 flares / chaff · CE-2189 warning · CE-2190 ZU-23-2); behaviors' half is CE-2191.
