@@ -1878,13 +1878,14 @@ namespace Fdp.Core
 
         /// <summary>
         /// ⭐ N-11 (CE-4473; §18.1a "own-part") — is <paramref name="index"/> a PART of the entity this thread is processing
-        /// (<c>PartMetadata.ParentEntity</c>: a brain's child sensors)? Its parts are its own under the per-entity rule: read and written
-        /// directly, never served from the last tick.
+        /// (<c>PartMetadata.ParentEntity</c>: a brain's child sensors) — or ⭐ F-11 an entity the job owns besides it (a squad job's members,
+        /// <see cref="ParallelReadCheck.OwnAlso"/>)? Its own are read and written directly, never served from the last tick.
         /// </summary>
         internal unsafe bool IsOwnPartOfCurrent(int index)
         {
             int current = ParallelReadCheck.Current;
             if (current < 0 || index < 0 || index > _entityIndex.MaxIssuedIndex) return false;
+            if (ParallelReadCheck.OwnsAlso(index)) return true;   // ⭐ F-11 — a member of the squad this job runs (ParallelReadCheck.OwnAlso)
             if (!_entityIndex.GetComponentMask(index).IsSet(GlobalComponentIds.PartMetadata)) return false;
             var table = _tableCache[GlobalComponentIds.PartMetadata];
             return table != null && ((Entity*)table.GetRawPointer(index))->Index == current;

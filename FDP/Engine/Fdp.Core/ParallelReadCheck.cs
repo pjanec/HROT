@@ -110,6 +110,32 @@ namespace Fdp.Core
             [MethodImpl(MethodImplOptions.AggressiveInlining)] set => t_current = value + 1;
         }
 
+        // ⭐ F-11 (CE-4474; R-4212 ③) — the entities the running job owns BESIDES the one it processes: a squad-level job owns its squad's members
+        //   (squad → members), exclusive within the phase (the caller guarantees no entity is in two jobs' sets). Cleared before every entity.
+        [ThreadStatic] private static int[]? t_owned;
+        [ThreadStatic] private static int t_ownedCount;
+
+        /// <summary>⭐ F-11 — the job processing the current entity also OWNS <paramref name="e"/> until the next entity: read and written directly,
+        /// like its own parts. ⛔ Only for a set no other job of the phase touches (the squad system checks its rosters are disjoint first).</summary>
+        public static void OwnAlso(Entity e)
+        {
+            if (t_current == 0) throw new InvalidOperationException("ParallelReadCheck.OwnAlso: no entity is being processed on this thread (F-11)");
+            var owned = t_owned ??= new int[16];
+            if (t_ownedCount == owned.Length) { Array.Resize(ref owned, owned.Length * 2); t_owned = owned; }
+            owned[t_ownedCount++] = e.Index;
+        }
+
+        /// <summary>Does the running job own <paramref name="index"/> besides its current entity (F-11)?</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool OwnsAlso(int index)
+        {
+            for (int i = 0; i < t_ownedCount; i++) if (t_owned![i] == index) return true;
+            return false;
+        }
+
+        /// <summary>The job moves to its next entity (or leaves the batch): its extra ownership ends.</summary>
+        internal static void ClearOwned() => t_ownedCount = 0;
+
         /// <summary>Is this access to entity <paramref name="index"/> a cross-entity one right now? (call only when <see cref="Active"/>)</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsOther(int index) => t_current != index + 1;

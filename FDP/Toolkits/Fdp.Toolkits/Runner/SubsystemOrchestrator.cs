@@ -250,6 +250,11 @@ namespace Fdp.Toolkit.Runner
         /// <summary>The kernels run on the host's one sim worker (<see cref="StartSimWorker"/>).</summary>
         public bool SimOnWorker => _simWorker != null;
 
+        /// <summary>⭐ N-13 — may <paramref name="subsystem"/>'s presentation run on the main thread now? Always without a sim worker; beside it only a
+        /// staged subsystem (<see cref="ISimSteppedSubsystem"/> — the UI reads its published copy), never one whose live world the worker ticks.
+        /// ⭐ The ONE rule: this orchestrator's draw passes and the window gate the runner gives each subsystem's windows (WindowManager.RegisteringUnder).</summary>
+        public bool Draws(ISubsystem subsystem) => _simWorker == null || subsystem is ISimSteppedSubsystem;
+
         /// <summary>Faults the sim worker caught (each is also logged, the first 20).</summary>
         public long SimWorkerFaults => System.Threading.Interlocked.Read(ref _simWorkerFaults);
 
@@ -326,7 +331,7 @@ namespace Fdp.Toolkit.Runner
             // Only the active map owner draws the world layer.
             for (int i = 0; i < _subsystems.Count; i++)
             {
-                if (IsMapOwner(_subsystems[i]) && (_simWorker == null || _subsystems[i] is ISimSteppedSubsystem))   // ⭐ N-13 — only a staged subsystem draws beside the worker
+                if (IsMapOwner(_subsystems[i]) && Draws(_subsystems[i]))   // ⭐ N-13 — only a staged subsystem draws beside the worker
                 {
                     using var traceSub = Fdp.Core.AccessTrace.Scope(_subsystems[i], "subsystem.DrawWorld: ", Fdp.Core.TraceContext.Presentation);   // ⭐ A-1
                     _subsystems[i].DrawWorld();
@@ -338,7 +343,7 @@ namespace Fdp.Toolkit.Runner
         {
             for (int i = 0; i < _subsystems.Count; i++)
             {
-                if (_simWorker != null && _subsystems[i] is not ISimSteppedSubsystem) continue;   // ⭐ N-13 — its world is ticking on the worker
+                if (!Draws(_subsystems[i])) continue;   // ⭐ N-13 — its world is ticking on the worker
                 using var traceSub = Fdp.Core.AccessTrace.Scope(_subsystems[i], "subsystem.DrawUI: ", Fdp.Core.TraceContext.Presentation);   // ⭐ A-1
                 _subsystems[i].DrawUI();
             }

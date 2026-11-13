@@ -52,6 +52,7 @@ namespace Fdp.Toolkits.Tests.Runner
             var orch = new SubsystemOrchestrator(new ISubsystem[] { a, s, b });
             orch.Initialize();
             var boundary = new ConcurrentDictionary<int, int>();
+            Assert.True(orch.Draws(a));                         // no worker yet: every subsystem draws
             orch.StartSimWorker(() => boundary[Environment.CurrentManagedThreadId] = 1);
             Assert.True(s.Hosted);
             try
@@ -73,6 +74,8 @@ namespace Fdp.Toolkits.Tests.Runner
                 Assert.DoesNotContain(caller, threads);         // … and it is not the caller's
                 Assert.Equal(new[] { caller }, s.UpdateThreads.Keys);   // the staged presentation stays on the caller
                 Assert.Equal(0, a.Draws + b.Draws);             // a plain subsystem is not drawn beside its ticking world
+                Assert.False(orch.Draws(a));                    // ⭐ the ONE rule the runner also gates each subsystem's windows by
+                Assert.True(orch.Draws(s));
                 Assert.Equal(0, orch.SimWorkerFaults);
             }
             finally { orch.Stop(); }

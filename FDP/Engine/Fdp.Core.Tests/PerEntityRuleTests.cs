@@ -182,6 +182,56 @@ public sealed class PerEntityRuleTests
         finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
     }
 
+    /// <summary>A "squad" job: every 4th entity leads the next three — it owns them (F-11), writes each one's <see cref="Val"/> through the
+    /// upsert a squad's step uses (<c>AddComponent</c> on a present component) and reads it back.</summary>
+    private struct SquadLikeJob : IEntityBatchJob
+    {
+        public EntityRepository Repo; public Entity[] All; public bool Own;
+        public void Execute(Entity e, int index, BatchContext ctx)
+        {
+            int at = index * 4;
+            if (Own) for (int k = 1; k <= 3; k++) ParallelReadCheck.OwnAlso(All[at + k]);
+            long seen = 0;
+            for (int k = 1; k <= 3; k++)
+            {
+                Repo.AddComponent(All[at + k], new Val { V = index * 10 + k });   // an upsert of a member's present component
+                seen += Repo.GetComponentRO<Val>(All[at + k]).V;                 // owned ⇒ the write is already there
+            }
+            Repo.GetComponentRW<Val>(e).V = seen;
+        }
+        public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
+    }
+
+    private static string SquadLikeAt(int threads, bool own)
+    {
+        FdpWorkerPool.Resize(threads);
+        using var w = World(1600, out var all);
+        var leaders = new Entity[all.Length / 4];
+        for (int i = 0; i < leaders.Length; i++) leaders[i] = all[i * 4];
+        ParallelEntities.Run(w, leaders, leaders.Length, new SquadLikeJob { Repo = w, All = all, Own = own });
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < all.Length; i++) sb.Append(w.GetComponentRO<Val>(all[i]).V).Append(',');
+        return sb.ToString();
+    }
+
+    /// <summary>⭐ F-11 (CE-4474; R-4212 ③) — a job that OWNS other entities (<see cref="ParallelReadCheck.OwnAlso"/>: a squad's members) reads and
+    /// writes them directly — its own write is visible to it in the same Execute — and the result is the same at 1 / 2 / 4 / 8 threads; the
+    /// ownership ends with the entity (the next leader's members are not the previous one's). 🔴 Red-proof: <c>Own = false</c> (or the
+    /// <c>OwnsAlso</c> test removed from <c>IsOwnPartOfCurrent</c>) ⇒ the upsert is deferred as a command ⇒ the read-back sees the old value.</summary>
+    [Fact]
+    public void F11_AJobOwnsItsMembers_ReadsAndWritesThemDirectly_TheSameAtAnyThreadCount()
+    {
+        try
+        {
+            var one = SquadLikeAt(1, own: true);
+            var first = one.Split(',');
+            Assert.Equal((0 * 10 + 1) + (0 * 10 + 2) + (0 * 10 + 3), long.Parse(first[0]));   // leader 0 saw its three writes
+            Assert.Equal(7 * 10 + 2, long.Parse(first[7 * 4 + 2]));                          // leader 7's second member holds its write
+            foreach (int t in new[] { 2, 4, 8 }) Assert.Equal(one, SquadLikeAt(t, own: true));
+        }
+        finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
+    }
+
     [Fact]
     public void N10_ASteadyRun_WithTheRuleInPlace_AllocatesNothing()
     {

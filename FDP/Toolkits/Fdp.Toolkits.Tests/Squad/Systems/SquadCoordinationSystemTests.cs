@@ -17,6 +17,7 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
     /// 📄 <c>docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md</c> §3. (The through-the-real-pack proof is
     /// <c>CgfLogicPackTests.CE454_TheSquadLayerRunsThroughTheRealCgfPack</c>.)
     /// </summary>
+    [Collection("FdpWorkerPool")]   // ⭐ F-11 — the per-squad rail resizes the pool and flips the system's switch
     public sealed class SquadCoordinationSystemTests : IDisposable
     {
         private readonly EntityRepository _repo = new();
@@ -494,6 +495,160 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             for (int i = 0; i < 100; i++) Frame();   // warm up
 
             Assert.Equal(0, SteadyStateAllocation(Frame));   // ≈ 166 merges + assignments a window
+        }
+    
+        // ════ ⭐⭐ F-11 (CE-4474; R-4212 ③, docs/DESIGN_Parallel_Simulation.md §18.5) — SQUADS RUN IN PARALLEL PER SQUAD ════════════════════════
+        /// <summary>
+        /// ⭐ The per-squad phases give the SAME world (<see cref="EntityRepository.ContentHash"/>) and the SAME squad edges in the same order at
+        /// 1 / 2 / 4 / 8 threads, and the same world and the same edges (as a set) as the serial walk. The world: a NESTED hierarchy (a force
+        /// commander → 2 platoons → 3 squads each → 6 men), created OUT of command order (a squad before its platoon) so the level order cannot lean
+        /// on creation order; men remembering enemies, wounded, downed and killed on a seeded schedule (succession, member down, a friend down,
+        /// untenable rounds), Hit / NearMiss edges each step. Run with <c>HROT_READ_CHECK=1</c> the phase also THROWS on any undeclared read of
+        /// another squad's unit and any direct write outside the squad; <c>HROT_READ_CHECK=2</c> lists them (a measuring run).
+        /// 🔴 Red-proof (run with <c>HROT_READ_CHECK=1</c>): a squad job that does not own its members (no <c>OwnAlso</c>) ⇒ a member's write
+        /// (a successor's designation) is a cross-entity write ⇒ throws. ⚠ With the checks off the same mutation stays green — the member
+        /// upserts become batch commands that land in the same tick, and the step never reads them back — so the ownership is what makes
+        /// the writes LEGAL under the per-entity rule, not what makes this content's answer right.
+        /// </summary>
+        [Fact]
+        public void F11_TheSquadsInParallel_GiveTheSerialWorld_AtAnyThreadCount()
+        {
+            var serial = RunSquads(threads: 1, parallel: false);
+            if (Fdp.Core.ParallelReadCheck.Survey)
+            {
+                RunSquads(threads: 1, parallel: true);
+                var report = new System.Text.StringBuilder();
+                foreach (var kv in Fdp.Core.ParallelReadCheck.SurveyReport()) report.Append("SURVEY ").Append(kv.Key).Append('\n').Append(kv.Value).Append('\n');
+                Assert.Fail(report.Length == 0 ? "SURVEY clean" : report.ToString());   // a measuring run reports through the failure text
+            }
+            Assert.True(serial.Edges > 20, $"the fight raised only {serial.Edges} squad edges — the rail would not exercise the squads");
+            foreach (int t in new[] { 1, 2, 4, 8 })
+            {
+                var par = RunSquads(t, parallel: true);
+                Assert.Equal(serial.World, par.World);
+                Assert.Equal(serial.EdgeSet, par.EdgeSet);
+                if (t == 1) continue;
+                Assert.Equal(RunSquads(1, parallel: true).EdgeOrder, par.EdgeOrder);
+            }
+        }
+
+        private readonly record struct SquadRun(ulong World, ulong EdgeOrder, ulong EdgeSet, int Edges);
+
+        private static SquadRun RunSquads(int threads, bool parallel)
+        {
+            bool was = SquadCoordinationSystem.Parallel;
+            SquadCoordinationSystem.Parallel = parallel;
+            Fdp.Core.Jobs.FdpWorkerPool.Resize(threads);
+            Fdp.Core.Jobs.ParallelEntities.Mode = Fdp.Core.Jobs.SimulationMode.Deterministic;
+            try
+            {
+                using var repo = new EntityRepository();
+                repo.RegisterComponent<BehaviorState>();
+                repo.RegisterComponent<UnitRoster>();
+                repo.RegisterComponent<UnitSubordinate>();
+                repo.RegisterComponent<SquadCognitiveState>();
+                repo.RegisterComponent<SquadMemberSense>();
+                repo.RegisterComponent<SquadUnitSense>();
+                repo.RegisterComponent<TargetMemory>();
+                repo.RegisterComponent<SquadLeadership>();
+                repo.RegisterComponent<UnitEntity>();
+                repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+                repo.RegisterComponent<SimTransform>();
+                repo.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
+                repo.RegisterComponent<GlobalTime>();
+                var rng = new Random(4242);
+
+                Entity Commander()
+                {
+                    var c = repo.CreateEntity();
+                    repo.AddComponent(c, new BehaviorState());
+                    repo.AddComponent(c, new UnitRoster());
+                    return c;
+                }
+                void Assign(Entity commander, Entity man, TacticalDesignation d)
+                {
+                    if (repo.HasComponent<UnitSubordinate>(man)) repo.GetComponentRW<UnitSubordinate>(man) = new UnitSubordinate { Commander = commander, Designation = d };
+                    else repo.AddComponent(man, new UnitSubordinate { Commander = commander, Designation = d });
+                    UnitRoster.Add(ref repo.GetComponentRW<UnitRoster>(commander), man, (ushort)d);
+                    SquadStateProvisioning.EnsureForCommander(repo, commander);
+                }
+                // the enemy: 24 men in no squad, remembered by ours
+                var enemies = new Entity[24];
+                for (int i = 0; i < enemies.Length; i++)
+                {
+                    enemies[i] = repo.CreateEntity();
+                    repo.AddComponent(enemies[i], new SimTransform { Position = new Vector3(400 + i * 3, 300, 0), Rotation = Quaternion.Identity });
+                }
+                // created out of command order: the squads first, then the platoons, the force last
+                var squads = new Entity[6];
+                var men = new System.Collections.Generic.List<Entity>();
+                for (int q = 0; q < squads.Length; q++)
+                {
+                    squads[q] = Commander();
+                    for (int m = 0; m < 6; m++)
+                    {
+                        var man = repo.CreateEntity();
+                        repo.AddComponent(man, new SimTransform { Position = new Vector3(q * 40 + m * 2, 0, 0), Rotation = Quaternion.Identity });
+                        repo.AddComponent(man, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+                        repo.AddComponent(man, new Fdp.Toolkit.Combat.Components.InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+                        repo.AddComponent(man, new TargetMemory());
+                        Assign(squads[q], man, m == 0 ? TacticalDesignation.SquadLeader : m == 3 ? TacticalDesignation.TeamLeader : TacticalDesignation.Wingman);
+                        men.Add(man);
+                    }
+                }
+                var platoons = new[] { Commander(), Commander() };
+                for (int q = 0; q < squads.Length; q++) Assign(platoons[q / 3], squads[q], q % 3 == 0 ? TacticalDesignation.SquadLeader : TacticalDesignation.Wingman);
+                var force = Commander();
+                Assign(force, platoons[0], TacticalDesignation.SquadLeader);
+                Assign(force, platoons[1], TacticalDesignation.Wingman);
+
+                var system = new SquadCoordinationSystem();
+                ulong order = 14695981039346656037UL, set = 0; int edges = 0;
+                double time = 0;
+                for (int step = 0; step < 240; step++)
+                {
+                    time += 0.05;
+                    repo.SetSingleton(new GlobalTime { TotalTime = time, DeltaTime = 0.05f, FrameNumber = step + 1 });
+                    // the fight, between ticks: memories change, men are hit, wounded, downed, killed; edges for Rounds
+                    for (int k = 0; k < 6; k++)
+                    {
+                        var man = men[rng.Next(men.Count)];
+                        if (!repo.IsAlive(man)) continue;
+                        ref var mem = ref repo.GetComponentRW<TargetMemory>(man);
+                        var enemy = enemies[rng.Next(enemies.Length)];
+                        if (rng.Next(4) == 0 && mem.Count > 0) TargetMemory.Forget(ref mem, 0);
+                        else TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, 400 + rng.Next(80), 300, rng.Next(1, 50), tick: (uint)(step + 1));
+                    }
+                    if (step % 7 == 3)
+                    {
+                        var man = men[rng.Next(men.Count)];
+                        ref var h = ref repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(man);
+                        h.Current = MathF.Max(0f, h.Current - 25f - rng.Next(30));
+                    }
+                    for (int k = 0; k < 3; k++)
+                        repo.Bus.Publish(new SensorChangedEvent { Unit = men[rng.Next(men.Count)], What = k == 0 ? SensorChange.Hit : SensorChange.NearMiss });
+                    repo.Tick();
+                    repo.Bus.SwapBuffers();
+                    if (Fdp.Core.ParallelReadCheck.HasDeclarations) repo.CaptureLastTick();   // as the kernel does before the Simulation dispatch
+                    system.Execute(repo, 0.05f);
+                    // the squads' edges: published this step, readable after the next swap
+                    repo.Bus.SwapBuffers();
+                    foreach (var e in repo.Bus.Read<SensorChangedEvent>())
+                    {
+                        if (e.What is SensorChange.Hit or SensorChange.NearMiss) continue;
+                        ulong h = ((ulong)(uint)e.Unit.Index << 40) ^ ((ulong)e.What << 24) ^ (ulong)(uint)e.Target.Index ^ ((ulong)step << 48);
+                        order = (order ^ h) * 1099511628211UL;
+                        set += h * 0x9E3779B97F4A7C15UL;
+                        edges++;
+                    }
+                }
+                return new SquadRun(repo.ContentHash(), order, set, edges);
+            }
+            finally
+            {
+                SquadCoordinationSystem.Parallel = was;
+                Fdp.Core.Jobs.FdpWorkerPool.Resize(Fdp.Core.Jobs.FdpWorkerPool.Budget());
+            }
         }
     }
 }

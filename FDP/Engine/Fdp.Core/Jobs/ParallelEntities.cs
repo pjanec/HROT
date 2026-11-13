@@ -230,6 +230,7 @@ namespace Fdp.Core.Jobs
                     for (int i = from; i < to; i++)
                     {
                         ParallelReadCheck.Current = _entities[i].Index;
+                        ParallelReadCheck.ClearOwned();   // F-11 — an extra ownership lasts one entity's Execute
                         if (slot >= 0) EntityCensus.Set(slot, _entities[i].Index);
                         _job.Execute(_entities[i], i, ctx);
                     }
@@ -238,6 +239,7 @@ namespace Fdp.Core.Jobs
                 {
                     if (slot >= 0) EntityCensus.Pop(slot);
                     ParallelReadCheck.Current = -1;
+                    ParallelReadCheck.ClearOwned();
                     ParallelReadCheck.SetBatch(null, null, null);
                     ParallelReadCheck.Active = was;
                 }

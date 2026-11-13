@@ -729,7 +729,7 @@ sequenceDiagram
 | as built | why | where |
 |---|---|---|
 | the rule is ALWAYS present (no compile switch); serial code pays one static load (`AnyPhase`) | §18.3 measured the check affordable | `EntityRepository.cs`, `ParallelReadCheck.cs` |
-| an entity's PARTS are its own (`PartMetadata.ParentEntity`) | a brain writes its child sensors (§18.1a own-part) | `IsOwnPartOfCurrent` |
+| an entity's PARTS are its own (`PartMetadata.ParentEntity`) — and, since F-11, what its job OWNS (`OwnAlso`, §18.6) | a brain writes its child sensors (§18.1a own-part) | `IsOwnPartOfCurrent` |
 | inside a phase the world's command buffer IS the batch's | brain code records into `view.GetCommandBuffer()` | `EntityRepository.View.cs` |
 | ⭐ an ADD is deferred ⇒ brain code adds a component WITH ITS FINAL VALUE (add-once), never "add default, then write it" | own-entity adds touch shared counters / logs and their order would follow the threads; 20 helpers converted | D-31 |
 | registration and the per-frame indexes (rule tree, part index, cadence wake table) happen in the serial pre-pass, never inside the phase; a registration inside a phase is a checked defect | the type tables and the indexes are read lock-free by every batch thread | `BrainPhase` |
@@ -738,6 +738,64 @@ sequenceDiagram
 | the instrument that finds what is missing: `HROT_READ_CHECK=2` (+ `HROT_READ_CHECK_OUT`) — every undeclared cross read / cross write / in-phase registration recorded with its first site | one rig run names them all (the throwing mode stops at the first) | `ParallelReadCheck.Survey` |
 | ⭐ the gate: same `ContentHash` at 1 / 2 / 4 / 8 threads and across runs (`ParallelBrainsDeterminismTests`); the 300-man rig serial vs parallel behaves the same, 0 crashes, survey clean | — | §6 of the status file for the numbers |
 | cover ties (F-9) by claim age, then entity index | two squad-mates can commit to one point in the same tick | DESIGN_Peek_And_Fire §10.7 |
+| an egress mark (`SmartEgressUtil.MarkDirty`) inside a phase is a follow-up (`Later`) | `EgressSignals` grows ONE shared array; the publication state may be a first add — nothing reads the marks before egress | `SmartEgressUtil.cs` |
+
+### 18.6 ⭐ AS BUILT — squad-level work in parallel PER SQUAD *(F-11, R-4212 ③; CE-4474; status D-36)*
+
+```mermaid
+classDiagram
+  class ParallelReadCheck {
+    +OwnAlso(Entity)  the job owns it until the next entity
+    ~OwnsAlso(index)
+    ~ClearOwned()  per entity, by RunBatch
+  }
+  class EntityRepository {
+    -IsOwnPartOfCurrent(index)  part OR owned
+  }
+  class SquadCoordinationSystem {
+    +Parallel : bool  (HROT_PARALLEL_SIM / mode 3)
+    -RunPerSquad()  levels top-down
+    -Disjoint()  one roster per entity per level
+    -Coordinate(commander)  the one squad step
+  }
+  class SquadJob {
+    Execute: OwnAlso(each member) · Coordinate
+  }
+  class SquadStateProvisioning {
+    +EnsureForCommander()  + SquadLeadership
+  }
+  SquadCoordinationSystem ..> ParallelEntities : one phase per level
+  SquadJob ..> ParallelReadCheck : OwnAlso
+  EntityRepository ..> ParallelReadCheck : OwnsAlso
+  SquadCoordinationSystem *-- SquadJob
+```
+*What the picture shows that the prose hid: the squad's step is ONE method (`Coordinate`) for the serial walk and the job; the only new rule in
+the repository is "a job may own more than its entity" — the squad brings its members into it, nothing else changes.*
+
+```mermaid
+sequenceDiagram
+  participant S as SquadCoordinationSystem
+  participant P as ParallelEntities
+  participant W as batch threads
+  S->>S: depth of every commander (its UnitSubordinate chain)
+  S->>S: Disjoint? each level: no entity in two sets, no job a member of its own level
+  loop level 0 (force) … deepest (squads)
+    S->>P: Run(this level's commanders, SquadJob)
+    P->>W: per commander: OwnAlso(members) · Coordinate
+    W->>W: commander + members direct · others: last tick / stable · adds, publishes, egress marks: batch
+    P->>S: play the batches in order
+  end
+  S->>S: serial tail: UnderFire · Rounds (one man's edges, any squad)
+```
+
+| as built | why | where |
+|---|---|---|
+| ⭐ the job is the SQUAD: it owns its commander AND its members (`ParallelReadCheck.OwnAlso`) | a squad's step writes its members (a successor's designation, each man's `SquadMemberSense`, a friend-down edge on a man) | `SquadCoordinationSystem.SquadJob` |
+| ⭐ one phase per command LEVEL, top-down | rosters NEST — 41 of the 300-man rig's 43 commanders are themselves a roster's member (force → platoon → squad): within a level the sets are disjoint by construction (a man has one commander), and a level's members are the next level's jobs | `RunPerSquad` |
+| a level whose sets overlap (a stale roster entry) ⇒ that tick runs the serial walk | the parallel result must never depend on it; the check is a stamp per entity index, no allocation once grown | `Disjoint` |
+| `SquadLeadership` provisioned with the squad state (empty) | the first add was in `Succession`; in the phase it would land after `MemberDown` read it — the same tick lost (D-31's add-once rule) | `SquadStateProvisioning` |
+| the serial tail stays serial (`UnderFire`, `Rounds`) | they walk one tick's edges by MAN, across squads | — |
+| ⭐ the gate: same world and the same edges at 1 / 2 / 4 / 8 threads, and the serial walk's world and edge set, on a nested hierarchy created out of command order | — | `SquadCoordinationSystemTests.F11_TheSquadsInParallel_GiveTheSerialWorld_AtAnyThreadCount` |
 
 ## 19. Windows scheduling: power throttling, hybrid cores, console pauses *(user, `2026-11-12`: "what about windows frontend / backend throttling and intel performance cores vs e-cores … i do not want headless mode running in console to be any slower")*
 

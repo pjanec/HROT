@@ -15,6 +15,7 @@ internal sealed class LocalWindowController
 {
     private readonly IPresentationShell _shell;
     private readonly IReadOnlyList<ISubsystem> _subsystems;
+    private readonly System.Func<ISubsystem, bool> _subsystemDraws;   // ⭐ N-13 — SubsystemOrchestrator.Draws (true without one)
     private readonly RunnerOptions _options;
     private readonly PerspectiveCoordinatorSystem? _coordinator;
 
@@ -88,8 +89,10 @@ internal sealed class LocalWindowController
         IPresentationShell shell,
         IReadOnlyList<ISubsystem> subsystems,
         RunnerOptions options,
-        PerspectiveCoordinatorSystem? coordinator)
+        PerspectiveCoordinatorSystem? coordinator,
+        System.Func<ISubsystem, bool>? subsystemDraws = null)
     {
+        _subsystemDraws = subsystemDraws ?? (_ => true);
         _shell       = shell;
         _subsystems  = subsystems;
         LayoutName   = LayoutNameOf(subsystems);
@@ -332,9 +335,13 @@ internal sealed class LocalWindowController
         wm.MessageLogRegistry = messageLogRegistry;
 
         // Register subsystem windows
+        // ⭐ N-13 (CE-4475) — each subsystem's windows draw only while its world is not ticking on the host's ONE sim worker: a staged subsystem
+        //   (ISimSteppedSubsystem — the UI reads its published copy) always draws; a plain one draws only while there is no worker (the
+        //   orchestrator's own Draw rule, applied to what it registered in the shared manager)
         foreach (var sub in _subsystems)
             if (sub is IWindowRegistrar registrar)
-                registrar.RegisterWindows(wm);
+                using (wm.RegisteringUnder(() => _subsystemDraws(sub)))
+                    registrar.RegisterWindows(wm);
 
         if (_coordinator != null)
         {

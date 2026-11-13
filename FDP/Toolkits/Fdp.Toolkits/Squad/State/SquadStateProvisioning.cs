@@ -43,6 +43,11 @@ public static class SquadStateProvisioning
             repo.SetManagedComponent(commander, SquadDrillTrace.Empty);
         if (repo.IsComponentTypeRegistered<SquadDrillState>() && !repo.HasComponent<SquadDrillState>(commander))
             repo.AddComponent(commander, default(SquadDrillState));
+        // ⭐ F-11 (CE-4474) — the leadership record rides the same fact: provisioned empty (no leader yet — Succession names the first designated
+        //   one on its first pass, the value it would have added), so the squad's step only ever writes it in place (a first add inside the
+        //   per-squad phase is deferred, and MemberDown would miss it for a tick)
+        if (repo.IsComponentTypeRegistered<SquadLeadership>() && !repo.HasComponent<SquadLeadership>(commander))
+            repo.AddComponent(commander, default(SquadLeadership));
         if (repo.HasComponent<SquadCognitiveState>(commander)) return;
         repo.AddComponent(commander, default(SquadCognitiveState));
     }
