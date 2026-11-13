@@ -95,7 +95,19 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>⭐ N-15 ② (CE-4477) — <c>GET /world/hash</c>: <see cref="EntityRepository.ContentHash()"/> of this service's world (the
         /// simulation's, S, in a threaded node — the route runs on the sim thread), with the clock and the entity count it was taken at.</summary>
-        public JsonObject GetWorldHash(bool byType = false, string? rowsOf = null)
+        /// <summary>⭐ M-7 (CE-4486) — one row's raw bytes in hex (its managed size, padding included): two runs' rows compared byte by byte say
+        /// whether a FIELD differs or only padding (history, not state).</summary>
+        private static unsafe string RowHex(EntityRepository world, Entity e, int typeId)
+        {
+            var type = ComponentTypeRegistry.GetType(typeId);
+            if (type == null || !type.IsValueType) return "";
+            int size = (int)typeof(System.Runtime.CompilerServices.Unsafe).GetMethod(nameof(System.Runtime.CompilerServices.Unsafe.SizeOf))!
+                .MakeGenericMethod(type).Invoke(null, null)!;
+            byte* p = (byte*)world.GetComponentPointer(e, typeId);
+            return Convert.ToHexString(new ReadOnlySpan<byte>(p, size));
+        }
+
+        public JsonObject GetWorldHash(bool byType = false, string? rowsOf = null, bool rowBytes = false)
         {
             var o = new JsonObject
             {
@@ -114,7 +126,9 @@ namespace Hrot.Editor.DebugApi
                     if (typeId < 0 || ComponentTypeRegistry.GetType(typeId)?.Name != rowsOf) return;
                     var e = new Entity(entity, world.GetMetadata(entity).Generation);
                     int net = world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) ? (int)world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value : 0;
-                    rows[entity.ToString(System.Globalization.CultureInfo.InvariantCulture)] = h.ToString("X16") + "@" + net.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    string row = h.ToString("X16") + "@" + net.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    if (rowBytes) row += "@" + RowHex(world, e, typeId);   // ⭐ M-7 — which bytes differ between two runs: a field, or padding
+                    rows[entity.ToString(System.Globalization.CultureInfo.InvariantCulture)] = row;
                 });
                 o["rows"] = rows;
             }
