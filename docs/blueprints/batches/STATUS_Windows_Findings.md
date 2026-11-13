@@ -50,7 +50,7 @@ when an item is blocked).
 
 | item | why | what it needs |
 |---|---|---|
-| ⚠ F-D4 — a rare mode-3 divergence (1 in 12 runs at 4 threads, every phase on) | not caught by a probe series yet (6 runs, none parted) | a longer `--probe 10 --bytes` series (≈ 12+ runs) to name the first step and entities; then its source |
+| ⚠ F-D4 — a rare mode-3 divergence (1 in 24 runs at 4 threads, every phase on) | not caught: 18 probed runs (`--probe 10`) all equal; the one that parted was an UNPROBED run (40-step chunks) — probing changes the pause pattern | a series that keeps the gate's stepping (`--probe 40`, the chunk boundaries) — running; then its source |
 
 ## NEXT (the resume point)
 ⭐ F-1 … F-6 built (F-4 measured: F-D5; F-6 folded `8731fae92`). ⚠ OPEN F-D4: a rare mode-3 divergence — the long probe series is the next step.
