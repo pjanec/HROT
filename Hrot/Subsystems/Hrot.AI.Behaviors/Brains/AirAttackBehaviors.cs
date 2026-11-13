@@ -337,6 +337,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const double DiveSteerPeriod = 0.2;
         /// <summary>⭐ Slice 6e — within this horizontal distance of the target the dive line reaches its middle (m).</summary>
         public const float DiveHitRadiusM = 1f;
+        /// <summary>⭐ CE-7014 — <c>AirAttackState.BatteryOut</c> when the link was JAMMED (1 = the battery ran out): it comes down where it is.</summary>
+        public const byte BatteryOutJammed = 2;
 
         private const byte StageStart = 0, StageToRunIn = 1, StageRunIn = 2, StageOut = 3, StageOrbit = 4, StageEvade = 5;
         private const byte StageSearch = 6, StagePursue = 7, StageDive = 8;
@@ -534,6 +536,14 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.BatteryOut == 0 && flight.EnduranceSeconds > 0f && now - ws.StartedAt >= flight.EnduranceSeconds)
             {
                 ws.BatteryOut = 1;   // D-6 — whatever is below
+                ws.Stage = StageDive;
+                ws.NextSteer = 0;
+            }
+            // ⭐⭐ CE-7014 (City Battle R-2) — in an enemy JAMMER's bubble the control link is lost: the FPV comes down where it is (the battery's
+            //   path, 2 = jammed) — it never reaches its target. The bubbles are the serial pre-pass's index (DroneJamming), read here.
+            if (ws.BatteryOut == 0 && Fdp.Toolkit.Motion.DroneJamming.Jammed(world, self, at))
+            {
+                ws.BatteryOut = BatteryOutJammed;
                 ws.Stage = StageDive;
                 ws.NextSteer = 0;
             }

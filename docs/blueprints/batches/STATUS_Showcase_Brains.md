@@ -25,7 +25,8 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | 6 | CE-7008 suppression wears off · CE-7007 shoot and move · CE-7032 the OP withdraws | ✅ · ✅ · ✅ | `StressModel.QuietSeconds` · `SquadDefend.ShootAndMove` · `PlatoonDefend` OpBack → BreakContact |
 | 7 | CE-7010 the air gate | ⏭ ignored — the user | — |
 | 10 | CE-7012 `ClearObstacle` (the bulldozer) | ✅ | `Brains/ClearObstacleBehavior.cs`; City Battle §6c |
-| 8 | CE-7029 infantry take cover from drones | ✅ | `SquadSensing.AirThreat` → `BasicSquadSop` drone row → `SquadShelterFromAir`; a lone man's `BasicInfantrySop` row |
+| 8 | CE-7014 the jammer · CE-7029 infantry take cover from drones | ✅ · ✅ | `JammerDto` + type 113 `Ew_DroneJammer`; `DroneJamming` (serial pre-pass index) read by the FPV's dive (FPV Drone §5a) · |
+| 8b | CE-7029 infantry take cover from drones | ✅ | `SquadSensing.AirThreat` → `BasicSquadSop` drone row → `SquadShelterFromAir`; a lone man's `BasicInfantrySop` row |
 | 9 | CE-7030 Watch · CE-7031 boldness · CE-7011 | ✅ · ✅ · ✅ (the noise-panicked driver: `TrafficPanicSystem.Deafened`, R-7005) | `CivilianBehavior` Watch state; civilians design §5f CIV-3 marked BUILT |
 
 ## 2. The gates
@@ -50,7 +51,8 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | CE-2278: `AimAndFireExecutorTests.CE2278_*` + `AmmoChoiceTests` + `WL4_W12e*` + `PersonHandsTests` · `SquadManeuverTests.CE2278_*` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) | 23 / 23 · 2 / 2 · 2 / 2; red-proofs: the executor not re-mounting a smoke order ⇒ red · the smoke arm off ⇒ red. Clean build: `Fdp.Toolkits.Tests` Combat 543 / 543 · drills + stress + clear + shelter 274 / 274 both ways · `Hrot.Core.Tests` 366 / 367 (the pre-existing geo red) |
 | CE-7011 driver: `Hrot.Traffic.Tests` (after `dotnet restore` — the test project's assets predated a merged reference: the third stale-binary trap) | 85 / 85; red-proof: the noise arm off ⇒ `CE7011_…` red |
 | CE-7029: `SquadCoordinationSystemTests` 21 / 21 · `SquadManeuverTests.CE7029_*`, `BasicInfantrySopTests.CE7029_*` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`); clean build: drills 275 / 275 `PAR=1` · 328 / 328 `PAR=0`; alone, `PAR=1` and `=0`: `BasicInfantrySopTests` 18 / 18 · `BasicVehicleSopTests` 4 / 4 · `ShippedTreesAreCSharpTests` 31 / 31 | red-proofs: the system not raising it ⇒ red · the squad row's sense changed ⇒ red · the lone row on the wrong sense ⇒ red. ⚠ Mixed in ONE `PAR=1` run with the drills, the SOP classes give 10–23 ROTATING reds — PRE-EXISTING (the base before CE-7029 in a clean worktree: 23, 20) ⇒ **CE-7036**; six shipped-tree snapshots red on the base (`0926ff85c` re-filed groups) re-recorded (group line only) |
-| `tracker-counts.py --check` · `rulings-check.py` | OK · 605 / 605 |
+| CE-7014: `AirAttackNodesTests` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) 22 / 22; clean build: `Fdp.Toolkits.Tests` Motion + Combat + Squad 798 / 798 · drills + drones 297 / 297 both ways · `Hrot.Core.Tests` 366 / 367 (the pre-existing geo red) | red-proof: the jammed check off ⇒ the enemy-jammer case red |
+| `tracker-counts.py --check` · `rulings-check.py` | OK · 606 / 606 |
 
 ## 3. The morning report
 
@@ -63,6 +65,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | R-7002 shoot and move opt-in below the company, on (25 s) in `CompanyDefend` | no existing defence changes |
 | R-7004 the bulldozer clears ANY obstacle in 10 s of blade contact (`PushSeconds`, a task param) | the handoff's frame; no TKB field yet |
 | R-7005 a SUMO car's driver abandons it within 25 m of a shot or a burst (≤ 2 cars a frame, each once) | closer than the walkers' 50 m: a driver in a running car hears less |
+| R-7006 a jammer's 400 m bubble (type 113) downs every drone of another force inside it (an FPV falls where it is) | the battery's existing path; its own side flies through |
 | R-7001 a smoke request = the `ElementEquipment.Smoke` flag; the gun loads the round its strike names | a request's `Count` is already 1 in production |
 
 | for the user to look at | |

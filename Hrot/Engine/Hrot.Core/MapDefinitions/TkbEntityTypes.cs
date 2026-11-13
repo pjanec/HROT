@@ -26,6 +26,9 @@ namespace Hrot.Map.Common
         public const long Truck_HMMWV_NoCrew = 111;
         /// <summary>⭐ <c>CE-6006</c> (showcase world, DESIGN_City_Battle_Showcase §6 / D-6) — the BULLDOZER: a D9-class armoured engineering dozer, tracked, no weapon. ⛔ A permanent wire value: never reuse or renumber it.</summary>
         public const long Engineer_Bulldozer = 112;
+        /// <summary>⭐ <c>CE-7014</c> (City Battle §11 R-2) — the HMMWV (102) carrying a DRONE JAMMER (a 400 m bubble, <c>JammerDto</c>): an enemy drone inside
+        /// loses its link. ⛔ A permanent wire value: never reuse or renumber it.</summary>
+        public const long Ew_DroneJammer = 113;
 
         // ⭐⭐ Weapon systems WS-4 (600–699) — separable weapons, entities of their own (Gen.WeaponSystem, DIS 1.1.*.50).
         public const long WeaponSystem_M2Hmg = 600;

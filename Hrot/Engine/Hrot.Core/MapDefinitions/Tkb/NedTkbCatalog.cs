@@ -833,6 +833,11 @@ namespace Hrot.Map.Definitions.Tkb
             // HMMWV — ⭐ 2026-10-31 two variants of ONE definition (Hmmwv): 102 crewed (as before), 111 with no crew
             Hmmwv(builder, TkbEntityTypes.Truck_HMMWV, "HMMWV (M2, crewed)", crewed: true);
             Hmmwv(builder, TkbEntityTypes.Truck_HMMWV_NoCrew, "HMMWV (M2, no crew)", crewed: false);
+            // ⭐ CE-7014 (City Battle R-2) — the HMMWV with a DRONE JAMMER: the crewed HMMWV plus the jammer's bubble; DIS subcategory 9 (HROT-local) tells it apart
+            Hmmwv(builder, TkbEntityTypes.Ew_DroneJammer, "HMMWV (drone jammer)", crewed: true);
+            builder.WithDisType(TkbEntityTypes.Ew_DroneJammer, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 6, Subcategory = 9 });
+            if (tkbDb.TryGetByType(TkbEntityTypes.Ew_DroneJammer, out var jammer) && jammer != null)
+                jammer.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.JammerDto { RadiusM = 400f });
             
             // T-72 (OPFOR)
             builder

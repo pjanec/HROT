@@ -1285,6 +1285,56 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-7014</c> (City Battle R-2) — a JAMMER: an FPV pursuing a tank flies into the 200 m bubble of an ENEMY jammer (its TKB type carries
+        /// <c>JammerDto</c>) and loses its link — it comes down WHERE IT IS (<c>BatteryOut</c> = jammed), never reaching the tank; outside the bubble it
+        /// pursued as before; a jammer of its OWN side spares it. The bubbles are the serial pre-pass's index (<c>DroneJamming.PrepareFrame</c>, called
+        /// here as <c>BrainPhase</c> does). ✅ Red-proof: the jammed check dropped ⇒ it pursues on ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void CE7014_ADroneInAnEnemyJammersBubble_LosesItsLink_AndComesDownWhereItIs(bool ownSide)
+        {
+            const long JammerType = 9413;
+            var drone = SpawnDrone(new Vector3(-600f, 0f, 60f));
+            var tank = SpawnGround(Vector3.Zero, 2500f, vehicle: true, ForceId.Friend);
+            Remember(drone, tank);
+            var db = (Fdp.Toolkit.Tkb.TkbDatabase)_w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            var jt = new Fdp.Interfaces.TkbTemplate("test jammer", JammerType);
+            jt.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.JammerDto { RadiusM = 200f });
+            db.Register(jt);
+            var jammer = _w.CreateEntity();
+            _w.AddComponent(jammer, new SimTransform { Position = new Vector3(-250f, 0f, 0f), Rotation = Quaternion.Identity });
+            _w.AddComponent(jammer, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)JammerType });
+            _w.AddComponent(jammer, new EntityInfo { ForceId = ownSide ? ForceId.Hostile : ForceId.Friend });
+
+            var p = new AirAttackParams { Target = tank, Point = Vector3.Zero };
+            var ws = default(AirAttackState);
+            float closest = float.MaxValue;
+            int frame = 0;
+            for (; frame < 60 * 30 && ws.BatteryOut == 0; frame++)
+            {
+                Fdp.Toolkit.Motion.DroneJamming.PrepareFrame(_w);
+                DroneStep(ref p, ref ws, drone, frame);
+                closest = MathF.Min(closest, new Vector2(_w.GetComponentRO<SimTransform>(drone).Position.X, _w.GetComponentRO<SimTransform>(drone).Position.Y).Length());
+            }
+            if (ownSide)
+            {
+                Assert.Equal(0, ws.BatteryOut);                          // its own side's jammer spares it: it reached the tank
+                Assert.True(closest < 20f, $"it pursued to the tank: closest {closest:F0} m");
+                return;
+            }
+            Assert.Equal(AirAttackNodes.BatteryOutJammed, ws.BatteryOut);
+            var here = _w.GetComponentRO<SimTransform>(drone).Position;
+            Assert.InRange(Vector3.Distance(here, new Vector3(-250f, 0f, here.Z)), 0f, 201f);   // lost inside the bubble
+            for (int k = 0; k < 30; k++, frame++) { Fdp.Toolkit.Motion.DroneJamming.PrepareFrame(_w); DroneStep(ref p, ref ws, drone, frame); }
+            var dest = MoveOf(drone).Destination;
+            var at = _w.GetComponentRO<SimTransform>(drone).Position;
+            Assert.True(new Vector2(dest.X - at.X, dest.Y - at.Y).Length() < 30f * 0.25f && dest.Z <= 0.01f, $"straight down: dest {dest}, at {at}");
+            Assert.True(new Vector2(at.X, at.Y).Length() > 40f, "it never reached the tank");
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2311</c> (HQ-9, Command Chain §8d) — the ARMED SEARCH: an attack helicopter told to search (0, 0), 400 m, flies there at
         /// 150 m; once its memory holds a hostile tank inside the area (and a rifleman 1 km off, outside it) it attacks the TANK; the tank
         /// destroyed, it is back over the area; nothing there for 60 s ⇒ Success. ✅ Red-proofs: the radius ignored ⇒ the far rifleman ·

@@ -197,6 +197,14 @@ graph TD
 | a TKB rail for type 403 | `NedTkbBuilderCombatTests` |
 | demo `ua-drone-shelter` | `scripts/utility-demo-check.py` |
 
+## 5a. Jamming — as built `2026-11-13` (showcase-brains, CE-7014 — obligation ⑤)
+
+⭐ §1's *"jamming … later"* is built: a type whose TKB template carries `JammerDto { RadiusM }` jams the link of every drone of ANOTHER force inside
+its bubble. `DroneJamming` (Fdp.Toolkits/Motion) rebuilds the live jammers' positions, radii and forces once a frame in the brains' serial pre-pass
+(`BrainPhase.PrepareToolkitFrame`, beside `PartIndex`); the Dive profile reads it (`AirAttackNodes`, R-4212: no index built mid-phase) and, jammed,
+takes the battery's path — straight down where it is (`AirAttackState.BatteryOut` = `BatteryOutJammed` 2). A dead jammer jams nothing; its own
+side's drones fly through. The type: 113 `Ew_DroneJammer`, the crewed HMMWV with a 400 m bubble (lane default R-7006).
+
 ## 6. As-built `2026-10-14` (backend, handoff B11 — the Muscle half)
 
 The design carries **15 classes** (§2) and **1 sequence** (§3); the Muscle half is built, the Brain half (`FpvAttackNodes`, `FpvAttackParams`,
