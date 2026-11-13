@@ -7,7 +7,7 @@ updated: 2026-10-23 (§6ac middle-button pan, the 2-D helper grid, the cursor's 
   §3.6 and M14 rewritten. Rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
-current-answer: §6ab filming (CE-3289) · §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
+current-answer: ⭐ §6ak bodies and doors at scale (instancing, screen-size bands, the pick on input — DESIGN, awaiting approval) · §6ab filming (CE-3289) · §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
   with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §6l smoothness, frame overflow, the FPS eye · §6m the carried / dragged, wounded, seated riders, the jump down · §6n weapon systems, gunners, launchers, mortars and guns, trails, the drone, the attack plane, rotors · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
 known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists…)"* is overtaken: `PipelineTarget.FlatOnly` now exists (AQ93 §12.4, R-4058) — a primitive carrying it is culled by the 3-D triage whatever else it says; `Map2D` itself still means both modes (§7). · earlier: ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
@@ -3790,6 +3790,177 @@ drawing must tolerate, not use.*
 - Rails: `TerrainChunkDamageTests` (breach both sides, soot both faces, the broken rim, heap, idempotent over a rebake, touched chunks) · `TheBuildingDamageDrawsTests` (the real 3-D layer through
   the hosts' render source on a view that only received the damage: breach, heap, 0 B and no rebuild on an unchanged table) · `TheBuildingDamagePlanTests` (the plan's building marks,
   the overlay, the hidden strokes; the production 2-D attach: gap and rubble). Frames under `HROT_RAIL_SHOTS` (never git).
+
+### 6ak. CE-4554 — drawing bodies and doors at scale: by screen size, instanced; the pick on input *(coordinator, `2026-11-13`; build-state: DESIGN — the user's approval of §6ak.4 makes it READY-TO-BUILD)*
+
+🔒 User, `2026-11-13`: *"that scenario has very poor rendering framerate when all terrain in frustum. some graphical performance optimization is a
+must"* · *"the terrain is still ridiculously small and characters are made of few boxes. there must be huge performance improvement opportunities"* ·
+*"we need to do design not any building lane"*. ⚠ A cross-lane edit (this file is the ui lane's): the coordinator writes the design, a build lane
+builds it.
+
+**Measured** (Windows, Release, `scale-rig-scale-1-1000-2s`, the editor, uncapped — [`STATUS_Windows_Core_Utilisation.md`](https://github.com/pjanec/HROT/blob/exp/windows-threaded-measure/docs/blueprints/batches/STATUS_Windows_Core_Utilisation.md) §8):
+
+| pose | frame | CPU / GPU | where the UI thread goes |
+|---|---|---|---|
+| the whole terrain in view | **148 ms** | UI thread 94 %, GPU 23 % — CPU-bound | ⭐ `EntityBodyLayer3D.Draw3D` **68 %**: one `Raylib.DrawMesh` per body PART (48 %) and per DOOR leaf (15 %); the terrain 3 % |
+| a street | 26.5 ms | CPU-bound | the hover pick **21 %** every frame (`EntityBoxPicker.TryPick` 11, `DoorLeaf3D.TryLeaf` 7.4) |
+
+**Why it is slow — read in the code** (`EntityBodyLayer3D.cs`): every body in the frustum (CE-4388's 40 m sphere test, `:147-151`) is POSED and drawn
+part by part — per part a pose transform (`part.BodyTransform`, `:453`), the surface paint uniforms (`Paint`, `:455`), the tint uniform
+(`shader.Tinted`), one `DrawMesh` (`:456`), then the face, the outfit's details and the stains as more `DrawMesh` calls (`:458-472`); every one of
+the 6 912 doors is one more (`DrawDoor`, `:1430-1436`). ⇒ tens of thousands of draw calls and uniform changes per frame, most of them for figures
+a few pixels tall — or less than one — at that distance.
+
+**The proven solution for this problem class** (CLAUDE.md *"START FROM THE PROVEN SOLUTION"*): ① **screen-size level of detail** — what is
+smaller than a pixel is not drawn; what is a few pixels tall is drawn as one primitive; full detail only where it can be seen; ② **GPU
+instancing** — every copy of one mesh in one draw call, the per-copy data (transform, colour, paint) in an instance buffer; ③ **pick on input
+through a spatial index** — never a scan of every box every frame. Each piece is justified below by what it removes here.
+
+## INVENTORY *(2026-11-13)*
+
+| query | result |
+|---|---|
+| `scripts/cbm.sh search_graph '{"name_pattern":".*(BodyLayer\|BoxPicker\|DoorLeaf\|ShapeKit\|LitShader\|BodySurface\|BlockFigure\|FigurePose\|Instanc\|Impostor\|Billboard\|SpatialIndex).*","label":"Class"}'` | the draw path: `EntityBodyLayer3D`, `ShapeKit` / `ShapeKits`, `BlockFigure` (four partials), `BodySurface`, `LitShader`, `DoorLeaf3D`, `EntityBoxPicker`; ⛔ no impostor / billboard class, no spatial index for bodies on the UI side (`LaneSpatialIndex` is SUMO's) |
+| grep `DrawMeshInstanced\|Instanced` (exp/threaded-build, production) | ⛔ **0** — nothing in the engine draws instanced today |
+| the binding | `Raylib-cs 7.0.2` (raylib 5.5): `Raylib.DrawMeshInstanced(mesh, material, Matrix4x4[], count)` (per-instance transform) and `Rlgl` vertex-buffer / attribute-divisor calls (per-instance colour and paint) |
+| the existing far looks | trees by distance (§6ai: per-chunk meshes, trunks near, canopy far); the terrain by chunk level (§6ah L-2); people: the card / label rows "far" (People Display U16 / U21a) |
+
+⚠ Coverage could not be checked (`check_index_coverage` is not in the CLI).
+
+### 6ak.1 Classes
+
+```mermaid
+classDiagram
+  class EntityBodyLayer3D {
+    <<existing — changed>>
+    Draw3D(ctx)
+    per body: LodBand(screenHeightPx)
+    Full: pose + parts into the batch
+    Far: one box into the batch
+    Hidden: nothing
+  }
+  class BodyBatch {
+    <<NEW>>
+    Begin()
+    Add(meshKind, paintMode, model, colour, paint)
+    Flush(shader) : one instanced draw per bucket
+    buffers grown, never shrunk : 0 B steady
+  }
+  class InstancedLitShader {
+    <<NEW — a variant of LitShader>>
+    in mat4 instanceTransform
+    in vec4 instanceColour
+    in vec4 instancePaint
+    the same lighting, fog and BodySurface
+  }
+  class LitShader {
+    <<existing>>
+    uniform colDiffuse, matModel
+  }
+  class BodySurface {
+    <<existing>>
+    camouflage, faces : GLSL
+  }
+  class DoorLeaf3D {
+    <<existing — changed>>
+    leaves into the batch, by screen size
+  }
+  class BodyPickIndex {
+    <<NEW>>
+    Rebuild(drawn boxes) : once per drawn frame
+    Query(ray) : the cells the ray crosses
+  }
+  class EntityBoxPicker {
+    <<existing — changed>>
+    TryPick only on mouse / camera move
+    through BodyPickIndex
+  }
+  EntityBodyLayer3D --> BodyBatch : fills
+  DoorLeaf3D ..> BodyBatch : fills
+  BodyBatch ..> InstancedLitShader : draws with
+  InstancedLitShader ..> BodySurface : same surface code
+  InstancedLitShader ..> LitShader : same lighting code
+  EntityBodyLayer3D --> BodyPickIndex : the drawn boxes
+  EntityBoxPicker ..> BodyPickIndex : queries
+```
+*What it shows that prose hid: nothing in the figure model changes (`ShapeKit`, `BlockFigure`, poses, outfits) — the change is only WHERE a part
+goes: into a batch instead of a draw call. One new shader variant reuses the existing lighting and surface code rather than copying it.*
+
+### 6ak.2 One frame
+
+```mermaid
+sequenceDiagram
+  participant L as EntityBodyLayer3D
+  participant B as BodyBatch
+  participant G as GPU
+  participant P as EntityBoxPicker
+  L->>B: Begin()
+  loop every body in the frustum
+    L->>L: screen height in px (distance, size, camera)
+    alt Hidden band
+      L->>L: skip (no pose)
+    else Far band
+      L->>B: Add(cube, plain, one box, its main colour)
+    else Full band
+      L->>L: pose (as today)
+      L->>B: Add(part mesh, paint, model, tint, paint) per part, face, detail, stain
+    end
+  end
+  L->>B: doors, by the same bands
+  B->>G: one DrawMeshInstanced per (mesh, paint mode) bucket
+  L->>P: the drawn boxes (only when the pick index is due)
+  P->>P: TryPick only if the mouse or the camera moved
+```
+*What it shows: the pose — the per-body CPU cost — runs only in the full band; the GPU gets a handful of calls whatever the count.*
+
+### 6ak.3 Who draws what each frame
+
+```mermaid
+graph TD
+  W[the UI frame, main thread] --> MC[MapCamera3D / the 3-D map]
+  MC --> TL[TerrainLayer3D - unchanged]
+  MC --> BL[EntityBodyLayer3D]
+  BL --> BB[BodyBatch - flushed once]
+  BL --> DL[DoorLeaf3D - into the same batch]
+  BB --> GPU[GPU: a few instanced calls]
+  MC --> PK[EntityBoxPicker - on input only]
+  PK --> PI[BodyPickIndex]
+  OLD[one DrawMesh per part / per door]:::dead
+  OLD2[TryPick every frame over every box]:::dead
+  classDef dead stroke:#c00,color:#c00,stroke-dasharray: 5 5
+```
+*What it shows: the two per-frame costs removed (red, dashed); the terrain layer is untouched — it was 3 % of the slow frame.*
+
+### 6ak.4 The decisions — a lean each, for the user
+
+| # | question | ⭐ lean | why | what would change it |
+|---|---|---|---|---|
+| D-1 | the bands, by the body's height ON SCREEN | **Hidden < 1.5 px · Far 1.5 – 12 px (one box) · Full ≥ 12 px** | below ~1.5 px a figure is not seen; up to ~12 px a soldier is a coloured stick whose limbs cannot be told apart; ⭐ by screen size, not metres, so a zoomed film shot or a far vehicle (bigger) keeps detail where it shows | a frame rail at the band edges shows a visible pop ⇒ widen Full |
+| D-2 | the Far look | **one box at the body's size, in its side / outfit main colour, lit** | the same silhouette and colour at a distance; one instance | the user wants the 2-D unit icon far instead |
+| D-3 | doors | **Hidden < 2 px; else one instanced box each (as today, but batched)** | 6 912 doors are most of the far draw calls; a door 2 px wide is invisible | — |
+| D-4 | faces, outfit details, stains | **Full band only** (as today, but batched) | they are detail; at Far there is no face to see | — |
+| D-5 | the instance data | **transform (mat4) + colour (vec4) + paint (vec4: surface code, camo seed, face kind, mood)** in a per-instance buffer, grown never shrunk | covers every per-part uniform `Paint` / `Tinted` set today (`:455-456`) | a paint parameter that does not fit ⇒ a second vec4 |
+| D-6 | the pick | **only when the mouse or the camera moved; a uniform grid of the drawn boxes, rebuilt in the frame it is needed** | at a street it was 21 % of the frame while the mouse was still; the boxes are already known from the draw | — |
+| D-7 | selection boxes, labels, weapon tips, eyes (first person) | **unchanged, computed only for bodies in the Full band** (a selected body is ALWAYS Full) | they need the pose; a selected unit must show | — |
+| D-8 | the target | **the whole-terrain pose ≤ 33 ms (30 fps) on the user's machine, the street ≤ 16.7 ms** | the user's two complaints | — |
+
+**Rejected — one line each:**
+- *Merging static figures into per-chunk meshes* — bodies move every frame; doors swing. Instancing gives the same call count without rebuilds.
+- *A GPU compute / indirect-draw pipeline* — raylib 5.5 has no indirect draw; instancing already removes the CPU's per-part calls.
+- *Lower detail by METRES* — a film close-up and a far vehicle would be wrong; screen size is what is seen.
+- *Drawing far men as the 2-D icon* — a lean against (D-2): the 3-D view's look stays 3-D; the user may choose it.
+
+**Design docs checked:** §6ah / §6ai — apply: the terrain's and the trees' by-distance looks are the precedent; the terrain is not the cost (3 %).
+People Display — applies: the figure's look (parts, faces, camouflage) must survive batching unchanged at the Full band. CE-4388 (§6ah area, the
+40 m frustum sphere) — kept: it is the coarse test before the screen-size bands.
+
+### 6ak.5 Acceptance
+
+1. The whole-terrain pose ≤ 33 ms and the street ≤ 16.7 ms on the user's machine (the Windows rerun of `STATUS_Windows_Core_Utilisation.md` §8).
+2. A draw-call counter on the body layer (beside `TerrainDrawStats`): at the whole-terrain pose a few calls, not tens of thousands.
+3. The Full band's look unchanged — a frame rail compares a street frame before / after (scratch render, no screenshot in git).
+4. The pick: 0 work while the mouse and camera are still (a counter); the pick rails green.
+5. 0 B per steady frame in the layer and the batch.
 
 ## 7. NOT VERIFIED — say so before it is built on
 
