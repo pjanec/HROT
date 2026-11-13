@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (VM): AUTONOMOUS — unify the programme, every optimisation ON by default, switchable in View ▸ Settings
 
-**For:** a backend VM lane. **From:** coordinator. **Dispatched at `<stamp>`** — scope frozen.
+**For:** a backend VM lane. **From:** coordinator. **Dispatched at `d3479d137`** — scope frozen.
 🔒 User, `2026-11-13`: *"unify - OK. bring to lanes - not yet, it needs my manual tests first, with all optimization ON hardcoded by default …
 and best switchable ON/OFF easily in the clusterrunner settings somehow (in main menu maybe somewhere in the View -> Settings …, savable to user
 folder)"* · *"windows run and automated test of course first so i can run something what has been tested already at least a bit automatically"*
