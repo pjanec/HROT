@@ -163,3 +163,11 @@ their state is kept in this file's item table for the merging lane to tick, rath
 Gate (4 threads): begins 29 686, **full 30**, visited 1.76 M, **skipped 5.27 M (75 %)**; managed-input visits **0** (was 2.08 M). ⚠ The BrainTick drop
 (39 → 24 ms) is the parts index too — the brains read `PartsOf` and queued on the same lock. ⚠ Egress is lower at 1 thread than at 4: it is
 serial either way and shares the VM's 4 cores with the worker pool, the SimHost and the orchestrator processes.
+
+## X-6 · CE-4521 — it really works
+
+| gate | result |
+|---|---|
+| ⭐ the stepped gate `HROT_PARALLEL_SIM=1 python3 scripts/stepped-hash.py --threads 1,4,8` (mode 3, `scale-rig-demo-city-1000-2s`, 10 079 entities, sim time 2 s) | ✅ **STATE EQUAL** — 1 vs 4 and 1 vs 8 threads: 0 types differ, 0 `SimTransform` rows differ |
+| the threaded 1 000-man session ×2 (mode 3, 4 threads, `HROT_PARALLEL_SIM=1`, `HROT_WORLD_GUARD=1`) | ⏳ running |
+| switches off: 0 B per steady frame | ⏳ |
