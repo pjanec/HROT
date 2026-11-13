@@ -168,6 +168,8 @@ so no aircraft and no company has to remember it; and a refused air request is n
 
 ## 3c. Civilians — the town is alive when the attack starts, and then it PANICS *(🔒 user, `2026-11-13`)*
 
+⭐ **As built `2026-11-13` (showcase-brains, CE-7030 / CE-7031):** watching and boldness are civilian params — `WatchMaxMetres` (fighting heard 150 m … it ⇒ Watch: stop, look, `FilmShare` 0.4 film), `BoldShare` (a bold man watches down to 50 m and is alarmed at twice the fear); **0 = off** (lane default R-7003: watching and boldness are opt-in civilian params, so no existing civilian scenario changes) — the showcase's civilian macro sets them. ⚠ A watcher does not turn to face the fighting (no facing request for a standing man).
+
 🔒 *"civilians panicking and evacuating when attack starts is a good idea, add it please"* — then: *"evacuation can hardly be organized under attack"* ·
 *"its sheer panic i guess"* · *"people close to the warfight should simply start running away or trying to hide"* · *"exactly people are curious and start fleeing only if the danger is close (and even then some cracy filmers stay)"*. ⇒ ⭐ **no organised evacuation**: sheer panic — run from the shooting, hide, vanish (R-4035: a panicking civilian hides in a
 building whose door can be opened and disappears after a while inside; never flees indefinitely).

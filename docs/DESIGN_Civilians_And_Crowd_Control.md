@@ -686,7 +686,7 @@ own fear states and guards (Alarmed → Panic → Shelter / Cower → Inside; Ca
 idle ⇒ his routine again. On his routine the SOP stands aside (the HSM keeps his fear). Rails `CivilianHsmTests.CE2322_*`,
 `CivilianFearSystemTests.CE2322_*`; demo `df-civilian-ordered`. 📄 [AQ97](blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md) §6.
 
-## 5f. CIV-3 behaviour — crowds: onlookers gather, fear spreads *(behaviors, `CE-2237`, 2026-10-17; build-state: READY-TO-BUILD)*
+## 5f. CIV-3 behaviour — crowds: onlookers gather, fear spreads *(behaviors, `CE-2237`, 2026-10-17; build-state: BUILT — measured `2026-11-13` by showcase-brains: the contagion is `CrowdSystem.cs:400-421` (`ContagionMetres` 20, `ContagionShare` 0.9), rails `CrowdSystemTests.CE2237_FearSpreads_*`; §5f.1 is its as-built grid)*
 
 INVENTORY *(codebase-memory CLI, re-indexed 2026-10-17 after the backend/ui merges; `check_index_coverage` not available through the CLI)*:
 `search_graph .*Crowd.* Class` = **18**, every one a dtCrowd MOVEMENT agent (`CrowdAgent`, `CrowdMotorIntent`, `IDtCrowdProvider`,

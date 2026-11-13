@@ -24,6 +24,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | 5 | CE-7025 smoke bombs · CE-7003 support calls (fires + smoke) | ✅ · 🔶 part (bulldozer / drone tasking wait for CE-7012 / CE-7026…) | §6b; CE-2278 (the grenade) not yet |
 | 6 | CE-7008 suppression wears off · CE-7007 shoot and move · CE-7032 the OP withdraws | ✅ · ✅ · ✅ | `StressModel.QuietSeconds` · `SquadDefend.ShootAndMove` · `PlatoonDefend` OpBack → BreakContact |
 | 7 | CE-7010 the air gate | ⏭ ignored — the user | — |
+| 9 | CE-7030 Watch · CE-7031 boldness · CE-7011 | ✅ · ✅ · 🔶 (the noise-panicked driver left) | `CivilianBehavior` Watch state; civilians design §5f CIV-3 marked BUILT |
 
 ## 2. The gates
 
@@ -41,7 +42,9 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | clean build after smoke: drills `PAR=1` / `=0` (+ `HROT_WORLD_GUARD=1`) · `Fdp.Toolkits.Tests` Combat · `Hrot.Core.Tests` | 236 / 236 · 236 / 236 · 446 / 446 · 366 / 367 (the pre-existing geo red) |
 | CE-7008: `…--filter SquadManeuverTests|StressSystemTests`, `PAR=1` / `=0` | 263 / 263 · 263 / 263; red-proof: the quiet term dropped ⇒ `CE7008_…` red |
 | CE-7007: drills + stress `PAR=1` / `=0` (+ `HROT_WORLD_GUARD=1`) on the clean build | 264 / 264 · 264 / 264; red-proof: `ShootAndMove` not called ⇒ `CE7007_…` red |
-| `tracker-counts.py --check` · `rulings-check.py` | OK · 602 / 602 |
+| CE-7032: drills + stress `PAR=1` / `=0` | 264 / 264 · 264 / 264; red-proof: no withdrawal ⇒ `CE2276_E2_…OP…` red |
+| CE-7030 / 7031: `CivilianHsmTests` `PAR=0` | 29 / 29; red-proof: `Curious` never true ⇒ both red. ⚠ `PAR=1`: every civilian rail (old ones too) throws in the FIXTURE — it skips the serial `CivilianFearSystem` that adds `CivilianState` in production ⇒ added to CE-7035 |
+| `tracker-counts.py --check` · `rulings-check.py` | OK · 603 / 603 |
 
 ## 3. The morning report
 
@@ -50,6 +53,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | the company has NO standing orders (handoff said `BasicCompanySop`) | its work is its task |
 | `CompanyAttack` takes four fixed objectives `Objective1…4` | the intent payload is a flat struct |
 | the reserve reinforces before the company falls back; the block it went into counts as held | measured on the bench: with two blocks one failure is "half" |
+| R-7003 civilians watch / bold are opt-in params | no existing civilian scenario changes |
 | R-7002 shoot and move opt-in below the company, on (25 s) in `CompanyDefend` | no existing defence changes |
 | R-7001 a smoke request = the `ElementEquipment.Smoke` flag; the gun loads the round its strike names | a request's `Count` is already 1 in production |
 
