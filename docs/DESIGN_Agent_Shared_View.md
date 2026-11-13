@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - DESIGN_Debug_Api_Http_Only.md — the AI debug API goes HTTP-ONLY: the MCP server removed, `GET /help` (the guide) rendered from the one route-doc source (R-4223)
   - docs/DESIGN_Replay_Browser_Debug_Http.md — the Replay Browser answers these readers too; RB-7 asks the user to reopen POST /selection
   - docs/DESIGN_Http_Control_Through_The_Cluster_Master.md — owns how the HTTP surface enters, seeks and reads a replay (the cluster's, through the master); supersedes §6b's sandbox
   - docs/DESIGN_Behaviour_Debugging.md — OWNS the debugging workflow (CE-1270) whose views get routes here (DBG-11)

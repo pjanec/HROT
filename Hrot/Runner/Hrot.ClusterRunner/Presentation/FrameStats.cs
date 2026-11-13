@@ -21,6 +21,7 @@ internal sealed class FrameStats
     // ⭐ CE-2401 (R-2084) — the garbage of each part, beside its time (the main thread's allocation counter)
     private long _partBytes, _updateBytes, _drawBytes, _uiBytes;
     private int _maxVtx; private string _maxVtxOwner = "";
+    private double _renderMs;   // ⭐ CE-1495 — the ImGui draw-data render step (Fdp.Presentation.Raylib.ImGuiRenderer), summed over the window
 
     public static FrameStats? FromEnvironment()
     {
@@ -45,6 +46,7 @@ internal sealed class FrameStats
     /// </summary>
     public unsafe void NoteDrawLists()
     {
+        _renderMs += Fdp.Presentation.Raylib.ImGuiRenderer.LastRenderTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
         var dd = ImGuiNET.ImGui.GetDrawData();
         if (dd.NativePtr == null) return;
         for (int i = 0; i < dd.CmdListsCount; i++)
@@ -67,11 +69,20 @@ internal sealed class FrameStats
         if (_lastFrame > 0) _frames.Add(now - _lastFrame);
         _lastFrame = now;
         if (now - _windowStart < WindowSeconds * 1000.0 || _frames.Count == 0) return;
+        Report(now);
+    }
+
+    /// <summary>Tests: one frame of <paramref name="ms"/> ms, then the report now (no two-second window).</summary>
+    internal void ReportNow(double ms) { _frames.Add(ms); Report(_clock.Elapsed.TotalMilliseconds); }
+
+    /// <summary>The window's report (the frames gathered so far), then a new window.</summary>
+    private void Report(double now)
+    {
         var sorted = _frames.OrderBy(f => f).ToArray();
         int n = sorted.Length;
         Console.WriteLine(
             I($"[FrameStats] {n} frames  mean {sorted.Average():0.0} ms  p50 {sorted[n / 2]:0.0}  p95 {sorted[Math.Min(n - 1, (int)(n * 0.95))]:0.0}") +
-            I($"  max {sorted[n - 1]:0.0}  | update {_update / n:0.0}  draw {_draw / n:0.0}  ui {_ui / n:0.0} ms/frame  | largest draw list {_maxVtx} vertices ({_maxVtxOwner})"));
+            I($"  max {sorted[n - 1]:0.0}  | update {_update / n:0.0}  draw {_draw / n:0.0}  ui {_ui / n:0.0} ms/frame (imgui render {_renderMs / n:0.00})  | largest draw list {_maxVtx} vertices ({_maxVtxOwner})"));
         var all = Fdp.Presentation.WindowManager.WindowTimings.DrainWithBytes();
         var top = all.Take(12).ToList();
         if (top.Count > 0) Console.WriteLine("[FrameStats]   per window (ms/frame, calls/frame): " + string.Join(" · ", top.Select(w => I($"{w.Name} {w.Ms / n:0.0} ({(double)w.Calls / n:0.#})"))));
@@ -101,7 +112,7 @@ internal sealed class FrameStats
         _frames.Clear();
         Console.WriteLine(I($"[FrameStats]   garbage (KB/frame): update {_updateBytes / n / 1024}  draw {_drawBytes / n / 1024}  ui {_uiBytes / n / 1024}") +
                           I($"  | gc0 {GC.CollectionCount(0)} gc1 {GC.CollectionCount(1)} gc2 {GC.CollectionCount(2)} (since start)"));
-        _update = _draw = _ui = 0; _maxVtx = 0; _updateBytes = _drawBytes = _uiBytes = 0;
+        _update = _draw = _ui = 0; _renderMs = 0; _maxVtx = 0; _updateBytes = _drawBytes = _uiBytes = 0;
         _windowStart = now;
     }
 }

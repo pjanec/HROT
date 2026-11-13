@@ -17,6 +17,7 @@
     <IsPackable>false</IsPackable>
     <!-- ⭐ Not a test project itself: it hosts no tests, it lets other assemblies write them. -->
     <IsTestProject>false</IsTestProject>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

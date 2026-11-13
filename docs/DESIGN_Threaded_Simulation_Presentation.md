@@ -72,7 +72,7 @@ diagram) is §14.8.*
 | `HROT_READ_CHECK=1` / `=2` | an undeclared cross-entity read throws / is listed (the survey) |
 
 **Measured on real cores** (Windows, Ryzen 7 6800H 8C/16T, Release, 1 000 men — [status](https://github.com/pjanec/HROT/blob/exp/windows-threaded-measure/docs/blueprints/batches/STATUS_Windows_Threaded_Scaling.md)):
-the UI frame while playing **146 ms → ≈ 9 ms** (it no longer waits for the tick, at any thread count) · the sim tick **144 → ≈ 110 ms**, flat from
+after the conversions (rerun, [status](https://github.com/pjanec/HROT/blob/exp/windows-threaded-measure/docs/blueprints/batches/STATUS_Windows_Threaded_Rerun.md)): the sim tick **144 → ≈ 75 ms** (1.9×), the CGF node **108.5 → 57.5 ms** (1.79×), stepped runs of equal step count equal at 1 / 4 / 12 threads; first run: the UI frame while playing **146 ms → ≈ 9 ms** (it no longer waits for the tick, at any thread count) · the sim tick **144 → ≈ 110 ms**, flat from
 4 threads · BrainTick **84.7 → 10.4 ms** (8.2×, 1 → 8 threads), EQS 8.8× · the CGF node as its own process **108.5 → 69.0 ms** (1.57×) · at most
 ≈ 5 of 16 logical cores used — the serial systems hold it (Stress 16.4, Callout 10.3, Threat 5.9, Weapons 5.7, StaffComposer 2.8 ms at 8 threads;
 CGF egress 14.6 ms) ⇒ the conversions in flight (CE-4484 / 4485, STEER) · the opt-out verified on every process · staging 93 MB.

@@ -5,10 +5,11 @@ updated: 2026-11-10 (§14.8 as built — CE-4373; §14 detailed design of the li
 current-answer: ⭐ §14 the detailed design (inventory, measured sample, classes, sequence, modules, E-1…E-12, Q-O10…Q-O12) · §4a the wizard contract · §5 the rules · §13 the review
 known-rot: §5.5's "split along the shortest cut" for holes is replaced by §14.5 E-4 (a cut through each hole's centre)
 related-designs:
+  - DESIGN_ImGui_Draw_Data_Renderer.md — §5: the preview map's level of detail (tiny buildings = one rectangle, cull, dash budget, vertex caps) and the renderer fix behind the 65 536-vertex crash (CE-1495)
   - PLAN_Large_Terrain.md — §9: this pipeline goes THROUGH the importer and is built in parallel; O-0 adds the input-set READER + conformance checks to Hrot.Terrain.InputSet
   - DESIGN_Terrain_Import_UTM.md §10 — the import input set (the target format of this tool)
   - DESIGN_Terrain_Synth.md — the synthetic generator of the same input set
-  - blueprints/Architect_Question_93_Sumo_Traffic_Node.md §11.3 — SUMO net placement (anchor), terrain-from-sumo.py
+  - blueprints/Architect_Question_93_Sumo_Traffic_Node.md §11.3 — SUMO net placement (anchor), terrain-from-sumo.py; §4 E2b — what a flat net is drawn on (and why the importers now write the heights into the net)
 -->
 
 # DESIGN — an HROT terrain from any place on OpenStreetMap
@@ -176,6 +177,7 @@ sequenceDiagram
   `--proj "+proj=utm +zone=<Z> [+south] +datum=WGS84 +units=m" --offset.disable-normalization true --offset.x -<e0> --offset.y -<n0>`
   ⇒ net coordinates == local metres (manifest `sumoAnchor` = [0, 0]). A test asserts that a known OSM node lands at its local metres (as
   `SumoNetPlacement` does for the existing nets).
+- ⭐ **AS-BUILT `2026-11-12` (CE-1494, ui; 🔒 user: *"adjust after netconvert"*) — THE NET CARRIES OUR HEIGHTS.** netconvert writes a FLAT net (no z), so the roads sat at z 0 under a 300–400 m terrain. After the heights grid is written and netconvert has run, ONE shared step — `Hrot.Terrain.InputSet.NetElevation.Apply(net, setFolder)`, which the random generator (`TerrainSynthesizer.Write`) calls too — rewrites every `shape="…"` of `roads/roads.net.xml` (lanes, internal lanes, crossings, walking areas, junction outlines) with a z per point from `heights/` (`HeightSampler`: the planar-triangle rule of the terrain's own `TerrainHeightGrid.Sample`) and a `z` on each `<junction>`. A straight run is densified to a point every **10 m** (≈ one cell of the compiled grid; a longer run would cut across a hill); a z netconvert already wrote is kept; lane `length`s and everything else stay byte-for-byte; SumoSharp needs a z on EVERY point of a shape to give a lane `ShapeZ`, so none is skipped. The net is then not flat (`TrafficDrape.IsFlat` false), SUMO's own sim, the road scene and `TerrainField` read the right heights, and the host-side drape of AQ93 E2b (a safety net for hand-made flat nets) does not apply. It runs inside the same `try` as the road build (a failure there is the "no roads" warning, CE-4409). Net size on the random terrain `tiny` preset: 213 169 → 247 859 bytes (+16 %). Rails: `NetElevationTests` (InputSet.Tests), `WriteTests.TheRoadNet_GetsTheHeightsOfTheGridJustWritten` (Osm.Tests), `E2b_V_ARandomTerrain_TheRoadsStandOnTheHills` (Presentation.Tests, screenshot via `HROT_RAIL_SHOTS`). ⚠ The live Overpass source was not run (no network on the build VM); the pipeline rail uses the fake source and builder, and real netconvert is covered by the random-terrain path and F-7.
 - `netconvert` comes from the SUMO install script (§9.1).
 - ⭐ **AS-BUILT `2026-11-11` (`CE-4409`, 🔒 user: *"if sumo roadnet fails, it shouldn't fail the whole import"*):** roads are OPTIONAL. The child netconvert gets `SUMO_HOME` = the located install's home (`Netconvert.SumoHomeOf`; Windows: *"environment variable SUMO_HOME is not set properly"*, exit 1), and a road failure imports the terrain WITHOUT `roads/` — the pipeline reports `OsmProgress.Warning` (*No roads were imported — netconvert failed (exit N): …*), the wizard's finished box shows it as an amber line (full text on hover). Cancellation is still a cancel.
 

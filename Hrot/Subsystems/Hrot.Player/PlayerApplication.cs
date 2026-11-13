@@ -549,7 +549,7 @@ public class PlayerApplication : IDisposable
         // ensuring it is consumed by the active layer and does not bubble to the main loop.
         Raylib.SetExitKey(KeyboardKey.Null);
 
-        rlImGui.Setup(darkTheme: true);
+        Fdp.Presentation.Raylib.ImGuiRenderer.Setup(darkTheme: true);
 
         // Load Roboto TTF into Raylib and register it for gizmo text rendering.
         // Must be called after InitWindow (GL context must exist).
@@ -1241,7 +1241,7 @@ public class PlayerApplication : IDisposable
 
             DrawUI();
 
-            rlImGui.End();
+            Fdp.Presentation.Raylib.ImGuiRenderer.End();
 
 
 

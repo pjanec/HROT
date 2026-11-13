@@ -6,6 +6,7 @@ current-answer: §3 (decisions) · §4 (phases) · §7 (the rule editor, RE-1 �
 stale-below: nothing
 known-rot: the as-built deviation ① ("Tabs are a strip of buttons — ImGui's tab bar cannot be set from a rail and its BeginTabItem overload shows a close box") no longer holds: DetailsWindow.BeginTab draws a tab without a close box and ImGuiTabItemFlags.SetSelected selects one from code — CE-4286 (2026-11-06) · (2026-11-06) RV-6 puts the selected rule's detail in the window's right pane — R-4118 moves it to the Details panel (docs/UX/DESIGN_Rule_Editor_UX.md §2.2, for review)
 related-designs:
+  - DESIGN_ImGui_Draw_Data_Renderer.md — OWNS the fix for EVERY panel's 65 536-vertex crash (CE-1495): the one renderer honours VtxOffset; §6d's CE-4223 clip is the per-panel half
   - UX/DESIGN_Rules_Bundle.md — every host composes the rules windows as ONE bundle; editing decided by the seat (CE-4292)
   - docs/UX/DESIGN_Edit_Mode_Undo.md — the one EditHistory gains world steps (snapshots) in the network-less editor; the take editor moves onto it (CE-4219 ②)
   - docs/UX/DESIGN_Rule_Editor_UX.md — the UX review of this view and editor (2026-11-06): a List of sentences, the detail in Details (R-4118), condition templates over the one language, actions as sentences, entry points, every host
@@ -221,6 +222,8 @@ Rails (all ui-owned): `RulesModelTests` (30 + the authored ones: tree from paren
 Rails (ui-owned): `MissionSummaryModelTests` (14: headline, fallback, trend both ways, required, forces, attention order, the three groupings, group columns, why, key events from the three lanes, the index history, the game card, the subtree filter) · `MissionSummaryWindowFrameRail` under `xvfb-run -a` (cards, a row's why, the side switch, export disabled). Red-proofs: `Why` with the pass / fail inverted ⇒ `Why_IsTheChildrenWithPassFail…` red; restoring the first cut (a `MemberEvaluation` counted as a root AND preferred — an ordering change alone stayed green, so it proved nothing) ⇒ `TheHeadline_IsTheSidesOverallRoot…` red (both reverted).
 
 ## 6d. AS BUILT — R4 *(ui, `2026-11-03`, CE-4221: RV-1 X1 · X4 · X5 used by the rules view; CE-4223 part 0)*
+
+> ⭐ **`2026-11-12` (CE-1495) — the SECOND occurrence (the OSM wizard's map preview) showed the per-panel clip below is not enough: the renderer ignored `VtxOffset`. Fixed for every panel at the renderer — [DESIGN_ImGui_Draw_Data_Renderer.md](DESIGN_ImGui_Draw_Data_Renderer.md). The clip below stays (a cheaper frame), it is no longer what keeps the editor alive.**
 
 ⭐ Built as §3 RV-1 / §4 row R4 say. Every new `ITimelineTrack` member defaults OFF ⇒ the director's and the trace lanes' tracks are unchanged (`TrackConnectorsAndComingUpTests.ADirectorLikeTrack_HasEveryNewMemberOff` · `TimelinePanelFrameRail.CE4221_R4_…`'s last step). All in `FDP/Engine/Fdp.Presentation/ImGui/Panels/Timeline/` (a cross-lane edit: the shared panel).
 

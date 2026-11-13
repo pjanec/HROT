@@ -791,7 +791,7 @@ class Program
                     windowCtrl.TickStartGate();   // ⭐ CE-4096 — the ONE start gate, fed once a frame, before the window manager draws
                     windowCtrl.WindowManager!.Render();
                     orchestrator.DrawUIAll();
-                    rlImGui_cs.rlImGui.End();
+                    Fdp.Presentation.Raylib.ImGuiRenderer.End();
                     }   // ⭐ X-4
                     frameStats?.EndUi();
                     frameStats?.NoteDrawLists();

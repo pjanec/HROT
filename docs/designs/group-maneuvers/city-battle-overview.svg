@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 820" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">
+  <title>City battle showcase — the battle at a glance</title>
+  <defs>
+    <marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1f5fbf"/></marker>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c0392b"/></marker>
+    <pattern id="dead" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="10" height="10" fill="#f6efe2"/><line x1="0" y1="0" x2="0" y2="10" stroke="#d9a441" stroke-width="3"/></pattern>
+  </defs>
+  <rect width="1200" height="820" fill="#fbfaf6"/>
+  <text x="20" y="30" font-size="20" font-weight="bold" fill="#222">City battle — the battle at a glance (≈ 1.5 × 1.5 km, synthetic town, daylight, visibility 5 km)</text>
+  <text x="20" y="50" fill="#555">Attacker (blue) from the west fields · Defender (red) holds the town · phase lines PL A–D are the scripted top; everything inside a sector is the company commanders'</text>
+
+  <!-- terrain -->
+  <rect x="20" y="70" width="300" height="680" fill="#e8f0d8"/>
+  <text x="40" y="95" fill="#6b7f3a" font-weight="bold">OPEN FIELDS</text>
+  <rect x="300" y="70" width="110" height="680" fill="url(#dead)"/>
+  <text x="308" y="745" fill="#a8761b" font-size="12" font-weight="bold">drone dead zone</text>
+  <rect x="410" y="90" width="620" height="640" rx="40" fill="#ece8e0" stroke="#b9b2a4"/>
+  <ellipse cx="720" cy="410" rx="300" ry="290" fill="none" stroke="#8a8172" stroke-width="7" stroke-dasharray="2 0"/>
+  <text x="430" y="135" fill="#7a7364">residential belt</text>
+  <text x="720" y="660" fill="#7a7364">industrial edge</text>
+  <rect x="610" y="300" width="220" height="210" fill="#d9d1c2" stroke="#8a8172"/>
+  <text x="625" y="322" fill="#5b5344" font-weight="bold">OLD TOWN</text>
+  <rect x="680" y="370" width="80" height="70" fill="#f3efe6" stroke="#8a8172"/>
+  <text x="687" y="390" fill="#5b5344" font-size="11">square</text>
+  <rect x="700" y="400" width="40" height="30" fill="#a3895f"/>
+  <text x="684" y="455" fill="#3d3326" font-size="11" font-weight="bold">TOWN HALL</text>
+  <path d="M880,70 C860,250 900,420 870,600 C860,680 880,740 875,750" fill="none" stroke="#7fb3d5" stroke-width="22"/>
+  <text x="900" y="110" fill="#3f7ea6" font-weight="bold">river</text>
+  <rect x="855" y="230" width="44" height="14" fill="#6d6d6d"/><text x="905" y="242" fill="#444" font-size="11">bridge N</text>
+  <rect x="852" y="560" width="44" height="14" fill="#6d6d6d"/><text x="902" y="572" fill="#444" font-size="11">bridge S</text>
+  <ellipse cx="1110" cy="420" rx="70" ry="160" fill="#d7e3c0" stroke="#9fb27a"/>
+  <text x="1075" y="300" fill="#6b7f3a" font-weight="bold">HILL</text>
+
+  <!-- phase lines -->
+  <g stroke="#555" stroke-width="2" stroke-dasharray="10 6" fill="none">
+    <line x1="300" y1="75" x2="300" y2="750"/><line x1="460" y1="75" x2="460" y2="750"/>
+    <line x1="610" y1="75" x2="610" y2="750"/><line x1="878" y1="75" x2="878" y2="750"/>
+  </g>
+  <g font-weight="bold" fill="#333"><text x="268" y="770">PL A</text><text x="440" y="770">PL B</text><text x="590" y="770">PL C</text><text x="858" y="770">PL D</text></g>
+  <g fill="#555" font-size="11"><text x="250" y="786">town edge</text><text x="420" y="786">ring road</text><text x="575" y="786">old town</text><text x="845" y="786">river</text></g>
+
+  <!-- defender (red) -->
+  <g fill="none" stroke="#c0392b" stroke-width="3">
+    <path d="M430,140 Q420,410 430,690"/>
+    <path d="M600,290 Q585,410 600,520"/>
+  </g>
+  <g fill="#c0392b" font-size="11">
+    <rect x="415" y="200" width="30" height="18" fill="#fde2df" stroke="#c0392b"/><text x="419" y="213">OP</text>
+    <rect x="415" y="560" width="30" height="18" fill="#fde2df" stroke="#c0392b"/><text x="419" y="573">OP</text>
+    <rect x="470" y="170" width="74" height="30" fill="#fde2df" stroke="#c0392b"/><text x="476" y="190">1 Coy (D)</text>
+    <rect x="470" y="400" width="74" height="30" fill="#fde2df" stroke="#c0392b"/><text x="476" y="420">2 Coy (D)</text>
+    <rect x="470" y="620" width="74" height="30" fill="#fde2df" stroke="#c0392b"/><text x="476" y="640">3 Coy (D)</text>
+    <rect x="950" y="380" width="96" height="30" fill="#fde2df" stroke="#c0392b"/><text x="955" y="400">reserve Coy</text>
+    <rect x="1080" y="420" width="66" height="22" fill="#fde2df" stroke="#c0392b"/><text x="1085" y="436">AA · mor</text>
+    <text x="440" y="292" font-weight="bold">main line</text><text x="565" y="285" font-weight="bold">inner ring</text>
+    <text x="455" y="370">✕ roadblocks</text>
+  </g>
+  <g fill="#c0392b"><text x="452" y="262" font-size="16">✕</text><text x="452" y="482" font-size="16">✕</text><text x="452" y="602" font-size="16">✕</text></g>
+  <path d="M950,410 C880,420 820,430 770,430" stroke="#c0392b" stroke-width="3" fill="none" stroke-dasharray="8 5" marker-end="url(#ar)"/>
+  <text x="900" y="460" fill="#c0392b" font-size="11">counterattack (if the square falls)</text>
+
+  <!-- attacker (blue) -->
+  <g fill="#1f5fbf" font-size="11">
+    <rect x="40" y="200" width="92" height="30" fill="#dde8fa" stroke="#1f5fbf"/><text x="46" y="220">A Coy (mech)</text>
+    <rect x="40" y="560" width="92" height="30" fill="#dde8fa" stroke="#1f5fbf"/><text x="46" y="580">B Coy (mech)</text>
+    <rect x="40" y="380" width="92" height="30" fill="#dde8fa" stroke="#1f5fbf"/><text x="46" y="400">mortars · drones</text>
+    <rect x="160" y="680" width="104" height="30" fill="#dde8fa" stroke="#1f5fbf"/><text x="166" y="700">2nd wave (macro)</text>
+    <rect x="40" y="120" width="96" height="30" fill="#dde8fa" stroke="#1f5fbf"/><text x="46" y="140">air assault plt</text>
+  </g>
+  <g stroke="#1f5fbf" stroke-width="5" fill="none" marker-end="url(#ab)">
+    <path d="M135,215 C260,215 380,250 455,255"/>
+    <path d="M135,575 C260,575 380,600 455,600"/>
+  </g>
+  <path d="M135,135 C320,40 600,120 712,395" stroke="#1f5fbf" stroke-width="3" fill="none" stroke-dasharray="3 6" marker-end="url(#ab)"/>
+  <text x="330" y="80" fill="#1f5fbf" font-size="11">UH-60 insertion → town hall (phase 3)</text>
+  <path d="M215,680 C260,640 300,620 330,610" stroke="#1f5fbf" stroke-width="3" fill="none" stroke-dasharray="8 5" marker-end="url(#ab)"/>
+
+  <!-- legend -->
+  <g font-size="12" fill="#333">
+    <rect x="1040" y="600" width="150" height="150" fill="#ffffff" stroke="#bbb"/>
+    <text x="1050" y="620" font-weight="bold">legend</text>
+    <line x1="1050" y1="636" x2="1080" y2="636" stroke="#1f5fbf" stroke-width="5"/><text x="1088" y="640">attack axis</text>
+    <line x1="1050" y1="656" x2="1080" y2="656" stroke="#c0392b" stroke-width="3"/><text x="1088" y="660">defence line</text>
+    <line x1="1050" y1="676" x2="1080" y2="676" stroke="#555" stroke-width="2" stroke-dasharray="10 6"/><text x="1088" y="680">phase line</text>
+    <text x="1052" y="702" fill="#c0392b" font-size="16">✕</text><text x="1088" y="700">roadblock</text>
+    <rect x="1050" y="712" width="30" height="14" fill="url(#dead)"/><text x="1088" y="724">drone dead zone</text>
+    <text x="1050" y="744" fill="#777" font-size="10">not to scale · not app UI</text>
+  </g>
+</svg>

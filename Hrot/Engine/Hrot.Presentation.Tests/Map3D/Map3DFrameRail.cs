@@ -4446,6 +4446,75 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ AQ93 E2b ("adjust after netconvert") — 🔒 user: <i>"after I do the OpenStreetMap terrain import or even the random terrain generation, why the Sumo road network is rendered at zero
+    /// level while the rest of the terrain was generated to some much higher level"</i>. The random generator END TO END (a hilly 500 m terrain, the real importer, the road net netconvert builds and
+    /// <c>NetElevation</c> lifts), loaded as the editor loads it and drawn in 3-D: the net is not flat, every asphalt vertex of the road scene is within a few centimetres of the terrain's ground, and
+    /// the terrain really has relief (anti-vacuity). Screenshot <c>map3d-e2b-random-roads-on-hills.png</c>. Needs netconvert (scripts/install-sumo.sh): without it the rail says so and passes.
+    /// ✅ Red-proof: <c>NetElevation.Apply</c> not called by the generator ⇒ a flat net ⇒ the loader drapes it instead, so red on the NOT-flat assertion.
+    /// </summary>
+    [SkippableFact]
+    public void E2b_V_ARandomTerrain_TheRoadsStandOnTheHills()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        Skip.If(Hrot.Terrain.InputSet.Netconvert.Locate() is not { Problem: null }, "no netconvert of the right version (scripts/install-sumo.sh)");
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        string root = Path.Combine(Path.GetTempPath(), "e2b-rand-" + Guid.NewGuid().ToString("N")[..8]);
+        try
+        {
+            string terrains = Path.Combine(root, "terrain"), scenarios = Path.Combine(root, "scenarios");
+            var pipeline = new Hrot.Terrain.Random.RandomTerrainPipeline(terrains, new string?[] { Fdp.Toolkit.Orchestration.ContentLayout.TerrainRecipeAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!) });
+            var preview = pipeline.Preview(new Hrot.Terrain.Random.RandomTerrainOptions { SizeMetres = 500, Relief = Hrot.Terrain.Random.ReliefLevel.Hilly, GroundSeed = 5 });
+            pipeline.OpenInEditorAsync(preview, "e2b-rand", scenarios, terrains).GetAwaiter().GetResult();
+
+            using var world = new EntityRepository();
+            var residency = new Hrot.Map.Common.Services.TerrainResidency(new Fdp.Toolkit.Terrain.TerrainCatalog(new[] { terrains }), new CarKinem.Road.RoadNetworkHolder());
+            residency.AttachContent(new Hrot.Traffic.SumoNetTerrainLoader());
+            residency.Commit(world, residency.Prepare("e2b-rand"));
+            var net = Hrot.Traffic.TrafficNetCache.Of(world);
+            Assert.NotNull(net);
+            Assert.Null(net!.Drape);   // not flat: the importer wrote the heights into the net, nothing is draped at load
+            Assert.False(Hrot.Traffic.TrafficDrape.IsFlat(net.Model));
+
+            var query = WorldQuery.Of(world)!;
+            var asphalt = net.Roads.Meshes.Where(m => m.Kind == Sim.Scene.SceneKind.Asphalt && !m.Sidewalk).ToArray();
+            Assert.NotEmpty(asphalt);
+            float lo = float.MaxValue, hi = float.MinValue, worst = 0f; var mid = Vector2.Zero; int n = 0;
+            foreach (var m in asphalt)
+                foreach (var v in m.Vertices)
+                {
+                    float g = query.GroundHeightAt(v.X, v.Y);
+                    worst = MathF.Max(worst, MathF.Abs(v.Z - g)); lo = MathF.Min(lo, g); hi = MathF.Max(hi, g); mid += new Vector2(v.X, v.Y); n++;
+                }
+            mid /= n;
+            Assert.True(hi - lo > 2f, $"anti-vacuity: the roads run over {hi - lo} m of relief");
+            Assert.True(MathF.Abs(lo) > 1f || preview.ReliefRange.Min < 1.0, $"the ground under the roads is at {lo}..{hi} m (the terrain's relief range {preview.ReliefRange.Min}..{preview.ReliefRange.Max})");
+            Assert.True(worst < 0.5f, $"the worst road vertex is {worst} m off the ground (ground {lo}..{hi} m, terrain relief {preview.ReliefRange.Min}..{preview.ReliefRange.Max})");
+
+            using var frame = UiFrameHarness.Begin(1280, 800);
+            LitShader.Reset();
+            var canvas = new MapCanvas(input: null);
+            var two = new MapCamera();
+            canvas.Camera = two;
+            var terrain3D = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world));
+            canvas.AddLayer(terrain3D);
+            var traffic = new TrafficLayer3D(() => world);
+            canvas.AddLayer(traffic);
+            var sw = new MapViewSwitch(canvas, two);
+            sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+            sw.Set(true, animate: false);
+            sw.Camera3D.Pose = new CameraPose(new Vector3(mid.X, mid.Y, query.GroundHeightAt(mid.X, mid.Y)), 420f, MathF.PI * 0.3f, -0.6f);
+            frame.Step(canvas.Draw);
+            frame.Step(canvas.Draw);
+            StepUntil(frame, canvas, () => terrain3D.TriangleCount > 0 && traffic.TriangleCount > 200);
+            for (int i = 0; i < 120; i++) { frame.Step(canvas.Draw); System.Threading.Thread.Sleep(10); }   // the terrain's chunks stream in over a few frames
+            frame.Screenshot(Path.Combine(shots, "map3d-e2b-random-roads-on-hills.png"));
+            Assert.True(traffic.TriangleCount > 200, $"road triangles: {traffic.TriangleCount}");
+        }
+        finally { try { Directory.Delete(root, true); } catch (IOException) { } }
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-1197</c> — close over a demo-city junction, the sidewalks are drawn light grey beside the dark carriageway. 🔒 User, live,
     /// <c>2026-10-19</c>: <i>"side-walks on sumo roads not rendered in different shade of gray"</i>. Screenshot
     /// <c>map3d-ce1197-sidewalks.png</c>. ✅ Red-proof: <c>TrafficRoadScene.IsSidewalk</c> ⇒ false (no light pixel on a sidewalk).
