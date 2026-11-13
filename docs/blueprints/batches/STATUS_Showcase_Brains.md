@@ -22,6 +22,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | 3 | CE-7023 `CompanyAttack` · CE-7024 `CompanyDefend` | ✅ | `Brains/CompanyBehaviors.cs`; `PlatoonDefend` Ready reports Set up |
 | 4 | CE-7005 tempo | ✅ | inside `CompanyAttack` |
 | 5 | CE-7025 smoke bombs · CE-7003 support calls (fires + smoke) | ✅ · 🔶 part (bulldozer / drone tasking wait for CE-7012 / CE-7026…) | §6b; CE-2278 (the grenade) not yet |
+| 6 | CE-7008 suppression wears off | ✅ | `StressModel.QuietSeconds` |
 | 7 | CE-7010 the air gate | ⏭ ignored — the user | — |
 
 ## 2. The gates
@@ -37,6 +38,8 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | `dotnet test Hrot.Core.Tests --no-build` | 366 / 367 — the red (`HrotEnvironmentTests.CreateGeoTransform_HasNoDefaultOrigin…`, `NoGeoFrameException`) is PRE-EXISTING on `exp/threaded-build`: no file it touches differs from the base (CE-4396, `ea3ae421c`) |
 | `NedTkbBuilderCombatTests` | 56 / 56 (incl. `CE7021_TheInfantryCompany_IsThreePlatoons`) |
 | smoke (item 5): `…--filter SquadManeuverTests.CE7|CE2176|CE2312` + `Fdp.Toolkits.Tests --filter AmmoChoiceTests|AimAndFireExecutorTests` | 21 / 21 · 152 / 152; red-proofs: the battery's `Round` dropped ⇒ 2 red · the HQ ignoring the flag ⇒ red · `LoadIndex` never switching ⇒ red |
+| clean build after smoke: drills `PAR=1` / `=0` (+ `HROT_WORLD_GUARD=1`) · `Fdp.Toolkits.Tests` Combat · `Hrot.Core.Tests` | 236 / 236 · 236 / 236 · 446 / 446 · 366 / 367 (the pre-existing geo red) |
+| CE-7008: `…--filter SquadManeuverTests|StressSystemTests`, `PAR=1` / `=0` | 263 / 263 · 263 / 263; red-proof: the quiet term dropped ⇒ `CE7008_…` red |
 | `tracker-counts.py --check` · `rulings-check.py` | OK · 601 / 601 |
 
 ## 3. The morning report

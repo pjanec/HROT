@@ -33,6 +33,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Alone: no living friend this close.</summary>
         public const float AloneMetres = 20f;
         public const float CalmPerSecond = 0.03f;
+        /// <summary>⭐ <c>CE-7008</c> (City Battle §3a — "suppression wears off") — nothing has hit, passed or fallen near him for this long (s):
+        /// the calm doubles. Without it a man outnumbered and alone, nerve 0, never calmed (+0.03 / s against −0.03 / s) — pinned for ever
+        /// though nobody was firing at him any more.</summary>
+        public const double QuietSeconds = 30.0;
         /// <summary>⭐ <c>CE-2376</c> (AQ104 F, DF-1) — an enemy heard this close (m), this recently (s), not in sight: his stress rises this much
         /// a second × (1 − effective Nerve) — "walking around behind a wall".</summary>
         public const float HeardCloseMetres = 10f, HeardClosePerSecond = 0.03f;
@@ -101,6 +105,7 @@ namespace Hrot.AI.Behaviors.Brains
             float calm = CalmPerSecond;
             if (InCover(world, e, at)) calm *= 2f;
             if (LeaderNear(world, e, at)) calm *= 2f;
+            if (now - s.LastStimulusAt > QuietSeconds) calm *= 2f;   // ⭐ CE-7008 — the fire has stopped: it wears off
             // ⭐ CE-2376 (AQ104 F, DF-1) — an enemy heard close and unseen: no calming while he is there, and the approved rise on top
             //   (0.03 / s × (1 − nerve) alone never beats the 0.03 / s calming — measured on the rail, so the calm stops)
             float heard = 0f;
