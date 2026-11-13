@@ -31,7 +31,7 @@ when an item is blocked).
 | gate | command | result |
 |---|---|---|
 | F-1 the committed gate | `HROT_PARALLEL_SIM=1 python3 scripts/stepped-hash.py --threads 1,4` (Release, 1 000 men) | STATE EQUAL, exit 0 |
-| ⭐⭐ **F-3 the gate** (240 steps, 1 000-man demo-city, Release, VM, after `bc2017a21`) | `--kernel 0 --threads 1,4,8,1,4,8 --chunk 40` | ⭐ **switch off: all six STATE EQUAL** at 1 / 4 / 8 threads, all at 240 steps (`simTime` 4.0). Mode 3 + every phase: (running) |
+| ⭐⭐ **F-3 the gate** (240 steps, 1 000-man demo-city, Release, VM, after `bc2017a21`) | `--kernel 0 --threads 1,4,8,1,4,8 --chunk 40` | ⭐ **switch off: all six STATE EQUAL** at 1 / 4 / 8 threads, all at 240 steps (`simTime` 4.0) · ⭐ **mode 3 + every phase (`HROT_PARALLEL_SIM=1`): all six STATE EQUAL** |
 | ⭐ F-2 the repeatability table (`scripts/stepped-hash.py --chunk 40` = 240 steps, 1 000-man demo-city, Release, VM) | `--kernel 0` (every switch off) · `--kernel 3` + `HROT_PARALLEL_SIM=1`, each at 1, 1, 1, 4, 8 threads | **switch off:** three 1-thread runs EQUAL · 4 threads: 22 types differ, 100 positions, the entity count (10 755 vs 10 756) · 8 threads: 19 types, 18 positions — ⚠ **the THREAD COUNT changes the shipped product's stepped world** · **mode 3 + every phase:** 1, 1, 1, 4 EQUAL · 8 threads: 8 types, 15 positions. ⭐ Repeatable at a FIXED thread count in both; the 120-step gates (M-7) were too short to see it |
 | F-5 rails | `python3 scripts/test_invariant_culture.py --live <Debug ClusterRunner.dll>` · Core `WindowsScheduling` | **34 executables invariant, 63 test projects not** (red-proved: the targets removed ⇒ the executables listed); **under `cs-CZ` the editor printed `mean 44.1 ms`** (a point); the runtimeconfig carries `System.Globalization.Invariant: true` · 4 / 0; the live log shows `[Scheduling] power throttling: …` |
 
@@ -49,7 +49,7 @@ when an item is blocked).
 |---|---|---|
 
 ## NEXT (the resume point)
-⭐ F-3 is root-caused and fixed (`bc2017a21`); the mode-3 half of its gate is running, then a re-run on the E-batch fixes. Then F-4 · F-2 ticked · F-6.
+⭐ F-2 and F-3 DONE (tracker ticked). The combined gate on every fix of the day (1 / 2 / 4 / 8, both modes) is running. Then F-4 (a timing profile on a quiet machine) · F-6 (fold).
 
 ## ⛔ NEXT — superseded
 F-3: the probe series (`--probe 10`, 1 vs 8 × 4 threads, switch off) names the first step and types where a run parts → the race's source → a fix +
