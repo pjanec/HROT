@@ -516,6 +516,8 @@ internal sealed class LocalWindowController
             () => Hrot.UI.Common.Audio.AudioPreferences.CameraSound,
             v => Hrot.UI.Common.Audio.AudioPreferences.CameraSound = v);
 
+        PerformanceMenu.Register(wm);   // ⭐⭐ U-2 (CE-4531, R-4224) — View ▸ Settings ▸ Performance: the threaded editor, the parallel simulation, the threads
+
         Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(wm.GlobalMenu, wm.ShellCommands, "settings.layout.save-default", GlobalMenuRegistry.SettingsMenuPath + "/Layout/Save current as default", () =>
         {
             // ⭐⭐ Flush BOTH halves first — 📌 "the layout" is the pair, and saving one of them is the

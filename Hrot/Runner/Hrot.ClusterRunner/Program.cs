@@ -104,6 +104,10 @@ class Program
             return 1;
         }
 
+        // ⭐⭐ U-2 / U-3 (CE-4531 / CE-4532, R-4224) — every optimisation ON by default, switchable in View ▸ Settings ▸ Performance (the user
+        //   file); an explicit HROT_* variable wins; -m all runs serial. Before ANY kernel, pool or host exists.
+        Console.WriteLine(Hrot.ClusterRunner.Configuration.PerformanceStartup.Apply(config));
+
         // ⭐ CE-1249 (BV-16) — the brain journal switch, before any unit is attached
         Fdp.Toolkit.Behavior.Diagnostics.BrainJournalSettings.Enabled =
             !string.Equals(config.BrainJournal, "off", StringComparison.OrdinalIgnoreCase);
