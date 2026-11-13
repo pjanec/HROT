@@ -71,6 +71,14 @@ public sealed class TrafficRoadGizmo : IGlobalStatelessGizmo
             float mpp = mapView!.MetresPerPixel;
             bool close = mpp > 0f && mpp <= LanesMaxMetresPerPixel;
             var set = close ? plan.LanePolylines : plan.EdgeLevelFor(TolerancePixels * mpp);
+            if (!close)
+            {
+                // ⭐ CE-6020 — a view that does not fit the budget at its scale's level steps to a COARSER level (fewer points per street) before anything is left out;
+                //   past the coarsest, the plan's order (fastest first) decides what is left out
+                int level = plan.EdgeLevelIndexFor(TolerancePixels * mpp);
+                while (level < plan.EdgeLevels.Length - 1 && TrafficRoadPlan.SegmentsInView(plan.EdgeLevels[level], mapView) > TrafficRoadPlan.Budget) level++;
+                set = plan.EdgeLevels[level];
+            }
             int used = 0;
             var pts = set.Points;
             foreach (var pl in set.Lines)
