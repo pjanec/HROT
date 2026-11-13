@@ -249,7 +249,7 @@ open field none). Lean: these, and nothing that needs its own model in slice 1:
 - **A bridge** = a walkable **deck** (a slab, `TerrainWalkableKind.Slab`) with **ramps** at each end over the water, plus the road edge across it on the
   road net (SUMO already models bridges, `DESIGN_Terrain_From_OSM.md` §2) — a **chokepoint** the AI must find by pathing.
 - ⭐ In a scenario the user can place a bridge over an existing river (a feature) — and destroy it later (a collapse, like a building: R-4188 D-7).
-- ⚠ Not measured: does the navmesh treat water as impassable (the cut suggests yes), and does a vehicle's road path cross a deck. §10.
+- ✅ **MEASURED `2026-11-13` (CE-6002, showcase world)** — the navmesh treats water as impassable for men AND ground vehicles, in a base terrain from the import pipeline and in an overlay; a bridge carries both layers and a fallen one carries neither (§10 row, rails named there). ⚠ A vehicle's *road-net* path over a deck is §18k's (T-7a), not the navmesh's.
 
 ## 9. Slices
 
@@ -269,7 +269,7 @@ open field none). Lean: these, and nothing that needs its own model in slice 1:
 | load time of a scenario with ~500 features (the one bake) | R-4192 budgets |
 | the fixed capacity of a feature's shape (vertices) | unmanaged recorded components |
 | does the separate Replay Browser run the bake | replays of edited terrains |
-| water impassable in the navmesh; a vehicle over a deck | rivers and bridges are pointless otherwise |
+| ✅ **MEASURED `2026-11-13` (CE-6002; no fix needed)** — water impassable in the navmesh; a vehicle over a deck | ⭐ the ground mesh cuts every `surface: water` polygon out, and a base terrain's river (input set `water` layer → `TerrainFolderWriter` → the same parser) and an overlay's (`TerrainWorldMerge`) reach the baker as the same surface, so ONE rule serves both — `RecastNavmeshBaker` needs no surface handling. Rails (red-proofed): `Hrot.Terrain.Import.Tests` `RiverNavmeshTests` (the real importer + baker: a river in a BASE terrain is impassable on foot and by vehicle, the same terrain without it is not — red: the importer writing no water) · `FeatureKindsTests.ABridge_IsTheOnlyCrossing_ForMenAndGroundVehicles_AndAFallenBridgeLeavesNone` (a bridge carries BOTH layers, the path is ≥ the straight distance and keeps to the 4 m strip over the water, the river alone has no crossing, a collapsed bridge leaves none — red: a bridge with no ramps) · older `RecastNavmeshFactoryTests.O2_WaterFromAMergedOverlay_…`, `FeatureKindsTests.Water_IsImpassable` / `ABridge_Carries…`. The collapse cut relies on CE-3438's clip of the rubble to land (§18g finding). |
 | the external gateway: what it needs to draw a scenario feature | L-7 |
 | how many clutter boxes a town holds, and their cost in the draw and the terrain index | §7 |
 
