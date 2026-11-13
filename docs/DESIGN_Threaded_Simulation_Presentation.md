@@ -48,7 +48,7 @@ diagram) is §14.8.*
 | the whole gizmo block on the main thread over A; a drag is a ghost, the drop one job, refused ⇒ snap back | R-4211, U-3 | §14.6, §14.8 | ✔ |
 | undo: the recorder on S, the one history on the UI | U-1 | §14.8 (`ThreadedUndoSink`) | ✔ |
 | managed components immutable, replaced whole; a managed read never stamps | R-4210, N-9 | §14.8; Parallel Simulation §17 | ✔ |
-| the per-entity rule: own entity direct, others by command in the batch's buffer, cross reads from the tick-start view, follow-ups in batch order | R-4212, R-4214 | Parallel Simulation §18.5 | ✔ brains, movement, threat, stress, callouts |
+| the per-entity rule: own entity direct, others by command in the batch's buffer, cross reads from the tick-start view, follow-ups in batch order | R-4212, R-4214 | Parallel Simulation §18.5, §18.7 | ✔ brains, movement, threat, stress, callouts, ⭐ the weapon dispatcher (a unit claims the weapons it controls; a part of an owned entity is owned) |
 | squad work per squad | R-4212 ③ | Parallel Simulation §18.6 | ✔ |
 | ONE pool (`FdpWorkerPool`, frame + background lane), no dependency scheduler; EQS sized by the same budget | Parallel Simulation §13 | Parallel Simulation §16, §18.5 | ✔ |
 | `--mode all`: every kernel of the process on the one sim worker | R-4214 ② | §14.8 (D-34) | ✔ |
@@ -57,7 +57,8 @@ diagram) is §14.8.*
 | the per-query timer off by default | R-4213 | Parallel Simulation §18.1 | ✔ |
 | Windows: power throttling (EcoQoS) off, QuickEdit off, for every HROT process | Inventory §5a | Parallel Simulation §19 | ✔ built · ⏳ verified on Windows (CE-4493) |
 | the review source on the sim side, the UI on a published read model | R-4220 | [`DESIGN_Threaded_Review_Source.md`](DESIGN_Threaded_Review_Source.md) | ⏳ CE-4495…4500 |
-| the still-serial systems (the toggled group, the weapon dispatcher …) as per-entity phases | R-4219 | the ranking: `STATUS_Mode_And_Serial_Systems.md` M-4 | ⏳ CE-4484 / 4485 |
+| the still-serial systems (the toggled group, the weapon dispatcher …) as per-entity phases | R-4219 | Parallel Simulation §18.7; the ranking: `STATUS_Mode_And_Serial_Systems.md` M-4 | ✔ `2026-11-13` the weapon dispatcher; the stress phase's lock (`FriendNear`) and the callouts' say-pass walk removed · ⏳ StaffComposer, the CGF egress (STEER order) |
+| the serial work OUTSIDE the systems, by profile: module snapshots recycled + synced incrementally (`ContentEpoch`), the registry's clone flag lock-free; the world hash counts field bytes only; a late declaration retakes the tick-start view; a deferred publish makes its stream | M-4 / M-7 | Parallel Simulation §18.7 | ✔ `2026-11-13` — the stepped 1 000-man gate equal at 1 / 2 / 4 / 8 threads, every phase on |
 | real-core numbers (1…12 threads, Release) | — | `STATUS_Windows_Threaded_Scaling.md` | ⏳ CE-4489…4494 |
 
 | switch (all OFF by default; 0 B per steady frame when off) | turns on |

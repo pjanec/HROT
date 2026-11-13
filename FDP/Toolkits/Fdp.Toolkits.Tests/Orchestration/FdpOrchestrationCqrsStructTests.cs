@@ -205,9 +205,11 @@ public sealed class FdpOrchestrationCqrsStructTests
             .GetFields(BindingFlags.Public | BindingFlags.Instance)
             .ToDictionary(f => f.Name, f => f.FieldType);
 
-        Assert.Equal(2, fields.Count);
+        // ⭐ CE-1467 added the bookmark's note (the master mints the mark label); this rail was not updated with it
+        Assert.Equal(3, fields.Count);
         Assert.Equal(typeof(Guid), fields["RequestId"]);
         Assert.Equal(typeof(string), fields["Label"]);
+        Assert.Equal(typeof(ExerciseNote), fields["Note"]);
     }
 
     // ── CMC-S003: LoadZoneIntent field types ──────────────────────────────
