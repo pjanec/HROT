@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend (VM): AUTONOMOUS — a canonical `Entity`, and the squad drills under parallel brains
 
-**For:** the backend VM lane, after its current batches. **From:** coordinator. **Dispatched at `<stamp>`**.
+**For:** the backend VM lane, after its current batches. **From:** coordinator. **Dispatched at `1eb35f201`**.
 🔒 User, `2026-11-13`: *"explicit padding field is ok as long as it does not show up in the usual UI - entity inspector, entity pickers etc."* ·
 *"ok to the squad drill test"* (R-4222).
 
