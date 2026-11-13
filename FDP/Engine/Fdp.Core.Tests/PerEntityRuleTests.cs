@@ -232,6 +232,53 @@ public sealed class PerEntityRuleTests
         finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
     }
 
+    /// <summary>⭐ M-6 (CE-4485) — owning an entity owns its PARTS: a job that claims another entity (<see cref="ParallelReadCheck.OwnAlso"/>: a weapon
+    /// system the unit controls) writes that entity's part (its turret) directly — visible in the same Execute — the same at 1 / 2 / 4 / 8 threads.
+    /// 🔴 Red-proof: the owner test dropped from <c>IsOwnPartOfCurrent</c> ⇒ the part's write is deferred ⇒ the read-back sees the old value.</summary>
+    [Fact]
+    public void M6_AJobOwnsThePartsOfWhatItClaims_AndWritesThemDirectly()
+    {
+        try
+        {
+            string one = ClaimedPartsAt(1);
+            Assert.StartsWith("7,", one);                                         // owner 0 read back its write to the claimed entity's part
+            foreach (int t in new[] { 2, 4, 8 }) Assert.Equal(one, ClaimedPartsAt(t));
+        }
+        finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
+    }
+
+    private static string ClaimedPartsAt(int threads)
+    {
+        FdpWorkerPool.Resize(threads);
+        using var w = World(300, out var owners);
+        w.RegisterComponent<Fdp.Tests.EntityCensusTests.CensusPart>();
+        var claimed = new Entity[owners.Length];
+        var parts = new Entity[owners.Length];
+        for (int i = 0; i < owners.Length; i++)
+        {
+            claimed[i] = w.CreateEntity();                                        // the weapon system the owner controls
+            parts[i] = w.CreateEntity();                                          // … and its turret part
+            w.AddComponent(parts[i], new Fdp.Tests.EntityCensusTests.CensusPart { ParentEntity = claimed[i] });
+            w.AddComponent(parts[i], new Val { V = -1 });
+        }
+        ParallelEntities.Run(w, owners, owners.Length, new ClaimedPartJob { Repo = w, Claimed = claimed, Parts = parts });
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < owners.Length; i++) sb.Append(w.GetComponentRO<Val>(owners[i]).V).Append(',');
+        return sb.ToString();
+    }
+
+    private struct ClaimedPartJob : IEntityBatchJob
+    {
+        public EntityRepository Repo; public Entity[] Claimed, Parts;
+        public void Execute(Entity e, int index, BatchContext ctx)
+        {
+            ParallelReadCheck.OwnAlso(Claimed[index]);
+            Repo.AddComponent(Parts[index], new Val { V = index + 7 });          // an upsert of the claimed entity's part
+            Repo.GetComponentRW<Val>(e).V = Repo.GetComponentRO<Val>(Parts[index]).V;   // owned ⇒ already there
+        }
+        public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
+    }
+
     /// <summary>⭐ N-15 (CE-4477) — a phase reads THIS tick's view even on a world no kernel captures: a view taken last tick, then the world ticks
     /// and its rows change, then a phase runs with no capture of its own ⇒ the cross reads see the NEW rows (the phase takes the view — once a tick).
     /// 📌 Measured: the editor's preview world kept its FIRST view; entities spawned later were missing and read live ⇒ a thread-count-dependent hash.

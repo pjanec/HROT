@@ -1907,7 +1907,9 @@ namespace Fdp.Core
             if (ParallelReadCheck.OwnsAlso(index)) return true;   // ⭐ F-11 — a member of the squad this job runs (ParallelReadCheck.OwnAlso)
             if (!_entityIndex.GetComponentMask(index).IsSet(GlobalComponentIds.PartMetadata)) return false;
             var table = _tableCache[GlobalComponentIds.PartMetadata];
-            return table != null && ((Entity*)table.GetRawPointer(index))->Index == current;
+            if (table == null) return false;
+            int owner = ((Entity*)table.GetRawPointer(index))->Index;
+            return owner == current || ParallelReadCheck.OwnsAlso(owner);   // ⭐ M-6 (CE-4485) — owning an entity owns its parts (a station weapon's turret)
         }
 
         // F-5 / F-6 — in a phase: a value write on the processed entity's EXISTING component stays direct; a structural change (an add, or anything
