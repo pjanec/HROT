@@ -17,6 +17,10 @@ import subprocess
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import importlib.util as _ilu   # ⭐ F-5 — the ONE [FrameStats] parser lives in the session driver
+_spec = _ilu.spec_from_file_location("ats", os.path.join(REPO, "scripts", "access-trace-session.py"))
+ATS = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(ATS)
 
 
 def run(out, extra_env, play, guard):
@@ -39,8 +43,9 @@ def summarise(name, out):
         if f.startswith("editor-") and f.endswith(".log"):
             with open(os.path.join(out, f), errors="ignore") as fh:
                 text += fh.read()
-    frames = [float(m.group(1)) for m in re.finditer(r"\[FrameStats\] \d+ frames\s+mean ([0-9.]+) ms", text)]
-    p95 = [float(m.group(1)) for m in re.finditer(r"\[FrameStats\] \d+ frames\s+mean [0-9.]+ ms\s+p50 [0-9.]+\s+p95 ([0-9.]+)", text)]
+    stats = ATS.frame_stats(text)   # ⭐ F-5 — any locale (a decimal comma): the one parser in the session driver
+    frames = [m for m, _ in stats]
+    p95 = [p for _, p in stats if p is not None]
     x4f = re.findall(r"\[X-4F\] (.*)", text)
     poc2 = re.findall(r"\[POC2\] (syncs .*)", text)
     faults = len(re.findall(r"worker fault", text))

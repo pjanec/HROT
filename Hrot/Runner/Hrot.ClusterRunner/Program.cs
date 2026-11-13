@@ -49,9 +49,10 @@ class Program
     {
         // ⭐ N-14 (CE-4476, §19) — every HROT process opts out of Windows' power throttling (a windowless node ran at ~half speed, CE-4453) and
         //   turns console QuickEdit off (a click froze every write); a no-op off Windows; HROT_ECOQOS=1 keeps Windows' default.
-        Fdp.Core.Threading.WindowsScheduling.OptOutProcess();
+        bool optedOut = Fdp.Core.Threading.WindowsScheduling.OptOutProcess();
         Fdp.Core.Threading.WindowsScheduling.OptOutCurrentThread();
-        Fdp.Core.Threading.WindowsScheduling.DisableConsoleQuickEdit();
+        bool quickEditOff = Fdp.Core.Threading.WindowsScheduling.DisableConsoleQuickEdit();
+        Console.WriteLine(Fdp.Core.Threading.WindowsScheduling.Describe(optedOut, quickEditOff, OperatingSystem.IsWindows()));   // ⭐ F-5 — what it did, once
         FdpConfig.EnforceExplicitComponentIds = true;
         FdpConfig.EnforceExplicitEventRegistration = true;
         // ⭐ CE-3427 C-1 — live play paces slow modules by wall clock (FdpConfig.SlowModulesByWallClock); FDP_SLOW_WALLCLOCK=0 bisects

@@ -138,6 +138,22 @@ def pick_units(s, n):
     return men[:n], veh[:3], items
 
 
+# ⭐ F-5 (CE-4505) — the editor's [FrameStats] lines, read in ANY locale: a Czech Windows prints "8,9 ms", which "[0-9.]+" read as 8.
+#   ONE parser for every measuring script (threaded-scale-measure, threaded-poc2-measure). Rail: scripts/test_frame_stats.py.
+_NUM = r"([0-9]+(?:[.,][0-9]+)?)"
+
+
+def frame_stats(text):
+    """Every [FrameStats] line in <text> as (mean ms, p95 ms or None), in order; a decimal comma is read as a point."""
+    import re as _re
+    out = []
+    for m in _re.finditer(r"\[FrameStats\] \d+ frames\s+mean " + _NUM + r" ms(?:\s+p50 " + _NUM + r"\s+p95 " + _NUM + r")?", text):
+        mean = float(m.group(1).replace(",", "."))
+        p95 = float(m.group(3).replace(",", ".")) if m.group(3) else None
+        out.append((mean, p95))
+    return out
+
+
 def load_scenario(s, a):
     for _ in range(60):   # the editor answers /status before the cluster master has booted: retry until the load is accepted
         r = s.post("/scenario/load/edit", {"name": a.scenario, "waitForReady": False}, timeout=120)

@@ -56,7 +56,7 @@ def systems(s, full=None):
 def frame_means(log):
     with open(log, errors="ignore") as fh:
         text = fh.read()
-    return [float(m.group(1)) for m in re.finditer(r"\[FrameStats\] \d+ frames\s+mean ([0-9.]+) ms", text)]
+    return [mean for mean, _ in ats.frame_stats(text)]   # ⭐ F-5 — any locale (a decimal comma)
 
 
 def census(out):
