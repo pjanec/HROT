@@ -112,5 +112,37 @@ namespace Fdp.Toolkits.Tests.Squad.Command
                 Assert.Equal(serial.Sent, par.Sent);
             }
         }
+
+        /// <summary>⭐ CE-4518 — a steady composer frame (nothing heard, nothing due) allocates nothing, serial and as the phase — 0 B on the hot
+        /// path (CLAUDE.md, R-2084). 🔴 Red-proof by construction: a per-frame list or closure in the job would show here.</summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void CE4518_ASteadyFrame_AllocatesNothing(bool parallel)
+        {
+            bool was = ParallelEntities.Enabled;
+            ParallelEntities.Enabled = parallel;
+            FdpWorkerPool.Resize(4);
+            try
+            {
+                var (w, cs, _) = World(60);
+                for (int c = 0; c < cs.Length; c++) w.SetComponent(cs[c], new ReportingRequirements());   // no sitrep timer: nothing becomes due
+                var composer = new StaffComposerSystem();
+                for (int f = 0; f < 40; f++)   // warm: outboxes added, buffers grown, the pool waited on once
+                {
+                    w.SetSingleton(new GlobalTime { TotalTime = 1.0 + f * 0.1, DeltaTime = 0.1f, TimeScale = 1f });
+                    w.Bus.SwapBuffers(); composer.Execute(w, 0.1f); w.Bus.SwapBuffers();
+                }
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                for (int f = 40; f < 60; f++)
+                {
+                    w.SetSingleton(new GlobalTime { TotalTime = 1.0 + f * 0.1, DeltaTime = 0.1f, TimeScale = 1f });
+                    composer.Execute(w, 0.1f);
+                }
+                Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+                w.Dispose();
+            }
+            finally { ParallelEntities.Enabled = was; FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
+        }
     }
 }
