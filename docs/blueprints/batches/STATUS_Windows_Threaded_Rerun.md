@@ -98,6 +98,8 @@ CGF work ms per frame (fps); the two `CycloneEgressSystem` passes summed; SimHos
   kernel, and only sometimes on the threaded one (a race between the pause and the worker's first tick). The gate should either compare runs
   only at equal `simTime` or read the step counter after `/preview/enter` and step to a fixed total. `--rows --bytes` was not run: the
   difference is a whole step, not bytes.
+- ⚠ **Check against F-D2** (`STATUS_Windows_Findings.md`, landed during this run: "a race, rare", 1 of 6 runs differs): if those failing
+  runs' `simTime` differs from the baseline's, F-D2's race is this extra step, not anything in the sim. The gate prints `simTime` per run.
 - Logs: `%TEMP%\…\wtm\r\v4\k3`, `k3b`, `k0` (scratch, not committed).
 
 ### V-5 · `CE-4515` — language-neutral on the Czech machine (R-4221)
