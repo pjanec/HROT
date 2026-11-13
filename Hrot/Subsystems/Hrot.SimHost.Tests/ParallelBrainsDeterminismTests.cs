@@ -34,8 +34,9 @@ namespace Hrot.SimHost.Tests
         private readonly ITestOutputHelper _out;
         public ParallelBrainsDeterminismTests(ITestOutputHelper output) => _out = output;
 
-        private const int PerSide = 48;
-        private const int Steps = 240;
+        private static int PerSide = 48;
+        private static int Steps = 240;
+        private static double s_brainMs;   // the brain's wall time over the run (the measuring rail reads it)
 
         private static unsafe ulong Run(int threads, bool parallel, out int reactions)
             => Run(threads, parallel, out reactions, null);
@@ -92,7 +93,9 @@ namespace Hrot.SimHost.Tests
                     senses.Execute(repo, 0.016f);
                     ingress.Execute(repo, 0.016f);
                     stress.Execute(repo, 0.016f);
+                    long b0 = System.Diagnostics.Stopwatch.GetTimestamp();
                     brain.Execute(repo, 0.016f);
+                    s_brainMs += (System.Diagnostics.Stopwatch.GetTimestamp() - b0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
                     arbitration.Execute(repo, 0.016f);
                 }
 
@@ -167,6 +170,28 @@ namespace Hrot.SimHost.Tests
             if (!repo.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(m))
                 repo.AddComponent(m, new Fdp.Toolkit.Perception.Components.TargetMemory());
             return m;
+        }
+
+        /// <summary>⭐ N-16 — the brain's wall time at 1 / 2 / 4 threads on a bigger fight (a measuring run: <c>HROT_MEASURE=1</c>).</summary>
+        [Fact]
+        public void N16_TheBrainsWallTime_At1_2_4Threads()
+        {
+            if (System.Environment.GetEnvironmentVariable("HROT_MEASURE") != "1") return;   // a measuring run only (no skippable facts in this suite)
+            int ps = PerSide, st = Steps;
+            PerSide = 400; Steps = 120;
+            try
+            {
+                var report = new System.Text.StringBuilder();
+                Run(1, parallel: false, out _); s_brainMs = 0;   // warm
+                Run(1, parallel: false, out _); report.Append($"serial {s_brainMs / Steps:F2} ms/tick; ");
+                foreach (int t in new[] { 1, 2, 4 })
+                {
+                    s_brainMs = 0; Run(t, parallel: true, out _);
+                    report.Append($"parallel@{t} {s_brainMs / Steps:F2} ms/tick; ");
+                }
+                Assert.Fail("MEASURE " + report);   // a measuring run reports through the failure text
+            }
+            finally { PerSide = ps; Steps = st; }
         }
 
         [Fact]
