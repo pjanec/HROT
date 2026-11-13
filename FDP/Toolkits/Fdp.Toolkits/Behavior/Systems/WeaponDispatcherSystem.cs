@@ -106,6 +106,10 @@ namespace Fdp.Toolkit.Behavior.Systems
                     _list[n++] = entity;
                 }
                 DeclareTickReads();
+                // ⭐ CE-4516 — the parts index made fresh serially first (as the brains' and the squads' phases do): every PartsOf in the weapon
+                //   phase then reads lock-free and never takes the late-add path inside it (📐 the read-check survey named PartMetadata, read by
+                //   PartIndex.TakeLateAdds from AimAndFireExecutor.EngagementMount within the phase)
+                Fdp.Toolkit.Replication.Utilities.PartIndex.PrepareFrame(repo);
                 Fdp.Core.Jobs.ParallelEntities.Run(repo, _list, n, new DispatchJob { System = this, Repo = repo, Dt = deltaTime });
                 return;
             }

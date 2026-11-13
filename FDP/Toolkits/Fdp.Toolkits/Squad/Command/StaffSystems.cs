@@ -130,8 +130,15 @@ namespace Fdp.Toolkit.Squad.Command
         }
 
         /// <summary>⭐ CE-4518 — one commander's whole compose (SPOT, launch, support, SITREP, casevac, flush): its own outbox only.</summary>
-        private struct ComposeJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.ICoarseJob
+        private struct ComposeJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.ICoarseJob, Fdp.Core.Jobs.IStableReads
         {
+            /// <summary>⭐ CE-4518 — what a SPOT reads on a CONTACT (another unit) that nothing writes during the staff phase: is it a vehicle
+            /// (<c>VehicleParams</c>, via <c>Locomotions.Of</c>), can it fire at aircraft (its controlled weapons: <c>PassengerBuffer</c>,
+            /// <c>CarrierStations</c>). 📐 The read-check survey (<c>HROT_READ_CHECK=2</c>, 1 000 men, 4 threads) named exactly these three.</summary>
+            public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads
+                .Unmanaged<CarKinem.Core.VehicleParams>()
+                .Unmanaged<Fdp.Toolkit.Behavior.Components.PassengerBuffer>()
+                .Unmanaged<Fdp.Toolkit.Behavior.Components.CarrierStations>();
             /// <summary>⭐ CE-4517 — a job is a whole commander's compose: 4 a batch (~100 commanders ⇒ ~25 batches, not 4).</summary>
             public int BatchSize => 4;
             public StaffComposerSystem System;
