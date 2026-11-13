@@ -71,6 +71,11 @@ namespace Fdp.Toolkit.Combat.Executors
             // ⭐⭐ Indirect fire IF-1 (I6; WS-3's rule, as AimAndFireExecutor has it) — a CONTROLLED weapon system (the ground mortar its
             //   gunner mans) fires AS ITSELF: its own WeaponState, its own mount 0; this unit keeps the decision, the ROE and the status.
             //   Mount 0 on a unit with no weapon of its own is its primary (a gunner's tube). ⛔ Before, MountEntity fell back to the owner.
+            // ⭐ CE-2278 (DA-12) — a SMOKE order to a man throws from whichever of his own mounts carries smoke (the grenade mount's second
+            //   loadout entry): the squad that orders it does not read his mounts.
+            if (p.Round == FireAtPointParams.RoundSmoke && !WeaponSystems.IsControlledIndex(p.Mount)
+                && AmmoChoice.MountIndexWithKind(world, entity, Fdp.Toolkit.Tkb.Domain.WarheadKind.Smoke) is var smokeMount && smokeMount > 0)
+                p.Mount = (byte)smokeMount;
             Entity shooter = entity;
             int fireIndex = p.Mount;
             Entity mountEntity;
@@ -116,7 +121,7 @@ namespace Fdp.Toolkit.Combat.Executors
             bool bomb = mountDto?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb;
             // ⭐ CE-7025 (IF-5) — an indirect mount with a loadout loads the round the mission asked for (its first, or its smoke): a change
             //   holds one reload, as the weapon brain's switch does; no smoke left ⇒ the action fails, out of ammunition.
-            if (mountDto != null && mountDto.Arc != Fdp.Toolkit.Tkb.Domain.IndirectArc.Unset && !PersonHands.IsHands(mountDto))
+            if (mountDto != null && (mountDto.Arc != Fdp.Toolkit.Tkb.Domain.IndirectArc.Unset || Thrown(mountDto)) && !PersonHands.IsHands(mountDto))   // ⭐ CE-2278 — a grenade mount too
             {
                 int want = p.Round == FireAtPointParams.RoundSmoke ? AmmoChoice.IndexOfKind(world, mountEntity, Fdp.Toolkit.Tkb.Domain.WarheadKind.Smoke) : 0;
                 if (want < 0) { channel.Status = NodeStatus.Failure; Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfAmmo); return; }
@@ -216,6 +221,9 @@ namespace Fdp.Toolkit.Combat.Executors
             if (PersonHands.IsHands(mountDto)) RoundPickUp.Thrown(world, entity, loadedAmmo);   // ⭐ CE-3235 (PU-6) — the live round left his hand
             fixed (byte* st = channel.State) *(int*)st = fired + 1;
             channel.Status = p.Rounds > 0 && fired + 1 >= p.Rounds ? NodeStatus.Success : NodeStatus.Running;
+            // ⭐ CE-2278 — the last smoke grenade of the order gone, the M67 goes back in his hand (entry 0) for the weapon brain's own throws
+            if (channel.Status == NodeStatus.Success && p.Round == FireAtPointParams.RoundSmoke && Thrown(mountDto))
+                AmmoChoice.LoadIndex(world, mountEntity, 0, mountDto!.ReloadSeconds);
             Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing, fired + 1, p.Rounds);   // ⭐ CE-3136 — blind fire: no aim, no sight gate
         }
 
@@ -359,6 +367,9 @@ namespace Fdp.Toolkit.Combat.Executors
         /// <summary>The entity holding mount <paramref name="index"/>'s <see cref="WeaponState"/>: the owner for mount 0, the mount
         /// child otherwise (<see cref="WeaponMountQuery"/>, as <see cref="AimAndFireExecutor"/> finds it).</summary>
         private static Entity MountEntity(EntityRepository world, Entity owner, int index) => WeaponMountQuery.MountEntity(world, owner, index);
+
+        /// <summary>⭐ <c>CE-2278</c> — a mount thrown by hand (a grenade): it switches rounds as an indirect mount does.</summary>
+        private static bool Thrown(Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount) => mount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade;
     }
 }
 

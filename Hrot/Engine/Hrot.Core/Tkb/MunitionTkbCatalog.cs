@@ -327,7 +327,7 @@ namespace Hrot.Core.Tkb
                      new WarheadDto { Kind = WarheadKind.Irritant, EffectSeconds = 2f, CloudRadiusM = 8f, CloudHeightM = 3f, CloudSeconds = 90f });
             Register(tkb, SmokeGrenadeName, TkbSmokeGrenade, new DISEntityType { Kind = 2, Domain = 9, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 8f, CloudHeightM = 4f, CloudSeconds = 75f,
-                                      Fuze = FuzeKind.Time, FuzeDelayS = 1.5f });
+                                      Fuze = FuzeKind.Time, FuzeDelayS = 1.5f, Indirect = true });   // ⭐ CE-2278 — thrown on the arc (as the stun grenade, CE-3230)
             // ⭐ CE-7025 (IF-5) — the mortar smoke bombs: a screen ≈ 15 / 20 / 25 m across for 90 s where each lands (starter values; an M302-
             //   class 81 mm WP/RP screen is of that order). Impact-fused, indirect, the HE bomb's charges; DIS battlefield support, its calibre.
             Register(tkb, Mortar60mmSmokeName, Tkb60mmMortarSmoke, Dis(9, Usa, 2, 5),

@@ -70,5 +70,65 @@ namespace Hrot.SimHost.Tests
                     smoke |= (q.Items[i].Report.Equipment & ElementEquipment.Smoke) != 0;
             Assert.True(smoke, "the half-deadline request asks for smoke");
         }
+    
+        /// <summary>
+        /// ⭐⭐ <c>CE-2278</c> (DA-12, Defend &amp; Attack §8 DA-G) — SMOKE TO BREAK CONTACT: AssaultRiflemen (their real TKB type carries smoke grenades
+        /// beside the M67s) break contact; as the first bound goes the covering man throws ONE smoke grenade (<c>FireAtPoint</c>, round Smoke) toward the
+        /// threat — 15 m, at most half-way — and after <c>SmokeSeconds</c> the orders are re-sent: he covers (CombatPosture), and the second bound
+        /// throws none. A Militia man (below Regular) throws none. ✅ Red-proof: the smoke arm removed ⇒ the covering man's first order is CombatPosture.
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void CE2278_BreakingContact_TheCoveringManThrowsSmokeTowardTheThreat_OnceAndRegularPlusOnly(bool militia)
+        {
+            var s = new Squad(members: 2);
+            AssaultRiflemen(s);
+            if (militia)
+            {
+                if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.CombatProficiency>())
+                    s.Repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatProficiency>();
+                foreach (var m in s.Members)
+                    s.Repo.AddComponent(m, new Fdp.Toolkit.Behavior.Components.CombatProficiency
+                    {
+                        Authored = Fdp.Toolkit.Behavior.Components.ProficiencyOf.ValueOf(Fdp.Toolkit.Behavior.Components.ProficiencyTier.Militia),
+                        Set = Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet,
+                    });
+            }
+            var threat = new Vector3(0f, 60f, 0f);
+            s.PoolMany(6, threat);
+            s.Order("{}", BehaviorNames.BreakContact);
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(Fdp.Toolkit.Squad.Maneuvers.BreakContactManeuver.ManeuverKind, s.Kind);
+            s.Answer(s.RetreatQuery(), new Vector3(-40f, -30f, 0f));
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+
+            var cover = s.Orders.Where(o => o.Entity == s.Members[1]).ToList();
+            Assert.NotEmpty(cover);
+            if (militia)
+            {
+                Assert.Equal(BehaviorNames.CombatPosture, cover[^1].IntentId);
+                return;
+            }
+            Assert.Equal(BehaviorNames.FireAtPoint, cover[^1].IntentId);
+            var fire = System.Text.Json.JsonSerializer.Deserialize<FireAtPointParamsJsonDto>(cover[^1].JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.Equal(1, fire.Round);
+            Assert.Equal(1, fire.Rounds);
+            var from = s.At(s.Members[1]);
+            var to = new Vector3(fire.X, fire.Y, fire.Z);
+            Assert.Equal(System.MathF.Min(BreakContactPlay.SmokeMetres, Vector2.Distance(new(from.X, from.Y), new(threat.X, threat.Y)) * 0.5f),
+                         Vector2.Distance(new(from.X, from.Y), new(to.X, to.Y)), 1);
+            Assert.True(Vector2.Distance(new(to.X, to.Y), new(threat.X, threat.Y)) < Vector2.Distance(new(from.X, from.Y), new(threat.X, threat.Y)));
+
+            s.Orders.Clear();
+            for (int i = 0; i < (int)(BreakContactPlay.SmokeSeconds / 0.016f) + 3; i++) s.Tick();
+            Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity == s.Members[1]).IntentId);   // re-sent: he covers
+
+            s.Teleport(s.Members[0], new Vector3(-40f, -30f, 0f));
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            Assert.DoesNotContain(s.Orders, o => o.IntentId == BehaviorNames.FireAtPoint);                      // the second bound: none
+        }
     }
 }

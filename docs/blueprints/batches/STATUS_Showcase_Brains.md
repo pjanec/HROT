@@ -21,7 +21,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | 2 | CE-7021 company echelon · CE-7022 puppet bench | ✅ | TKB 306; `SquadManeuverTests.Company.cs` |
 | 3 | CE-7023 `CompanyAttack` · CE-7024 `CompanyDefend` | ✅ | `Brains/CompanyBehaviors.cs`; `PlatoonDefend` Ready reports Set up |
 | 4 | CE-7005 tempo | ✅ | inside `CompanyAttack` |
-| 5 | CE-7025 smoke bombs · CE-7003 support calls (fires + smoke) | ✅ · 🔶 part (bulldozer / drone tasking wait for CE-7012 / CE-7026…) | §6b; CE-2278 (the grenade) not yet |
+| 5 | CE-7025 smoke bombs · CE-7003 support calls (fires + smoke) · CE-2278 smoke grenade | ✅ · 🔶 part (bulldozer / drone tasking wait for CE-7026…) · 🔶 kit + break contact (crossing / breach face left) | §6b; Defend & Attack DA-G as built |
 | 6 | CE-7008 suppression wears off · CE-7007 shoot and move · CE-7032 the OP withdraws | ✅ · ✅ · ✅ | `StressModel.QuietSeconds` · `SquadDefend.ShootAndMove` · `PlatoonDefend` OpBack → BreakContact |
 | 7 | CE-7010 the air gate | ⏭ ignored — the user | — |
 | 10 | CE-7012 `ClearObstacle` (the bulldozer) | ✅ | `Brains/ClearObstacleBehavior.cs`; City Battle §6c |
@@ -46,6 +46,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | CE-7032: drills + stress `PAR=1` / `=0` | 264 / 264 · 264 / 264; red-proof: no withdrawal ⇒ `CE2276_E2_…OP…` red |
 | CE-7030 / 7031: `CivilianHsmTests` `PAR=0` | 29 / 29; red-proof: `Curious` never true ⇒ both red. ⚠ `PAR=1`: every civilian rail (old ones too) throws in the FIXTURE — it skips the serial `CivilianFearSystem` that adds `CivilianState` in production ⇒ added to CE-7035 |
 | CE-7012: `ClearObstacleBehaviorTests` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) · drills + stress + shelter + clear `PAR=1` / `=0` (+ `HROT_WORLD_GUARD=1`) | 2 / 2 · 2 / 2 · 272 / 272 · 272 / 272; red-proof: push by `Current` not `Max` ⇒ both red |
+| CE-2278: `AimAndFireExecutorTests.CE2278_*` + `AmmoChoiceTests` + `WL4_W12e*` + `PersonHandsTests` · `SquadManeuverTests.CE2278_*` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) | 23 / 23 · 2 / 2 · 2 / 2; red-proofs: the executor not re-mounting a smoke order ⇒ red · the smoke arm off ⇒ red. Clean build: `Fdp.Toolkits.Tests` Combat 543 / 543 · drills + stress + clear + shelter 274 / 274 both ways · `Hrot.Core.Tests` 366 / 367 (the pre-existing geo red) |
 | `tracker-counts.py --check` · `rulings-check.py` | OK · 604 / 604 |
 
 ## 3. The morning report
@@ -62,4 +63,5 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 
 | for the user to look at | |
 |---|---|
-| CE-7035 | the drill fixture vs `HROT_READ_CHECK=1` (83 pre-existing reds) |
+| CE-7035 | the drill fixture vs `HROT_READ_CHECK=1` (83 pre-existing reds; ⭐ also: `ReactToContact`'s choice reads a man's `WeaponState` undeclared once the men carry real weapons — seen with AssaultRiflemen, CE-2278) |
+| CE-2278 kit | the Grenadier and the AssaultRifleman now carry 2 smoke grenades beside their M67s: their grenade mount's ammo total is 6 / 4 (was 4 / 2) — a scenario hash that counts rounds moves |

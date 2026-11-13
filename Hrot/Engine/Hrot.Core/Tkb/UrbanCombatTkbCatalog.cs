@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using CarKinem.Core;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -149,6 +150,16 @@ namespace Hrot.Core.Tkb
         private const int   GrenadeCount = 4;
         /// <summary>⭐ CE-2260 (CB-71) — the assault rifleman's stun grenades and fragmentation grenades.</summary>
         private const int   AssaultStunGrenades = 2, AssaultFragGrenades = 2;
+        /// <summary>⭐ <c>CE-2278</c> (DA-12, DA-G) — smoke grenades a Grenadier / AssaultRifleman carries beside his M67s: a second LOADOUT entry of
+        /// the same grenade mount (⛔ not a new mount — the replicated per-mount ammo carries mounts 0…3 and the AssaultRifleman's are full). The
+        /// M67 stays entry 0 (the weapon brain's throw); a squad's <c>ThrowSmoke</c> loads the smoke for one throw (FireAtPoint, round Smoke).</summary>
+        private const int   SmokeGrenades = 2;
+
+        private static List<AmmoLoadDto> FragAndSmoke(int frags) => new()
+        {
+            new AmmoLoadDto { AmmoGuid = MunitionTkbCatalog.TkbM67Grenade, Rounds = frags },
+            new AmmoLoadDto { AmmoGuid = MunitionTkbCatalog.TkbSmokeGrenade, Rounds = SmokeGrenades },
+        };
         private const float GrenadeThrowSpeed = 15f, GrenadeRange = 25f;
         private const int   MortarBombs = 10;
         private const float MortarMuzzleVelocity = 60f, MortarRange = 360f;
@@ -279,7 +290,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new WeaponSuiteDto { Mounts =
                 {
                     Rifle() /* ⭐ CE-4146 — the ONE rifle (it carries Category SmallArms; the inline copies did not, so their barrel heat was a tank gun's) */,
-                    new WeaponMountDto { InitialAmmunition = GrenadeCount, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbM67Grenade, Category = WeaponCategory.Grenade },   // ⭐ WL-4 (W-5) — the category the weapon brain reads
+                    new WeaponMountDto { InitialAmmunition = GrenadeCount, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbM67Grenade, Category = WeaponCategory.Grenade, Loadout = FragAndSmoke(GrenadeCount) },   // ⭐ CE-2278 — + smoke (entry 1)   // ⭐ WL-4 (W-5) — the category the weapon brain reads
                     Pistol(),   // ⭐ CE-3231 (B-9) — his sidearm, mount 2 AFTER the grenades (PI-2: the grenade stays mount 1; the hands go to 3)
                 } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
@@ -304,7 +315,7 @@ namespace Hrot.Core.Tkb
                 {
                     Rifle() /* ⭐ CE-4146 — the ONE rifle (it carries Category SmallArms; the inline copies did not, so their barrel heat was a tank gun's) */,
                     new WeaponMountDto { InitialAmmunition = AssaultStunGrenades, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbStunGrenade, Category = WeaponCategory.Grenade },
-                    new WeaponMountDto { InitialAmmunition = AssaultFragGrenades, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbM67Grenade, Category = WeaponCategory.Grenade },
+                    new WeaponMountDto { InitialAmmunition = AssaultFragGrenades, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbM67Grenade, Category = WeaponCategory.Grenade, Loadout = FragAndSmoke(AssaultFragGrenades) },   // ⭐ CE-2278 — + smoke (entry 1)
                 } });   // ⚠ no pistol: the hands make mount 3, the last the replicated per-mount ammo carries (dtWeaponAmmo, 0…3)
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms));

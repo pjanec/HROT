@@ -117,6 +117,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ E-3a (DA-68) — the authored destination; <see cref="HasTo"/> 0 = ask the terrain.</summary>
         public Vector3 To;
         public byte HasTo;
+        /// <summary>⭐ <c>CE-2278</c> (DA-12) — the smoke to break contact: 0 not yet · 1 thrown (orders re-sent after <see cref="BreakContactPlay.SmokeSeconds"/>)
+        /// · 2 done. Set when the first bound is issued.</summary>
+        public byte Smoked;
+        public SimInstant SmokedAt;
     }
 
     /// <summary>
@@ -200,6 +204,8 @@ namespace Hrot.AI.Behaviors.Brains
 
         public void Update(ref BreakContactParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
+            // ⭐ CE-2278 — the thrower's FireAtPoint ends after the throw: once it has had time, every order is sent again (his is a hold now)
+            if (p.Smoked == 1 && ctx.Now - p.SmokedAt >= SmokeSeconds) { p.Smoked = 2; ws.Reissue = 1; }
             if (ws.HasAnswer == 0)
                 SquadManeuverRunner.AskTerrain(ref ws, in ctx, FindSafeRetreatPoint.BlueprintId, RetreatSite, p.RetreatSearchRadius,
                     SquadManeuverRunner.FirstLive(in ctx), new Entity((ulong)ws.ThreatId));
@@ -230,6 +236,18 @@ namespace Hrot.AI.Behaviors.Brains
         public MemberOrder OrderFor(ref BreakContactParams p, ref SquadPlayState ws, in SquadPlayContext ctx, int member, byte element, Vector3 at)
         {
             byte moving = ctx.Squad.PhaseId == BoundingOverwatchManeuver.PhaseElement0Moving ? (byte)0 : (byte)1;
+            // ⭐⭐ CE-2278 (DA-12, Defend & Attack §8 DA-G) — SMOKE TO BREAK CONTACT: as the first bound goes, ONE covering man who carries smoke
+            //   (his TYPE's loadout) and is at least Regular throws it between the squad and the threat; once (2 grenades a man, not one a bound)
+            if (p.Smoked == 0 && ws.HasAnswer == 1 && element != moving && ws.ThreatId != 0 && Smoker(in ctx, member, out var man))
+            {
+                p.Smoked = 1;
+                p.SmokedAt = (SimInstant)ctx.Now;
+                return new MemberOrder
+                {
+                    Kind = MemberOrderKind.FireAtPoint, Point = SmokePoint(at, ws.ThreatPoint), Rounds = 1, Round = Fdp.Toolkit.Combat.Executors.FireAtPointParams.RoundSmoke,
+                    Speed = p.Speed, RoleId = BoundingOverwatchManeuver.RoleCovering,
+                };
+            }
             if (ws.HasAnswer != 1 || element != moving)
                 return new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = BoundingOverwatchManeuver.RoleCovering };
             return new MemberOrder
@@ -242,6 +260,27 @@ namespace Hrot.AI.Behaviors.Brains
         public void Release(ref SquadPlayState ws, EntityRepository world) => SquadManeuverRunner.DropSensor(ref ws, world);
 
         private static float Flat(Vector3 d) { d.Z = 0f; return d.Length(); }
+
+        /// <summary>⭐ CE-2278 — seconds a thrown smoke order is given before the squad's orders are re-sent (the throw takes ≈ 1–2 s).</summary>
+        public const float SmokeSeconds = 3f;
+        /// <summary>⭐ CE-2278 — the smoke lands this far toward the threat (m), at most half-way: between the squad and the enemy, not on him.</summary>
+        public const float SmokeMetres = 15f;
+
+        /// <summary>The point <see cref="SmokeMetres"/> from the thrower toward the threat (at most half-way), on his ground.</summary>
+        internal static Vector3 SmokePoint(Vector3 from, Vector3 threat)
+        {
+            var d = new Vector2(threat.X - from.X, threat.Y - from.Y);
+            float len = d.Length();
+            if (len < 1e-3f) return from;
+            float k = MathF.Min(SmokeMetres, len * 0.5f) / len;
+            return new Vector3(from.X + d.X * k, from.Y + d.Y * k, from.Z);
+        }
+
+        /// <summary>Member <paramref name="member"/> can throw the smoke: live, his type carries it, at least Regular (DA-12 "Regular+").</summary>
+        private static bool Smoker(in SquadPlayContext ctx, int member, out Entity man)
+            => ctx.Live(member, out man)
+               && Fdp.Toolkit.Combat.AmmoChoice.TypeCarries(ctx.World, man, Fdp.Toolkit.Tkb.Domain.WarheadKind.Smoke)
+               && Fdp.Toolkit.Behavior.Components.ProficiencyOf.Tier(ctx.World, man) >= Fdp.Toolkit.Behavior.Components.ProficiencyTier.Regular;
     }
 
     // ── ReactToContact ────────────────────────────────────────────────────────────────────────────────────────────────────
