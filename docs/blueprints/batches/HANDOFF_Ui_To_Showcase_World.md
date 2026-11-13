@@ -27,6 +27,7 @@ behaviors...) with all the small feature-test scenarios necessary for testing it
 |---|---|
 | 0.1 | `git fetch origin ui` · `git switch -c showcase-world origin/ui` · push · an empty commit `chore: started showcase-world at <sha>` (rule 1b) |
 | 0.2 | ⭐ **merge `ui` (and any lane you build on) as it moves; never rebase.** ⛔ Do NOT merge `exp/threaded-build` — the parallel programme brings this lane in when it unifies (CE-6012) |
+| 0.2a | ⭐ **before each item, re-check the overlap:** `git fetch origin 'refs/heads/exp/*:refs/remotes/origin/exp/*'` then `git diff --name-only HEAD...origin/exp/threaded-build` (and any newer `exp/*`) against the files you are about to edit — a hit ⇒ STOP that item, report it, take the next |
 | 0.3 | ⭐ read RULINGS.md, then the design [`DESIGN_City_Battle_Showcase.md`](../../designs/group-maneuvers/DESIGN_City_Battle_Showcase.md) end to end (§3–§5 the battle, §6–§8 UML, §9, §11, §12) |
 | 0.4 | ⭐ **ids:** tracker `CE-6000…`, rulings `R-6000…` — the blocks are registered (tracker "ID blocks", RULINGS §0a). Your rows are **Area S-W**; new rows go at the END of S-W |
 
