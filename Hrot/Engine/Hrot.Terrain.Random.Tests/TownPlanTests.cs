@@ -26,7 +26,7 @@ public sealed class TownPlanTests
     {
         if (Environment.GetEnvironmentVariable("HROT_GEN_CITY_BATTLE") != "1") return;
         var plan = TownPlan.Load(PlanFile);
-        var r = await TownPlanGenerator.GenerateAsync(plan, Path.Combine(Repo, "assets", "terrain"));
+        var r = await TownPlanGenerator.GenerateAsync(plan, Path.Combine(Repo, "assets", "terrain"), new Hrot.Traffic.BridgeNetBuilder());
         _out.WriteLine($"generated {r.TerrainFolder} in {r.Seconds:F1} s · {r.Import?.WaterAreas} water area(s)");
         foreach (var (stage, secs) in r.Import?.StageSeconds ?? new()) _out.WriteLine($"  import stage {stage}: {secs:F1} s");
         _out.WriteLine(r.Saved.Summary.ToString());
