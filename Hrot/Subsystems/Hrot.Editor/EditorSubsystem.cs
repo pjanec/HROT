@@ -393,7 +393,6 @@ namespace Hrot.Editor
         private Hrot.Editor.Review.ReviewSource? _reviewSource;
         internal Hrot.Editor.Review.ReviewSource? ReviewSourceForTest => _reviewSource;
         private Fdp.Toolkit.ReplayBrowser.Federation.TransientMasterBuilder? _reviewMerge;
-        private long _reviewLastTicks;
         private Hrot.Editor.Review.ReviewSourceStatusSection? _reviewStatus;
         internal Hrot.Editor.Review.ReviewSourceStatusSection? ReviewStatusForTest => _reviewStatus;
         private Hrot.Editor.Review.ReviewFederationWindowHost? _reviewFederation;
@@ -419,18 +418,30 @@ namespace Hrot.Editor
         /// ⭐ R-5 / V6 — the editor's ONE <see cref="Hrot.Editor.Review.ReviewSource"/> (built on first ask; every dependency is a resolver, as the rest of this host's review wiring — the world, the merge's serializer and the
         /// cluster come up at different times).
         /// </summary>
+        /// <remarks>
+        /// ⭐⭐ CE-4497 R-3 (docs/DESIGN_Threaded_Review_Source.md §1.2, §1.3, §2) — the source is SIMULATION-side, like the own-run replay: it merges into the NODE's world (S in mode 3; the one world with the
+        /// switch off), its world boundary is <c>NewScenario(S)</c>, its clock is the sim side's transport, and it is stepped from ONE call site — the end of the node frame (<see cref="TickNodeFrame"/>), after
+        /// the kernel tick, in both kernel modes. ⛔ SUPERSEDED: a UI frame overlay stepped it and it merged into A. The selection is the UI's: in mode 3 the UI frame hands the selected network id over
+        /// (<see cref="_reviewUiSelection"/>, an int) and a re-select after a refill is posted to the UI with the next publish.
+        /// </remarks>
         private Hrot.Editor.Review.ReviewSource ReviewSourceOf() => _reviewSource ??= new Hrot.Editor.Review.ReviewSource(
-            world:       () => _world,
+            world:       () => ReviewWorld,
             builder:     () => _reviewMerge ??= _bootstrapper?.ScenarioSerializer is { } ser ? new Fdp.Toolkit.ReplayBrowser.Federation.TransientMasterBuilder(ser) : null,
-            clearWorld:  () => { if (_world is { } w) _scenarioFileService?.NewScenario(w); },   // the world boundary a scenario load starts from (reset observers, SoftClear, epoch)
+            clearWorld:  () => { if (ReviewWorld is { } w) _scenarioFileService?.NewScenario(w); },   // the world boundary a scenario load starts from (reset observers, SoftClear, epoch) — on S
             stagingRoot: Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot,
             thisNode:    EditorNodeId,
             ready:       () => _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay
-                               && _world is { } w && Fdp.Toolkit.Replay.ReplayState.IsActive(w) && !Fdp.Toolkit.Replay.ReplayState.IsRestoring(w),   // the replay is up and THIS node listens: its listener cleared the world once, nothing writes it after
+                               && ReviewWorld is { } w && Fdp.Toolkit.Replay.ReplayState.IsActive(w) && !Fdp.Toolkit.Replay.ReplayState.IsRestoring(w),   // the replay is up and THIS node listens: its listener cleared the world once, nothing writes it after
             inReplay:    () => _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay,
-            selection:   SelectedNetworkId,
-            select:      SelectNetworkEntity,
-            facade:      () => _timeTransport);
+            selection:   () => Staged ? (_reviewUiSelection > 0 ? _reviewUiSelection : null) : SelectedNetworkId(),
+            select:      n => { if (Staged && _staging is { } st) { st.Post(_ => SelectNetworkEntity(n)); return true; } return SelectNetworkEntity(n); },
+            facade:      () => _simTimeTransport);
+
+        /// <summary>⭐ CE-4497 R-3 — the world the review source fills: the node's (S in mode 3, the same as <c>_world</c> with the switch off).</summary>
+        private EntityRepository? ReviewWorld => Staged ? _nodeWorld : _world;
+
+        /// <summary>⭐ CE-4497 R-3 — mode 3: the UI's selected network id, handed to the sim-side review source each UI frame (0 = none). An int: a torn read is impossible.</summary>
+        private volatile int _reviewUiSelection;
 
         /// <summary>⭐ R-5 / V6 — the picker's row notes, read once when the picker opens: <c>"4 participants — opens MERGED"</c> / <c>"this editor's run"</c> (the inventory scan the Replay Browser's group loader uses).</summary>
         private IReadOnlyDictionary<Guid, string> ReviewPickerNotes()
@@ -3540,6 +3551,9 @@ namespace Hrot.Editor
             using (Fdp.Core.AccessTrace.Scope("node: orchestrator core Tick")) _orchestratorCore?.Tick();                 // ⭐ Q86 — the cluster orchestrator's own order
             using (Fdp.Core.AccessTrace.Scope("node: ClusterUiCache.Update")) _orchestratorCore?.UiCache.Update();
             using (Fdp.Core.AccessTrace.Scope("node: time transport Update")) _simTimeTransport?.Update();   // ⭐ D-9 — mode 3: the UI's own is updated on the UI thread (PullStaging)                  // ⭐ CE-3329 row 21 — the one facade reads what the cache reads
+            // ⭐⭐ CE-4497 R-3 — THE review source's ONE call site: after the kernel tick, in both kernel modes (the sim thread in mode 3; the one thread with the switch off) — it merges a participant
+            //   group into the node's world like any replayed state, so the staging carries it to A by the same pull.
+            if (_reviewSource is { } review) using (Fdp.Core.AccessTrace.Scope("node: review source Update")) review.Update(System.Math.Min(deltaTime, 0.25f));
         }
 
         /// <summary>
@@ -5881,7 +5895,11 @@ namespace Hrot.Editor
                 var reviewChannel = new Fdp.Toolkit.ReplayBrowser.Federation.InlineReviewChannel(reviewSource, new Fdp.Toolkit.ReplayBrowser.Federation.ReviewModelBuilder(_replicaViews));
                 _reviewChannel = reviewChannel;
                 var reviewUi = new Hrot.Editor.Review.ReviewUi(reviewChannel);
-                windowManager.RegisterFrameOverlay(() => reviewChannel.EndFrame());
+                windowManager.RegisterFrameOverlay(() =>
+                {
+                    reviewChannel.EndFrame();
+                    if (Staged) _reviewUiSelection = SelectedNetworkId() ?? 0;   // ⭐ CE-4497 R-3 — mode 3: the UI's selection, for the sim-side source's re-select
+                });
                 _byNodeSection = new Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection(reviewChannel,
                     e => _world is { } w && w.IsAlive(e) && w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) ? w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value : 0,
                     reviewSource.NameOf);
@@ -5930,13 +5948,7 @@ namespace Hrot.Editor
                 var reviewTimeline = _fileReview.TimelinePanel;
                 reviewSource.Changed += () => reviewTimeline.SetReview(reviewSource.IsOpen ? reviewChannel : null);
                 if (_editorApp is { } reviewApp) reviewApp.RecordingOpened += id => reviewSource.OnRecordingOpened(id);   // ⭐ THE one branch where a recording opens: a group with no part of this node ⇒ the source
-                windowManager.RegisterFrameOverlay(() =>
-                {
-                    long now = System.Diagnostics.Stopwatch.GetTimestamp();
-                    double dt = _reviewLastTicks == 0 ? 0d : (now - _reviewLastTicks) / (double)System.Diagnostics.Stopwatch.Frequency;
-                    _reviewLastTicks = now;
-                    reviewSource.Update(Math.Min(dt, 0.25));
-                });
+                // ⛔ CE-4497 R-3 — no frame overlay steps the source any more (it ran on the UI thread and merged into A): TickNodeFrame does, after the kernel tick.
                 _reviewBundle = reviewBundle;
             }
 

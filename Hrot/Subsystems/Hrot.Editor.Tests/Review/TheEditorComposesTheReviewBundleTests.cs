@@ -76,6 +76,30 @@ public sealed class TheEditorComposesTheReviewBundleTests : IDisposable
         finally { editor.Shutdown(); }
     }
 
+    /// <summary>
+    /// ⭐ CE-4497 R-3 (docs/DESIGN_Threaded_Review_Source.md §1.3) — the review source is stepped from ONE call site, the node frame after the kernel tick: an editor frame steps it once (switch off;
+    /// in mode 3 the same <c>TickNodeFrame</c> runs on the sim thread), and no UI frame overlay steps it. 🔴 Red-proof: drop the call at the end of <c>TickNodeFrame</c> ⇒ <c>Updates</c> stays 0 ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void R3_TheReviewSource_IsSteppedByTheNodeFrame_OncePerFrame_NotByAFrameOverlay()
+    {
+        var editor = new EditorSubsystem();
+        try
+        {
+            editor.Initialize(new SubsystemConfig { Headless = true });
+            var windows = new Fdp.Presentation.WindowManager.WindowManager(new IconAtlas(IntPtr.Zero, 512, 512));
+            editor.RegisterWindows(windows);
+            var source = editor.ReviewSourceForTest;
+            Assert.NotNull(source);
+            int before = source!.Updates;
+
+            for (int i = 0; i < 3; i++) editor.Update(1f / 60f);
+
+            Assert.Equal(before + 3, source.Updates);   // ⭐ once per node frame
+        }
+        finally { editor.Shutdown(); }
+    }
+
     [Fact]
     public void V2_AHit_GoesThroughTheOneSeek_WithTheFramesMoment_AndSelectsTheUnit()
     {

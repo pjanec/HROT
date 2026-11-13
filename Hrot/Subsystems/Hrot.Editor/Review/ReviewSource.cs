@@ -230,12 +230,16 @@ public sealed class ReviewSource : IDisposable, IReviewHost
 
     // ── the per-frame step ───────────────────────────────────────────────────────────────────
 
+    /// <summary>How many times <see cref="Update"/> ran (a rail's observation of the ONE call site, CE-4497).</summary>
+    public int Updates { get; private set; }
+
     /// <summary>
     /// Once a frame: loads a pending group the moment the replay is up and this node listens; closes an open group when the cluster has left AAR; advances a playing part.
     /// </summary>
     /// <param name="dtSeconds">Wall seconds since the last call.</param>
     public void Update(double dtSeconds)
     {
+        Updates++;
         bool inReplay = _inReplay();
         _playing = _facade() is { IsPaused: false };
         if (_open is not null && !inReplay && _readyOnce) { Close(); return; }
