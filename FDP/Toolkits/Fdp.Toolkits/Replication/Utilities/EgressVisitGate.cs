@@ -13,8 +13,12 @@ namespace Fdp.Toolkit.Replication.Utilities
     /// <para><b>Visit</b> when ANY holds (each a version the world already keeps, compared with the version at the previous scan):</para>
     /// <list type="bullet">
     ///   <item>a FULL scan this frame — the first run, another world, the clock went back (playback), <see cref="EgressSignals.AllDirty"/>
-    ///         since (H3), or a write to <see cref="NetworkAuthority"/> / <see cref="DescriptorOwnership"/> / <see cref="PartMetadata"/> anywhere
-    ///         (H1: authority arrives — also for a part whose ROOT changed);</item>
+    ///         since (H3);</item>
+    ///   <item>its AUTHORITY moved (H1) — ⭐ CE-4519: per entity, the three facts <c>AuthorityExtensions.HasAuthority</c> reads: its own
+    ///         <see cref="PartMetadata"/>, its ROOT's <see cref="NetworkAuthority"/> bytes and its root's <see cref="DescriptorOwnership"/>
+    ///         (an immutable record, replaced whole ⇒ a new reference), compared with the copy taken at its last visit. The claim bits
+    ///         (<c>SetAuthority</c>) stamp the structural clock. ⛔ SUPERSEDED: any write to one of the three tables anywhere ⇒ a full scan —
+    ///         📐 on the 1 000-man CGF that was 5 205 of 5 281 full scans and 0 skipped;</item>
     ///   <item>its structural clock moved (<c>LastChangeTick</c>: created, a component added or REMOVED, lifecycle);</item>
     ///   <item>the chunk of any declared input changed (H4, H6 — the entity's own chunk; <see cref="NetworkIdentity"/> always an input);</item>
     ///   <item><see cref="SmartEgressUtil.MarkDirty"/> named it (H8);</item>
@@ -40,6 +44,11 @@ namespace Fdp.Toolkit.Replication.Utilities
         private readonly int[] _typeId;
         private byte[][] _seen;
         private IComponentTable? _authority, _ownership, _parts;
+        // ⭐ CE-4519 — per entity index, its authority facts at its last visit: the root, the root's record, the root's NetworkAuthority bytes
+        private struct AuthMark { public Entity Root; public object? Record; public bool HasNa; }
+        private AuthMark[] _mark = Array.Empty<AuthMark>();
+        private byte[] _markNa = Array.Empty<byte>();
+        private bool _authMoved;       // one of the three tables moved since the last scan: only then are the marks compared
         private EntityRepository? _repo;
         private EntityIndex? _index;
         private EgressSignals.State? _signals;
@@ -51,6 +60,8 @@ namespace Fdp.Toolkit.Replication.Utilities
         // ⭐ diagnostics: process-wide totals, printed every ~10 s when HROT_EGRESS_GATE_STATS=1 (why a full scan happened, how much was skipped)
         private static readonly bool s_stats = Environment.GetEnvironmentVariable("HROT_EGRESS_GATE_STATS") == "1";
         private static long s_begins, s_full, s_visited, s_skipped, s_fullAuth, s_fullDirty, s_fullClock, s_fullNetAuth, s_fullOwn, s_fullParts;
+        // ⭐ CE-4519 — WHY a non-full visit happened (stats only): the structural clock, a MarkDirty, the sweep, a managed input's chunk, an unmanaged input's bytes
+        private static long s_whyStruct, s_whyDirty, s_whySweep, s_whyManaged, s_whyBytes, s_whyAuth, s_authMoved;
         private static long s_nextPrint = System.Diagnostics.Stopwatch.GetTimestamp();
 
         public long FullScans { get; private set; }
@@ -103,17 +114,22 @@ namespace Fdp.Toolkit.Replication.Utilities
             if (_ownership == null && repo.TryGetTable(typeof(DescriptorOwnership), out var o)) _ownership = o;
             if (_parts == null && repo.TryGetTable(typeof(PartMetadata), out var p)) _parts = p;
 
+            if (_mark.Length < need) Array.Resize(ref _mark, Math.Max(need, _mark.Length * 2));
+            int naSize = _authority?.ComponentSize ?? 0;
+            if (_markNa.Length < need * naSize) Array.Resize(ref _markNa, Math.Max(need, _markNa.Length / Math.Max(1, naSize) * 2) * naSize);
+
             uint now = repo.GlobalVersion;
             uint since = _lastScan;
-            bool full = !_scanned || now < since || _signals!.AllDirtyAt >= since
-                        || Changed(_authority, since) || Changed(_ownership, since) || Changed(_parts, since);
+            bool full = !_scanned || now < since || _signals!.AllDirtyAt >= since;
+            _authMoved = Changed(_authority, since) || Changed(_ownership, since) || Changed(_parts, since);
             _all = full;
             if (full) FullScans++;
             if (s_stats)
             {
                 bool ca = Changed(_authority, since), co = Changed(_ownership, since), cp = Changed(_parts, since);
-                if (full) { if (ca) s_fullNetAuth++; if (co) s_fullOwn++; if (cp) s_fullParts++; }
-                Stats(full, !_scanned || now < since, _signals!.AllDirtyAt >= since, ca || co || cp);
+                if (ca) s_fullNetAuth++; if (co) s_fullOwn++; if (cp) s_fullParts++;
+                if (_authMoved) s_authMoved++;
+                Stats(full, !_scanned || now < since, _signals!.AllDirtyAt >= since, false);
             }
             _since = since;
             _lastScan = now;
@@ -127,7 +143,8 @@ namespace Fdp.Toolkit.Replication.Utilities
             long now = System.Diagnostics.Stopwatch.GetTimestamp();
             if (now < s_nextPrint) return;
             s_nextPrint = now + System.Diagnostics.Stopwatch.Frequency * 10;
-            Console.WriteLine($"[EgressGate] begins {s_begins} full {s_full} (authority {s_fullAuth} [NetworkAuthority {s_fullNetAuth}, DescriptorOwnership {s_fullOwn}, PartMetadata {s_fullParts}], all-dirty {s_fullDirty}, first/clock {s_fullClock}) visited {s_visited} skipped {s_skipped}");
+            Console.WriteLine($"[EgressGate] begins {s_begins} full {s_full} (all-dirty {s_fullDirty}, first/clock {s_fullClock}) · authority tables moved {s_authMoved} [NetworkAuthority {s_fullNetAuth}, DescriptorOwnership {s_fullOwn}, PartMetadata {s_fullParts}] · visited {s_visited} skipped {s_skipped}"
+                + $" · non-full visits by reason: structural {s_whyStruct} · dirty {s_whyDirty} · sweep {s_whySweep} · managed input {s_whyManaged} · input bytes {s_whyBytes} · authority {s_whyAuth}");
         }
 
         // HasChanges is "> since"; the gate asks "≥ since" — a write stamped later in the frame of the previous scan is revisited.
@@ -137,11 +154,17 @@ namespace Fdp.Toolkit.Replication.Utilities
         public bool Visit(Entity e)
         {
             int i = e.Index;
-            if (_all) { Remember(i); Visited++; if (s_stats) s_visited++; return true; }
+            if (_all) { Remember(e); Visited++; if (s_stats) s_visited++; return true; }
             uint since = _since;
             bool visit = _index!.GetMetadata(i).LastChangeTick >= since
                          || EgressSignals.DirtyAt(_signals!, i) >= since
                          || SweepPeriod <= 1 || (i + _frame) % SweepPeriod == 0;
+            if (visit && s_stats)
+            {
+                if (_index!.GetMetadata(i).LastChangeTick >= since) s_whyStruct++;
+                else if (EgressSignals.DirtyAt(_signals!, i) >= since) s_whyDirty++;
+                else s_whySweep++;
+            }
             if (!visit)
             {
                 var tables = _tables;
@@ -149,11 +172,17 @@ namespace Fdp.Toolkit.Replication.Utilities
                 {
                     var t = tables[k];
                     if (t == null || t.GetVersionForEntity(i) < since) continue;
-                    if (_size[k] == 0 || !Same(k, i)) { visit = true; break; }   // managed: the chunk is all there is · unmanaged: the bytes moved
+                    if (_size[k] == 0 || !Same(k, i))
+                    {
+                        visit = true;   // managed: the chunk is all there is · unmanaged: the bytes moved
+                        if (s_stats) { if (_size[k] == 0) s_whyManaged++; else s_whyBytes++; }
+                        break;
+                    }
                 }
             }
+            if (!visit && _authMoved && AuthorityMoved(e)) { visit = true; if (s_stats) s_whyAuth++; }
             if (!visit) { Skipped++; if (s_stats) s_skipped++; return false; }
-            Remember(i);
+            Remember(e);
             Visited++;
             if (s_stats) s_visited++;
             return true;
@@ -168,9 +197,44 @@ namespace Fdp.Toolkit.Replication.Utilities
             return now.SequenceEqual(new ReadOnlySpan<byte>(_seen[k], i * size, size));
         }
 
-        private void Remember(int i)
+        // ⭐ CE-4519 — the root HasAuthority resolves to (one level: a part's PartMetadata.ParentEntity, else the entity itself)
+        private Entity RootOf(Entity e)
+        {
+            if (_parts != null && _index!.GetComponentMask(e.Index).IsSet(_parts.ComponentTypeId))
+                return ((PartMetadata*)_parts.GetRawPointer(e.Index))->ParentEntity;
+            return e;
+        }
+
+        private bool AuthorityMoved(Entity e)
+        {
+            ref readonly var was = ref _mark[e.Index];
+            var root = RootOf(e);
+            if (root != was.Root) return true;
+            if (!_repo!.IsAlive(root)) return false;   // a dead root answers "no authority" — as at the last visit, the root unchanged
+            object? record = _ownership != null && _repo.HasManagedComponent<DescriptorOwnership>(root) ? _ownership.GetRawObject(root.Index) : null;
+            if (!ReferenceEquals(record, was.Record)) return true;
+            bool hasNa = _authority != null && _index!.GetComponentMask(root.Index).IsSet(_authority.ComponentTypeId);
+            if (hasNa != was.HasNa) return true;
+            if (!hasNa) return false;
+            int size = _authority!.ComponentSize;
+            return !new ReadOnlySpan<byte>(_authority.GetRawPointer(root.Index), size).SequenceEqual(new ReadOnlySpan<byte>(_markNa, e.Index * size, size));
+        }
+
+        private void Remember(Entity e)
         {
             if (_repo == null) return;
+            int i = e.Index;
+            var root = RootOf(e);
+            ref var mark = ref _mark[i];
+            mark.Root = root;
+            bool alive = _repo.IsAlive(root);
+            mark.Record = alive && _ownership != null && _repo.HasManagedComponent<DescriptorOwnership>(root) ? _ownership.GetRawObject(root.Index) : null;
+            mark.HasNa = alive && _authority != null && _index!.GetComponentMask(root.Index).IsSet(_authority.ComponentTypeId);
+            if (mark.HasNa)
+            {
+                int size = _authority!.ComponentSize;
+                new ReadOnlySpan<byte>(_authority.GetRawPointer(root.Index), size).CopyTo(new Span<byte>(_markNa, i * size, size));
+            }
             for (int k = 0; k < _tables.Length; k++)
             {
                 int size = _size[k];
