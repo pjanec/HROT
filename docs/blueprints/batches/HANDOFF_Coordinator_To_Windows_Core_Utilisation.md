@@ -12,7 +12,7 @@ related-designs:
 
 # HANDOFF — coordinator → WINDOWS session: WHY THE EDITOR USES ~35–40 % OF THE CPU, AND WHY THE 3-D VIEW IS SLOW WITH THE WHOLE TERRAIN IN VIEW — measure only
 
-**For:** the Windows session (hidden window, always). **From:** coordinator. **Dispatched at `<stamp>`**.
+**For:** the Windows session (hidden window, always). **From:** coordinator. **Dispatched at `c0219b5c8`**.
 🔒 User, `2026-11-13`: *"cpu utilization when i run the scale-rig-scale-1-1000-2s scenario is just aroung 40%. very bad parallelization"* ·
 *"i am running editor so no networks whatsoever. without the recorder the cpu load is around 35-37%. yes pls measure whatever needed to help
 utilize the cores, this is enormous waste."* · *"and also, that scenario has very poor rendering framerate when all terrain in frustum. some graphical
