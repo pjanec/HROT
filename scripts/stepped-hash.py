@@ -10,7 +10,7 @@ every run with the first, type by type. Two runs that took the same steps agree 
     python scripts/stepped-hash.py --threads 1,1                           # repeatability (same config twice)
     python scripts/stepped-hash.py --threads 4,4 --rows WeaponChannel --bytes   # WHICH entities and WHICH bytes differ
 
-Exit code 0 = state equal (EntityGuid excluded: minted at random for an entity created at run time), 1 = differs, 2 = a run failed.
+Exit code 0 = state equal (EntityGuid excluded: minted at random for an entity created at run time), 1 = differs, 2 = a run failed, or the runs took different numbers of steps (never compared: a different experiment).
 Environment: HROT_PARALLEL_SIM=1 to run every per-entity phase (the gate's usual setting); --kernel 3 (default) runs the threaded node,
 --kernel 0 the product as shipped (every switch off: the repeatability question, F-2).
 """
@@ -105,6 +105,13 @@ def main():
     if any("error" in r for _, r in res.values()):
         print("A RUN FAILED"); sys.exit(2)
     _, base = res[0]
+    # ⭐ the steer of 2026-11-13 (STEER_Coordinator_To_Backend_Preview_Extra_Step) — runs are compared only at the SAME sim time: a run
+    #   that took a different number of steps is a different experiment, never a state difference (📐 Windows V-4: 2 of 7 runs ended at
+    #   121 steps, and every difference followed from that one step)
+    steps = {k: r.get("simTime") for k, (_, r) in res.items()}
+    if len(set(steps.values())) > 1:
+        print("A RUN TOOK A DIFFERENT NUMBER OF STEPS — not compared: " + " · ".join(f"run {k} simTime {v}" for k, v in steps.items()))
+        sys.exit(2)
     differs = False
     for k, (t, r) in res.items():
         if k == 0:
