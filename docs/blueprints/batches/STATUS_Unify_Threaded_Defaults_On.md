@@ -19,7 +19,7 @@ Branch `exp/threaded-build`; started at faf06b8dd (marker ae1c1527a).
 | U-1 merge `exp/next-conversions` + `exp/threaded-review` | CE-4530 | DONE | 13ee6e138, c9c71ef07 (merges, no rebase); the three branches' rails green (Core, ModuleHost, Toolkits review/federation/drills, NED, SimHost drills serial + parallel, editor R4/R5 with and without the guard, RB / timeline, AiShared review, Replay Browser); 2 allocation rails red only in the suite run, green alone; CE454 red since CE-3046 (a stale fixture) fixed 6cab9c0a1 |
 | U-1b merge `ui` (steer) | — | DONE | 2a3213788 — traffic 83/83, ImGui renderer rails 10/10 under Xvfb, `[FrameStats]` cs-CZ rail, threaded 1 000-man session 11/11 guard 0 |
 | U-2 the switches, ON by default, `View ▸ Settings ▸ Performance` | CE-4531 | DONE | d487f0afd — `PerformanceSettings` (Fdp.Core), `PerformanceStartup` (runner `Main`), `PerformanceMenu`; rails `PerformanceSettingsTests` 7/7, `PerformanceStartupTests` 12/12 |
-| U-3 editor / player / server / separate nodes | CE-4532 | in progress | defaults per mode: `PerformanceStartupTests` 12; player + server threaded: D-U3 |
+| U-3 editor / player / server / separate nodes | CE-4532 | DONE | defaults per mode: `PerformanceStartupTests` (editor + player threaded, server / cgf / simhost / orchestrator / traffic parallel, `-m all` serial); the player threaded: D-U3 |
 | U-4 the automated proof | CE-4533 | — | |
 | U-5 manual sheet | CE-4534 | — | |
 | U-6 | CE-4535 | WITHDRAWN (steer) | CE-3445 stays open |
