@@ -26,6 +26,8 @@ Branch `exp/threaded-build`. Rulings R-4218 / R-4219 (R-4207, R-4215).
 
 | gate | command | result |
 |---|---|---|
+| M-6 rails | Core `PerEntityRule|EntityCensus` · Toolkits `AimAndFire|WeaponInteractionDispatcher|Weapon|Combat` serial AND `HROT_PARALLEL_SIM=1` · SimHost `ActionDispatchModule|AirAttackNodes|CgfLogicPack|WeaponSystem|Station` serial AND parallel | 7 / 0 (+ M6 rail red-proved: the owner test dropped ⇒ red) · 574 / 0 both · 68 / 1 both (`CE454`, pre-existing) |
+| M-5 FriendNear | SimHost `Stress|UnderFire|Callout|ParallelBrains|FrameEntityGrid` serial · parallel · Toolkits `FrameEntityGrid` | 49 / 0 · 48 / 1 (`CE2261_BC5`, pre-existing — §5) · 1 / 0 |
 | M-4 rails | `Fdp.ModuleHost.Tests` (whole) · `Fdp.Core.Tests` (whole) · SimHost `Callout|Eqs|ParallelBrains|Sensor` · Toolkits `Replay|Keyframe|Snapshot` | 266 / 0 · 1 360 / 3 ⚠ pre-existing (source-policy scanners naming files this batch never touched: `BridgeRoads.cs`, `DeployProcessorSystem.cs`, `TerrainContentHash.cs` …) · 69 / 0 · 401 / 0. ⭐ `SnapshotRecycleTests` 6 — red-proved: the force dropped, the epoch check dropped, the invalidation dropped, the lock-free path dropped ⇒ each its rail red. `CalloutsTests.M4_TheNoEcho…` green |
 | M-1 stepped gate, adaptive vs fixed batch | `SAVE=… HROT_SIM_MODE=throughput python3 scratchpad/stepped-hash.py 1,2,4,8` (the old switch, on the binary before M-2) vs `stepped-hash.py 1` (fixed 32) | STATE EQUAL across all five runs, type by type |
 | M-2 rails | `dotnet test FDP/Engine/Fdp.ModuleHost.Tests --no-build --filter "…SimulationModeFromWhatRuns|…PausedAndStepped|…ModuleHostKernelTime"` | 24 / 0; red-proved (the kernel's `Vote` dropped ⇒ both R4218 rails red) |
@@ -53,6 +55,7 @@ Branch `exp/threaded-build`. Rulings R-4218 / R-4219 (R-4207, R-4215).
 
 | item | why | what it needs |
 |---|---|---|
+| ⚠ the room drill differs with PARALLEL brains: `SquadManeuverTests.CE2261_BC5_*` (4) red with `HROT_PARALLEL_SIM=1`, green serial | 📐 measured: red at `38f1d1191` (before this batch — the overnight brain phase), green at `ffc802ab2` (no phase); green with `HROT_SERIAL_BRAINS=1`; the SAME at 1 and 4 threads (deterministic, not a thread-count bug); the survey (`HROT_READ_CHECK=2`) finds no undeclared access ⇒ a SEMANTIC difference of the per-entity rule inside the drill — not a tick of lag (it fails at 0.5 s: #1 is held, `CombatPosture`, instead of going) | root-cause in the drill (`RoomDrill.Gate` reads of members as of the tick start vs the serial order), fix, a parallel-mode rail — after M-7 |
 
 ## 6. NUMBERS (before / after)
 
