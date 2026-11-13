@@ -369,6 +369,12 @@ DEPENDENCIES from declared reads / writes, so independent systems run at the sam
 
 ## 14. ⭐ As-built on `exp/parallel-sim-2` — POC 2, the serial 70 % *(not merged; status: [`STATUS_Parallel_Sim_POC_2.md`](blueprints/batches/STATUS_Parallel_Sim_POC_2.md) on that branch)*
 
+> ⛔ **SUPERSEDED `2026-11-13` (R-4219, CE-4482) — the utility PRE-SCORE below (`UtilityPrescore`, `HROT_BRAIN_PRESCORE`, and §15's widening to
+> candidate rankings) is RETIRED and removed from the code.** The brains became a per-entity parallel phase in every mode (R-4214 ①, §18.5): the
+> scoring runs on every core inside each unit's own tick, and the pre-score — which served only a SERIAL walk — was unreachable in every parallel
+> configuration (`HROT_PARALLEL_SIM=1` itself makes the brains parallel). Two mechanisms for one concept ⇒ one kept (ruling 9). The rest of §14
+> (the byte-compare stamps, §10.2) stands.
+
 ```mermaid
 sequenceDiagram
     participant B as BrainTickSystem (main thread)
@@ -400,7 +406,7 @@ parallel, from the world as it stood at the start of the brain phase; so no clai
 | item | as built | measured (VM; Windows where noted) |
 |---|---|---|
 | §12 R-4209 the sampled timer | `QueryTimings.Begin` times 1 call in 16 (a per-thread xorshift draw — a fixed every-16th counter aliases with a fixed-order loop), scaled; counts exact; `HROT_QUERY_SAMPLE=1` times all | BrainTick 74.3 → 64.7 (sampled) → 58.3 (off) |
-| the pre-score widened | `UtilityPrescore` scores CANDIDATE decisions (threat ranking, through `TopCandidate`) as well as option decisions | BrainTick 71.4 → 51.2 ms; Windows POC 2: 104 → 56, 2.0× at 8 threads |
+| ⛔ SUPERSEDED (R-4219) — the pre-score widened | `UtilityPrescore` scores CANDIDATE decisions (threat ranking, through `TopCandidate`) as well as option decisions | BrainTick 71.4 → 51.2 ms; Windows POC 2: 104 → 56, 2.0× at 8 threads |
 | §10.2 stamp only on a change | unchanged; on this base it removes every unchanged-dirty chunk of the 4 KB tier (54 % → 0 %, dirty −45 %) — POC 2's residual did not reproduce | M-1 |
 | the CGF's EqsSensorConfig egress | its cost was a LOCK + a new list per sensor per frame in `SimpleClusterStateCache.AllNodeIds` — one snapshot rebuilt on a set change, and the ids read once per scan | trace: the call gone from the profile |
 | ⚠ the egress visit gate on the CGF | skips nothing: `OwnershipEgressSystem`'s managed READS stamp `DescriptorOwnership`'s chunk (A1-2) ⇒ "authority changed" ⇒ a full scan every frame. ⭐ A non-stamping managed read built opt-in (`HROT_MANAGED_READ_NO_STAMP=1`); the default is the user's call | gate stats: 0 skipped of ~6 M |
@@ -723,7 +729,7 @@ sequenceDiagram
 |---|---|---|
 | `scripts/cbm.sh search_graph '{"name_pattern":".*(Job\|Phase\|Staging\|SimJob\|ReadCheck).*","label":"Class"}'` | 64 (has_more) | the pre-existing job / phase classes (`ParallelEntities`, `BatchContext`, `FdpWorkerPool`, the per-system jobs) — the rule was built INTO them, no parallel set |
 | `scripts/cbm.sh search_graph '{"name_pattern":".*(BatchJob\|StableReads\|PhaseFollowUp\|SimStepped\|ValueCopy).*","label":"Interface"}'` | 0 | ⚠ the graph predates tonight's types (a re-index produced no output) — grep below instead; coverage could not be checked |
-| `grep` implementers of `IEntityBatchJob` | 6 files | `UtilityPrescore`, `BrainTickSystem`, `ThreatEvaluationSystem`, `Callouts` (CalloutSystem), `StressSystem` (+ the declaration) — every per-entity phase |
+| `grep` implementers of `IEntityBatchJob` | 6 files (`2026-11-13`; `UtilityPrescore` since retired, R-4219) | `UtilityPrescore`, `BrainTickSystem`, `ThreatEvaluationSystem`, `Callouts` (CalloutSystem), `StressSystem` (+ the declaration) — every per-entity phase |
 | `grep` implementers of `IStableReads` · `IPhaseFollowUp` · `ISimSteppedSubsystem` · `IValueCopy` | 2 · 2 · 1 · 1 | threat + stress jobs · callouts + the incoming order · the editor · the traffic frame |
 
 | as built | why | where |

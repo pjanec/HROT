@@ -17,6 +17,7 @@ Branch `exp/threaded-build`. Rulings R-4218 / R-4219 (R-4207, R-4215).
 
 | item | what | commit |
 |---|---|---|
+| M-3 `CE-4482` | `UtilityPrescore` retired: the class, its two `UtilityScorer` hooks and helper, the `BrainTickSystem` call, `HROT_BRAIN_PRESCORE`, its two rails (Q4 / T3 — "pre-score == serial score", now covered by the brain phase's own determinism rails); Parallel Simulation §14 / §15 marked SUPERSEDED | (this commit) |
 
 ## 2. GATES
 
@@ -27,6 +28,8 @@ Branch `exp/threaded-build`. Rulings R-4218 / R-4219 (R-4207, R-4215).
 
 | # | question | decision | where |
 |---|---|---|---|
+| M-D1 | the handoff points the pre-score's record at Parallel Simulation §10–§11 | ⭐ it is §14 (POC 2) and §15 (POC 3) — §10–§11 never mention it; those are the sections marked superseded | design |
+| M-D2 | does any host keep SERIAL brains and want parallel scoring (M-3's precondition)? | ⭐ no — measured in code: the pre-score needs `HROT_PARALLEL_SIM=1`, which itself makes the brains a parallel phase (`BrainTickSystem.Parallel`), so it ran only under the measuring switch `HROT_SERIAL_BRAINS=1`; by design R-4214 ① puts the per-entity brain rule in both modes | `BrainTickSystem.cs`, R-4214 |
 
 ## 4. BUGS FIXED
 

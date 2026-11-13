@@ -204,14 +204,7 @@ namespace Fdp.Toolkit.Utility
             }
             var trace = TraceOf(repo, self);
             byte winner;
-            // ⭐ POC 2 Q-4 — the parallel pre-score (Throughput mode, opt-in): this frame's step 1 was computed before the brain walk, from the
-            //   world as it stood then; only the hysteresis is applied here. A traced unit always scores fresh.
-            var prescore = UtilityPrescore.Active && !ParallelReadCheck.Defers(repo) ? UtilityPrescore.Of(repo) : null;   // N-11 — the pre-score serves the SERIAL walk only
-            if (prescore != null && trace == null && prescore.TryTake(self, decisionId, ref output))
-                winner = RankWithHysteresis(in def, lastWinner, lastWinner == 0 ? 0f : hysteresis, ref output, null, tick);
-            else
-                winner = SelectPosture(repo, self, in def, lastWinner, lastWinner == 0 ? 0f : hysteresis, ref output, trace, tick);
-            prescore?.Demand(self, decisionId, this);   // it scored this frame ⇒ pre-score it next frame
+            winner = SelectPosture(repo, self, in def, lastWinner, lastWinner == 0 ? 0f : hysteresis, ref output, trace, tick);
             LogDecision(repo, self, decisionId, in output, isOption: true);
             // ⭐ CE-1249 (BV-10) — always on, only on a SWITCH (a steady winner writes nothing; the caller holds the memory)
             if (lastWinner != 0 && winner != 0 && winner != lastWinner)
@@ -264,12 +257,8 @@ namespace Fdp.Toolkit.Utility
                 top = kept.Top; topScore = kept.TopScore;
                 return kept.HasTop;
             }
-            // ⭐ POC 3 T-3 — a candidate ranking (threat ranking) pre-scored in parallel this frame, as POC 2 did the posture (UtilityPrescore)
             var trace = TraceOf(repo, self);
-            var prescore = UtilityPrescore.Active && !ParallelReadCheck.Defers(repo) ? UtilityPrescore.Of(repo) : null;   // N-11 — the pre-score serves the SERIAL walk only
-            if (!(prescore != null && trace == null && prescore.TryTake(self, decisionId, ref output)))
-                EvaluateCandidates(repo, self, in def, default, ref output, trace, tick);
-            prescore?.Demand(self, decisionId, this);
+            EvaluateCandidates(repo, self, in def, default, ref output, trace, tick);
             LogDecision(repo, self, decisionId, in output, isOption: false);
             bool has = output.Count > 0;
             if (has)
@@ -325,10 +314,6 @@ namespace Fdp.Toolkit.Utility
         }
 
         // ── Private: candidate evaluation ─────────────────────────────────────────
-
-        /// <summary>⭐ POC 3 T-3 — <see cref="EvaluateCandidates"/> for the parallel pre-score: no context, no trace.</summary>
-        internal void EvaluateCandidatesForPrescore(EntityRepository repo, Entity self, in UtilityDecisionDef def, ref UtilityResultBuffer output)
-            => EvaluateCandidates(repo, self, in def, default, ref output, null, 0);
 
         private void EvaluateCandidates(EntityRepository repo, Entity self,
             in UtilityDecisionDef def, Entity externalContext,

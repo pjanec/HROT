@@ -173,9 +173,8 @@ namespace Fdp.Toolkit.Behavior.Systems
             // ⭐ CE-446: a blueprint behaviour's tick takes the frame's command buffer, like an Instance tick.
             _ecb = view.GetCommandBuffer();
 
-            // ⭐ POC 2 Q-4 (opt-in HROT_BRAIN_PRESCORE=1, Throughput mode) — the brains' utility scoring, ahead of the serial walk, in parallel
-            // ⭐ N-11 — with the brains a parallel phase the scoring already runs on every core, inside each unit's own tick: no pre-score
-            if (Fdp.Toolkit.Utility.UtilityPrescore.Active && !Parallel) Fdp.Toolkit.Utility.UtilityPrescore.Of(repo).Run(repo);
+            // ⭐ R-4219 (CE-4482) — the POC 2 pre-score (utility scoring ahead of a serial walk) is RETIRED: the brains' per-entity phase scores
+            //   on every core inside each unit's own tick (R-4214 ①), and the pre-score was unreachable in every parallel configuration
 
             // Prune the dedup cache using reliable lifecycle events.
             foreach (var evt in repo.ReadEvents<DestructionOrder>())
