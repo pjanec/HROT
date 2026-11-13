@@ -148,3 +148,18 @@ their state is kept in this file's item table for the merging lane to tick, rath
 | red-proof: the managed compare off (the old rule) | ⛔ the new rail fails (1 / 13) — as it should |
 | `Hrot.Network.NED.Tests` · `Hrot.Animation.Replication.Tests` (the gated translators) | 198 / 0 · 48 / 0 |
 | `Hrot.SimHost.Tests` — the touched classes + EQS | 383 / 1 (`CE454`, pre-existing) |
+
+## Numbers after round two — 1 000 men, VM 4 cores, Release, gate on (`HROT_EQS_CONFIG_GATE=1`) *(`2026-11-13`)*
+
+| CGF, ms / frame | before (4 thr) | round 1 + gate (4 thr) | **round 2 (4 thr)** | round 2 (1 thr) |
+|---|---|---|---|---|
+| **work** | **140.9** (14.2 fps) | 112.5 | **99.6** (~20 fps) | 135.4 |
+| BrainTickSystem | 39.2 | 28.1 | 23.8 | 45.7 |
+| CycloneEgressSystem (both passes) | 30.3 | 27.1 | 23.4 | 22.6 |
+| WeaponDispatcherSystem | 20.1 | 10.9 | 9.4 | 14.6 |
+| SquadCoordinationSystem | 5.2 | 5.0 | 4.1 | 5.4 |
+| StaffComposerSystem | 3.6 | 2.8 | 2.3 | 3.9 |
+
+Gate (4 threads): begins 29 686, **full 30**, visited 1.76 M, **skipped 5.27 M (75 %)**; managed-input visits **0** (was 2.08 M). ⚠ The BrainTick drop
+(39 → 24 ms) is the parts index too — the brains read `PartsOf` and queued on the same lock. ⚠ Egress is lower at 1 thread than at 4: it is
+serial either way and shares the VM's 4 cores with the worker pool, the SimHost and the orchestrator processes.
