@@ -83,6 +83,20 @@ namespace Fdp.Toolkit.Behavior.Components
             SeenMask |= 1u << (int)kind;
         }
 
+        /// <summary>
+        /// ⭐ E-3 (CE-4509; R-195) — was ANY change recorded at <paramref name="now"/> (this frame)? The SOP's second wake: R-195 ticks it
+        /// when the change can be READ, and a condition reading THIS can read it from the frame the record lands (<c>RecentSensesSystem</c>,
+        /// Input) — one frame after the event was on the bus. ⚠ Kept beside <see cref="Record"/>: a new kind is
+        /// stamped there and compared here.
+        /// </summary>
+        public readonly bool RecordedAt(double now)
+            => SeenMask != 0 && (Acquired == now || Lost == now || TopChanged == now || FirstThreat == now || AllClear == now || Hit == now
+               || NearMiss == now || AreaAhead == now || AreaThreatened == now || AreaCleared == now || SquadContact == now
+               || SquadUnderFire == now || SquadAllClear == now || SquadLeaderDown == now || SquadMemberDown == now || AirThreat == now
+               || MissileWarning == now || SurveyReady == now || ReportReceived == now || SniperFire == now || ContactInEngagementArea == now
+               || ContactOutsideSector == now || PositionUntenable == now || FiredOnFromStructure == now || StressBreak == now
+               || StressRecovered == now);
+
         /// <summary>Did a change of <paramref name="kind"/> happen within the last <paramref name="seconds"/> before <paramref name="now"/>?</summary>
         public readonly bool Within(SensorChange kind, double seconds, double now)
             => TryGetLast(kind, out double at) && now - at <= seconds;
