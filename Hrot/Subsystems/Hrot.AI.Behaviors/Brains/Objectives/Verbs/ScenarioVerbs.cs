@@ -265,15 +265,45 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
         [SharedAiAction]
         public static NodeStatus Message(ref MessageParams p, ref VerbNoState s, Entity self, EntityRepository world)
         {
-            if (!world.Bus.IsRegisteredManaged<PlayerMessageEvent>()) world.Bus.RegisterManaged<PlayerMessageEvent>();
-            world.Bus.PublishManaged(new PlayerMessageEvent
+            var message = new PlayerMessageEvent
             {
-                MessageId = System.Threading.Interlocked.Increment(ref s_messageSeq), OriginNodeId = Fdp.Core.NodeId.None,
+                OriginNodeId = Fdp.Core.NodeId.None,
                 ToKind = p.ToKind.Length == 0 ? "All" : p.ToKind.ToString(), ToValue = p.ToValue, Text = WithSubject(world, self, p.Text.ToString()),
                 Seconds = p.Seconds, Priority = p.Priority, SentAt = (SimInstant)(ObjectiveHost.Now(world)),
                 Source = world.HasComponent<NetworkIdentity>(self) ? world.GetComponentRO<NetworkIdentity>(self).Value : 0,
-            });
+            };
+            // ⭐ N-15 (CE-4477; status §5) — the message is NUMBERED where the order is fixed: inside a per-entity phase it is sent by the phase's
+            //   serial follow-up (batch order), so two rules' messages of one tick get the same ids at any thread count (receivers de-dup on
+            //   (MessageId, origin)); a ticket into a small pending table carries it there (a follow-up carries only an entity and two numbers)
+            if (Fdp.Core.ParallelReadCheck.Defers(world))
+            {
+                long ticket = System.Threading.Interlocked.Increment(ref s_ticket);
+                s_pending[ticket] = message;
+                Fdp.Core.ParallelReadCheck.CurrentBatch!.Later(SendAfterPhase.Instance, self, 0, ticket);
+                return NodeStatus.Success;
+            }
+            Send(world, message);
             return NodeStatus.Success;
+        }
+
+        private static long s_ticket;
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<long, PlayerMessageEvent> s_pending = new();
+
+        /// <summary>Numbers <paramref name="message"/> and publishes it — serially (the walk, or a phase's follow-up in batch order).</summary>
+        private static void Send(EntityRepository world, PlayerMessageEvent message)
+        {
+            if (!world.Bus.IsRegisteredManaged<PlayerMessageEvent>()) world.Bus.RegisterManaged<PlayerMessageEvent>();
+            message.MessageId = System.Threading.Interlocked.Increment(ref s_messageSeq);
+            world.Bus.PublishManaged(message);
+        }
+
+        private sealed class SendAfterPhase : Fdp.Core.Jobs.IPhaseFollowUp
+        {
+            public static readonly SendAfterPhase Instance = new();
+            public void Apply(EntityRepository repo, Entity e, int code, long arg)
+            {
+                if (s_pending.TryRemove(arg, out var message)) Send(repo, message);
+            }
         }
 
         /// <summary>⭐ S7 P-8d — <c>{subject}</c> in a message is the name of the sending trigger's subject (<c>ObjectiveLinks.Subject</c>; <c>EntityInfo.Name</c>, else "#netid"): one macro serves every man.</summary>

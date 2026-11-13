@@ -172,6 +172,57 @@ namespace Hrot.SimHost.Tests
             return m;
         }
 
+        private struct MessageJob : IEntityBatchJob
+        {
+            public EntityRepository Repo;
+            public void Execute(Entity e, int index, BatchContext ctx)
+            {
+                var p = new Hrot.AI.Behaviors.Brains.Objectives.Verbs.MessageParams { Text = new FixedString128("contact") };
+                var s = default(Hrot.AI.Behaviors.Brains.Objectives.Verbs.VerbNoState);
+                Hrot.AI.Behaviors.Brains.Objectives.Verbs.ScenarioVerbs.Message(ref p, ref s, e, Repo);
+            }
+            public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
+        }
+
+        private static string MessagesAt(int threads)
+        {
+            FdpWorkerPool.Resize(threads);
+            using var repo = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(repo);
+            var list = new Entity[300];
+            for (int i = 0; i < list.Length; i++)
+            {
+                list[i] = repo.CreateEntity();
+                repo.AddComponent(list[i], new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 5000 + i });
+            }
+            ParallelEntities.Run(repo, list, list.Length, new MessageJob { Repo = repo });
+            repo.Bus.SwapBuffers();
+            var sb = new System.Text.StringBuilder();
+            int first = -1;
+            foreach (var m in repo.Bus.ReadManaged<Fdp.Toolkit.ScenarioRules.PlayerMessageEvent>())
+            {
+                if (first < 0) first = m.MessageId;
+                sb.Append(m.Source).Append(':').Append(m.MessageId - first).Append(' ');   // ids relative: the counter is process-wide
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>⭐ N-15 (CE-4477; status §5) — rules sending a player message inside the parallel brain phase: every message is NUMBERED in
+        /// batch order by the phase's serial follow-up, so the (sender, id) pairs are the same at 1 / 2 / 4 / 8 threads (receivers de-dup on
+        /// (MessageId, origin)). 🔴 Red-proof: drop the in-phase deferral in <c>ScenarioVerbs.Message</c> ⇒ ids follow the threads ⇒ red.</summary>
+        [Fact]
+        public void N15_RuleMessagesInAPhase_AreNumberedInBatchOrder_AtAnyThreadCount()
+        {
+            try
+            {
+                string one = MessagesAt(1);
+                Assert.Equal(300, one.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length);
+                Assert.StartsWith("5000:0 5001:1 5002:2 ", one);   // batch order = the entities' order
+                foreach (int t in new[] { 2, 4, 8 }) Assert.Equal(one, MessagesAt(t));
+            }
+            finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
+        }
+
         /// <summary>⭐ N-16 — the brain's wall time at 1 / 2 / 4 threads on a bigger fight (a measuring run: <c>HROT_MEASURE=1</c>).</summary>
         [Fact]
         public void N16_TheBrainsWallTime_At1_2_4Threads()

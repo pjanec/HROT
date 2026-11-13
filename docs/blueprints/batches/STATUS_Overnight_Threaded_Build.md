@@ -137,7 +137,7 @@ in a world): 6 in-place write sites in 4 types; everything else replaces whole (
 |---|---|---|
 | the film director in mode 3 | it ticks on the UI thread but writes checkpoints / restores / steps on the world and the kernel directly (`EditorSubsystem` director host) | a split: its run-control half as sim jobs with a pending state, its camera / capture half on the UI |
 | the review source (`ReviewSourceOf`) in mode 3 | it clears and reads the world it is given (A) | the same split |
-| the rule-message id (`ScenarioVerbs.s_messageSeq`) with parallel rule brains | a process-wide atomic counter: two messages published in one tick by rules on different threads may swap ids (the event content, not the world, differs) | a per-world counter advanced in the post-pass, or the id from (rule entity, tick) |
+| ✅ CLOSED `2026-11-13` — the rule-message id (`ScenarioVerbs.s_messageSeq`) | inside a phase the message is sent by the phase's serial follow-up (`Later`, a ticket into a pending table) and numbered there, in batch order | `ParallelBrainsDeterminismTests.N15_RuleMessagesInAPhase_…` (1/2/4/8; red-proved) |
 | N-9 leftovers | `MacroExpansionSystem.cs:233-235` (a parked request's components rewritten in place while the intent is on the entity) · `ScenarioEntityWalk.cs:34` writes an unchanged value into a live `ActiveMissionPlan` (editor) | the owner of macros / the mission walk: build a new parked list / a new plan only when the walk changed something |
 | ⚠ N-15 ② watch item | one stepped session showed a SimTransform-only difference between its 1-thread run and the others; seven later runs (1·2·2, 1·4·8·8) agree | repeat the gate periodically; on a difference, `?rows=SimTransform` names the bodies |
 | the generator emitting each asset's cross reads (§18.2) | `BrainReads` is a hand list (from the survey) | the blueprint / BTree / HSM generators emit, per asset, the types read on other entities; `BrainPhase` unions them |
@@ -156,11 +156,10 @@ in a world): 6 in-place write sites in 4 types; everything else replaces whole (
 🔒 *"when you are making a Decision, Take the one that follows the best practices and fits the engine architecture. Do not do any shortcuts, no hacks please."* · *"run only focused test suites … only those that are really necessary for the trouble you are testing."*
 
 ## NEXT (the resume point)
-⭐ DONE and committed: N-1…N-10, N-13, N-14 (✅), N-9 (✅ audit + the one hazard), N-11 (🔄 the brains parallel, gate green, survey clean on the
-300-man rig), N-12 (F-9 ✅, F-10 by construction + a spoken count, ⚠ F-11 squads per squad OPEN), N-17 (✅ folds §18.5 / §14.8 / §8.5).
-IN FLIGHT: N-15 ① — `scratchpad/n15-chain.sh` (the session ×2 with the new `n15` stage: drags while playing, one refused, a field edit, play /
-pause / step, a mid-run load, undo / redo through the new `?scope=shell` command door) then the `--mode all` gate (canOperate-gated).
-UNCOMMITTED (needs the ClusterRunner build after the chain): `GET /world/hash` (+ RouteDoc) — regenerate the MCP catalog
-(`tools/ai-debug-mcp: npm run gen:catalog && npm run gen:skill`) in the same commit; then `scratchpad/stepped-hash.py` (N-15 ② at 1/2/4/8).
-THEN: N-15 ③ switch-off suites + 0 B · ④ display rails under xvfb · N-16 the remaining numbers + the Windows script · F-11 · the film director /
-review source split (§5).
+⭐⭐ **N-1 … N-17 ALL DONE** (`2026-11-13`), each gate in §2 — the product gates included: the threaded 1 000-man session ×2 green (N-15 ①),
+the stepped product run the same world at 1 / 2 / 4 / 8 threads over seven runs (N-15 ②), `--mode all` threaded 2 min playing alive (N-13),
+the numbers (N-16). Tonight's late finds, each fixed with a rail: D-37 (`--mode all` crash) · D-38 / D-40 (undo after an HTTP edit; undo
+stripping ScenarioIgnoreTag) · D-41 (a stale last-tick view) · D-42 (the PRE-EXISTING movement race) · D-43.
+KEEP GOING (the handoff's last line), in this order: ① ✅ the rule-message id — closed · ② the EQS window sized by `HROT_SIM_THREADS`'s pool budget (it reads the CPU count: ~700 ms single-threaded
+here, the heaviest system now) · ③ §5 the film director / review source split · ④ §5 N-9 leftovers · ⑤ the generator emitting each asset's
+cross reads · ⑥ re-run N-15 ② periodically (the watch item).
