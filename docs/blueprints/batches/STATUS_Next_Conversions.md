@@ -64,3 +64,13 @@ begins 27 361, full 5 281, **5 205 forced by a `DescriptorOwnership` write anywh
 2. `EgressVisitGate` H1 is per entity: it remembers, per entity, the three facts `AuthorityExtensions.HasAuthority` reads — its
    `PartMetadata` root, the root's `NetworkAuthority` bytes, the root's `DescriptorOwnership` reference (immutable, replaced whole) — and
    visits when one differs. A table move anywhere no longer forces a full scan.
+
+**Gates (X-1 + X-4, `--no-build` after building the test projects):**
+
+| suite | result | note |
+|---|---|---|
+| `Fdp.Toolkits.Tests` (full) | 4 967 / 3 / 1 skip | the 3: `S0ComponentTypesRailTests` (`TerrainBlock/TerrainFeature.HeadingDeg`) and `S0IdTypesRailTests` (`Orchestration.PlacedFile/PlacementNode.NodeId`) name types in files this branch does not touch (`git diff be0f264f7` — none) ⇒ pre-existing; `WeaponAmmoMirrorSystemTests.CE4366_ASteadyFrame_AllocatesNothingPerUnit` green alone (suite interference on a per-thread allocation counter) |
+| `Hrot.Network.NED.Tests` | 198 / 0 | the gated translators' users |
+| `Hrot.Animation.Replication.Tests` | 48 / 0 | `StanceIntentEgressTranslator` is gated |
+| X-4 red-proof | `AuthorityMoved` off ⇒ H1 + the authority equivalence rail fail (2 / 12) | |
+| X-1 red-proof | the late list not walked ⇒ CE4516 fails | |
