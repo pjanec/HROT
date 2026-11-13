@@ -11,7 +11,8 @@ every run with the first, type by type. Two runs that took the same steps agree 
     python scripts/stepped-hash.py --threads 4,4 --rows WeaponChannel --bytes   # WHICH entities and WHICH bytes differ
 
 Exit code 0 = state equal (EntityGuid excluded: minted at random for an entity created at run time), 1 = differs, 2 = a run failed.
-Environment: HROT_PARALLEL_SIM=1 to run every per-entity phase (the gate's usual setting); the editor is mode 3 (HROT_THREADED_KERNEL=3).
+Environment: HROT_PARALLEL_SIM=1 to run every per-entity phase (the gate's usual setting); --kernel 3 (default) runs the threaded node,
+--kernel 0 the product as shipped (every switch off: the repeatability question, F-2).
 """
 import argparse
 import importlib.util
@@ -35,7 +36,9 @@ def data(r):
 def one_run(a, threads, k):
     out = os.path.join(a.out, f"run{k}-t{threads}")
     os.makedirs(out, exist_ok=True)
-    os.environ.update({"HROT_THREADED_KERNEL": "3", "HROT_SIM_THREADS": str(threads)})
+    os.environ["HROT_SIM_THREADS"] = str(threads)
+    if a.kernel == "0": os.environ.pop("HROT_THREADED_KERNEL", None)   # the product as shipped: no threaded node
+    else: os.environ["HROT_THREADED_KERNEL"] = a.kernel
     s = ats.Session(out, a.port)
     if not s.start(a.dll):
         raise RuntimeError("the editor did not answer")
@@ -66,6 +69,7 @@ def main():
     ap.add_argument("--chunk", type=int, default=20, help="the step chunk (the orders land after 1 and 3 chunks; 6 chunks in all)")
     ap.add_argument("--rows", default="SimTransform", help="a component type: name the entities whose row differs")
     ap.add_argument("--bytes", action="store_true", help="with --rows: print the differing byte offsets of each differing row")
+    ap.add_argument("--kernel", default="3", choices=["0", "3"], help="3 = the threaded node (mode 3); 0 = the product as shipped")
     ap.add_argument("--port", type=int, default=8131)
     ap.add_argument("--out", default=os.path.join(REPO, ".stepped-hash"))
     ap.add_argument("--save", help="write every run's result to this JSON file")

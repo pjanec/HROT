@@ -43,7 +43,7 @@ def summarise(name, out):
         if f.startswith("editor-") and f.endswith(".log"):
             with open(os.path.join(out, f), errors="ignore") as fh:
                 text += fh.read()
-    stats = ATS.frame_stats(text)   # ⭐ F-5 — any locale (a decimal comma): the one parser in the session driver
+    stats = ATS.frame_stats(text)   # the one parser in the session driver
     frames = [m for m, _ in stats]
     p95 = [p for _, p in stats if p is not None]
     x4f = re.findall(r"\[X-4F\] (.*)", text)

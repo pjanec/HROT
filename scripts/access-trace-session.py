@@ -138,18 +138,18 @@ def pick_units(s, n):
     return men[:n], veh[:3], items
 
 
-# ⭐ F-5 (CE-4505) — the editor's [FrameStats] lines, read in ANY locale: a Czech Windows prints "8,9 ms", which "[0-9.]+" read as 8.
-#   ONE parser for every measuring script (threaded-scale-measure, threaded-poc2-measure). Rail: scripts/test_frame_stats.py.
-_NUM = r"([0-9]+(?:[.,][0-9]+)?)"
+# ⭐ The editor's [FrameStats] lines — ONE parser for every measuring script (threaded-scale-measure, threaded-poc2-measure).
+#   ⛔ It reads a decimal POINT only (R-4221): the processes run culture-invariant, so a comma is a defect to fix at the output, never to teach a parser.
+_NUM = r"([0-9]+(?:\.[0-9]+)?)"
 
 
 def frame_stats(text):
-    """Every [FrameStats] line in <text> as (mean ms, p95 ms or None), in order; a decimal comma is read as a point."""
+    """Every [FrameStats] line in <text> as (mean ms, p95 ms or None), in order."""
     import re as _re
     out = []
     for m in _re.finditer(r"\[FrameStats\] \d+ frames\s+mean " + _NUM + r" ms(?:\s+p50 " + _NUM + r"\s+p95 " + _NUM + r")?", text):
-        mean = float(m.group(1).replace(",", "."))
-        p95 = float(m.group(3).replace(",", ".")) if m.group(3) else None
+        mean = float(m.group(1))
+        p95 = float(m.group(3)) if m.group(3) else None
         out.append((mean, p95))
     return out
 

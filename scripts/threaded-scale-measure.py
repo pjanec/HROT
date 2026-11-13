@@ -56,7 +56,7 @@ def systems(s, full=None):
 def frame_means(log):
     with open(log, errors="ignore") as fh:
         text = fh.read()
-    return [mean for mean, _ in ats.frame_stats(text)]   # ⭐ F-5 — any locale (a decimal comma)
+    return [mean for mean, _ in ats.frame_stats(text)]   # the one parser (the session driver)
 
 
 def census(out):
