@@ -188,8 +188,11 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
 
         public void EndFrame()
         {
-            if (Requests.EndFrame() is { } request) Post(() => _publisher.Request = request);
+            if (Requests.EndFrame() is { } request) SendRequest(request);
         }
+
+        // ⚠ its own method: a lambda capturing `request` inside EndFrame makes the compiler allocate the closure at EndFrame's ENTRY — 32 B every UI frame, posted or not (measured, BUG-3)
+        private void SendRequest(ReviewViewRequest request) => Post(() => _publisher.Request = request);
 
         private void Post(Action a) { Posted++; _post(a); }
 

@@ -127,7 +127,7 @@ public sealed class TheReviewSourceTests : IDisposable
         public readonly List<int> Selects = new();
         public int Clears;
 
-        public Rig(string root, ScenarioSerializer serializer, int thisNode = 1, Func<int, string>? names = null, bool noFacade = false)
+        public Rig(string root, ScenarioSerializer serializer, int thisNode = 1, Func<int, string>? names = null, bool noFacade = false, Func<ITimeTransportFacade?>? facade = null)
         {
             World.RegisterComponent<NetworkIdentity>(); World.RegisterComponent<NetworkAuthority>(); World.RegisterComponent<ObjectiveStatus>();
             Facade.SetupGet(f => f.IsPaused).Returns(true);
@@ -135,7 +135,7 @@ public sealed class TheReviewSourceTests : IDisposable
             Facade.SetupGet(f => f.IsPlayPauseEnabled).Returns(true);
             var builder = new TransientMasterBuilder(serializer);
             Source = new ReviewSource(() => World, () => builder, () => { Clears++; World.SoftClear(); }, () => root, thisNode,
-                ready: () => Ready, inReplay: () => InReplay, selection: () => Selected, select: n => { Selects.Add(n); return true; }, nodeName: names, facade: noFacade ? () => null : () => Facade.Object);   // noFacade: a steady 0 B measurement without Moq's per-call allocation (no facade = paused)
+                ready: () => Ready, inReplay: () => InReplay, selection: () => Selected, select: n => { Selects.Add(n); return true; }, nodeName: names, facade: facade ?? (noFacade ? () => null : () => Facade.Object));   // noFacade: a steady 0 B measurement without Moq's per-call allocation (no facade = paused)
         }
 
         private ReviewUi? _ui;
@@ -672,6 +672,153 @@ public sealed class TheReviewSourceTests : IDisposable
         }
         finally { Fdp.Core.WorldGuard.Disarm(); Fdp.Core.WorldGuard.Strict = wasStrict; }
         Assert.Equal(before, Fdp.Core.WorldGuard.DistinctHits);   // ⭐ not one read of S off the sim thread
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4499 R-5 (docs/DESIGN_Threaded_Review_Source.md §3 ① ⑤) — mode 3 END TO END on the real machinery: the review source on S on a dedicated sim thread, the REAL job queue
+    /// (<c>SimJobQueue</c>) carrying the UI's commands, the REAL staging (<c>StagingWorlds</c>) publishing S and carrying the model, A pulled on the UI thread — as <c>EditorSubsystem.SimStep</c> /
+    /// <c>PullStaging</c> do. Every action of the acceptance, each checked on A (what the map draws) AND on the model (what the panels draw): Merged · step · scrub · ▶ / rate · the Source switch to a
+    /// part and back · an offset · a locals toggle · By node · a watch item · a search hit's seek. ⭐ A still holds the merged entities after N pulls (the pull does not erase the merge).
+    /// 0 B per steady paused frame, on BOTH threads. With <c>HROT_WORLD_GUARD=1</c> the strict guard is armed too and must stay silent.
+    /// 🔴 Red-proofs (reasoned): the source merging into A (R-3 undone) ⇒ the next pull overwrites A with an S that holds no merge ⇒ the "after N pulls" assert red; a command applied on the UI
+    /// thread ⇒ the strict guard's hit count moves.
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void R5_Mode3_TheReviewOverTheRealStagingAndJobQueue_EveryActionReachesA_AndTheMergeSurvivesThePulls()
+    {
+        _localBase[4] = 904;
+        FourParticipants();
+        ITimeTransportFacade? facade = null;   // paused (no ▶) until the play step; null also keeps the steady measurement free of Moq's per-call bytes
+        using var rig = new Rig(_root, _serializer, facade: () => facade);
+        using var a = new EntityRepository();
+        a.RegisterComponent<NetworkIdentity>(); a.RegisterComponent<NetworkAuthority>(); a.RegisterComponent<ObjectiveStatus>();
+        using var staging = new Fdp.Core.Threading.StagingWorlds();
+        staging.TableMask.SetBit(Fdp.Core.ComponentType<NetworkIdentity>.ID);
+        staging.TableMask.SetBit(Fdp.Core.ComponentType<NetworkAuthority>.ID);
+        staging.TableMask.SetBit(Fdp.Core.ComponentType<ObjectiveStatus>.ID);
+        staging.RegisterStreamsFrom(rig.World.Bus);
+        var jobs = new Fdp.Core.Threading.SimJobQueue { Outbox = staging };
+        var publisher = new ReviewModelPublisher(new ReviewModelBuilder(new ReplicaViews(new OwnershipSource(), _serializer)));
+        var channel = new ThreadedReviewChannel(rig.Source, publisher, act => jobs.Post(_ => act(), "review command"));
+        var ui = new ReviewUi(channel, () => facade);
+        using var sim = new SimThread();
+        long tick = 0;
+        ReviewReadModel? toApply = null;
+        Action<EntityRepository> apply = _ => { if (toApply is { } m) channel.Apply(m); };
+        void SimStep(double dt) => sim.Run(() =>
+        {
+            rig.World.Tick();                                                                // the kernel's tick of S (ModuleHostKernel.cs:596) — every node frame stamps a new version, so the staging copies what changed
+            jobs.Drain(rig.World);
+            rig.Source.Update(dt);                                                           // the node frame's ONE call site (R-3)
+            if (publisher.PublishIfChanged(rig.Source) is { } m) { toApply = m; staging.Post(apply); }   // PublishReviewModel (R-4)
+            staging.Publish(rig.World, ++tick);
+        });
+        void Frame(double dt = 0) { SimStep(dt); staging.Pull(a); channel.EndFrame(); }     // the UI frame: pull, then the panels' asks ride up
+
+        bool guard = Fdp.Core.WorldGuard.On;
+        int hitsBefore = guard ? Fdp.Core.WorldGuard.DistinctHits : 0;
+        bool wasStrict = Fdp.Core.WorldGuard.Strict;
+        if (guard) { Fdp.Core.WorldGuard.Arm(rig.World, a, sim.Id); Fdp.Core.WorldGuard.Strict = true; }
+        try
+        {
+            // ① Merged — opened sim-side (the recording-opened branch runs with the editor logic, D-7)
+            sim.Run(() => Assert.True(rig.Source.OnRecordingOpened(_exercise)));
+            Frame();
+            Assert.True(ui.Model.IsMerged);
+            Assert.Equal(0, ProgressOfNet(a, 100)); Assert.Equal(10, ProgressOfNet(a, 200));
+            Assert.Equal(int.MinValue, ProgressOfNet(a, 300)); Assert.Equal(int.MinValue, ProgressOfNet(a, 400));
+            for (int i = 0; i < 10; i++) Frame();                                            // ⭐ N pulls later the merge is still in A
+            Assert.Equal(0, ProgressOfNet(a, 100)); Assert.Equal(10, ProgressOfNet(a, 200)); Assert.Equal(int.MinValue, ProgressOfNet(a, 400));
+
+            // ② step ③ scrub (a seek)
+            ui.Transport.Step(+1); Frame();
+            Assert.True(ui.Model.CurrentFrame == 1, $"frame {ui.Model.CurrentFrame}; jobs posted {jobs.Posted} ran {jobs.Executed} faults {jobs.Faults}: {jobs.LastFault}");
+            Assert.Equal(1, ProgressOfNet(a, 100)); Assert.Equal(11, ProgressOfNet(a, 200));
+            ui.Transport.Seek(3); Frame();
+            Assert.Equal(3, ui.Model.CurrentFrame); Assert.Equal(3, ProgressOfNet(a, 100));
+            ui.Transport.Seek(0); Frame();
+
+            // ④ ▶ / rate — the toolbar's ▶ at 2×: one wall second plays two recorded seconds
+            facade = rig.Facade.Object;
+            rig.Facade.SetupGet(f => f.IsPaused).Returns(false); rig.Facade.SetupGet(f => f.TimeScale).Returns(2f);
+            Frame(0); Frame(1.0); Frame(0);
+            Assert.True(ui.Transport.IsPlaying);
+            Assert.Equal(2, ui.Model.CurrentFrame); Assert.Equal(2, ProgressOfNet(a, 100));
+            rig.Facade.SetupGet(f => f.IsPaused).Returns(true); rig.Facade.SetupGet(f => f.TimeScale).Returns(1f);
+            Frame();
+            facade = null;
+
+            // ⑤ the Source switch to a part (CGF-B) and back
+            ui.Channel.SelectPart(3); Frame();
+            Assert.Equal(ReviewKind.Part, ui.Model.Kind); Assert.Equal(3, ui.Model.Facts.PartNode);
+            Assert.Equal(int.MaxValue, ProgressOfNet(a, 100));                               // A shows CGF-B's file only …
+            Assert.Equal(12, ProgressOfNet(a, 200));                                         // … at the same moment (frame 2)
+            ui.Channel.SelectMerged(); Frame();
+            Assert.True(ui.Model.IsMerged);
+            Assert.Equal(2, ProgressOfNet(a, 100)); Assert.Equal(int.MinValue, ProgressOfNet(a, 400));
+            ui.Transport.Seek(0); Frame();
+
+            // ⑥ an offset (the Federation slider): CGF-A at +2 s ⇒ its unit shows two seconds on
+            ui.Panel.SetNodeOffsetMs(2, 2000d); Frame();
+            Assert.Equal(2000d, ui.Model.Participant(2)!.OffsetMs, 3);
+            Assert.Equal(2, ProgressOfNet(a, 100)); Assert.Equal(10, ProgressOfNet(a, 200));
+            ui.Panel.SetNodeOffsetMs(2, 0d); Frame();
+            Assert.Equal(0, ProgressOfNet(a, 100));
+
+            // ⑦ a locals toggle: SimHost-4's local entity, tagged by the model's local origins, leaves A and comes back
+            Assert.Equal(new[] { 904 }, LocalsInWorld(ui, a).Select(l => l.Progress).ToArray());
+            ui.Panel.SetLocalEntitiesShown(4, false); Frame();
+            Assert.Empty(LocalsInWorld(ui, a));
+            ui.Panel.SetLocalEntitiesShown(4, true); Frame();
+            Assert.Equal(new[] { 904 }, LocalsInWorld(ui, a).Select(l => l.Progress).ToArray());
+
+            // ⑧ By node ⑨ a watch item — asked by the UI, computed sim-side, in the next model
+            var item = new ReplicaWatchItem("ObjectiveStatus.ProgressCur", 0, true, 0.5, 0u, "Progress");
+            channel.Requests.AskByNode(100, typeof(NetworkIdentity)); channel.Requests.AskWatch(100, item);
+            Frame(); Frame();
+            Assert.True(ui.Model.TryByNode(100, typeof(NetworkIdentity), out var byNode));
+            Assert.NotNull(byNode);
+            Assert.Equal(new[] { 2, 4 }, byNode!.Rows.Select(r => r.NodeId).ToArray());       // the owner (CGF-A) and the SimHost's ghost
+            Assert.True(ui.Model.TryWatch(100, item, out _));
+
+            // ⑩ a search hit's seek — the file review's Seek is the transport's (EditorSubsystem's ReviewFileServices)
+            Action<long> searchSeek = frame => ui.Transport.Seek((int)frame);
+            Assert.Equal(3, ui.Model.PrimaryNode);                                           // the last part shown stays the primary (SelectPart sets it; Merged keeps it — as with the switch off)
+            Assert.Equal(new[] { PathOf(3) }, ui.RecordingFiles());                          // the search reads the primary's file
+            searchSeek(4); Frame();
+            Assert.Equal(4, ui.Model.CurrentFrame); Assert.Equal(4, ProgressOfNet(a, 100));
+
+            // ⑪ 0 B per steady paused frame — the sim step (jobs, source, publish) and the UI frame (pull, asks, the panels' reads)
+            for (int i = 0; i < 5; i++) { channel.Requests.AskByNode(100, typeof(NetworkIdentity)); channel.Requests.AskWatch(100, item); Frame(); }
+            long simBytes = 0, uiBytes = 0, pullBytes = 0, askBytes = 0, endBytes = 0, readBytes = 0;
+            for (int i = 0; i < 20; i++)
+            {
+                sim.Run(() =>
+                {
+                    long b0 = GC.GetAllocatedBytesForCurrentThread();
+                    rig.World.Tick(); jobs.Drain(rig.World); rig.Source.Update(0);
+                    if (publisher.PublishIfChanged(rig.Source) is { } m) { toApply = m; staging.Post(apply); }
+                    staging.Publish(rig.World, ++tick);
+                    simBytes += GC.GetAllocatedBytesForCurrentThread() - b0;
+                });
+                long u0 = GC.GetAllocatedBytesForCurrentThread();                            // the UI frame's own work (the rig's SimThread.Run hand-off allocates on this thread, not the editor)
+                staging.Pull(a);
+                long u1 = GC.GetAllocatedBytesForCurrentThread(); pullBytes += u1 - u0;
+                channel.Requests.AskByNode(100, typeof(NetworkIdentity)); channel.Requests.AskWatch(100, item);
+                long u2 = GC.GetAllocatedBytesForCurrentThread(); askBytes += u2 - u1;
+                channel.EndFrame();
+                long u3 = GC.GetAllocatedBytesForCurrentThread(); endBytes += u3 - u2;
+                _ = ui.Model.Facts.StatusText; _ = ui.Transport.CurrentFrame; _ = ui.RecordingFiles(); _ = ui.Panel.HasNonZeroOffset;
+                _ = ui.Model.TryByNode(100, typeof(NetworkIdentity), out _);
+                readBytes += GC.GetAllocatedBytesForCurrentThread() - u3;
+                uiBytes += GC.GetAllocatedBytesForCurrentThread() - u0;
+            }
+            Assert.Equal(0, simBytes);
+            Assert.True(uiBytes == 0, $"UI frame bytes over 20: pull {pullBytes} · asks {askBytes} · end {endBytes} · reads {readBytes}");   // 🔴 measured red before BUG-3: end 640 (32 B per frame)
+            Assert.Equal(0, jobs.Faults);
+        }
+        finally { if (guard) { Fdp.Core.WorldGuard.Disarm(); Fdp.Core.WorldGuard.Strict = wasStrict; } }
+        if (guard) Assert.Equal(hitsBefore, Fdp.Core.WorldGuard.DistinctHits);               // ⭐ strict: not one read of S off the sim thread
     }
 
     // ── S5 · I7 — local entities from EVERY node, tagged, the Source menu's checkboxes (mockup ③) ─────────

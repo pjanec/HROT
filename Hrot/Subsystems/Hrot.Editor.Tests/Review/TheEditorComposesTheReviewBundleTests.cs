@@ -100,6 +100,32 @@ public sealed class TheEditorComposesTheReviewBundleTests : IDisposable
         finally { editor.Shutdown(); }
     }
 
+    /// <summary>
+    /// ⭐ CE-4498 / CE-4499 — the REAL editor in mode 3 (run as <c>HROT_THREADED_KERNEL=3 dotnet test … --filter R4_InMode3</c>; the switch is read once per process): it composes the THREADED review channel
+    /// (commands as sim jobs, the model published by SimStep), and its staged frame steps the review source once per frame from the node frame (R-3's one call site, here inside SimStep).
+    /// </summary>
+    [SkippableFact(Timeout = 60_000)]
+    public void R4_InMode3_TheEditorComposesTheThreadedReviewChannel_AndSimStepStepsTheSource()
+    {
+        Skip.IfNot(Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds, "run with HROT_THREADED_KERNEL=3 (read once per process)");
+        var editor = new EditorSubsystem();
+        try
+        {
+            editor.Initialize(new SubsystemConfig { Headless = true });
+            var windows = new Fdp.Presentation.WindowManager.WindowManager(new IconAtlas(IntPtr.Zero, 512, 512));
+            editor.RegisterWindows(windows);
+            var ui = editor.ReviewUiForTest;
+            Assert.NotNull(ui);
+            Assert.IsType<Fdp.Toolkit.ReplayBrowser.Federation.ThreadedReviewChannel>(ui!.Channel);   // ⭐ mode 3: the threaded channel
+            var source = editor.ReviewSourceForTest!;
+            int before = source.Updates;
+            for (int i = 0; i < 3; i++) editor.Update(1f / 60f);
+            Assert.Equal(before + 3, source.Updates);                                              // stepped by the staged SimStep's node frame
+            Assert.False(ui.Model.IsOpen);                                                          // nothing open: the published model says so
+        }
+        finally { editor.Shutdown(); }
+    }
+
     [Fact]
     public void V2_AHit_GoesThroughTheOneSeek_WithTheFramesMoment_AndSelectsTheUnit()
     {
