@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: ⛔ first pass: "Federation does not fit the editor" / "standalone only" — WITHDRAWN (§2.4) · ⛔ second pass: the "this station's part" source during a CLUSTER AAR, G2 (read-only), Q5 (DAR), Q6 (per-station switch in a cluster) — WITHDRAWN by the user (§2.4) · the first pass cited R-4010 for "each node replays its own recording" — wrong id; the rule is W5 in DESIGN_Replay_Time_Axis_And_Review
 known-conflict: none
 related-designs:
+  - ../DESIGN_Threaded_Review_Source.md — WHICH THREAD runs the review source in the threaded editor (R-4220): sim-side, the UI reads a published model
   - DESIGN_Details_Forms.md — owns the forms and names the vocabulary's READ side (§2.4); §6.13a here builds it (AttributeReaders)
   - DESIGN_Replay_Browser_UX.md — OWNS the standalone Replay Browser's UX; its Q-B3 (default layout) and Q-B6 (Federation) are answered here (§5)
   - ../designs/replay-browser-frankenstein/DESIGN.md — OWNS Federation and the merged view (§7 the synthesis); §2.2 here measures what it keeps and loses
