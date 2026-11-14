@@ -388,10 +388,11 @@ namespace Fdp.Toolkit.Behavior.Systems
             return previous != Guid.Empty ? previous : Fdp.Toolkit.Behavior.RequestIds.ForStart(entity, instance);
         }
 
-        /// <summary>⭐ <c>CE-4612</c> (R-2090) — whom the edit framework answers (CE-4306 F5): a STATION's request (an Operator's order), not a superior's
-        /// order (its subordinates' reports answer that) nor a resumed task (already answered). <c>Guid.Empty</c> = no reply.</summary>
+        /// <summary>⭐ <c>CE-4612</c> (R-2090) — whom the edit framework answers (CE-4306 F5): every request a STATION made, as before — not an id
+        /// minted here for a commander's order (<see cref="Fdp.Toolkit.Behavior.RequestIds.IsMinted"/>: its subordinates' reports answer it) nor a
+        /// resumed task (already answered). <c>Guid.Empty</c> = no reply.</summary>
         private static Guid ReplyTo(AssignBehaviorEvent evt)
-            => evt.Origin == BehaviorOrigin.Operator && !evt.IsResume ? evt.RequestId : Guid.Empty;
+            => evt.IsResume || Fdp.Toolkit.Behavior.RequestIds.IsMinted(evt.RequestId) ? Guid.Empty : evt.RequestId;
 
         /// <summary>⭐ <c>CE-2081</c> — every slot key in <paramref name="entity"/>'s store, except the SOP slot's.</summary>
         private static unsafe int[] HeldKeysNow(EntityRepository repo, Entity entity, BehaviorRegistry registry)

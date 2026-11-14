@@ -144,7 +144,7 @@ namespace Hrot.CGF.Systems
                     {
                         if (r.Outcome == OrderResolution.Tie) s_aiLog.Error("Entity:[{EntityId}] Node:[TacticalIntentResolutionSystem] | {Detail}", evt.Entity.Index, r.Detail);
                         else s_aiLog.Warn("Entity:[{EntityId}] Node:[TacticalIntentResolutionSystem] | refused: {Detail}", evt.Entity.Index, r.Detail);
-                        Fdp.Toolkit.Replication.Edits.InteractionOutcomes.Refused(repo, evt.Origin == BehaviorOrigin.Operator ? evt.RequestId : System.Guid.Empty, evt.Entity, r.Detail);   // ⭐ CE-4612 (R-2090): a station's request only   // ⭐ CE-4306 (F5): the station that asked is told why
+                        Fdp.Toolkit.Replication.Edits.InteractionOutcomes.Refused(repo, Fdp.Toolkit.Behavior.RequestIds.IsMinted(evt.RequestId) ? System.Guid.Empty : evt.RequestId, evt.Entity, r.Detail);   // ⭐ CE-4612 (R-2090): a station's request only   // ⭐ CE-4306 (F5): the station that asked is told why
                         continue;
                     }
                     behaviorEvent = new AssignBehaviorEvent { Entity = evt.Entity, BehaviorName = r.Behaviour, JsonParams = evt.JsonParams };
