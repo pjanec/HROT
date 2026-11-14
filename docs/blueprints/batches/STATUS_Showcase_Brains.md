@@ -89,3 +89,20 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | CE-7009 casevac on | the squad SOP's reaction passes no params, so how should the showcase turn on 150 m evacuation — a squad-level default, or params on the SOP's reaction? (built opt-in, R-7009) |
 | CE-7036 | under `HROT_PARALLEL_SIM=1` the SOP suites and the drill suite cannot share a run (rotating reds; pre-existing) — gate them separately until the collection fix |
 | CE-2278 kit | the Grenadier and the AssaultRifleman now carry 2 smoke grenades beside their M67s: their grenade mount's ammo total is 6 / 4 (was 4 / 2) — a scenario hash that counts rounds moves |
+
+## 4. Morale — `HANDOFF_Coordinator_To_Showcase_Brains_Morale.md` (dispatched at `d9353eb5d`)
+
+| row | state | where | design folded |
+|---|---|---|---|
+| CE-4584 a burst within 2 × injury radius is a near miss | ✅ | ONE helper `HitModel.NearMiss` (event + UnderFire stamp) — bullets (`BallisticsSystem`) and bursts (`AreaEffectSystem`, people only) both call it | Temperament & Stress §7.6 |
+| CE-7015 the rout | ✅ | `CombatEffective.IsStanding` / `StandingMembers` (fighting AND not broken) — `PlatoonDefend.SlotFailing` both arms + baseline, `PlatoonAttack.AssaultBlack` (relieve AT-9 and abort AT-10); `CombatEffective` itself unchanged; `BrainReads` declares `Stress` | Defend & Attack DA-67 / AT-10; AQ101 §R |
+| CE-4583 the Shelled danger area | ✅ | `ShelledAreas` (3 bursts in 60 s within 15 m ⇒ a 25 m area, cools after 120 s) fed by `ShelledAreaSystem` (after `AreaEffectSystem`); a `GasFootprint` of `Kind = Shelled` ⇒ the route classifier and the danger sensor need no new path; `DangerAreaKinds.Shelled` is bit 0 (the DDS IDL byte is signed); `SquadMarch` avoids it | Squad Tactics §7.7 |
+
+| gate | result |
+|---|---|
+| T-1 feature suites: `Fdp.Toolkits.Tests` AreaEffect + DangerAlongRoute + HitModel · SimHost `SquadManeuverTests|StressSystemTests` · `SimHostCoreLogicPackTests` | 144 / 0 · 273 / 0 · 5 / 0 |
+| new rails, `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1`: SimHost drills + stress · `Fdp.Toolkits.Tests` danger / area | 272 / 1 · 94 / 0 — the 1 is `StressSystemTests.CE2272_…` (`SimTransform` read undeclared), PRE-EXISTING at `0a4a4d364` (clean worktree) |
+| full `Fdp.Toolkits.Tests` | 5003 / 5 — the five S0 rails (`S0IdTypesRailTests` ×3, `S0WalkerTests`, `S0ComponentTypesRailTests`), PRE-EXISTING at `0a4a4d364` |
+| full `Hrot.SimHost.Tests` | 2747 / 7 — `OneBootstrap…`, `CE1431_…`, `CE4208_…`, `UtmEverywhere…`, `CE3345_…` (order-dependent) PRE-EXISTING at `0a4a4d364`; `DemoMissionPlan_…` flaky (green alone); `SimHostCoreLogicPack_EmptyWorld_…` green alone |
+| red-proofs (compiling mutants, restored and touched) | the burst near-miss call removed ⇒ CE4584 red · `SlotFailing` on the fighting count ⇒ CE7015 defend red · `AssaultBlack` on the colour alone ⇒ CE7015 attack red · the 60 s window dropped ⇒ CE4583 red · the classifier ignoring the kind ⇒ CE4583 red |
+| ids | CE-4584, CE-4583, CE-7015 (handoff's); no new ruling |
