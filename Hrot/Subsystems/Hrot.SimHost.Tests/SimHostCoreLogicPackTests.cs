@@ -145,7 +145,9 @@ namespace Hrot.SimHost.Tests
             // ⭐ Buildings Stage 6 (CE-1032, 2026-10-08) — +1: AreaEffectSystem in DamageAssessmentModule (blast and fragments) ⇒ 9.
             // ⭐ R-3039 S2 §7c (2026-10-22) — +1: TrajectoryRestoreSystem in GroundKinematicsModule (a restored mover's path is back) ⇒ 10.
             // ⭐ CE-4391 S-1 (2026-11-10) — +1: BuildingDamageSystem in DamageAssessmentModule (the breaches a burst decided, written into the building's damage entity) ⇒ 11.
-            Assert.Equal(11, pack.SimulationSystems.Count);
+            // ⭐ CE-4583 (2026-11-14) — +1: ShelledAreaSystem in DamageAssessmentModule (the shelled areas, from the same bursts) ⇒ 12.
+            Assert.Equal(12, pack.SimulationSystems.Count);
+            Assert.Contains(pack.SimulationSystems, s => s is Fdp.Toolkit.Squad.DangerArea.ShelledAreaSystem);
 
             // ⛔ And assert the REMOVAL, so a silent re-add is caught rather than merely changing a
             //    count somebody would re-baseline.

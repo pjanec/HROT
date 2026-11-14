@@ -54,8 +54,20 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RUNNER = os.path.join(REPO, "Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0/Hrot.ClusterRunner.dll")
 
 
+def scenario_path(name):
+    """The scenario's file: scenarios/<name>/scenario.json, or — since the scenarios moved into demos/ and showcases/ folders — the one
+    folder of that name anywhere under scenarios/ (the server loads by name the same way)."""
+    flat = os.path.join(REPO, "scenarios", name, "scenario.json")
+    if os.path.exists(flat):
+        return flat
+    for root, dirs, files in os.walk(os.path.join(REPO, "scenarios")):
+        if os.path.basename(root) == name and "scenario.json" in files:
+            return os.path.join(root, "scenario.json")
+    return flat
+
+
 def scenario_names(name):
-    with open(os.path.join(REPO, "scenarios", name, "scenario.json")) as fh:
+    with open(scenario_path(name)) as fh:
         doc = json.load(fh)
     return sorted(e.get("EntityInfo", {}).get("Name") for e in doc["entities"].values() if e.get("EntityInfo", {}).get("Name"))
 
@@ -2563,7 +2575,7 @@ def _if_shots_since(shooters, seq):
 def _geo_origin(scenario):
     """The (lat, lon, alt) origin of the scenario's terrain (its terrain.json), or None."""
     try:
-        with open(os.path.join(REPO, "scenarios", scenario, "scenario.json")) as f:
+        with open(scenario_path(scenario)) as f:
             terrain = json.load(f)["header"].get("terrainName")
         with open(os.path.join(REPO, "assets/terrain", terrain, "terrain.json")) as f:
             o = json.load(f).get("origin")
@@ -5732,7 +5744,7 @@ def main():
         print(f"== {a.scenario}")
         # the scenario's own statement of what it shows and how to judge it (header.description — the backend handoff of 2026-10-20)
         try:
-            with open(os.path.join(REPO, "scenarios", a.scenario, "scenario.json")) as fh:
+            with open(scenario_path(a.scenario)) as fh:
                 desc = (json.load(fh).get("header") or {}).get("description")
             if desc: print(f"   {desc}")
         except (OSError, ValueError):
