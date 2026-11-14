@@ -33,16 +33,20 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>The north-east sample's position.</summary>
         public Vector2 Max => Origin + new Vector2((Cols - 1) * CellSize, (Rows - 1) * CellSize);
 
+        // ⭐ CE-4596 (P-0, V-5) — each height tile's lowest and highest post: MinZ / MaxZ fold over them, and a patch recomputes only the tiles it touched
+        private readonly float[] _tileMin, _tileMax;
+
         public TerrainHeightGrid(Vector2 origin, float cellSize, int cols, int rows, float[] z)
+            : this(origin, cellSize, Validated(cols, rows, cellSize, z))
+        {
+        }
+
+        private static TerrainHeightTiles Validated(int cols, int rows, float cellSize, float[] z)
         {
             if (cols < 2 || rows < 2) throw new ArgumentException($"A height grid needs at least 2×2 samples (got {cols}×{rows}).");
             if (!(cellSize > 0f)) throw new ArgumentException($"A height grid's cell size must be positive (got {cellSize}).");
             if (z.Length != cols * rows) throw new ArgumentException($"A {cols}×{rows} height grid needs {cols * rows} samples (got {z.Length}).");
-            Origin = origin; CellSize = cellSize; Cols = cols; Rows = rows; _z = TerrainHeightTiles.FromRows(z, cols, rows);
-            float lo = float.PositiveInfinity, hi = float.NegativeInfinity;
-            foreach (float v in z) { lo = MathF.Min(lo, v); hi = MathF.Max(hi, v); }
-            MinZ = lo; MaxZ = hi;
-            _blockMax = BlockMaxima(out _blocksX);
+            return TerrainHeightTiles.FromRows(z, cols, rows);
         }
 
         /// <summary>⭐ CE-4365 — a grid over an existing tiled store (the height store's reader).</summary>
@@ -50,30 +54,83 @@ namespace Fdp.Toolkit.Terrain
         {
             if (!(cellSize > 0f)) throw new ArgumentException($"A height grid's cell size must be positive (got {cellSize}).");
             Origin = origin; CellSize = cellSize; Cols = tiles.Cols; Rows = tiles.Rows; _z = tiles;
-            float lo = float.PositiveInfinity, hi = float.NegativeInfinity;
-            for (int r = 0; r < Rows; r++)
-                for (int c = 0; c < Cols; c++) { float v = tiles[c, r]; lo = MathF.Min(lo, v); hi = MathF.Max(hi, v); }
-            MinZ = lo; MaxZ = hi;
-            _blockMax = BlockMaxima(out _blocksX);
+            _tileMin = new float[tiles.TilesX * tiles.TilesY];
+            _tileMax = new float[_tileMin.Length];
+            for (int t = 0; t < _tileMin.Length; t++) TileRange(t % tiles.TilesX, t / tiles.TilesX);
+            (MinZ, MaxZ) = Fold(_tileMin, _tileMax);
+            _blocksX = BlocksX;
+            _blockMax = new float[_blocksX * BlocksY];
+            for (int b = 0; b < _blockMax.Length; b++) _blockMax[b] = BlockMax(b % _blocksX, b / _blocksX);
         }
 
-        private float[] BlockMaxima(out int blocksX)
+        /// <summary>⭐ CE-4596 — a patched grid: the new store, the old grid's tile ranges and block maxima, recomputed where the patch reached.</summary>
+        private TerrainHeightGrid(TerrainHeightGrid from, TerrainHeightTiles tiles, int c0, int r0, int c1, int r1)
         {
-            int cells = Cols - 1, rowsOfCells = Rows - 1;
-            blocksX = (cells + BlockSize - 1) >> BlockShift;
-            int blocksY = (rowsOfCells + BlockSize - 1) >> BlockShift;
-            var m = new float[blocksX * blocksY];
-            for (int by = 0; by < blocksY; by++)
-                for (int bx = 0; bx < blocksX; bx++)
-                {
-                    float hi = float.NegativeInfinity;
-                    int c1 = Math.Min((bx + 1) * BlockSize, Cols - 1), r1 = Math.Min((by + 1) * BlockSize, Rows - 1);
-                    for (int r = by * BlockSize; r <= r1; r++)
-                        for (int c = bx * BlockSize; c <= c1; c++) hi = MathF.Max(hi, this[c, r]);
-                    m[by * blocksX + bx] = hi;
-                }
-            return m;
+            Origin = from.Origin; CellSize = from.CellSize; Cols = from.Cols; Rows = from.Rows; _z = tiles;
+            _tileMin = (float[])from._tileMin.Clone();
+            _tileMax = (float[])from._tileMax.Clone();
+            int ts = TerrainHeightTiles.TileShift;
+            for (int ty = r0 >> ts; ty <= r1 >> ts; ty++)
+                for (int tx = c0 >> ts; tx <= c1 >> ts; tx++) TileRange(tx, ty);
+            (MinZ, MaxZ) = Fold(_tileMin, _tileMax);
+            _blocksX = from._blocksX;
+            _blockMax = (float[])from._blockMax.Clone();
+            // a block's maximum includes its east / north edge posts, so a post on a block boundary belongs to the block before it too
+            int bx0 = Math.Max(c0 - 1, 0) >> BlockShift, by0 = Math.Max(r0 - 1, 0) >> BlockShift;
+            int bx1 = Math.Min(c1 >> BlockShift, _blocksX - 1), by1 = Math.Min(r1 >> BlockShift, BlocksY - 1);
+            for (int by = by0; by <= by1; by++)
+                for (int bx = bx0; bx <= bx1; bx++) _blockMax[by * _blocksX + bx] = BlockMax(bx, by);
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4596</c> (P-0; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md §9.1 V-5) — a NEW grid whose posts in columns
+        /// [<paramref name="c0"/>, <paramref name="c1"/>] × rows [<paramref name="r0"/>, <paramref name="r1"/>] are <paramref name="patch"/>(c, r, z):
+        /// the store copies only the touched tiles (<see cref="TerrainHeightTiles.Patched"/>), the sight skip's block maxima and the MinZ / MaxZ are
+        /// recomputed only where the patch reached. This grid is unchanged (immutable — a reader holding it keeps its world).
+        /// </summary>
+        public TerrainHeightGrid Patched(int c0, int r0, int c1, int r1, Func<int, int, float, float> patch)
+        {
+            c0 = Math.Max(c0, 0); r0 = Math.Max(r0, 0); c1 = Math.Min(c1, Cols - 1); r1 = Math.Min(r1, Rows - 1);
+            var tiles = _z.Patched(c0, r0, c1, r1, patch);
+            return c0 > c1 || r0 > r1 ? new TerrainHeightGrid(this, tiles, 0, 0, -1, -1) : new TerrainHeightGrid(this, tiles, c0, r0, c1, r1);
+        }
+
+        private int BlocksX => ((Cols - 1) + BlockSize - 1) >> BlockShift;
+        private int BlocksY => ((Rows - 1) + BlockSize - 1) >> BlockShift;
+
+        /// <summary>The highest post of block (<paramref name="bx"/>, <paramref name="by"/>), its east / north edge posts included.</summary>
+        private float BlockMax(int bx, int by)
+        {
+            float hi = float.NegativeInfinity;
+            int c1 = Math.Min((bx + 1) * BlockSize, Cols - 1), r1 = Math.Min((by + 1) * BlockSize, Rows - 1);
+            for (int r = by * BlockSize; r <= r1; r++)
+                for (int c = bx * BlockSize; c <= c1; c++) hi = MathF.Max(hi, this[c, r]);
+            return hi;
+        }
+
+        /// <summary>Recomputes tile (<paramref name="tx"/>, <paramref name="ty"/>)'s lowest and highest post (the grid's posts only, not the padding).</summary>
+        private void TileRange(int tx, int ty)
+        {
+            int ts = TerrainHeightTiles.TileShift;
+            float lo = float.PositiveInfinity, hi = float.NegativeInfinity;
+            int ca = tx << ts, ra = ty << ts, cb = Math.Min(ca + TerrainHeightTiles.TileSize, Cols) - 1, rb = Math.Min(ra + TerrainHeightTiles.TileSize, Rows) - 1;
+            for (int r = ra; r <= rb; r++)
+                for (int c = ca; c <= cb; c++) { float v = _z[c, r]; lo = MathF.Min(lo, v); hi = MathF.Max(hi, v); }
+            _tileMin[ty * _z.TilesX + tx] = lo; _tileMax[ty * _z.TilesX + tx] = hi;
+        }
+
+        private static (float Min, float Max) Fold(float[] mins, float[] maxs)
+        {
+            float lo = float.PositiveInfinity, hi = float.NegativeInfinity;
+            for (int i = 0; i < mins.Length; i++) { lo = MathF.Min(lo, mins[i]); hi = MathF.Max(hi, maxs[i]); }
+            return (lo, hi);
+        }
+
+        /// <summary>⭐ CE-4596 — the highest post of the sight skip's block (<paramref name="bx"/>, <paramref name="by"/>) as held (rails compare it to a fresh recompute).</summary>
+        public float BlockMaximum(int bx, int by) => _blockMax[by * _blocksX + bx];
+
+        /// <summary>⭐ CE-4596 — the sight skip's block counts (rails).</summary>
+        public (int X, int Y) BlockCount => (_blocksX, BlocksY);
 
         /// <summary>⭐ CE-4365 — the samples' store (tiles behind an index).</summary>
         public TerrainHeightTiles Tiles => _z;

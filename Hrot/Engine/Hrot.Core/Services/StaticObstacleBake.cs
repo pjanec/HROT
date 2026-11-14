@@ -51,6 +51,13 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     /// <summary>R-244 — the wall-clock quiet period before a bake starts.</summary>
     public const double DebounceSeconds = 0.5;
 
+    /// <summary>
+    /// ⭐ <c>CE-4596</c> (P-0; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md §9.1 V-1) — the LONGEST a change waits for its bake (wall-clock s,
+    /// from the frame the system first sees it): past it the bake starts even while changes keep arriving. 📌 Every change reset the quiet
+    /// period, so a barrage (a breach or a crater every &lt; 0.5 s) postponed every one of them until the shelling stopped.
+    /// </summary>
+    public const double MaxLatencySeconds = 2.0;
+
     private readonly Func<double> _wallSeconds;
     private readonly List<TerrainPrism> _prisms = new();
     private readonly List<Entity> _pending = new();
@@ -65,6 +72,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     private int _bakedBase = int.MinValue;
     private ulong _seenSignature = EmptySignature;
     private double _seenAt;
+    private double _changedSince = double.NaN;   // ⭐ CE-4596 (V-1) — when the change now waiting was first seen (NaN = none waits)
     private int _epoch;   // ⭐ CE-3294 — the world the bake state above describes
 
     private const ulong EmptySignature = 1469598103934665603UL;
@@ -118,7 +126,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         //   the old world's handles, which the reload hands to new entities).
         if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch))
         {
-            _bakedSignature = EmptySignature; _bakedBase = int.MinValue; _seenSignature = EmptySignature; _seenAt = 0;
+            _bakedSignature = EmptySignature; _bakedBase = int.MinValue; _seenSignature = EmptySignature; _seenAt = 0; _changedSince = double.NaN;
             _runningBatch = new List<Entity>();
         }
         AckTheUnbakeable(world);   // ⭐ CE-4427 R-5 — before any early return: a world without the obstacle types hangs nothing either
@@ -158,14 +166,19 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         bool changed = signature != _bakedSignature || ((hasObstacles || navHash != 0 || hasOverlay) && bakery.BaseVersion != _bakedBase);
         if (!changed)
         {
+            _changedSince = double.NaN;
             foreach (var e in _pending) Ack(world, e);   // already in the baked world (e.g. it arrived while that bake ran)
             return;
         }
 
         double now = _wallSeconds();
-        if (signature != _seenSignature) { _seenSignature = signature; _seenAt = now; return; }
-        if (now - _seenAt < DebounceSeconds) return;
+        if (double.IsNaN(_changedSince)) _changedSince = now;
+        // ⭐ CE-4596 (P-0, V-1) — a change never waits past MaxLatencySeconds: under a barrage the quiet period never comes
+        bool overdue = now - _changedSince >= MaxLatencySeconds;
+        if (signature != _seenSignature) { _seenSignature = signature; _seenAt = now; if (!overdue) return; }
+        else if (!overdue && now - _seenAt < DebounceSeconds) return;
 
+        _changedSince = double.NaN;
         StartBake(world, bakery.Residency, damage, signature, hasOverlay);
     }
 
@@ -247,11 +260,11 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         Bakes++;
         LastBakeMilliseconds = bake.Milliseconds;
         BakedParts = bake.Parts; LastDirty = bake.Dirty;
-        if (_liveOverlay != null)   // ⭐ Terrain authoring U-3 / U-6 — the editor's views read the block bounds and the dirty rectangles of THIS bake (one publication, immutable)
-        {
-            world.RegisterManagedComponent<LiveTerrainBakeInfo>();
-            world.SetSingletonManaged(LiveTerrainBakeInfo.From(Bakes, bake.Parts, bake.Dirty));
-        }
+        // ⭐ Terrain authoring U-3 / U-6 — the views read the block bounds and the dirty rectangles of THIS bake (one publication, immutable).
+        // ⭐ CE-4596 (P-0, V-3) — on EVERY host, not the editor's alone: the 3-D map (one map pack for every host) rebuilds only the chunks under
+        //   the rectangles; without it a player or a display node rebuilt the WHOLE 3-D terrain on every obstacle, breach or crater (a pop).
+        world.RegisterManagedComponent<LiveTerrainBakeInfo>();
+        world.SetSingletonManaged(LiveTerrainBakeInfo.From(Bakes, bake.Parts, bake.Dirty));
         FdpLog<StaticObstacleBakeSystem>.Info(
             $"[Obstacles] Baked {bake.Obstacles} static obstacle(s) into the terrain in {bake.Milliseconds} ms; acking {batch.Count}.");
         foreach (var e in batch) Ack(world, e);

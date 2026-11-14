@@ -54,6 +54,7 @@ namespace Fdp.Toolkit.Terrain
         public float GroundHeightAt(float x, float y) => World.GroundHeightAt(x, y);   // ⭐ CE-1034 H1 — the height grid, else the flat ground
 
         public float SurfaceZ(float x, float y, float zHint) => World.SurfaceZ(x, y, zHint);
+        public float HullSurfaceZ(float x, float y, float zHint) => World.HullSurfaceZ(x, y, zHint);   // ⭐ CE-4598 (D-4)
 
         public IReadOnlyList<float> SurfacesAt(float x, float y, out int groundIndex) => World.SurfacesAt(x, y, out groundIndex);
 
@@ -82,6 +83,7 @@ namespace Fdp.Toolkit.Terrain
             Fdp.Toolkit.Diagnostics.QueryTimings.Slot("world.Trace.Sight"),
             Fdp.Toolkit.Diagnostics.QueryTimings.Slot("world.Trace.Fire"),
             Fdp.Toolkit.Diagnostics.QueryTimings.Slot("world.Trace.Sound"),
+            Fdp.Toolkit.Diagnostics.QueryTimings.Slot("world.Trace.Hull"),   // ⭐ CE-4598
         };
 
         public void Trace(Vector3 from, Vector3 to, TracePurpose purpose, List<TraceCrossing> into)
@@ -160,6 +162,21 @@ namespace Fdp.Toolkit.Terrain
                         if (c.Kind == "prism" && c.PathMetres >= SolidFacesMetres)
                             into.Add(new TraceCrossing(c.T, 0f, db, c.TopZ, IsClosedBarrier(c.Kind, c.Building),
                                 c.Kind, c.Label, c.Material, c.Building, c.Storey) { EntryNormal = c.ExitNormal, ExitNormal = c.ExitNormal });
+                    }
+                    break;
+                }
+                case TracePurpose.Hull:
+                {
+                    // ⭐ CE-4598 (B-1; 📄 docs/DESIGN_Vehicle_Breaching.md §7 V-1, V-5, D-4) — the hull guard's question: EVERY wall panel blocks
+                    //   (a free wall too — the guard was blind to garden walls, fences and hedges, so every hull drove through them), within the
+                    //   band below the line, and a building's breach never opens for a hull. ⛔ No woods, no clouds: a hull is not a round.
+                    var fire = t_fire ??= new List<TerrainWorld.FireCrossing>();
+                    World.QueryHull(from, to, fire, Doors, HullTrace.HullBandM);
+                    for (int i = 0; i < fire.Count; i++)
+                    {
+                        var c = fire[i];
+                        into.Add(new TraceCrossing(c.T, c.PathMetres, c.ResistanceMmRha, c.TopZ, IsHullBarrier(c.Kind),
+                            c.Kind, c.Label, c.Material, c.Building, c.Storey) { EntryNormal = c.EntryNormal, ExitNormal = c.ExitNormal });
                     }
                     break;
                 }
@@ -288,5 +305,12 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         public static bool IsClosedBarrier(string kind, string? building)
             => kind is "slab" or "ramp" or "door" || (kind == "panel" && building != null);
+
+        /// <summary>
+        /// ⭐ <c>CE-4598</c> (B-1; 📄 docs/DESIGN_Vehicle_Breaching.md §7 V-1) — what stops a HULL: every wall PANEL, a building's or a free
+        /// wall's, beside the closed barriers. ⛔ Not the blast meaning above (W-7′): a blast diffracts round a garden wall; a hull does not
+        /// drive through one. A solid block is the guard's rise test, not this.
+        /// </summary>
+        public static bool IsHullBarrier(string kind) => kind is "slab" or "ramp" or "door" or "panel";
     }
 }

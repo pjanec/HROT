@@ -2294,5 +2294,240 @@ namespace CarKinem.Tests.Systems
             float onCurve = CarKinematicsSystem.CapLookaheadByChord(pool, 2, 56f, 7.86f, 1.965f);
             Assert.True(onCurve < 4f, $"across the corner the lookahead stays {onCurve:F2} m");
         }
-}
+
+        // ── CE-4598 (B-1; docs/DESIGN_Vehicle_Breaching.md §7 V-1, V-4, V-5, V-14, D-2, D-4) — the hull sees every wall ──
+
+        /// <summary>A free wall (a garden wall, a fence) along y = 10 from x = −20 to 80: <paramref name="kind"/> "wall" or "fence".</summary>
+        private static Fdp.Toolkit.Terrain.TerrainWorld GardenWall(float height, string kind = "wall", string material = "brick", float thickness = 0.3f)
+            => Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
+                "{\"type\":\"Feature\",\"properties\":{\"kind\":\"" + kind + "\",\"label\":\"garden\",\"height\":" +
+                height.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",\"thickness\":" +
+                thickness.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",\"material\":\"" + material + "\"}," +
+                "\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[-20,10],[80,10]]}}]}");
+
+        /// <summary>The northmost corner (y) and the highest Z an AI tank driven north at the free wall reaches in 15 s.</summary>
+        private static (float NorthCorner, float TopZ) DriveAtTheWall(Fdp.Toolkit.Terrain.TerrainWorld world)
+        {
+            var (repo, e, pool) = HullWorld(new Vector2(30f, -15f), FacingNorth, new[] { new Vector3(30f, -15f, 0f), new Vector3(30f, 25f, 0f) },
+                                            mode: KinematicsMode.Direct, recovery: false, world: world);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float north = float.MinValue, topZ = 0f;
+            for (int i = 0; i < 15 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                north = MathF.Max(north, NorthCorner(repo, e));
+                topZ = MathF.Max(topZ, repo.GetComponent<SimTransform>(e).Position.Z);
+            }
+            pool.Dispose();
+            repo.Dispose();
+            return (north, topZ);
+        }
+
+        /// <summary>The y of the hull's northmost corner.</summary>
+        private static float NorthCorner(EntityRepository repo, Entity e)
+        {
+            var p = repo.GetComponent<VehicleParams>(e);
+            var tf = repo.GetComponent<SimTransform>(e);
+            var f = Vector3.Transform(Vector3.UnitX, tf.Rotation);
+            var fwd = Vector2.Normalize(new Vector2(f.X, f.Y));
+            var c = new Vector2(tf.Position.X, tf.Position.Y);
+            float north = float.MinValue;
+            foreach (var (a, b) in new[] { (1f, 1f), (1f, -1f), (-1f, 1f), (-1f, -1f) })
+                north = MathF.Max(north, CarKinem.Controllers.HullClearance.Corner(c, fwd, a * p.Length * 0.5f, b * p.Width * 0.5f).Y);
+            return north;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4598</c> (B-1, V-1, D-2) — an AI tank driven at a garden wall, a fence and a hedge-high wall is HELD at it: no corner ever
+        /// past the wall. 📌 The user's observation: every hull drove through every garden wall — the guard's barrier was the blast meaning
+        /// (a panel WITH a building), blind to free walls. 🔴 Red-proof: trace the guard with <c>TracePurpose.Fire</c> again ⇒ the tank drives
+        /// through all three (the corner reaches y ≈ 28).
+        /// </summary>
+        [Theory]
+        [InlineData(1.0f, "wall", "brick", 0.3f)]     // a brick garden wall
+        [InlineData(1.6f, "fence", "fence-wood", 0.05f)]   // a fence
+        [InlineData(1.5f, "wall", "brick", 0.6f)]     // hedge-high
+        public void CE4598_AnAiHull_IsHeldAtAFreeWall_NeverThroughIt(float height, string kind, string material, float thickness)
+        {
+            var (north, _) = DriveAtTheWall(GardenWall(height, kind, material, thickness));
+            Assert.True(north <= 10f - thickness / 2f + 0.05f, $"a corner reached y={north:F2} — through the {kind} at y=10");
+            Assert.True(north >= 10f - thickness / 2f - 0.8f, $"stopped short: the nose reached only y={north:F2}");   // it drove up to it
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4598</c> (B-1, D-4) — a LOW garden wall (0.4 m, under the 0.5 m step a hull climbs) is MET, never climbed: the hull stays on
+        /// the ground and never crosses it. 🔴 Red-proof: let <c>HullSurfaceZ</c> consider a panel's top ⇒ the tank stands on the wall
+        /// (z 0.4) and drives on over it; drop the hull band (<c>QueryHull</c>'s top + band) ⇒ the 0.5 m probe line runs over the wall.
+        /// </summary>
+        [Fact]
+        public void CE4598_ALowGardenWall_IsMet_NeverClimbed()
+        {
+            var (north, topZ) = DriveAtTheWall(GardenWall(0.4f));
+            Assert.True(topZ < 0.05f, $"the hull climbed onto the wall: z={topZ:F2}");
+            Assert.True(north <= 10f - 0.15f + 0.05f, $"a corner reached y={north:F2} — over the 0.4 m wall");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4598</c> (B-1, V-1, acceptance §7.5 item 11) — a POSSESSED wheeled vehicle at full throttle into a garden wall is held at it
+        /// too (the operator's drive goes through the same guard). 📌 The user saw exactly this one drive through. 🔴 Red-proof: as above.
+        /// </summary>
+        [Fact]
+        public void CE4598_APossessedCar_AtFullThrottle_IsHeldAtAGardenWall()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.PersonalCar, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f });
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
+                "{\"type\":\"Feature\",\"properties\":{\"kind\":\"wall\",\"label\":\"garden\",\"height\":1.0,\"thickness\":0.3,\"material\":\"brick\"}," +
+                "\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[15,-20],[15,20]]}}]}"));
+            float east = float.MinValue;
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            var p = repo.GetComponent<VehicleParams>(e);
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                east = MathF.Max(east, repo.GetComponent<SimTransform>(e).Position.X + p.Length * 0.5f);
+            }
+            Assert.True(east <= 15f - 0.15f + 0.05f, $"the nose reached x={east:F2} — through the wall at x=15");
+            Assert.True(east >= 15f - 0.15f - 1.5f, $"never reached the wall: nose x={east:F2}");
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4598</c> (B-1, V-5, acceptance §7.5 item 13) — a tank driven at a BUILDING wall straight through a Passage breach (its own
+        /// bump, B-D4) is still held outside: a hull never enters a building. 🔴 Red-proof: trace the guard with <c>TracePurpose.Fire</c> ⇒ it
+        /// drives in through the breach (the fire purpose skips breached crossings).
+        /// </summary>
+        [Fact]
+        public void CE4598_ATankAtABuildingBreach_StaysOut()
+        {
+            var w = Fdp.Toolkit.Terrain.Tests.BreachFixtures.House();   // the brick house: south wall x 20..30 at y = 20
+            int south = Fdp.Toolkit.Terrain.Tests.BreachFixtures.SouthWall(w);
+            var (repo, e, pool) = HullWorld(new Vector2(25f, 5f), FacingNorth, new[] { new Vector3(25f, 5f, 0f), new Vector3(25f, 26f, 0f) },
+                                            mode: KinematicsMode.Direct, recovery: false, world: w);
+            repo.RegisterComponent<Fdp.Toolkit.Terrain.BuildingDamage>();
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+            Fdp.Toolkit.Terrain.Tests.BreachFixtures.Damage(repo, w, 0,
+                new Fdp.Toolkit.Terrain.WallBreach(south, 0.5f, 9.5f, 0f, 3f, Fdp.Toolkit.Terrain.BreachKind.Passage));   // the whole wall open
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float north = float.MinValue;
+            for (int i = 0; i < 15 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                north = MathF.Max(north, NorthCorner(repo, e));
+            }
+            Assert.True(north <= 20f - 0.15f + 0.05f, $"a corner reached y={north:F2} — inside the house through its breach");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4598</c> (B-1, V-4, V-14; acceptance §7.5 item 15) — the break gate: only a hull on the Manual branch, held by a LIVE Fps
+        /// possession, outside a replay. A RELEASED hull keeps its <c>ManualDrive</c> (<c>Possession.LetGoOfManual</c>) and may not break; a
+        /// rider holds his own body, not the hull; a replay re-decides nothing. 🔴 Red-proof: gate on <c>HasComponent&lt;ManualDrive&gt;</c>
+        /// ⇒ the released row passes; drop the replay test ⇒ the replay row passes.
+        /// </summary>
+        [Fact]
+        public void CE4598_TheBreakGate_IsALivePlayerDriving_OnTheManualBranch_NeverInAReplay()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Tank, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f });
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
+            bool May() => CarKem_MayBreak(repo, e);
+
+            Assert.False(May());                                                              // Manual, ManualDrive kept, nobody holds it (released)
+            repo.AddComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
+            Assert.True(May());                                                               // a player drives it
+            repo.SetComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Riding, Epoch = 2 });
+            Assert.False(May());                                                              // a rider: not the hull's controls
+            repo.SetComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 3 });
+            var nav = repo.GetComponent<NavState>(e); nav.Mode = KinematicsMode.Direct; repo.SetComponent(e, nav);
+            Assert.False(May());                                                              // an autonomous move (the AI corner)
+            nav.Mode = KinematicsMode.Manual; repo.SetComponent(e, nav);
+            Fdp.Toolkit.Replay.ReplayState.Enter(repo);
+            Assert.False(May());                                                              // a replay
+            Fdp.Toolkit.Replay.ReplayState.Leave(repo);
+            Assert.True(May());
+            repo.RemoveComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(e);
+            Assert.False(May());                                                              // released again
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-6014</c> (found by CE-4598 B-1) — avoidance never steers a hull INTO a wall: a tank driving its path east past a man 1 m off its
+        /// line, a garden wall 0.2 m beyond its other side, keeps its path (the swerve that would hit the wall is dropped) and drives on — never held,
+        /// no corner past the wall. 📌 RoadblockBlastScenarioTests' IFV swerved round a man down and through a wall; with B-1 it was held there for
+        /// good. 🔴 Red-proof: drop the fallback to the path step ⇒ the tank stops at the wall (it never passes x = 60).
+        /// </summary>
+        [Fact]
+        public void CE6014_AvoidanceNeverSteersAHullIntoAWall_TheTankKeepsItsPath()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 5f, startSpeed: 5f, vehicle: VehiclePresets.GetPreset(VehicleClass.Tank));
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
+                "{\"type\":\"Feature\",\"properties\":{\"kind\":\"wall\",\"label\":\"garden\",\"height\":1.0,\"thickness\":0.3,\"material\":\"brick\"}," +
+                "\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[-10,-2.1],[110,-2.1]]}}]}"));
+            Stander(repo, new Vector3(25f, 1f, 0f));   // the man the tank swerves south for (CE3287_ADrivingVehicle_StillSteersRoundAMan)
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            var p = repo.GetComponent<VehicleParams>(e);
+            float east = float.MinValue, south = float.MaxValue;
+            for (int i = 0; i < 25 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                var tf = repo.GetComponent<SimTransform>(e);
+                east = MathF.Max(east, tf.Position.X);
+                var f3 = Vector3.Transform(Vector3.UnitX, tf.Rotation);
+                var fwd = Vector2.Normalize(new Vector2(f3.X, f3.Y));
+                foreach (var (a, b) in new[] { (1f, 1f), (1f, -1f), (-1f, 1f), (-1f, -1f) })
+                    south = MathF.Min(south, CarKinem.Controllers.HullClearance.Corner(new Vector2(tf.Position.X, tf.Position.Y), fwd, a * p.Length * 0.5f, b * p.Width * 0.5f).Y);
+            }
+            Assert.True(east > 60f, $"held at the wall: it reached only x={east:F1}");
+            Assert.True(south >= -1.95f - 0.05f, $"a corner reached y={south:F2} — through the wall's face at -1.95");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-6014</c> — a vehicle does not swerve for a man DOWN who lies clear of its hull's way (2.5 m off its line, the tank 3.5 m wide):
+        /// it drives straight past; the same man STANDING there is still given way to, and a man down IN its way still makes it swerve.
+        /// 📌 RoadblockBlastScenarioTests: the IFV swerved 7 m round a body at the gate's jamb into the wall. 🔴 Red-proof: drop the
+        /// <c>InHullsWay</c> skip ⇒ the down row swerves like the standing one.
+        /// </summary>
+        [Theory]
+        [InlineData(-2.6f, 0f, false)]    // down, clear of the hull: no swerve
+        [InlineData(-2.6f, 100f, true)]   // the same man standing: give way
+        [InlineData(0.5f, 0f, true)]      // down in its way: swerve round him
+        public void CE6014_AVehicle_SwervesForAManDown_OnlyWhenHeLiesInItsWay(float manY, float health, bool swerves)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 5f, startSpeed: 5f, vehicle: VehiclePresets.GetPreset(VehicleClass.Tank));
+            var man = Stander(repo, new Vector3(25f, manY, 0f));
+            Hurt(repo, man, health);
+            Hurt(repo, e, 100f);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float most = 0f;
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                most = MathF.Max(most, MathF.Abs(repo.GetComponent<SimTransform>(e).Position.Y));
+            }
+            if (swerves) Assert.True(most > 0.3f, $"it ran straight past the man (most {most:F2} m off the line)");
+            else Assert.True(most < 0.1f, $"it swerved {most:F2} m for a man down clear of its way");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        private static bool CarKem_MayBreak(EntityRepository repo, Entity e)
+            => CarKinem.Controllers.HullBreakGate.MayBreak(repo, e, repo.GetComponent<NavState>(e));
+    }
 }

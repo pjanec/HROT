@@ -304,7 +304,16 @@ namespace Fdp.Toolkit.Terrain
         /// and a unit walking under it stays on the ground. When every candidate is above the reach (a unit
         /// spawned at Z=0 inside a building footprint), the LOWEST candidate wins.
         /// </summary>
-        public float SurfaceZ(float x, float y, float zHint)
+        public float SurfaceZ(float x, float y, float zHint) => SurfaceZCore(x, y, zHint, hull: false);
+
+        /// <summary>
+        /// ⭐ <c>CE-4598</c> (B-1; 📄 docs/DESIGN_Vehicle_Breaching.md §7 D-4) — the surface a vehicle's HULL rests on: <see cref="SurfaceZ"/>
+        /// with no wall panel's top as a candidate. 📌 A panel's top within <see cref="StepHeight"/> was a surface, so a hull drove up onto a
+        /// 0.4 m garden wall and over it; a low wall is MET (the hull trace stops it), never climbed. A kerb (ground) and a slab are unchanged.
+        /// </summary>
+        public float HullSurfaceZ(float x, float y, float zHint) => SurfaceZCore(x, y, zHint, hull: true);
+
+        private float SurfaceZCore(float x, float y, float zHint, bool hull)
         {
             var p = new Vector2(x, y);
             float best = float.NegativeInfinity;
@@ -327,6 +336,7 @@ namespace Fdp.Toolkit.Terrain
                 //   wall's top (3 m) became the only surface, and the agent's Z hint then held it on the upper floor's slab. The same
                 //   rule as the ground mesh (TerrainWorldMesh: a panel keeps its ground). Its top is still a candidate surface.
                 if (prism.BaseZ <= reach && prism.Panel < 0) insideSolid = true;
+                if (hull && prism.Panel >= 0) continue;   // ⭐ CE-4598 (D-4) — a panel's top is never a hull's surface
                 Consider(prism.TopZ, reach, ref best, ref lowest);
             }
 
@@ -636,6 +646,30 @@ namespace Fdp.Toolkit.Terrain
             return damage.Opens(panel, along, z);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4598</c> (B-1; 📄 docs/DESIGN_Vehicle_Breaching.md §7 V-5) — does a breach let a HULL through this panel crossing? ⛔ Never in a
+        /// building's panel (a hull never enters a building — the tank stays out of its own bump, R-3025). In a free wall: when the breach is
+        /// open at the crossing's mid-point both just above the wall's base and at the line's height (clamped under the wall's top) — a gap a
+        /// hull drives through, not a hole above its wheels. Whether it is WIDE enough is the cut's size (B-3, V-9).
+        /// </summary>
+        private bool HullBreachOpen(DoorStates? doors, TerrainPrism prism, Vector3 from, Vector3 to, float lo, float hi)
+        {
+            var damage = doors?.Damage;
+            int panel = prism.Panel;
+            if (damage == null || panel < 0 || panel >= Panels.Count || !damage.HasBreaches(panel)) return false;
+            var p = Panels[panel];
+            if (p.Building >= 0) return false;
+            var d = p.B - p.A;
+            float len = d.Length();
+            if (len <= 1e-6f) return false;
+            float tm = (lo + hi) * 0.5f;
+            float x = from.X + (to.X - from.X) * tm, y = from.Y + (to.Y - from.Y) * tm, z = from.Z + (to.Z - from.Z) * tm;
+            float along = ((x - p.A.X) * d.X + (y - p.A.Y) * d.Y) / len;
+            const float inside = 0.05f;
+            return damage.Opens(panel, along, prism.BaseZ + inside)
+                && damage.Opens(panel, along, MathF.Max(prism.BaseZ + inside, MathF.Min(z, prism.TopZ - inside)));
+        }
+
         /// <summary>Clips the parameter interval [<paramref name="lo"/>, <paramref name="hi"/>] to where the line is within <paramref name="prism"/>'s height.</summary>
         private static void ClipToHeight(TerrainPrism prism, float fromZ, float dz, ref float lo, ref float hi)
         {
@@ -835,8 +869,23 @@ namespace Fdp.Toolkit.Terrain
         }
         private static readonly int S_QueryFire = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("terrain.QueryFire");   // ⭐ CE-3427
 
-        private void QueryFireCore(Vector3 from, Vector3 to, List<FireCrossing> into, DoorStates? doors = null)
+        /// <summary>
+        /// ⭐ <c>CE-4598</c> (B-1; 📄 docs/DESIGN_Vehicle_Breaching.md §7 V-1, V-5, D-4) — the HULL form of <see cref="QueryFire(Vector3, Vector3, List{FireCrossing}, DoorStates?)"/>:
+        /// the same crossings, except that ① a wall panel or a shut door leaf is met when the line runs up to <paramref name="bandM"/> above its
+        /// top (the hull's body below the probe line), and ② a breach in a BUILDING's panel never opens (a hull never enters a building, R-3025)
+        /// while a breach in a free wall opens when it is open from the wall's base to the line (or its top). ⛔ No allocation.
+        /// </summary>
+        public void QueryHull(Vector3 from, Vector3 to, List<FireCrossing> into, DoorStates? doors, float bandM)
         {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            QueryFireCore(from, to, into, doors, bandM > 0f ? bandM : 1e-4f);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_QueryHull, t0);
+        }
+        private static readonly int S_QueryHull = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("terrain.QueryHull");   // ⭐ CE-4598
+
+        private void QueryFireCore(Vector3 from, Vector3 to, List<FireCrossing> into, DoorStates? doors = null, float hullBand = 0f)
+        {
+            bool hull = hullBand > 0f;
             into.Clear();
             var a = new Vector2(from.X, from.Y);
             var b = new Vector2(to.X, to.Y);
@@ -877,18 +926,25 @@ namespace Fdp.Toolkit.Terrain
                 {
                     // the part of [t0, t1] where the line is also within the piece's height
                     float lo = t0, hi = t1;
+                    // ⭐ CE-4598 (D-4) — for a HULL a wall panel or a door leaf reaches the band above its top: the hull's body under the line
+                    bool banded = hull && pi >= 0 && (pi >= Prisms.Count || prism.Panel >= 0);
+                    float top = banded ? prism.TopZ + hullBand : prism.TopZ;
                     if (MathF.Abs(dz) < 1e-6f)
                     {
-                        if (!(from.Z > prism.BaseZ && from.Z < prism.TopZ)) continue;
+                        if (!(from.Z > prism.BaseZ && from.Z < top)) continue;
                     }
                     else
                     {
-                        float ta = (prism.BaseZ - from.Z) / dz, tb = (prism.TopZ - from.Z) / dz;
+                        float ta = (prism.BaseZ - from.Z) / dz, tb = (top - from.Z) / dz;
                         lo = MathF.Max(lo, MathF.Min(ta, tb));
                         hi = MathF.Min(hi, MathF.Max(ta, tb));
                     }
                     if (hi <= lo) continue;
-                    if (pi >= 0 && pi < Prisms.Count && prism.Panel >= 0 && CrossingBreached(doors, prism.Panel, from, to, lo, hi)) continue;   // ⭐ CE-4391 B-8
+                    if (pi >= 0 && pi < Prisms.Count && prism.Panel >= 0)
+                    {
+                        if (!hull) { if (CrossingBreached(doors, prism.Panel, from, to, lo, hi)) continue; }   // ⭐ CE-4391 B-8
+                        else if (HullBreachOpen(doors, prism, from, to, lo, hi)) continue;                    // ⭐ CE-4598 (V-5)
+                    }
                     var panel = prism.Panel >= 0 && prism.Panel < Panels.Count ? Panels[prism.Panel] : null;
                     string? building = panel != null && panel.Building >= 0 && panel.Building < Buildings.Count ? Buildings[panel.Building].Label : null;
                     float path = (hi - lo) * length;

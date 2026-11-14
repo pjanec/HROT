@@ -411,6 +411,105 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
 
+        // ── CE-4598 (B-1; docs/DESIGN_Vehicle_Breaching.md §7 V-1, V-5, D-4) — the HULL purpose of the trace ─────────────────────────
+
+        /// <summary>The brick house plus a 1 m brick garden wall along y = 10 from x = 0 to 40.</summary>
+        private static TerrainWorld HouseAndGardenWall() => TerrainWorldParser.Parse("""
+            { "type": "FeatureCollection", "features": [ { "type": "Feature",
+                "properties": { "kind": "building", "label": "H",
+                  "building": { "footprint": [[0,0],[10,0],[10,8],[0,8]],
+                    "storeys": [ { "height": 3, "walls": [
+                      { "from": [0,0], "to": [10,0], "thickness": 0.3, "material": "brick" },
+                      { "from": [10,0], "to": [10,8], "thickness": 0.3, "material": "brick" },
+                      { "from": [10,8], "to": [0,8], "thickness": 0.3, "material": "brick" },
+                      { "from": [0,8], "to": [0,0], "thickness": 0.3, "material": "brick" } ] } ] } },
+                "geometry": { "type": "Point", "coordinates": [20, 20] } },
+              { "type": "Feature", "properties": { "kind": "wall", "label": "garden", "height": 1.0, "thickness": 0.3, "material": "brick" },
+                "geometry": { "type": "LineString", "coordinates": [[0,10],[40,10]] } } ] }
+            """, "range");
+
+        private static int GardenPanel(TerrainWorld w) => Array.FindIndex(w.Panels.ToArray(), p => p.Building < 0);
+
+        private static bool HullBlocked(TerrainWorldQuery q, Vector3 a, Vector3 b, List<Fdp.Toolkit.World.TraceCrossing> into)
+        {
+            q.Trace(a, b, Fdp.Toolkit.World.TracePurpose.Hull, into);
+            foreach (var c in into) if (c.ClosedBarrier) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4598</c> (B-1, V-1, D-4) — the hull purpose MEETS a free wall the fire purpose's barrier meaning ignores (W-7′: a blast
+        /// diffracts round a garden wall), at the hull's probe height 0.5 m above the ground and even 0.4 m over a 1 m wall's top (the hull's
+        /// body below the line); a line 0.6 m over it passes. 🔴 Red-proof: <c>IsHullBarrier</c> = <c>IsClosedBarrier</c> ⇒ the first
+        /// assertion fails; drop the band in <c>QueryFireCore</c> ⇒ the "over its top" assertion fails.
+        /// </summary>
+        [Fact]
+        public void Hull_AFreeWall_BlocksAHull_ButIsNoClosedBarrierForABlast()
+        {
+            var w = HouseAndGardenWall();
+            var q = new TerrainWorldQuery(w, DoorStates.Of(new EntityRepository(), w));
+            var into = new List<Fdp.Toolkit.World.TraceCrossing>();
+            Assert.True(HullBlocked(q, new Vector3(5f, 5f, 0.5f), new Vector3(5f, 15f, 0.5f), into), "a hull's line at 0.5 m");
+            q.Trace(new Vector3(5f, 5f, 0.5f), new Vector3(5f, 15f, 0.5f), Fdp.Toolkit.World.TracePurpose.Fire, into);
+            Assert.All(into, c => Assert.False(c.ClosedBarrier));                                          // the blast meaning is unchanged
+            Assert.True(HullBlocked(q, new Vector3(5f, 5f, 1.4f), new Vector3(5f, 15f, 1.4f), into), "a line 0.4 m over its top: the hull's body meets it");
+            Assert.False(HullBlocked(q, new Vector3(5f, 5f, 1.6f), new Vector3(5f, 15f, 1.6f), into), "a line 0.6 m over its top passes");
+            Assert.Equal(0f, w.HullSurfaceZ(5f, 10f, 0.5f), 3);                                            // its top (within a step of 0.5) is never a hull's surface
+            Assert.Equal(1f, w.SurfaceZ(5f, 10f, 0.5f), 3);                                                // a man's surface is unchanged
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4598</c> (B-1, V-5) — a breach opens a FREE wall for a hull when it is open from the wall's base, and NEVER opens a
+        /// building's wall for a hull (R-3025: it never enters a building) — while sight and fire pass both. 🔴 Red-proof: in
+        /// <c>HullBreachOpen</c> drop the <c>Building &gt;= 0</c> test ⇒ the building assertion fails; test only the line's height ⇒ the
+        /// raised-hole assertion fails.
+        /// </summary>
+        [Fact]
+        public void Hull_AFreeWallBreachOpens_ABuildingBreachNever_AndARaisedHoleNever()
+        {
+            var w = HouseAndGardenWall();
+            int south = BreachFixtures.SouthWall(w), garden = GardenPanel(w);
+            using var repo = BreachFixtures.World(w);
+            BreachFixtures.Damage(repo, w, 0,
+                new WallBreach(south, 4f, 6f, 0f, 2.2f, BreachKind.Passage),
+                new WallBreach(garden, 4f, 8f, 0f, 1.0f, BreachKind.Passage),     // x 4..8 of the garden wall, base to top
+                new WallBreach(garden, 20f, 24f, 0.3f, 1.0f, BreachKind.Hole));   // x 20..24, a hole above 0.3 m
+            var q = new TerrainWorldQuery(w, DoorStates.Of(repo, w));
+            var into = new List<Fdp.Toolkit.World.TraceCrossing>();
+            Assert.False(HullBlocked(q, new Vector3(6f, 5f, 0.5f), new Vector3(6f, 15f, 0.5f), into), "through the garden wall's gap");
+            Assert.True(HullBlocked(q, new Vector3(12f, 5f, 0.5f), new Vector3(12f, 15f, 0.5f), into), "the garden wall beside the gap");
+            Assert.True(HullBlocked(q, new Vector3(22f, 5f, 0.5f), new Vector3(22f, 15f, 0.5f), into), "a hole that does not reach the ground");
+            Assert.True(HullBlocked(q, new Vector3(25f, 15f, 0.5f), new Vector3(25f, 25f, 0.5f), into), "the building's breach: never for a hull");
+            Assert.False(w.SegmentBlocked(new Vector3(25f, 15f, 1.5f), new Vector3(25f, 25f, 1.5f), DoorStates.Of(repo, w)), "sight passes the building's breach");
+        }
+
+        /// <summary>⭐ <c>CE-4598</c> (R-2084) — the hull trace and the hull surface every vehicle asks every step allocate nothing once warm.</summary>
+        [Fact]
+        public void Hull_TheTraceAndTheSurface_AllocateNothing()
+        {
+            var w = HouseAndGardenWall();
+            int garden = GardenPanel(w);
+            using var repo = BreachFixtures.World(w);
+            BreachFixtures.Damage(repo, w, 0, new WallBreach(garden, 4f, 8f, 0f, 1.0f, BreachKind.Passage));
+            var q = new TerrainWorldQuery(w, DoorStates.Of(repo, w));
+            var into = new List<Fdp.Toolkit.World.TraceCrossing>(8);
+            float sink = 0f;
+            void Run()
+            {
+                for (int x = 2; x < 30; x += 4)
+                {
+                    q.Trace(new Vector3(x, 5f, 0.5f), new Vector3(x, 15f, 0.5f), Fdp.Toolkit.World.TracePurpose.Hull, into);
+                    sink += into.Count + q.HullSurfaceZ(x, 10f, 0f);
+                }
+            }
+            Run(); Run();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 50; i++) Run();
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.True(sink > 0f);
+        }
+
+
         // ── S-2: the collapse — content, rule, the view's mound, the traces ───────────────────────────────────────
 
         [Fact]

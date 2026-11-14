@@ -553,10 +553,41 @@ namespace CarKinem.Systems
             }
             else
             {
+                var pos0 = pos2D; var fwd0 = fwd2D; var state0 = state;
                 yawRate = BicycleModel.Integrate(ref pos2D, ref fwd2D, ref state, steerAngle, accel, dt, @params.WheelBase,
                     nav.ReverseAllowed == 1 ? @params.MaxSpeedRev : 0f,   // ⭐ CE-2167 (V5) — reverse when allowed
                     @params.MaxSpeedFwd > 0f ? @params.MaxSpeedFwd : float.MaxValue,   // 0 = an unknown profile (CE-103): no cap
                     @params.MaxLatAccel);   // ⭐ CE-4345 — the turn falls with speed
+                // ⭐⭐ CE-6014 (found by CE-4598 B-1; 📄 docs/DESIGN_Vehicle_Breaching.md §7.8) — AVOIDANCE NEVER STEERS A HULL INTO A WALL: when
+                //   avoidance bent this step and the bent step is one the hull guard would hold, the PATH's step is taken instead (the swerve is
+                //   dropped for this tick). 📌 RoadblockBlastScenarioTests: an IFV swerved round a man down 4 m off its line and crossed a 3 m
+                //   wall beside the gate; once the guard saw free walls (B-1) it was held there, swerved again after every back-out, and never
+                //   arrived. Only a step avoidance bent pays the extra trace.
+                if (avoidanceVelocity != desiredVelocity && _terrain != null && HullClearance.HasHull(in @params) && dt > 0f)
+                {
+                    var from = new Vector2(tf.Position.X, tf.Position.Y);
+                    var facing = FacingOf(tf.Rotation);
+                    // the swerve is judged a short way AHEAD (a second at this speed, ≥ 2 m), not one step: a step at a time the hull turns
+                    // toward the wall long before a single step meets it, and then no step — the path's either — gets it out
+                    float ahead = MathF.Max(MathF.Abs(state.Speed) * SwerveLookaheadSeconds, SwerveLookaheadMinM) * (state.Speed < 0f ? -1f : 1f);
+                    var bentAhead = pos2D + fwd2D * ahead;
+                    float zBent = _terrain.HullSurfaceZ(bentAhead.X, bentAhead.Y, tf.Position.Z);
+                    if (HullClearance.StepBlocked(_terrain, from, facing, tf.Position.Z, bentAhead, fwd2D, zBent, @params.Length, @params.Width))
+                    {
+                        float pathSteer = PurePursuitController.CalculateSteering(pos0, fwd0, desiredVelocity, state0.Speed, @params.WheelBase,
+                            @params.LookaheadTimeMin, @params.LookaheadTimeMax, @params.MaxSteerAngle, speedSign < 0f);
+                        var pathPos = pos0; var pathFwd = fwd0; var pathState = state0;
+                        float pathYaw = BicycleModel.Integrate(ref pathPos, ref pathFwd, ref pathState, pathSteer, accel, dt, @params.WheelBase,
+                            nav.ReverseAllowed == 1 ? @params.MaxSpeedRev : 0f,
+                            @params.MaxSpeedFwd > 0f ? @params.MaxSpeedFwd : float.MaxValue,
+                            @params.MaxLatAccel);
+                        float zPath = _terrain.HullSurfaceZ(pathPos.X, pathPos.Y, tf.Position.Z);
+                        if (!HullClearance.StepBlocked(_terrain, from, facing, tf.Position.Z, pathPos, pathFwd, zPath, @params.Length, @params.Width))
+                        {
+                            pos2D = pathPos; fwd2D = pathFwd; state = pathState; yawRate = pathYaw;
+                        }
+                    }
+                }
             }
 
             // ⭐ CE-2304 — an AI WALKER's step stays on the walkable mesh too (CE-3181's rule for an operator's, ManualMotion.KeepOnNavmesh):
@@ -686,8 +717,9 @@ namespace CarKinem.Systems
             // ⭐⭐ W8 (R-182) — the movement model itself puts the vehicle on the surface under it: the
             //   ground, a roof, or the floor nearest its current Z (a garage deck). There is NO separate
             //   ground-clamp step. Without a terrain world the Z is kept, as before.
+            // ⭐ CE-4598 (B-1, D-4) — a HULL's surface never includes a wall panel's top: a vehicle meets a low garden wall, never drives onto it
             float z = _terrain != null && Clamped(repo, entity)
-                ? _terrain.SurfaceZ(pos2D.X, pos2D.Y, tf.Position.Z)
+                ? (person ? _terrain.SurfaceZ(pos2D.X, pos2D.Y, tf.Position.Z) : _terrain.HullSurfaceZ(pos2D.X, pos2D.Y, tf.Position.Z))
                 : tf.Position.Z;
             // ⭐ CE-3145 (R-247) — A PERSON NEVER STEPS OFF A LEDGE: standing on a floor, a step whose floor is more than
             //   HumanGait.MaxStepDown lower is not taken (he stays, stopped). Stairs and ramps descend in small steps, so they pass.
@@ -947,6 +979,10 @@ namespace CarKinem.Systems
         /// only the roof (the footprint is solid), and a tank that overshot into a building was lifted onto its 15 m roof.</summary>
         public const float VehicleMaxStepM = 0.5f, VehicleMaxClimbSlope = 1.0f;
 
+        /// <summary>⭐ <c>CE-6014</c> — how far ahead an avoidance swerve is checked against the hull guard: this many seconds at the current
+        /// speed, at least <see cref="SwerveLookaheadMinM"/>.</summary>
+        public const float SwerveLookaheadSeconds = 1f, SwerveLookaheadMinM = 2f;
+
         /// <summary>⭐ <c>CE-2198</c> — the height above its wheels a vehicle's step is traced at (m): below a window's sill, so a wall with a
         /// window is still a wall.</summary>
         public const float HullProbeM = 0.5f;
@@ -1000,6 +1036,24 @@ namespace CarKinem.Systems
         }
 
         // THREAD-SAFE: Read-only access to neighbors, writes only to local stack vars
+        /// <summary>⭐ <c>CE-6014</c> — the clearance (m) beyond a hull's half-width within which a man down still counts as in its way.</summary>
+        public const float ManDownHullMarginM = 0.5f;
+
+        /// <summary>
+        /// ⭐ <c>CE-6014</c> — does a man down at <paramref name="man"/> lie in the hull's way: ahead of it along <paramref name="way"/> (or beside its
+        /// body) and within half its width + <see cref="ManDownHullMarginM"/> of the line it drives? No way (standing) ⇒ yes (avoid as before).
+        /// </summary>
+        internal static bool InHullsWay(Vector2 man, Vector2 self, Vector2 way, in VehicleParams p)
+        {
+            if (way.LengthSquared() < 1e-6f) return true;
+            var dir = Vector2.Normalize(way);
+            var to = man - self;
+            float along = Vector2.Dot(to, dir);
+            if (along < -p.Length * 0.5f) return false;   // behind the hull
+            float side = MathF.Abs(to.X * dir.Y - to.Y * dir.X);
+            return side <= p.Width * 0.5f + ManDownHullMarginM;
+        }
+
         private Vector2 ApplyCollisionAvoidance(Vector2 preferredVel, Vector2 selfPos, float selfZ,
             Vector2 selfVel, SpatialHashGrid spatialGrid, VehicleParams @params, EntityRepository repo, Entity self)
         {
@@ -1030,6 +1084,14 @@ namespace CarKinem.Systems
                     && Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.IsPerson(repo, neighborEntity)
                     && !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, neighborEntity)
                     && NoWayRound(repo, self, pos, selfPos, selfZ, preferredVel, @params.AvoidanceRadius * 2f)) continue;
+                // ⭐⭐ CE-6014 (found by CE-4598 B-1) — a VEHICLE swerves for a man down only when he lies in its hull's way: a body does not
+                //   move, so reactive avoidance (made for movers) has nothing to give way to unless the hull would run over him. 📌
+                //   RoadblockBlastScenarioTests: the charge man's body lay at the gate's jamb, 2 m clear of the IFV's hull on its path; the
+                //   IFV swerved 7 m north round him into the wall beside the 6 m gate (before B-1 straight THROUGH the concrete).
+                if (@params.Class != VehicleClass.Pedestrian && _health && !neighborEntity.IsNull
+                    && Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.IsPerson(repo, neighborEntity)
+                    && !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, neighborEntity)
+                    && !InHullsWay(pos, selfPos, preferredVel, in @params)) continue;
                 
                 // neighborEntity is a full Entity handle (Index + Generation) — no reconstruction needed.
                 // Check if entity is valid and has SimVelocity (universal)

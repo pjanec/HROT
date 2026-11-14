@@ -452,3 +452,59 @@ correctness (determinism, replication, replay, threads) · the terrain pipeline 
 | **P-5** ground shapes | CE-4592 | G-14…G-19 + V-27 (a sibling unmanaged `GroundFeature` component) · V-28 (draw order — newest wins; the live preview shows house / road islands; Level / Lower re-level corridors like Raise) |
 | **P-6** ditches + foxholes | CE-4593 | G-26…G-29, G-36…G-38 + V-29 (all-round foxhole points; a cover stage in the all-round defence; re-plan when the cover set changes) · V-30 (cover points on the ditch FLOOR, a pair facing each bank) |
 
+
+### 9.6 As built — P-0 *(`terrain` lane, `2026-11-14`, CE-4596)*
+
+```mermaid
+classDiagram
+  direction LR
+  class TerrainHeightTiles {
+    <<existing, CHANGED>>
+    float[][] tiles - one array per 256 x 256 tile
+    this[c, r] 0 B
+    + Patched(c0, r0, c1, r1, patch) copies touched tiles, shares the rest
+    + SharesTile(other, tx, ty)
+  }
+  class TerrainHeightGrid {
+    <<existing, EXTENDED>>
+    tile min / max per tile - MinZ, MaxZ fold over them
+    block maxima - the sight skip
+    + Patched(c0, r0, c1, r1, patch) recomputes touched tiles and blocks only
+    + BlockMaximum(bx, by) · BlockCount
+  }
+  class StaticObstacleBakeSystem {
+    <<existing, EXTENDED>>
+    + MaxLatencySeconds = 2 - a change never waits longer
+    + publishes LiveTerrainBakeInfo on EVERY host
+  }
+  class LiveTerrainBakeInfo {
+    <<existing>>
+    Bakes · Dirty rectangles · Blocks (editor only)
+  }
+  class LiveTerrainChanges {
+    <<existing, ui>>
+    the 3-D map's ChangedAreas - one map pack for every host
+  }
+  TerrainHeightGrid *-- TerrainHeightTiles
+  StaticObstacleBakeSystem --> LiveTerrainBakeInfo : after each commit
+  LiveTerrainChanges ..> LiveTerrainBakeInfo : reads
+```
+*What it shows that prose hid: the dirty rectangles were already computed on every host (`TerrainResidency.DirtyRegions`), and the 3-D map that
+reads them is the ONE map pack every host builds (`MapInteractionPack`) — only the publication was editor-gated. So V-3 is one gate removed, not a
+new path. The height store's patch is the primitive P-1, P-3, P-4 and P-5 call; nothing patches heights at runtime yet.*
+
+| claim | code — as built | design |
+|---|---|---|
+| a patch copies only the touched tiles | `TerrainHeightTiles.Patched` clones the tile index and the touched tiles; `SharesTile` proves the rest are the same arrays | V-5 |
+| the sight skip and MinZ / MaxZ follow a patch | `TerrainHeightGrid.Patched` — per-tile min / max recomputed for touched tiles, folded; block maxima for touched blocks (a boundary post belongs to the block before it too) | V-5 |
+| a steady read allocates nothing | `this[c, r]` = `_tiles[t][i]`; rail `HeightStoreTests.CE4596_ReadingAPatchedGrid_AllocatesNothing` | R-2084 |
+| dirty rectangles on every host | `StaticObstacleBakeSystem.Finish` publishes `LiveTerrainBakeInfo` with no `LiveOverlay` gate; the map pack wires `LiveTerrainChanges` on every host | V-3 |
+| a barrage cannot starve the bake | `MaxLatencySeconds` (2 s) from the frame a change is first seen | V-1 |
+| a crater's own dirty rectangle and heights | ⛔ not here — P-4 (`GroundDamage` in `DirtyRegions`, V-4) and P-1 / P-3 (pads) call `Patched` | §9.5 |
+
+⭐ **Lane decision (for the user's review):** [R-5003](blueprints/RULINGS.md) the latency cap is 2 s (four quiet periods; a scale-1 bake is ~4–5 s,
+so under a barrage a node bakes about back-to-back — the design's "bake after ≤ N s however busy" with N chosen here).
+
+Rails: `HeightStoreTests.CE4596_*` (a patch shares every untouched tile; a patched grid has a fresh grid's blocks and range, the lowered peak
+included; 0 B reads), `StaticObstacleBakeTests.CE4596_*` (a barrage still bakes within the cap; a host with no live overlay publishes the dirty
+rectangles). ⚠ The rails stand for the cluster and display hosts by construction (one system, no host gate left); there is no per-host rail.

@@ -12,6 +12,21 @@ namespace Fdp.Toolkit.World
         Fire = 1,
         /// <summary>How much a sound loses: each crossing's <see cref="TraceCrossing.Loss"/> is an attenuation in dB (slice Q3).</summary>
         Sound = 2,
+        /// <summary>⭐ <c>CE-4598</c> (B-1; 📄 docs/DESIGN_Vehicle_Breaching.md §7 V-1, V-5, D-4) — can a vehicle's HULL pass along the line (the
+        /// hull guard, R-3025): <see cref="TraceCrossing.ClosedBarrier"/> marks EVERY wall panel — a building's and a free wall's (a garden wall,
+        /// a fence, a hedge) — a door and a slab; a panel within <see cref="HullTrace.HullBandM"/> below the line is met even when the line runs over its top
+        /// (a low wall is met, never climbed); a breach in a BUILDING's panel never opens for a hull (it never enters a building), a breach in a
+        /// free wall does. <see cref="TraceCrossing.Loss"/> is the fire resistance (mm RHA), as for <see cref="Fire"/>.</summary>
+        Hull = 3,
+    }
+
+    /// <summary>⭐ <c>CE-4598</c> (B-1) — the hull purpose's constants.</summary>
+    public static class HullTrace
+    {
+        /// <summary>The height (m) below a hull trace's line that a wall panel still meets the hull: the hull's body from its wheels to the
+        /// probe (<c>CarKinematicsSystem.HullProbeM</c>, the line's height above the ground). A panel whose top is within this below the line
+        /// is crossed (D-4 — a 0.4 m garden wall is met, not passed over).</summary>
+        public const float HullBandM = 0.5f;
     }
 
     /// <summary>
@@ -62,6 +77,11 @@ namespace Fdp.Toolkit.World
 
         /// <summary>The surface something at (x, y) stands on when it is near <paramref name="zHint"/>: the ground, a roof, a floor.</summary>
         float SurfaceZ(float x, float y, float zHint);
+
+        /// <summary>⭐ <c>CE-4598</c> (B-1, 📄 docs/DESIGN_Vehicle_Breaching.md §7 D-4) — the surface a vehicle's HULL rests on at (x, y): as
+        /// <see cref="SurfaceZ"/>, except that a wall panel's top is never one (a low garden wall is met, never climbed onto). A world with no
+        /// panels answers <see cref="SurfaceZ"/>.</summary>
+        float HullSurfaceZ(float x, float y, float zHint) => SurfaceZ(x, y, zHint);
 
         /// <summary>The walkable surfaces stacked at (x, y), lowest first; <paramref name="groundIndex"/> is the ground's entry.</summary>
         IReadOnlyList<float> SurfacesAt(float x, float y, out int groundIndex);

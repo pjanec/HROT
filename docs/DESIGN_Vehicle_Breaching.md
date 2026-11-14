@@ -377,3 +377,80 @@ writer. A point that lands on an obstacle becomes today's entity order, so one c
 | Rejected: a felled tree as a log on the ground | UTM T-4's own later item |
 | Rejected: the trunk's index as its key | piece indices renumber when the overlay re-sorts (V-11) |
 | Rejected: one record with the walls | a trunk is not a panel; a cell-keyed point set is the shape that fits it (the crater precedent) |
+
+### 7.8 As built — B-1 *(`terrain` lane, `2026-11-14`, CE-4598)*
+
+```mermaid
+classDiagram
+  direction LR
+  class IWorldQuery {
+    <<existing, EXTENDED>>
+    + HullSurfaceZ(x, y, zHint) default = SurfaceZ
+  }
+  class TracePurpose {
+    <<existing, EXTENDED>>
+    Sight · Fire · Sound
+    + Hull = 3
+  }
+  class HullTrace {
+    <<NEW static>>
+    HullBandM = 0.5 (= HullProbeM)
+  }
+  class TerrainWorldQuery {
+    <<existing, EXTENDED>>
+    + Trace(Hull) via TerrainWorld.QueryHull
+    + IsHullBarrier(kind) every panel, door, slab
+  }
+  class TerrainWorld {
+    <<existing, EXTENDED>>
+    + HullSurfaceZ: no panel top
+    + QueryHull(from, to, into, doors, band)
+    + HullBreachOpen: never a building's, a free wall's from its base
+  }
+  class HullClearance {
+    <<existing, EXTENDED>>
+    Enters: HullSurfaceZ + Trace(Hull)
+    WayOnClear: HullSurfaceZ
+  }
+  class CarKinematicsSystem {
+    <<existing, EXTENDED>>
+    FinishMove: a hull's z = HullSurfaceZ
+  }
+  class HullBreakGate {
+    <<NEW static, consumed by B-3>>
+    MayBreak(repo, hull, nav): Manual and PossessedBy Fps and no replay
+  }
+  TerrainWorldQuery ..|> IWorldQuery
+  TerrainWorldQuery ..> TerrainWorld
+  HullClearance ..> IWorldQuery : Hull purpose
+  CarKinematicsSystem ..> HullClearance
+  CarKinematicsSystem ..> HullBreakGate : B-3
+```
+*What it shows that prose hid: the guard's two tests (the rise and the barrier line) both moved to the hull's own meaning, in the ONE world-query seam;
+the blast meaning (`ClosedBarrier` for Fire / Sight / Sound) is untouched, so blasts still diffract round garden walls. `QueryHull` is the fire
+query's own loop with two switches, not a second geometry walk.*
+
+| claim | code — as built | design |
+|---|---|---|
+| every panel blocks a hull, a free wall's too | `TerrainWorldQuery.IsHullBarrier` (`kind is slab/ramp/door/panel`), `TracePurpose.Hull` | V-1, D-2, R-4237 |
+| a low wall is met, never climbed | `TerrainWorld.HullSurfaceZ` skips panel tops; `QueryHull` meets a panel up to `HullBandM` under the line | D-4, R-4239 |
+| a building's breach never opens for a hull | `TerrainWorld.HullBreachOpen` returns false for `Building ≥ 0` | V-5, R-3025 |
+| the break gate | `HullBreakGate.MayBreak` — Manual branch, `PossessedBy.Mode == Fps` on the hull, `ReplayState` not active | V-4, V-14 |
+| walkers unchanged | a bent walker's step still traces `Fire` (a man shoved at a garden wall is not stopped by it — the navmesh keeps him off it) | ⛔ searched §7, none — out of B-1's scope |
+
+⭐ **Lane decisions (for the user's review):** [R-5000](blueprints/RULINGS.md) the hull band = the probe height (any panel whose top is above the
+wheels meets the hull — a 10 cm decorative edging panel holds a car too); [R-5001](blueprints/RULINGS.md) a free-wall breach opens for a hull only
+when open from the wall's base (a raised hole never), with no per-trace width test — the cut's size is B-3's (V-9); [R-5002](blueprints/RULINGS.md)
+the gate reads `PossessedBy` on the HULL (a station driving a vehicle holds the vehicle in `Fps`; a `Riding` soldier is not its driver).
+
+⭐ **CE-6014, fixed with it (found by B-1):** once the guard saw free walls, `RoadblockBlastScenarioTests`' IFV — swerving round a man down — was
+HELD at the wall beside the gate and never arrived (before B-1 it drove through the wall). ⇒ **avoidance never steers a hull into a wall**: when
+avoidance bent a vehicle's step and continuing ~1 s (≥ 2 m) along the swerved heading meets the hull guard, the path's own step is taken
+(`CarKinematicsSystem`, `SwerveLookaheadSeconds` / `SwerveLookaheadMinM`). A one-step check was measured too late (the swerve had already turned the
+hull). [R-5004](blueprints/RULINGS.md). ⭐ And the swerve's cause, traced in the run: the charge man's BODY lay inside the gate at its jamb, ~2 m clear
+of the IFV's hull — so **a vehicle swerves for a man down only when he lies in its hull's way** (`InHullsWay`: within half its width + 0.5 m of its
+line); a standing man is avoided as before. [R-5005](blueprints/RULINGS.md).
+
+Rails: `CarKinematicsSystemTests.CE4598_*` (an AI hull held at a brick wall, a fence and a hedge-high wall; a 0.4 m wall met, never climbed; a
+possessed car at full throttle held; a tank at a building's breach stays out; the gate), `BuildingBreachTests.Hull_*` (the trace meanings, a
+free-wall breach opens / a building's never / a raised hole never, 0 B steady).

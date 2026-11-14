@@ -137,7 +137,7 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 
 ## 2b. Dynamic terrain — the ground and the walls change while the simulation runs *(📐 designed and planned, `2026-11-14`; the programme: [PLAN_Dynamic_Terrain](PLAN_Dynamic_Terrain.md), CE-4604)*
 
-Everything in this chapter is **📐 designed and planned**: the designs are ruled, the tasks are filed, the build starts with the programme.
+Everything in this chapter is **📐 designed and planned** unless marked ✅ (built by the `terrain` lane, `2026-11-14` on): the designs are ruled, the tasks are filed.
 Designs: [Ground patches and road blockage](DESIGN_Ground_Patches_And_Road_Blockage.md) · [Vehicle breaching](DESIGN_Vehicle_Breaching.md).
 Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [vehicle breaching](UX/vehicle-breaching.svg).
 
@@ -155,6 +155,9 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   moment; vehicles route round it, infantry crosses it, and after the gases clear its rim is cover. (P-4, CE-4591, R-4232, R-4233) 📐
 - **Blocked roads are blocked for everyone:** a roadblock, a wreck or a crater on a road makes SUMO's cars swerve round it or re-route, and
   our own road-following vehicles re-plan; clearing it re-opens the road. (P-2, CE-4590) 📐
+- **Every wall stops a vehicle:** garden walls, fences and hedges hold every vehicle — AI or a player's — like a building's wall does; a low
+  wall is met, never climbed onto; and avoiding a man on the road never swerves a vehicle into a wall. (B-1, CE-4598, CE-6014, R-4237,
+  R-4239; rails `CarKinematicsSystemTests.CE4598_*`, `CE6014_*`; scenario `roadblock-blast`) ✅
 - **A player's tank breaks through weak barriers:** a player driving a tank goes through fences, hedges, garden walls and sandbags (an IFV
   through the lighter ones; wheeled vehicles stop); a tank bumps a building wall open for the infantry without driving in; the driver sees
   and hears the break, or a "too strong" cue. The AI never breaks a wall by accident. (B-1…B-3, CE-4598…CE-4600, R-4236…R-4240, R-4243) 📐

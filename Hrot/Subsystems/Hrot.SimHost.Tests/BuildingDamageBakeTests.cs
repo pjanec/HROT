@@ -312,6 +312,8 @@ namespace Hrot.SimHost.Tests
         /// <summary>
         /// ⭐ Ten passages inside ONE debounce give ONE bake (and none after it): each change moves the hash and restarts the quiet period, the bake runs once for all of them. 🔴 Red-proof: drop the
         /// quiet-period restart (<c>_seenAt = now</c>) ⇒ more than one bake.
+        /// ⭐ CE-4596 (P-0, V-1, R-5003) — the burst now lasts 1.8 s, inside <see cref="StaticObstacleBakeSystem.MaxLatencySeconds"/>: a longer one bakes at the cap
+        /// (it was 4 s here, and asserted the very starvation V-1 removes — <c>StaticObstacleBakeTests.CE4596_UnderABarrage_*</c> holds that half).
         /// </summary>
         [Fact]
         public void TenPassagesInsideOneDebounce_GiveOneBake()
@@ -322,9 +324,9 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 5; i++)
             {
                 Damage(new WallBreach(south, 0.3f + 2f * i, 1.3f + 2f * i, 0f, 2f, BreachKind.Passage));
-                _wall += 0.2; sys.Execute(_world, 0.016f); _wall += 0.2; sys.Execute(_world, 0.016f);   // new hash, then the same hash again: quiet 0.2 s < the 0.5 s debounce
+                _wall += 0.09; sys.Execute(_world, 0.016f); _wall += 0.09; sys.Execute(_world, 0.016f);   // new hash, then the same hash again: quiet 0.09 s < the 0.5 s debounce
                 Damage(new WallBreach(north, 0.3f + 2f * i, 1.3f + 2f * i, 0f, 2f, BreachKind.Passage));
-                _wall += 0.2; sys.Execute(_world, 0.016f); _wall += 0.2; sys.Execute(_world, 0.016f);
+                _wall += 0.09; sys.Execute(_world, 0.016f); _wall += 0.09; sys.Execute(_world, 0.016f);
             }
             Assert.Equal(0, sys.Bakes);
             Assert.False(sys.Baking);
