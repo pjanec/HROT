@@ -707,6 +707,28 @@ namespace Hrot.AI.Behaviors.Brains
             return true;
         }
 
+        /// <summary>⭐ <c>CE-4605</c> — the ONE two-element split of a squad by rank: the LIVE men (in the fight) in roster order, the first
+        /// half (at least one) to element 0, the rest to element 1; a dead or down slot scores like element 0 and is never counted. A lone
+        /// live man goes to <paramref name="soloElement"/>. ⛔ SUPERSEDED: the slot-index split (<c>ComputePartitionInputs</c> over the
+        /// roster COUNT) — with the dead in the wrong slots a whole element ended up empty. No allocation: two index loops.</summary>
+        public static void SplitLiveByRank(in SquadPlayContext ctx, Span<MemberPartitionInput> partition, byte soloElement = 0)
+        {
+            int live = 0;
+            for (int i = 0; i < ctx.Roster.Count; i++) if (ctx.Live(i, out _)) live++;
+            int half = Math.Max(1, live / 2);
+            int rank = 0;
+            for (int i = 0; i < ctx.Roster.Count; i++)
+            {
+                bool first = true;
+                if (ctx.Live(i, out _))
+                {
+                    first = live == 1 ? soloElement == 0 : rank < half;
+                    rank++;
+                }
+                partition[i] = first ? new MemberPartitionInput(1f, 0.1f) : new MemberPartitionInput(0.1f, 1f);
+            }
+        }
+
         /// <summary>True when any member is alive.</summary>
         public static bool AnyLive(in SquadPlayContext ctx)
         {

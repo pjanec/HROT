@@ -118,7 +118,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (sees) bases++;
             }
             if (live < 2) return PlayStart.Fail;
-            if (bases == 0 || bases == live) SuppressAndManeuverManeuver.ComputePartitionInputs(ctx.Roster.Count, partition);
+            if (bases == 0 || bases == live) SquadManeuverRunner.SplitLiveByRank(in ctx, partition, soloElement: 1);   // ⭐ CE-4605 — live men by rank; a lone man assaults
 
             // ⭐ CE-2281 DA-19 — the squad's automatic weapons (AR, MG) go to the base of fire first, whoever saw the enemy — as long as
             //   someone live is left to assault

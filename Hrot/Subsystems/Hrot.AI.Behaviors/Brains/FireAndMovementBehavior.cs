@@ -64,7 +64,7 @@ namespace Hrot.AI.Behaviors.Brains
             int live = 0;
             for (int i = 0; i < ctx.Roster.Count; i++) if (ctx.Live(i, out _)) live++;
             if (live < 2) return PlayStart.Fail;
-            BoundingOverwatchManeuver.ComputePartitionInputs(ctx.Roster.Count, partition);   // first half, second half
+            SquadManeuverRunner.SplitLiveByRank(in ctx, partition);   // ⭐ CE-4605 — the live men by rank   // first half, second half
             p.Cover = default;
             p.Buddy = 0;
             return PlayStart.Go;

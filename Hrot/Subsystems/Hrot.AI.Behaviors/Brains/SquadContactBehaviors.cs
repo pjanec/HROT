@@ -192,13 +192,13 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 ws.Answer = p.To;
                 ws.HasAnswer = 1;
-                BoundingOverwatchManeuver.ComputePartitionInputs(ctx.Roster.Count, partition);
+                SquadManeuverRunner.SplitLiveByRank(in ctx, partition);   // ⭐ CE-4605 — the live men by rank
                 return PlayStart.Go;
             }
             if (!SquadManeuverRunner.TopContact(in ctx, 0, out var contact)) return PlayStart.Fail;   // nothing to break contact with
             ws.ThreatId = contact.EntityId;
             ws.ThreatPoint = new Vector3(contact.PositionX, contact.PositionY, contact.PositionZ);
-            BoundingOverwatchManeuver.ComputePartitionInputs(ctx.Roster.Count, partition);
+            SquadManeuverRunner.SplitLiveByRank(in ctx, partition);   // ⭐ CE-4605 — the live men by rank
             return PlayStart.Go;
         }
 

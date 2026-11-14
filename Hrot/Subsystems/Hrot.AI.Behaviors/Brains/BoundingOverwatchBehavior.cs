@@ -116,7 +116,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         public PlayStart Start(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx, Span<MemberPartitionInput> partition)
         {
-            BoundingOverwatchManeuver.ComputePartitionInputs(ctx.Roster.Count, partition);
+            SquadManeuverRunner.SplitLiveByRank(in ctx, partition);   // ⭐ CE-4605 — the live men by rank
             p.Cover = default;
             p.Stalls = 0;
             return PlayStart.Go;
