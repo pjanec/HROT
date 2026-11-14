@@ -20,7 +20,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | 1 | CE-7001 F-0 | ⏭ skipped — the user | — |
 | 2 | CE-7021 company echelon · CE-7022 puppet bench | ✅ | TKB 306; `SquadManeuverTests.Company.cs` |
 | 3 | CE-7023 `CompanyAttack` · CE-7024 `CompanyDefend` | ✅ | `Brains/CompanyBehaviors.cs`; `PlatoonDefend` Ready reports Set up |
-| 4 | CE-7005 tempo | ✅ | inside `CompanyAttack` |
+| 4 | CE-7005 tempo · CE-7004 counterattack | ✅ · 🔶 (the counterattack; asking the battalion for more not built — no battalion commander) | inside `CompanyAttack` · `CompanyDefend` `KCounter` (R-7008) |
 | 5 | CE-7025 smoke bombs · CE-7003 support calls (fires + smoke) · CE-2278 smoke grenade | ✅ · 🔶 part (bulldozer / drone tasking wait for CE-7026…) · 🔶 kit + break contact (crossing / breach face left) | §6b; Defend & Attack DA-G as built |
 | 6 | CE-7008 suppression wears off · CE-7007 shoot and move · CE-7032 the OP withdraws | ✅ · ✅ · ✅ | `StressModel.QuietSeconds` · `SquadDefend.ShootAndMove` · `PlatoonDefend` OpBack → BreakContact |
 | 7 | CE-7010 the air gate | ⏭ ignored — the user | — |
@@ -56,7 +56,8 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | CE-7014: `AirAttackNodesTests` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) 22 / 22; clean build: `Fdp.Toolkits.Tests` Motion + Combat + Squad 798 / 798 · drills + drones 297 / 297 both ways · `Hrot.Core.Tests` 366 / 367 (the pre-existing geo red) | red-proof: the jammed check off ⇒ the enemy-jammer case red |
 | CE-7026: `DroneOperatorBehaviorTests` + `AirAttackNodesTests` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) 24 / 24 · `NedTkbBuilderCombatTests.CE7026_CE7014_*`; clean build: drills + drones + operator 299 / 299 both ways · Fdp Motion 70 / 70 · `Hrot.Core.Tests` 367 / 368 (the pre-existing geo red) | red-proofs: the in-the-air wait dropped ⇒ red · one FPV foot removed ⇒ red |
 | CE-7028: `AirAttackNodesTests` + `DroneOperatorBehaviorTests` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) 26 / 26 · `NedTkbBuilderCombatTests.CE7028_*`; clean build: drills + drones + operator 301 / 301 both ways · `Hrot.Core.Tests` 368 / 369 (the pre-existing geo red) | red-proofs: the orbit steered at the point ⇒ red · the operator's mount test off ⇒ red. ⚠ found on the way: the first cut sent an UNKNOWN-type drone to watch (no template ⇒ "no mount") — narrowed to a known type with no mount |
-| `tracker-counts.py --check` · `rulings-check.py` | OK · 607 / 607 |
+| CE-7004: `SquadManeuverTests.CE7004_*` + the company rails `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) 7 / 7; clean build: drills + drones + operator 303 / 303 both ways | red-proof: the counter guard always false ⇒ the strong-reserve case red |
+| `tracker-counts.py --check` · `rulings-check.py` | OK · 608 / 608 |
 
 ## 3. The morning report
 
@@ -71,6 +72,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | R-7005 a SUMO car's driver abandons it within 25 m of a shot or a burst (≤ 2 cars a frame, each once) | closer than the walkers' 50 m: a driver in a running car hears less |
 | R-7006 a jammer's 400 m bubble (type 113) downs every drone of another force inside it (an FPV falls where it is) | the battery's existing path; its own side flies through |
 | R-7007 a drone launch is the operator's ORDER to his authored stock (no runtime creation) | creation would need a new pending component + system |
+| R-7008 a LOST block (gone / gave it up) is counterattacked by a ≥ 70 % reserve, once; a FAILING one (Black / falling back) is reinforced | the handoff's trigger and the existing one each keep theirs |
 | R-7001 a smoke request = the `ElementEquipment.Smoke` flag; the gun loads the round its strike names | a request's `Count` is already 1 in production |
 
 | for the user to look at | |

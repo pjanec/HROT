@@ -391,6 +391,7 @@ task-end Set never came).
 | the base of fire 250 m short of the objective, the reserve 400 m; each next objective measured from the previous one | — |
 | tempo: ½ deadline ⇒ REQUEST FireSupport on the objective · 1× ⇒ the reserve attacks beside the assault · 1.5× ⇒ bypass (never the last) | the smoke round comes with CE-7025; until then the request is plain fire support |
 | defend: the reserve goes in FIRST; the company falls back only when half the blocks fail with the reserve already in (the block it reinforced counts as held) | ⭐ measured on the bench: with two blocks one failure is already "half", so the first rule fell back before the reserve could act |
+| ⭐ CE-7004 — the LOCAL COUNTERATTACK (`CompanyDefend` region 1, `KCounter`, checked before `KReinforce`): a block LOST (its platoon gone or `TaskFailed`) with the reserve free and ≥ 70 % (Green / Amber) ⇒ the reserve `PlatoonAttack`s the block's point; its Set ⇒ it defends the block; once per defence. A block merely failing (Black, falling back) is reinforced as before | ⭐ lane default R-7008: "lost" (gone / gave it up) ≠ "failing" (Black / falling back), so the handoff's counterattack and the existing reinforcement each keep their trigger |
 | ⭐ CE-7007: shoot and move is opt-in below the company (`ShootAndMoveSeconds`, 0 = off) and on by default at 25 s in `CompanyDefend` — the company hands it to its platoons, they to their squads | ⭐ lane default R-7002: shoot and move is opt-in below the company, so every existing defence scenario keeps its behaviour |
 | the puppet bench (CE-7022) = the drills' existing one-frame `Platoon` fixture with its members as platoons (`SquadManeuverTests.Company.cs`) | no new harness was needed: the fixture never cared what echelon its members were |
 
@@ -572,7 +573,7 @@ B's CE-7012 (the bulldozer's ClearObstacle) stands on them.
 | C-1b | **CE-7023** | `CompanyAttack` | `PlatoonAttackBehavior` | B |
 | C-1c | **CE-7024** | `CompanyDefend` | `PlatoonDefendBehavior` | B |
 | C-2 | **CE-7003** | support calls — fires, smoke, bulldozer / engineers at a roadblock, drone tasking | SupportCommand, the observer chain | B |
-| C-3 | **CE-7004** | local counterattack, asking the battalion for more — ⭐ MUST-HAVE (§3a) | — | B |
+| C-3 | **CE-7004** 🔶 counterattack BUILT `2026-11-14` (§6a) | local counterattack, asking the battalion for more — ⭐ MUST-HAVE (§3a). ⏳ asking the battalion for more is not built (no battalion commander yet) | — | B |
 | C-4 | **CE-7005** | tempo: every company order carries a deadline; escalate at 50 % / 100 % — never "wait" | the HSM's phase timers | B |
 | C-5 | **CE-7006** | the mounted / dismounted handoff | `SquadDismount`, `VehicleFightFromCover` | B |
 | A-1 | **CE-7007** | active defence: shoot and move between a squad's posts; outposts withdraw | `SquadDefend`, the fall-back | B |

@@ -515,6 +515,12 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed float Z[Capacity];
         /// <summary>The block a committed reserve went to (−1 none).</summary>
         public int ReserveTo;
+        /// <summary>⭐ <c>CE-7004</c> — the reserve's slot sent to RETAKE a lost block (−1 none); <see cref="ReserveTo"/> is that block.</summary>
+        public int CounterBy;
+        /// <summary>1 once the company counterattacked (once per defence).</summary>
+        public byte Countered;
+        /// <summary>1 once the counterattack took the block back (its Set): the reserve then defends it.</summary>
+        public byte Retaken;
 
         public Vector3 Point(int slot) => new(X[slot], Y[slot], Z[slot]);
         public void SetPoint(int slot, Vector3 at) { X[slot] = at.X; Y[slot] = at.Y; Z[slot] = at.Z; }
@@ -561,6 +567,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.Plan.Speed = authored.Speed;
             block.Plan.ShootAndMove = authored.ShootAndMoveSeconds == 0f ? DefaultShootAndMoveSeconds : authored.ShootAndMoveSeconds;   // ⭐ CE-7007
             block.Plan.ReserveTo = -1;
+            block.Plan.CounterBy = -1;
         }
 
         [Behavior(BehaviorNames.CompanyDefend, Params = typeof(CompanyDefendParamsJsonDto), Categories = BehaviorCategory.Commander)]
@@ -579,8 +586,13 @@ namespace Hrot.AI.Behaviors.Brains
                 .Activity<CompanyDefendBlackboard, CompanyDefencePlan, CompanyDefendState>(bb => bb.Plan, bb => bb.Keep, KeepDefence));
             root.Child("KWatch", c => watch = c.InRegion(1).Initial());
             root.Child("KReinforce", c => reinforce = c.InRegion(1).OnEntry<CompanyDefendBlackboard, CompanyDefencePlan>(bb => bb.Plan, Reinforce));
+            StateBuilder counter = null!;
+            root.Child("KCounter", c => counter = c.InRegion(1).OnEntry<CompanyDefendBlackboard, CompanyDefencePlan>(bb => bb.Plan, Counterattack));
             plan.On(0).GoTo("KHold").Guard<CompanyDefendBlackboard, CompanyDefencePlan>(bb => bb.Plan, Planned).Polled();
             hold.On(0).GoTo("KFallBack").Guard<CompanyDefendBlackboard, CompanyDefencePlan>(bb => bb.Plan, HalfTheBlocksFailing).Polled();
+            // ⭐ CE-7004 — checked FIRST: a LOST block with a strong reserve is retaken; a merely failing one is reinforced
+            watch.On(0).GoTo("KCounter").Guard<CompanyDefendBlackboard, CompanyDefencePlan>(bb => bb.Plan, BlockLostWithStrongReserve).Polled();
+            counter.On(0).GoTo("KWatch").Guard<CompanyDefendBlackboard, CompanyDefencePlan>(bb => bb.Plan, Handled).Polled();
             watch.On(0).GoTo("KReinforce").Guard<CompanyDefendBlackboard, CompanyDefencePlan>(bb => bb.Plan, BlockFailingWithReserve).Polled();
             reinforce.On(0).GoTo("KWatch").Guard<CompanyDefendBlackboard, CompanyDefencePlan>(bb => bb.Plan, Handled).Polled();
             return builder.Build();
@@ -643,6 +655,26 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Success;
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-7004</c> (City Battle §3a, §11 C-3; handoff default: "a company objective is lost and the reserve is ≥ 70 % ⇒ attack it, once") —
+        /// KCounter's entry: the free reserve is sent to RETAKE the first lost block (<c>PlatoonAttack</c> on its point, <see cref="KeepDefence"/>);
+        /// the block then counts as held (<see cref="CompanyDefencePlan.ReserveTo"/>), and once retaken the reserve defends it.
+        /// </summary>
+        [SharedAiAction]
+        public static unsafe NodeStatus Counterattack(ref CompanyDefencePlan p, Entity self, EntityRepository world)
+        {
+            int n = Math.Min(CompanyAttackBehavior.RosterCount(world, self), CompanyDefencePlan.Capacity);
+            int r = StrongReserve(ref p, self, world, n), b = FirstLostBlock(ref p, self, world, n);
+            if (r < 0 || b < 0) return NodeStatus.Success;
+            p.CounterBy = r;
+            p.ReserveTo = b;
+            p.Countered = 1;
+            p.Retaken = 0;
+            p.SetPoint(r, p.Point(b));
+            p.Dirty[r] = 1;
+            return NodeStatus.Success;
+        }
+
         /// <summary>The ONE order writer: every dirty (or no longer standing) slot gets its block's <c>PlatoonDefend</c>.</summary>
         [SharedAiAction]
         public static unsafe NodeStatus KeepDefence(ref CompanyDefencePlan p, ref CompanyDefendState ws, Entity self, EntityRepository world)
@@ -655,6 +687,12 @@ namespace Hrot.AI.Behaviors.Brains
                 if (p.Role[slot] == CompanyDefencePlan.NoRole) continue;
                 var platoon = CommandPictureOps.Subordinate(world, self, slot);
                 if (platoon.IsNull || !world.IsAlive(platoon)) continue;
+                // ⭐ CE-7004 — the counterattack's Set (its order is new, so an older Set does not count): the block is retaken ⇒ defend it
+                if (slot == p.CounterBy && p.Retaken == 0 && p.Dirty[slot] == 0 && CommandPictureOps.ProgressOf(world, self, slot) == ProgressKind.Set)
+                {
+                    p.Retaken = 1;
+                    p.Dirty[slot] = 1;
+                }
                 if (p.Dirty[slot] == 0 && CommandOrders.Stands(world, self, platoon)) continue;
                 p.Dirty[slot] = 0;
                 var at = p.Point(slot);
@@ -665,6 +703,15 @@ namespace Hrot.AI.Behaviors.Brains
                     float bearing = SectorSplit.Norm(MathF.Atan2(p.Toward.X, p.Toward.Y) * (180f / MathF.PI));
                     dto.Left = SectorSplit.Norm(bearing - BlockArcHalfDegrees);
                     dto.Right = SectorSplit.Norm(bearing + BlockArcHalfDegrees);
+                }
+                // ⭐ CE-7004 — the counterattacking reserve ATTACKS the lost block until it reports Set (retaken), then defends it as a block
+                if (slot == p.CounterBy && p.Retaken == 0)
+                {
+                    var attack = JsonSerializer.Serialize(new PlatoonAttackParamsJsonDto { Position = at, Speed = p.Speed }, json);
+                    if (CommandOrders.StillRunning(world, self, platoon, BehaviorNames.PlatoonAttack, attack)) continue;
+                    CommandOrders.Assign(world, self, platoon, BehaviorNames.PlatoonAttack, attack, newOrder: true);
+                    ws.Orders++;
+                    continue;
                 }
                 var order = JsonSerializer.Serialize(dto, json);
                 if (CommandOrders.StillRunning(world, self, platoon, BehaviorNames.PlatoonDefend, order)) continue;
@@ -701,8 +748,36 @@ namespace Hrot.AI.Behaviors.Brains
             return FreeReserve(ref p, self, world, n) >= 0 && FirstFailingBlock(ref p, self, world, n) >= 0;
         }
 
+        /// <summary>⭐ CE-7004 — KWatch → KCounter: once per defence, a block is LOST and the reserve is still free and at ≥ 70 % strength.</summary>
+        [SharedAiCondition]
+        public static bool BlockLostWithStrongReserve(ref CompanyDefencePlan p, Entity self, EntityRepository world)
+        {
+            if (p.Made == 0 || p.Countered != 0 || p.ReserveTo >= 0) return false;
+            int n = Math.Min(CompanyAttackBehavior.RosterCount(world, self), CompanyDefencePlan.Capacity);
+            return StrongReserve(ref p, self, world, n) >= 0 && FirstLostBlock(ref p, self, world, n) >= 0;
+        }
+
         [SharedAiCondition]
         public static bool Handled(ref CompanyDefencePlan p, Entity self, EntityRepository world) => true;
+
+        /// <summary>⭐ CE-7004 — a block is LOST when its platoon is gone or gave it up (TaskFailed) — not merely Black or falling back (that is
+        /// failing: the reserve reinforces it).</summary>
+        private static unsafe int FirstLostBlock(ref CompanyDefencePlan p, Entity self, EntityRepository world, int n)
+        {
+            for (int s = 0; s < n; s++)
+                if (p.Role[s] == CompanyDefencePlan.Line
+                    && (!CompanyAttackBehavior.Alive(world, self, s) || CommandPictureOps.ProgressOf(world, self, s) == ProgressKind.TaskFailed)) return s;
+            return -1;
+        }
+
+        /// <summary>⭐ CE-7004 — the free reserve at ≥ 70 % strength (its colour Green or Amber: <c>StaffComposerSystem.AmberFraction</c> 0.7).</summary>
+        private static unsafe int StrongReserve(ref CompanyDefencePlan p, Entity self, EntityRepository world, int n)
+        {
+            int r = FreeReserve(ref p, self, world, n);
+            if (r < 0) return -1;
+            var weak = new SubordinateColourParams { Slot = r, AtLeast = StatusColour.Red };
+            return PictureConditions.SubordinateColour(ref weak, self, world) ? -1 : r;
+        }
 
         private static unsafe int FirstFailingBlock(ref CompanyDefencePlan p, Entity self, EntityRepository world, int n)
         {

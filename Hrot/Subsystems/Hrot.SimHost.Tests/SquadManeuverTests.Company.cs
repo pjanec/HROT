@@ -207,5 +207,42 @@ namespace Hrot.SimHost.Tests
             Assert.True(Near(c.Last<PlatoonDefendParamsJsonDto>(c.Second, BehaviorNames.PlatoonDefend).Position, (Vector3)b2.Position + new Vector3(0f, -250f, 0f)),
                         "half the line failing: the company falls back");
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-7004</c> (City Battle §3a, C-3) — the LOCAL COUNTERATTACK: a block LOST (its platoon gave it up: TaskFailed) with the reserve Green
+        /// ⇒ the reserve ATTACKS the block's point (<c>PlatoonAttack</c>), not a reinforcement behind it; its Set ⇒ it defends the block there; a
+        /// second loss is not counterattacked again (once). A WEAK reserve (Red, under 70 %) does not counterattack — it reinforces as before.
+        /// ✅ Red-proof: the counter guard always false ⇒ the reserve only reinforces ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void CE7004_CompanyDefend_ALostBlock_IsRetakenByAStrongReserve_ThenHeld_Once(bool weakReserve)
+        {
+            var c = new Company();
+            c.S.Order("{\"Position\":" + Pt(Vector3.Zero) + ",\"Threat\":" + Pt(new Vector3(0f, 500f, 0f)) + "}", BehaviorNames.CompanyDefend);
+            c.Ticks(6);
+            var b1 = c.Last<PlatoonDefendParamsJsonDto>(c.First, BehaviorNames.PlatoonDefend);
+            if (weakReserve) c.Colour(c.Third, StatusColour.Red);
+            c.Failed(c.First);                                                                     // block 1 lost
+            c.Ticks(6);
+            if (weakReserve)
+            {
+                Assert.Equal(0, c.OrdersTo(c.Third, BehaviorNames.PlatoonAttack));
+                Assert.True(Near(c.Last<PlatoonDefendParamsJsonDto>(c.Third, BehaviorNames.PlatoonDefend).Position, (Vector3)b1.Position + new Vector3(0f, -40f, 0f)),
+                            "a weak reserve reinforces instead");
+                return;
+            }
+            Assert.Equal(1, c.OrdersTo(c.Third, BehaviorNames.PlatoonAttack));
+            Assert.True(Near(c.Last<PlatoonAttackParamsJsonDto>(c.Third, BehaviorNames.PlatoonAttack).Position, b1.Position), "the reserve attacks the lost block");
+
+            c.Set(c.Third);                                                                        // retaken
+            c.Ticks(6);
+            Assert.True(Near(c.Last<PlatoonDefendParamsJsonDto>(c.Third, BehaviorNames.PlatoonDefend).Position, b1.Position), "then holds it");
+
+            c.Failed(c.Second);                                                                    // a second loss: no second counterattack
+            c.Ticks(6);
+            Assert.Equal(1, c.OrdersTo(c.Third, BehaviorNames.PlatoonAttack));
+        }
     }
 }
