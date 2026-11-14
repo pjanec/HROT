@@ -34,6 +34,11 @@ public sealed class ImportReport
     public int LoneTrees { get; set; }
     public int WaterAreas { get; set; }
     public int Walls { get; set; }
+
+    /// <summary>⭐ CE-4403 (P-1) — house pads cut into the ground: pads, posts lowered, pads whose skirt was widened past 4 m for a deep cut (V-16).</summary>
+    public int Pads { get; set; }
+    public long PadPostsCut { get; set; }
+    public int PadsWidened { get; set; }
     public int ScrubSkipped { get; set; }
     public int UnassignedSkipped { get; set; }
 
@@ -56,6 +61,7 @@ public static class ImportReportText
         w.WriteLine(string.Create(inv, $"buildings: {r.BuildingsEnterable} enterable, {r.BuildingsSolid} solid ({r.SolidBecauseNoStair} for want of a stair), {r.RoofCaps} roof caps, {r.SharedWallsMerged} shared walls merged, {r.Stairs} stairs ({r.StairsSwitchBack} switch-back)"));
         w.WriteLine(string.Create(inv, $"openings: {r.OpeningsPlaced} placed, {r.OpeningsDropped} dropped (off wall {r.OpeningsDroppedOffWall}, party wall {r.OpeningsDroppedOnPartyWall}, overlap {r.OpeningsDroppedOverlap}, other {r.OpeningsDroppedOther}); {r.UnassignedSkipped} unassigned points ignored"));
         w.WriteLine(string.Create(inv, $"vegetation: {r.WoodsPolygons} wood polygons + {r.WoodsFromPoints} clustered from points, {r.LoneTrees} lone trees, {r.WaterAreas} water areas, {r.Walls} walls, {r.ScrubSkipped} scrub skipped"));
+        w.WriteLine(string.Create(inv, $"pads: {r.Pads} house pads, {r.PadPostsCut} posts cut, {r.PadsWidened} skirts widened for a deep cut"));
         if (r.NavmeshTiles > 0)
             w.WriteLine(string.Create(inv, $"navmesh: {r.NavmeshTiles} tiles ({r.NavmeshBaked} baked), {r.NavmeshFiles} files, {r.NavmeshBytes / 1e6:0.0} MB in navtiles/"));
         string stages = string.Join(", ", r.StageSeconds.Select(kv => string.Create(inv, $"{kv.Key} {kv.Value:0.0}")));

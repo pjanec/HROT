@@ -190,5 +190,35 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
             Assert.NotEqual(0f, sink);
         }
+
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4403</c> (G-1, G-6) — THE ground-patch rule has two entry points and one answer: two overlapping pads on a slope applied in place to the posts
+        /// (the importer) and through the copy-on-write grid (runtime) give the same heights, in either order (each only lowers: the minimum), never above the
+        /// natural ground. 🔴 Red-proof: let <c>GroundPatches.Target</c> fill (drop the <c>z &lt;= patch.Z</c> guard) ⇒ the "never above" assertion fails.
+        /// </summary>
+        [Fact]
+        public void CE4403_TheGroundPatchRule_OneAnswer_InPlace_OrCopyOnWrite_InAnyOrder()
+        {
+            const int cols = 300, rows = 280;
+            var z = new float[cols * rows];
+            for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) z[r * cols + c] = 20f + 0.15f * c - 0.05f * r;
+            var g = new TerrainHeightGrid(Vector2.Zero, 1f, cols, rows, z);
+            var a = GroundPatches.PadOf(new[] { new Vector2(100, 100), new Vector2(120, 100), new Vector2(120, 112), new Vector2(100, 112) }, 30f, (x, y) => g.Sample(x, y));
+            var b = GroundPatches.PadOf(new[] { new Vector2(118, 104), new Vector2(130, 104), new Vector2(130, 116), new Vector2(118, 116) }, 32f, (x, y) => g.Sample(x, y));
+            var inPlace = (float[])z.Clone();
+            Assert.True(GroundPatches.ApplyTo(inPlace, cols, rows, Vector2.Zero, 1f, new[] { a, b }) > 0);
+            var ab = GroundPatches.Apply(g, new[] { a, b });
+            var ba = GroundPatches.Apply(g, new[] { b, a });
+            for (int r = 80; r < 140; r++)
+                for (int c = 80; c < 160; c++)
+                {
+                    Assert.Equal(inPlace[r * cols + c], ab[c, r]);
+                    Assert.Equal(ab[c, r], ba[c, r]);
+                    Assert.True(ab[c, r] <= z[r * cols + c] + 1e-6f);
+                }
+            Assert.Equal(30f, ab[110, 106], 3);
+            Assert.True(ab.Tiles.SharesTile(g.Tiles, 0, 1) || g.Tiles.TilesY < 2);   // a far tile is shared
+        }
     }
 }

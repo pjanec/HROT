@@ -21,7 +21,7 @@ related-designs:
 | order | B-1 → P-0 → B-2 → P-1 → P-2 → B-3 → P-3 → P-4 → B-6 → B-4 → B-5 → P-5 → P-6 ([handoff §2](batches/HANDOFF_Coordinator_To_Terrain.md)) |
 | done | **B-1** (CE-4598), **CE-6014** (found by B-1), **P-0** (CE-4596), **B-2** (CE-4599) |
 | last green | this commit (see STATUS §3) |
-| next | **P-1** (CE-4403 — house pads at import first: `GroundPatches` over `TerrainHeightGrid.Patched`, applied in `TerrainImporter` after the buildings; then road corridors + net re-elevation) |
+| next | **P-1 part 2** (CE-4403 — road corridors: read the net before the store, a `Corridor` patch mode per edge (G-21), skip bridges/tunnels (V-15), lock corridors (G-24), re-elevate the net from the store (G-25, V-21 force + anchor), D-3 ramps to façades) — part 1 (house pads) is in |
 | open from P-0 | stepped-hash 1/4/8 not run; no per-host rail (one system, no host gate left) |
 
 ## 2. Decisions taken (lane rulings, for the user's review)

@@ -23,6 +23,7 @@ related-designs:
 | [R-5006](RULINGS.md) | a free-wall line is a wall group after the buildings; `BuildingDamage.Building` holds the group — record and wire NOT widened | a need to tell a line from a building on the wire without the terrain |
 | [R-5007](RULINGS.md) | a line's key comes from its content (`wall:<label>`, `#n`, else its first post), not a label written at import | an import that re-orders / re-splits lines between versions |
 | [R-5008](RULINGS.md) | V-12 (one cut across panels) moves to B-3 | — |
+| [R-5009](RULINGS.md) | overlapping pad skirts combine by the minimum over the pads, each against the natural ground (G-3 said a weighted blend) | stepped terraces between close houses |
 
 ## 2. Tasks
 
@@ -32,7 +33,8 @@ related-designs:
 | **CE-6014** (showcase-world's row, cross-lane) — vehicles swerve through walls round a man down | ✅ fixed (B-1 exposed it: `RoadblockBlastScenarioTests` ④ went red) | rails `CE6014_*`; see the tracker row |
 | **P-0** CE-4596 — cheap terrain change on every node | ✅ built (no runtime caller of the height patch yet — P-1/P-3/P-4) | [Ground §9.6](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `HeightStoreTests.CE4596_*`, `StaticObstacleBakeTests.CE4596_*` |
 | **B-2** CE-4599 — one breach record for every wall | ✅ built | [Breaching §7.9](../DESIGN_Vehicle_Breaching.md); rails `CE4599_*` in five suites; red-proved (the old building-only blast grid ⇒ the garden-wall charge rail red) |
-| next | **P-1** CE-4403 — house pads + road corridors at import | |
+| **P-1** CE-4403 part 1 — house pads at import | ✅ built | [Ground §9.7](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `ImporterTests.CE4403_*` (red-proved), `HeightStoreTests.CE4403_*`; importer suite 50/0 |
+| next | **P-1** part 2 — road corridors at import + the net re-elevated | |
 
 ## 3. Gates
 

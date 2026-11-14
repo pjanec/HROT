@@ -126,12 +126,66 @@ public class ImporterTests : IDisposable
         var world = Env.Load(folder, "synth");
         var input = InputSetReader.Open(set);
         var (info, z) = HeightsGrid.ReadAll(set);
+        int compared = 0;
         foreach (var (c, r) in new[] { (3, 3), (60, 70), (100, 20), (info.Cols - 2, info.Rows - 2), (40, 40) })
         {
             double x = info.OriginX + c * info.CellSize - input.Manifest.MinX, y = info.OriginY + r * info.CellSize - input.Manifest.MinY;
+            // ⭐ CE-4403 (P-1) — a house's PAD cuts the ground under it and its skirt (≤ 3 m deep, ≤ 4.5 m wide): those posts are the pad rails' to check
+            if (world.Buildings.Any(b => b.Footprint.Length > 2 && BreachRule.DistanceToFootprint(b.Footprint, new Vector2((float)x, (float)y)) < 5f)) continue;
             Assert.Equal(z[r * info.Cols + c], world.Height!.Sample((float)x, (float)y), 2);
+            compared++;
         }
+        Assert.True(compared >= 3, $"only {compared} sample posts lie clear of every pad");
         Assert.Equal(1f, world.Height!.CellSize);
+    }
+
+    // ---- CE-4403 (P-1; docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4 G-2…G-4, §9.2 V-16) — house pads at import
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4403</c> (G-2, G-3, R-4228; CE-4402's case) — a house on a SLOPE (the ground rises 0.2 m per metre to the east) at its base (the lowest ground,
+    /// the west edge) stands on a PAD: the ground under the whole footprint is at its base (the uphill wall is no longer buried), just outside its uphill door
+    /// the ground is within 0.3 m of the base, the skirt blends back to the natural slope by its edge, and the house keeps its height. Far from it the ground
+    /// is untouched. 🔴 Red-proof: skip <c>Pads.Apply</c> in the importer ⇒ the uphill corner is 1.6 m above the base.
+    /// </summary>
+    [Fact]
+    public async Task CE4403_AHouseOnASlope_StandsOnAPad_ItsUphillWallNoLongerBuried()
+    {
+        var mini = new MiniSet { Ground = (x, y) => (float)(10 + 0.2 * x) };
+        mini.Buildings.Add(MiniSet.Rect("h1", 0, 0, 8, 6, baseZ: 10));   // base 10 = the ground at x 0 (the low side)
+        var (_, world, rep) = await Import(mini);
+        var g = world.Height!;
+        float L(double x, double y) => g.Sample((float)(x - mini.MinX), (float)(y - mini.MinY));
+        Assert.Equal(1, rep.Pads);
+        Assert.True(rep.PadPostsCut > 0);
+        Assert.InRange(L(8, 6), 9.99, 10.01);                // the uphill corner: on the pad (was 11.6)
+        Assert.InRange(L(4, 3), 9.99, 10.01);                // the middle
+        Assert.InRange(L(8.5, 3), 10.0, 10.3);               // just outside the uphill wall (a door there opens onto the ground)
+        double skirt = Math.Max(GroundPatches.MinSkirt, GroundPatches.SkirtPerMetreOfCut * 1.6);
+        Assert.InRange(L(8 + skirt + 1, 3), 10 + 0.2 * (8 + skirt + 1) - 0.01, 10 + 0.2 * (8 + skirt + 1) + 0.01);   // past the skirt: the slope
+        Assert.InRange(L(-40, 50), 10 + 0.2 * -40 - 0.01, 10 + 0.2 * -40 + 0.01);                                     // far away: untouched
+        var b = world.Buildings.Single();
+        Assert.Equal(10f, b.BaseZ, 2);                        // the house keeps its height (G-3)
+        Assert.True(Math.Abs(g.LowestUnder(b.Footprint) - 10) < 0.02);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4403</c> (V-16) — the BANK a cut adds is never steeper than 45°: on a steep slope (0.5 / m) the 3 m capped cut gets a 4.5 m skirt, and every 1 m
+    /// step across it rises at most 1 m more than the slope itself; the cut is capped at 3 m, so the far uphill corner stays partly in the slope. 🔴 Red-proof: a fixed 4 m skirt ⇒ a step
+    /// of 1.13 m somewhere across it.
+    /// </summary>
+    [Fact]
+    public async Task CE4403_ADeepCut_GetsAWiderSkirt_NeverSteeperThan45Degrees_AndIsCappedAt3m()
+    {
+        var mini = new MiniSet { Ground = (x, y) => (float)(10 + 0.5 * x) };
+        mini.Buildings.Add(MiniSet.Rect("h1", 0, 0, 10, 6, baseZ: 10));
+        var (_, world, rep) = await Import(mini);
+        var g = world.Height!;
+        float L(double x, double y) => g.Sample((float)(x - mini.MinX), (float)(y - mini.MinY));
+        Assert.Equal(1, rep.PadsWidened);
+        Assert.InRange(L(10, 3), 12 - 0.02, 12 + 0.02);       // natural 15, cut 3 m (capped) ⇒ 12
+        float steepest = 0f;
+        for (double x = 10; x < 18; x += 1) steepest = MathF.Max(steepest, L(x + 1, 3) - L(x, 3));
+        Assert.True(steepest - 0.5f <= 1.0f + 0.02f, $"the cut's bank adds {steepest - 0.5f:F2} m per metre to the 0.5 slope (> 45°)");
     }
 
     // ---- openings

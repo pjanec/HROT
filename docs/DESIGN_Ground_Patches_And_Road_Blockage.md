@@ -508,3 +508,40 @@ so under a barrage a node bakes about back-to-back — the design's "bake after 
 Rails: `HeightStoreTests.CE4596_*` (a patch shares every untouched tile; a patched grid has a fresh grid's blocks and range, the lowered peak
 included; 0 B reads), `StaticObstacleBakeTests.CE4596_*` (a barrage still bakes within the cap; a host with no live overlay publishes the dirty
 rectangles). ⚠ The rails stand for the cluster and display hosts by construction (one system, no host gate left); there is no per-host rail.
+
+### 9.7 As built — P-1, part 1: house pads at import *(`terrain` lane, `2026-11-14`, CE-4403)*
+
+```mermaid
+sequenceDiagram
+  participant I as TerrainImporter
+  participant H as HeightStage
+  participant B as BuildingTemplateGenerator
+  participant P as Pads (importer)
+  participant G as GroundPatches (toolkit, the ONE rule)
+  I->>H: Resample - the 1 m posts, NOT written yet
+  I->>B: Generate - the buildings, each ring and its base
+  I->>P: Apply(posts, buildings)
+  P->>G: PadOf(ring, base, ground) per house
+  P->>G: ApplyTo(posts, pads) - in place, each pad against the NATURAL ground, min over pads
+  I->>H: Write - the store, pads in it
+```
+*What it shows that prose hid: the store is written AFTER the buildings now — the only reordering — and the importer holds no levelling code of its
+own: it calls the toolkit rule P-3 and P-4 will call through the copy-on-write grid (`GroundPatches.Apply` → `TerrainHeightGrid.Patched`).*
+
+| claim | code — as built | design |
+|---|---|---|
+| one rule for every moment | `GroundPatches.Target` (per post), `ApplyTo` (in place, import), `Apply` (copy-on-write, runtime) | G-1 |
+| a pad = the house's own base; cut, never fill; cut ≤ 3 m | `PadOf`, `Target` | G-2, G-3, R-4228 |
+| the bank a cut adds is ≤ 45° | skirt = max(4 m, 1.5 × the cut) | V-16 |
+| patches combine order-free | each measured against the NATURAL ground, minimum over them (📌 a rail caught the sequential form differing by 0.11 m with the order) | G-3 "canonical order" |
+| the importer writes the store after the buildings | `HeightStage.Resample` / `Write`, `Pads.Apply`; report `pads: N house pads, posts cut, skirts widened` | G-4 |
+| road corridors, net re-elevation, bridges / tunnels, D-3, D-4 | ⛔ not yet — part 2 | G-21…G-25, V-15, V-18, V-21, V-22 |
+
+⭐ **Lane decision (for the user's review):** [R-5009](blueprints/RULINGS.md) overlapping skirts combine by the MINIMUM over the pads, each against the natural
+ground (G-3 said "blend by weight into one terrace") — order-free and the same on every node; a deeper neighbour's cut wins where they overlap.
+⚠ **CE-4402 (the low door on scale-1)** needs the scale terrains RE-IMPORTED (D-4: a new terrain version); not done here — the committed terrains are
+unchanged until then.
+
+Rails: `ImporterTests.CE4403_*` (a house on a 0.2 slope stands on its pad, ground ≤ 0.3 m at its uphill door, the slope past the skirt, untouched far
+away, the house keeps its base; a 0.5 slope gets a wider skirt and a 3 m cap) — red-proved; `HeightStoreTests.CE4403_TheGroundPatchRule_*` (in place ≡
+copy-on-write, either order, never above the ground).

@@ -68,7 +68,8 @@ public sealed partial class TerrainImporter : ITerrainImporter
             double swX = m.MinX, swY = m.MinY, width = m.MaxX - m.MinX, height = m.MaxY - m.MinY;
             string heightsFile = name + TerrainHeightGrid.StoreSuffix;
 
-            HeightStage.Run(set, Path.Combine(tmp, heightsFile), rep, ct, progress);
+            // ⭐ CE-4403 (P-1, G-4) — the posts are resampled here and WRITTEN after the buildings: each house's pad is cut into them first
+            var (posts, postCols, postRows) = HeightStage.Resample(set, rep, ct, progress);
             Stage("heights");
 
             // the net is copied UNCHANGED (D1) and placed by an anchor: terrain local = net − anchor, anchor = sumoAnchor + the corner (I-a)
@@ -90,6 +91,13 @@ public sealed partial class TerrainImporter : ITerrainImporter
             ct.ThrowIfCancellationRequested();
 
             var built = BuildingTemplateGenerator.Generate(set.ReadBuildings(), swX, swY, rep, ct);
+            // ⭐⭐ CE-4403 (P-1; 📄 DESIGN_Ground_Patches_And_Road_Blockage.md §4 G-2…G-4, R-4228) — every house stands on a PAD: the ground under it cut
+            //   down to its own base (the lowest ground under it — no house moves), a skirt blending it into the slope; then the store is written
+            Pads.Apply(posts, postCols, postRows, built, rep);
+            HeightStage.Write(posts, postCols, postRows, Path.Combine(tmp, heightsFile), rep);
+            posts = null!;
+            progress?.Report(new ImportProgress("heights", 1));
+            Stage("pads");
             foreach (var b in built.Where(b => !b.Solid)) TerrainFolderWriter.WriteTemplate(tmp, b.TemplateName!, b.TemplateJson!);
             rep.UnassignedSkipped = set.ReadUnassigned().Count;
             progress?.Report(new ImportProgress("buildings", 1));
