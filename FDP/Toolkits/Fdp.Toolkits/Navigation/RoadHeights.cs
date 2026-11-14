@@ -39,6 +39,10 @@ namespace Fdp.Toolkit.Navigation
         {
             if (world == null) return Nominal(roads, segment, along, at, static (_, _) => 0f);
             float nominal = Nominal(roads, segment, along, at, world.GroundHeightAt);
+            // ⭐ CE-4591 (P-4, V-20) — where a CRATER lowers the road's ground the road is the cratered ground (the carried node line is for a bridge over a
+            //   valley, not over a hole): a truck on a partly cratered road dips into it instead of driving the old line in the air. (A road a crater fully covers is cut, G-10.)
+            if (world is Fdp.Toolkit.Terrain.TerrainWorldQuery q && q.Doors?.Craters is { } craters && craters.Offset(at.X, at.Y) < 0f)
+                return world.SurfaceZ(at.X, at.Y, world.GroundHeightAt(at.X, at.Y));
             return world.SurfaceZ(at.X, at.Y, nominal);
         }
     }

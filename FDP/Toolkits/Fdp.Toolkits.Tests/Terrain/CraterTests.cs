@@ -352,5 +352,34 @@ namespace Fdp.Toolkit.Terrain.Tests
                 Assert.Equal(craters.Offset(p.PositionX, p.PositionY), p.PositionZ, 3);
             }
         }
+    
+        /// <summary>
+        /// ⭐ G-11 / V-8 — re-grounding: a crater opens under a man this node owns ⇒ he stands on the cratered ground; a man owned by another node, a static obstacle and an
+        /// aircraft above are left alone; a steady frame moves nobody. 🔴 Red-proof: drop the <c>HasAuthority</c> test ⇒ the replica moves.
+        /// </summary>
+        [Fact]
+        public void ACraterUnderAnOwnedMan_RegroundsHim_NotAReplica_AnObstacle_OrAnAircraft()
+        {
+            var terrain = Flat();
+            var repo = World(terrain);
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<NetworkAuthority>();
+            repo.RegisterComponent<StaticObstacle>();
+            Entity At(float x, float z) { var e = repo.CreateEntity(); repo.AddComponent(e, new SimTransform { Position = new Vector3(x, 0f, z) }); return e; }
+            var mine = At(0f, 0f);
+            var theirs = At(1f, 0f); repo.AddComponent(theirs, new NetworkAuthority(primaryOwnerId: 7, localNodeId: 1));
+            var barrier = At(-1f, 0f); repo.AddComponent(barrier, new StaticObstacle());
+            var plane = At(0.5f, 300f);
+            var sys = new CraterRegroundSystem();
+            sys.Execute(repo, 0.016f);
+            Record(repo, Big());
+            sys.Execute(repo, 0.016f);
+            Assert.Equal(-1.6f, repo.GetComponentRO<SimTransform>(mine).Position.Z, 3);
+            Assert.Equal(0f, repo.GetComponentRO<SimTransform>(theirs).Position.Z);
+            Assert.Equal(0f, repo.GetComponentRO<SimTransform>(barrier).Position.Z);
+            Assert.Equal(300f, repo.GetComponentRO<SimTransform>(plane).Position.Z);
+            sys.Execute(repo, 0.016f);
+            Assert.Equal(1, sys.Regrounded);
+        }
     }
 }

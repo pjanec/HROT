@@ -50,8 +50,8 @@ related-designs:
 | **P-2** CE-4590 — road blockage: SUMO + our road graph | ✅ built | [Ground §9.9](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `BridgeClosureTests.CE4590_*` (red-proved); traffic suite 85/0; scenarios 2/0 |
 | **B-3** CE-4600 — a player's vehicle breaks barriers | 🟡 core built; ⛔ B-3b (dust, crash sound, HUD cue + mockup), barrage numbers (with P-4) | [Breaching §7.10](../DESIGN_Vehicle_Breaching.md); rails `CE4600_*` (red-proved); kinematics 110/0 under the parallel checks |
 | **P-3** CE-4597 — scenario house pads + *Save terrain as* | ✅ built | [Ground §9.10](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `TerrainWorldMergeTests.CE4597_*`, `TerrainBakeTests.CE4597_*` (red-proved) |
-| **P-4** CE-4591 — craters, parts 1–2 + the wire | 🟡 built: the record, the rule, the cratered ground the same tick (D-1), the bake cache on every node (V-6), the dirty discs (V-4), nav areas closed to vehicles (D-2), the road cut (G-10), `dtGroundDamage` 184; + part 3: saved in `TerrainObjects["#ground"]` (merge, load), the rim as cover after the gases (G-35, live from the view); ⛔ open: the decal (V-11), re-grounding (V-8/V-12), `RoadHeights` (V-20), stepped-hash | [Ground §9.11](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `CraterTests`, `CraterBakeTests`, `EntityGroundDamageTranslatorTests`, `BridgeClosureTests.CE4591_*` |
-| next | **P-4** remainder (decal V-11, re-grounding V-8/V-12, `RoadHeights` V-20, stepped-hash) — then B-6 | |
+| **P-4** CE-4591 — craters, parts 1–2 + the wire | 🟡 built: the record, the rule, the cratered ground the same tick (D-1), the bake cache on every node (V-6), the dirty discs (V-4), nav areas closed to vehicles (D-2), the road cut (G-10), `dtGroundDamage` 184; + part 3: saved in `TerrainObjects["#ground"]` (merge, load), the rim as cover after the gases (G-35, live from the view); + re-grounding of owned entities (V-8), `RoadHeights` over a crater (V-20); ⛔ open: the decal (V-11, ui), a vehicle stranded in a new crater (V-12), stepped-hash | [Ground §9.11](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `CraterTests`, `CraterBakeTests`, `EntityGroundDamageTranslatorTests`, `BridgeClosureTests.CE4591_*` |
+| next | **B-6** (P-4's decal V-11 / V-12 / stepped-hash stay open) | |
 
 ## 3. Gates
 
@@ -78,6 +78,7 @@ related-designs:
 | P-4: parallel checks | `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` on `CraterTests\|CarKinematicsSystemTests\|BuildingDamageSystemTests`; scenarios roadblock-blast + wreck-blocks-street | 128 / 0; scenarios 2 / 0 after declaring `SensorMount` in `BrainReads` (cross-lane, behaviors: an undeclared read in `ThreatDanger` → `EqsTerrainSight.Mount`, not crater code — green without the checks) |
 | P-4: red-proofs | `MakeCrater` dropped · the query's ground back to the cache · `NavDoorways.Craters` dropped · `AddCraters` dropped | each turns its rail red (the navmesh one only on a SHALLOW crater — a deep bowl's walls are already over the vehicle slope) |
 | P-4 part 3 | `Fdp.Toolkits.Tests --filter CraterTests\|CoverGeneratorAndLosTests\|TerrainEqsTests\|StaticObstacleTests\|BuildingDamageSaveTests\|ScenarioMerge`; `Hrot.Core.Tests --filter TerrainObjectRequestsTests\|ScenarioLoadStep` | 95 / 0, 45 / 0; 4 / 0 |
+| P-4 re-ground + roads | `--filter TerrainHeightTests\|CraterTests\|RoutePlanner` | 46 / 0 |
 
 ⚠ Not yet run: `stepped-hash.py --threads 1,4,8`, drawing rails under Xvfb (nothing drawn changed), the full solution build.
 

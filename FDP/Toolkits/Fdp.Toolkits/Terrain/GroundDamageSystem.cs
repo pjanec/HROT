@@ -182,4 +182,62 @@ namespace Fdp.Toolkit.Terrain
             return _query!;
         }
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4591</c> (P-4; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md G-11, V-8) — RE-GROUNDING: when a crater appears (the view's crater table gains one), every
+    /// entity this node OWNS that stood on the ground inside its changed disc takes the cratered ground (a man does not float over the hole; a moving one re-samples by
+    /// itself anyway). ⛔ Never a replica (its owner re-grounds it), never a static obstacle (the loader owns it; moving it would re-trigger its own bake — V-8), never an
+    /// entity off the ground (an aircraft, a man on a floor: more than <see cref="OnGroundMetres"/> from the bare ground), never during a replay.
+    /// </summary>
+    [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
+    public sealed class CraterRegroundSystem : IEcsModuleSystem
+    {
+        /// <summary>How far from the ground (before the crater) an entity may stand and still count as standing on it.</summary>
+        public const float OnGroundMetres = 0.5f;
+
+        private CraterTable? _last;
+        private readonly HashSet<Crater> _before = new();
+        private readonly List<Crater> _added = new();
+        private EntityQuery? _query;
+        private EntityRepository? _queryRepo;
+
+        /// <summary>Entities moved (rails, diagnostics).</summary>
+        public long Regrounded { get; private set; }
+
+        public void Execute(ISimulationView view, float deltaTime)
+        {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<GroundDamage>() || !repo.IsComponentTypeRegistered<SimTransform>()) return;
+            if (!repo.HasSingletonManaged<TerrainWorld>() || repo.GetSingletonManaged<TerrainWorld>() is not { } terrain) return;
+            var craters = DoorStates.Of(repo, terrain).Craters;
+            if (ReferenceEquals(craters, _last)) return;   // the steady frame: one reference compare
+            var was = _last; _last = craters;
+            if (craters == null) return;
+            _before.Clear(); _added.Clear();
+            if (was != null) for (int i = 0; i < was.Count; i++) _before.Add(was[i]);
+            for (int i = 0; i < craters.Count; i++) if (!_before.Contains(craters[i])) _added.Add(craters[i]);
+            if (_added.Count == 0) return;
+
+            if (!ReferenceEquals(repo, _queryRepo)) { _query = repo.Query().With<SimTransform>().Build(); _queryRepo = repo; }
+            bool obstacles = repo.IsComponentTypeRegistered<StaticObstacle>(), damage = repo.IsComponentTypeRegistered<BuildingDamage>();
+            foreach (var e in _query!)
+            {
+                if (obstacles && repo.HasComponent<StaticObstacle>(e)) continue;
+                if (repo.HasComponent<GroundDamage>(e) || (damage && repo.HasComponent<BuildingDamage>(e))) continue;   // the records themselves
+                var t = repo.GetComponentRO<SimTransform>(e);
+                var p = new Vector2(t.Position.X, t.Position.Y);
+                bool inside = false;
+                for (int k = 0; k < _added.Count && !inside; k++) inside = Vector2.DistanceSquared(p, _added[k].Centre) < _added[k].OuterRadius * _added[k].OuterRadius;
+                if (!inside) continue;
+                if (!Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(repo, e)) continue;   // a replica: its owner re-grounds it
+                if (MathF.Abs(t.Position.Z - terrain.BareGroundHeightAt(p.X, p.Y) - (was?.Offset(p.X, p.Y) ?? 0f)) > OnGroundMetres) continue;   // off the ground
+                float z = craters.GroundHeightAt(terrain, p.X, p.Y);
+                if (z == t.Position.Z) continue;
+                t.Position = new Vector3(t.Position.X, t.Position.Y, z);
+                repo.SetComponent(e, t);
+                Regrounded++;
+            }
+        }
+    }
 }

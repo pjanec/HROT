@@ -2,6 +2,7 @@ using Fdp.Testing;
 using System;
 using System.Linq;
 using System.Numerics;
+using Fdp.Core;
 using Fdp.Toolkit.Navigation.Recast;
 using Xunit;
 
@@ -479,6 +480,28 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.InRange(rampZ, w.GroundHeightAt(65f, 100f) + 2.4f, w.GroundHeightAt(65f, 100f) + 3.4f);
             float underZ = Fdp.Toolkit.Navigation.RoadHeights.At(roads.Blob, 5, 80f, new Vector2(100f, 100f), q);    // Under Road, beneath the deck
             Assert.Equal(w.GroundHeightAt(100f, 100f), underZ, 2);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4591</c> (P-4, V-20) — a crater on a road (a bowl that does not cover its full width, so the road stays open): the road's height there is the
+        /// CRATERED ground — a truck dips into it — not the node line carried over it like a bridge over a valley; the bridge's deck is unchanged.
+        /// 🔴 Red-proof: drop the crater branch in <c>RoadHeights.At</c> ⇒ the road point stays at the old ground.
+        /// </summary>
+        [Fact]
+        public void CE4591_ARoadPointOverACrater_IsOnTheCrateredGround_AndTheDeckIsUnchanged()
+        {
+            var w = Overpass();
+            using var roads = new RoadsHolder(OverpassRoads());
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<GroundDamage>();
+            repo.SetSingletonManaged(w);
+            var c = new Crater(new Vector2(102.5f, 40f), 2f, 0.8f, 0.15f, (SimInstant)0, CraterKind.Small);
+            var d = new GroundDamage(); (d.CellX, d.CellY) = GroundDamages.CellOf(c.Centre); GroundDamages.Add(ref d, in c, out _);
+            var e = repo.CreateEntity(); repo.AddComponent(e, d);
+            var q = TerrainWorldQuery.ForView(repo, w);
+            float ground = w.GroundHeightAt(102.5f, 40f);
+            Assert.Equal(ground - 0.8f, Fdp.Toolkit.Navigation.RoadHeights.At(roads.Blob, 5, 20f, new Vector2(102.5f, 40f), q), 2);
+            Assert.Equal(w.GroundHeightAt(100f, 100f) + 6f, Fdp.Toolkit.Navigation.RoadHeights.At(roads.Blob, 2, 20f, new Vector2(100f, 100f), q), 1);
         }
 
         [Fact]
