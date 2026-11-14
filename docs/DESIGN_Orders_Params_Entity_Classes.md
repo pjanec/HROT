@@ -2782,7 +2782,7 @@ AND loop stays in ONE helper both callers use.
 **Rails:** `BehaviorFitTests` (Hrot.Core.Tests, 6) · `TheOfferedBehavioursFitTheEntityTests` (Hrot.Editor.Tests: the golden + tank / squad / rifleman / civilian / aircraft / objective + authored-asset rails) · `TheOrdersAddTaskPopupFitsTheEntityTests` (a real ImGui frame of the Orders tab's open popup for a tank and a squad, `xvfb-run -a`).
 
 
-## 15. CE-4612 — orders as TYPED state, not behaviour names *(behaviors, `2026-11-14` · build-state: BUILDING · R-4251 R-D11 A′ steps ①–⑤; ⛔ step ⑥, routing the 18 `CommandOrders.Assign` sites, is NOT here)*
+## 15. CE-4612 — orders as TYPED state, not behaviour names *(behaviors, `2026-11-14` · build-state: BUILT `2026-11-14` · R-4251 R-D11 A′ steps ①–⑤; ⛔ step ⑥, routing the 18 `CommandOrders.Assign` sites, is NOT here)*
 
 🔒 User (R-D11): *"name comparisons to find out what entity is doing is pretty fragile"*. 📄 basis: [Aggregate Squad §17.2 R-D11](designs/aggregate-units/DESIGN_Aggregate_Squad.md).
 

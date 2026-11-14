@@ -408,7 +408,7 @@ GAINS two state components (S-1) and one system that copies the running resoluti
 
 ## 10, 12–16b. ➜ moved to [DESIGN_Stochastic_Units_And_Resolution.md](DESIGN_Stochastic_Units_And_Resolution.md) *(same section numbers)*
 
-## 18. CE-4613 — `UnitStrength`, the one strength seam *(behaviors, `2026-11-14` · build-state: BUILDING · R-D4)*
+## 18. CE-4613 — `UnitStrength`, the one strength seam *(behaviors, `2026-11-14` · build-state: BUILT · R-D4 — as built: a ROSTER makes an entity a unit here (a commander without `UnitEntity` reports its men, as `StrengthOf` always did); a sub-unit with no roster counts as one present member (as `CombatEffective` takes it))*
 
 ### 18.0 INVENTORY *(grep `StrengthOf( · FightingMembers( · StandingMembers( · SquadEnemyStrengthRatio · MinEffective(` outside tests; `search_graph` `.*(Strength|CombatEffective|Census).*`; ⚠ coverage not checkable through the CLI)*
 
