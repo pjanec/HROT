@@ -44,6 +44,7 @@ def main():
             x, y, z = e["SimTransform"]["Position"]
             if name == "Spotter":
                 e["SimTransform"]["Position"] = [290, 160, 0]
+                e["SimTransform"]["Rotation"] = [0, 0, 1, 0]   # facing WEST, at the line (+X is forward; the source faced him south)
                 e["Behavior"]["Params"]["Rounds"] = 4
             else:
                 e["SimTransform"]["Position"] = [x - 740 + 280, y - 745 + 30, z]   # the cell keeps its shape, centred at (280, 30)
